@@ -247,8 +247,16 @@ window.addEventListener('unhandledrejection', function(e) {
         window.__vibexe_terrainBody = null;
         window.__vibexe_terrainPostStep = null;
         window.__vibexe_terrainData = null;
-        // Rapier cleanup — free WASM resources
+        // Rapier cleanup — free KCC + WASM resources BEFORE freeing world
         var _rpw = window.__vibexe_rapierWorld__;
+        // Free character KCC/body/collider BEFORE world.free() — prevents stale ref crash
+        if (window.__charCtrl_rapier) {
+          var _ckr = window.__charCtrl_rapier;
+          try { if (_ckr.kcc && _ckr.kcc.free) _ckr.kcc.free(); } catch(e) {}
+          try { if (_ckr.collider && _rpw) _rpw.removeCollider(_ckr.collider, true); } catch(e) {}
+          try { if (_ckr.body && _rpw) _rpw.removeRigidBody(_ckr.body); } catch(e) {}
+          window.__charCtrl_rapier = null;
+        }
         if (_rpw && _rpw.free) { try { _rpw.free(); } catch(e) {} }
         window.__vibexe_rapierWorld__ = null;
         window.__vibexe_rapierBodyMap__ = null;
