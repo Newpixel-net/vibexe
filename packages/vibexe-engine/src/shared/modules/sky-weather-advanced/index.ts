@@ -1232,14 +1232,13 @@ CloudSystem.prototype.build = function(scene) {
   var colors = new Float32Array(posAttr.count * 3);
   this._geo.setAttribute("color", new THREE.BufferAttribute(colors, 3));
 
-  // Cloud rendering: premultiplied RGB (alpha baked in) + additive blend
-  // Clear-sky vertices = black (add nothing), cloud vertices = bright (add light)
+  // Cloud rendering: NormalBlending with sky-matched non-cloud vertices
+  // Non-cloud vertices = sky color (invisible blend), cloud vertices = bright white
   this._mat = new THREE.MeshBasicMaterial({
     vertexColors: true,
     side: THREE.BackSide,
     transparent: true,
-    opacity: 1.0,
-    blending: THREE.AdditiveBlending,
+    opacity: 0.95,
     depthWrite: false,
     fog: false,
   });
@@ -1252,14 +1251,14 @@ CloudSystem.prototype.build = function(scene) {
   scene.add(this._dome);
 };
 
-CloudSystem.prototype.updateColors = function() {
+CloudSystem.prototype.updateColors = function(atmosphere) {
   if (!this._geo) return;
 
   var posAttr = this._geo.getAttribute("position");
   var colorAttr = this._geo.getAttribute("color");
   var colors = colorAttr.array;
   var dir = [0, 0, 0];
-  var maxAlpha = 0;
+  var hasAnyClouds = false;
 
   for (var i = 0; i < posAttr.count; i++) {
     var x = posAttr.getX(i);
@@ -1269,15 +1268,21 @@ CloudSystem.prototype.updateColors = function() {
     if (len > 0) { dir[0] = x/len; dir[1] = y/len; dir[2] = z/len; }
     else { dir[0] = 0; dir[1] = 1; dir[2] = 0; }
 
-    var c = this._sampleCloud(dir[0], dir[1], dir[2]);
-    // Premultiplied alpha: RGB * alpha. Clear sky = black (adds nothing with additive blend)
-    var a = c[3];
-    colors[i*3]   = c[0] * a;
-    colors[i*3+1] = c[1] * a;
-    colors[i*3+2] = c[2] * a;
-    if (a > maxAlpha) maxAlpha = a;
+    var cloud = this._sampleCloud(dir[0], dir[1], dir[2]);
+    var a = cloud[3];
+
+    // Sample sky color for this direction (to blend non-cloud areas seamlessly)
+    var sky = atmosphere ? atmosphere._computeSkyColor(dir) : [0.53, 0.72, 0.9];
+
+    // Lerp: sky color → cloud color based on alpha
+    colors[i*3]   = sky[0] * (1 - a) + cloud[0] * a;
+    colors[i*3+1] = sky[1] * (1 - a) + cloud[1] * a;
+    colors[i*3+2] = sky[2] * (1 - a) + cloud[2] * a;
+    if (a > 0.05) hasAnyClouds = true;
   }
   colorAttr.needsUpdate = true;
+  // Only show dome if there are actual clouds (otherwise seamless sky-color dome is pointless)
+  if (this._dome) this._dome.visible = hasAnyClouds;
 };
 
 CloudSystem.prototype.update = function(dt, camera, sunDir, settings) {
@@ -2415,7 +2420,7 @@ function SkyWeatherAdvancedSystem(scene, settings) {
   this.clouds._coverage = cs.coverage != null ? cs.coverage : 0.35;
   this.clouds._sunDir = [this.orbital.sunDirection.x, this.orbital.sunDirection.y, this.orbital.sunDirection.z];
   if (this.clouds._dome) this.clouds._dome.visible = this.clouds._coverage > 0.01;
-  this.clouds.updateColors();
+  this.clouds.updateColors(this.atmosphere);
 
   // Hook into game loop
   this._animFrameId = null;
@@ -2583,7 +2588,7 @@ SkyWeatherAdvancedSystem.prototype._tick = function(dt) {
   this._cloudUpdateTimer += dt;
   if (this._cloudUpdateTimer >= this._cloudUpdateInterval) {
     this._cloudUpdateTimer = 0;
-    this.clouds.updateColors();
+    this.clouds.updateColors(this.atmosphere);
   }
 
   // Moon
