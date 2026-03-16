@@ -1211,31 +1211,14 @@ CloudSystem.prototype.build = function(scene) {
 
   var posAttr = this._geo.getAttribute("position");
   var colors = new Float32Array(posAttr.count * 3);
-  var alphas = new Float32Array(posAttr.count);
   this._geo.setAttribute("color", new THREE.BufferAttribute(colors, 3));
-  this._geo.setAttribute("alpha", new THREE.BufferAttribute(alphas, 1));
 
-  this._mat = new THREE.ShaderMaterial({
-    vertexShader: [
-      "attribute float alpha;",
-      "varying vec3 vColor;",
-      "varying float vAlpha;",
-      "void main() {",
-      "  vColor = color;",
-      "  vAlpha = alpha;",
-      "  gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);",
-      "}"
-    ].join("\\n"),
-    fragmentShader: [
-      "varying vec3 vColor;",
-      "varying float vAlpha;",
-      "void main() {",
-      "  gl_FragColor = vec4(vColor, vAlpha);",
-      "}"
-    ].join("\\n"),
+  // WebGPU-compatible: MeshBasicMaterial with vertex colors (no ShaderMaterial)
+  this._mat = new THREE.MeshBasicMaterial({
     vertexColors: true,
     side: THREE.BackSide,
     transparent: true,
+    opacity: 0.7,
     depthWrite: false,
     fog: false,
   });
@@ -1253,10 +1236,9 @@ CloudSystem.prototype.updateColors = function() {
 
   var posAttr = this._geo.getAttribute("position");
   var colorAttr = this._geo.getAttribute("color");
-  var alphaAttr = this._geo.getAttribute("alpha");
   var colors = colorAttr.array;
-  var alphas = alphaAttr.array;
   var dir = [0, 0, 0];
+  var maxAlpha = 0;
 
   for (var i = 0; i < posAttr.count; i++) {
     var x = posAttr.getX(i);
@@ -1267,13 +1249,16 @@ CloudSystem.prototype.updateColors = function() {
     else { dir[0] = 0; dir[1] = 1; dir[2] = 0; }
 
     var c = this._sampleCloud(dir[0], dir[1], dir[2]);
-    colors[i*3]   = c[0];
-    colors[i*3+1] = c[1];
-    colors[i*3+2] = c[2];
-    alphas[i]     = c[3];
+    // Bake alpha into color brightness (no per-vertex alpha with MeshBasicMaterial)
+    var a = c[3];
+    colors[i*3]   = c[0] * a;
+    colors[i*3+1] = c[1] * a;
+    colors[i*3+2] = c[2] * a;
+    if (a > maxAlpha) maxAlpha = a;
   }
   colorAttr.needsUpdate = true;
-  alphaAttr.needsUpdate = true;
+  // Set overall material opacity based on max cloud density
+  if (this._mat) this._mat.opacity = _clamp(maxAlpha * 1.5, 0, 0.9);
 };
 
 CloudSystem.prototype.update = function(dt, camera, sunDir, settings) {
@@ -1364,49 +1349,13 @@ MoonRenderer.prototype.build = function(scene) {
 
   this._geo = new THREE.SphereGeometry(1, 32, 16);
   this._geo.name = "__swa_moon_geo__";
+  this._moonTex = moonTex;
 
-  // Custom shader for phase shadow
-  this._mat = new THREE.ShaderMaterial({
-    uniforms: {
-      uMoonTex: { value: moonTex },
-      uSunDir: { value: new THREE.Vector3(0, 1, 0) },
-      uPhase: { value: 0.5 },
-      uBrightness: { value: 1.0 },
-      uHorizonTint: { value: new THREE.Color(1, 1, 1) },
-    },
-    vertexShader: [
-      "varying vec2 vUV;",
-      "varying vec3 vNormal;",
-      "varying vec3 vWorldPos;",
-      "void main() {",
-      "  vUV = uv;",
-      "  vNormal = normalize(normalMatrix * normal);",
-      "  vWorldPos = (modelMatrix * vec4(position, 1.0)).xyz;",
-      "  gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);",
-      "}"
-    ].join("\\n"),
-    fragmentShader: [
-      "uniform sampler2D uMoonTex;",
-      "uniform vec3 uSunDir;",
-      "uniform float uPhase;",
-      "uniform float uBrightness;",
-      "uniform vec3 uHorizonTint;",
-      "varying vec2 vUV;",
-      "varying vec3 vNormal;",
-      "void main() {",
-      "  vec3 tex = texture2D(uMoonTex, vUV).rgb;",
-      "  float NdotL = dot(vNormal, uSunDir);",
-      "  float lit = smoothstep(-0.1, 0.3, NdotL);",
-      "  vec3 dayColor = tex * lit * 2.0 * uBrightness;",
-      "  float earthshine = 0.03 * uBrightness;",
-      "  vec3 nightColor = tex * earthshine;",
-      "  vec3 color = mix(nightColor, dayColor, lit);",
-      "  color *= uHorizonTint;",
-      "  float alpha = smoothstep(-0.05, 0.05, lit + earthshine * 5.0);",
-      "  gl_FragColor = vec4(color, alpha);",
-      "}"
-    ].join("\\n"),
+  // WebGPU-compatible: MeshBasicMaterial with texture (no ShaderMaterial)
+  this._mat = new THREE.MeshBasicMaterial({
+    map: moonTex,
     transparent: true,
+    opacity: 0.9,
     depthWrite: false,
     side: THREE.FrontSide,
     fog: false,
@@ -1438,23 +1387,20 @@ MoonRenderer.prototype.update = function(camera, moonDir, sunDir, moonPhase, sun
   this._mesh.scale.setScalar(this._size);
   this._mesh.lookAt(camera ? camera.position : new THREE.Vector3(0, 0, 0));
 
-  // Update uniforms
-  this._mat.uniforms.uSunDir.value.copy(sunDir);
-  this._mat.uniforms.uPhase.value = moonPhase;
-  this._mat.uniforms.uBrightness.value = this._brightness;
+  // Phase rendering via color tint (bright when full, dim when new)
+  var phaseBrightness = _clamp(moonPhase * 2, 0.05, 1.0) * this._brightness;
 
   // Horizon tint: orange when moon is low
   var moonAlt = moonDir.y;
+  var r = phaseBrightness, g = phaseBrightness, b = phaseBrightness;
   if (moonAlt < 0.15 && moonAlt > -0.05) {
     var warmT = 1 - _smoothstep(-0.05, 0.15, moonAlt);
-    this._mat.uniforms.uHorizonTint.value.setRGB(
-      _lerp(1.0, 1.0, warmT),
-      _lerp(1.0, 0.7, warmT),
-      _lerp(1.0, 0.4, warmT)
-    );
-  } else {
-    this._mat.uniforms.uHorizonTint.value.setRGB(1, 1, 1);
+    r *= _lerp(1.0, 1.0, warmT);
+    g *= _lerp(1.0, 0.7, warmT);
+    b *= _lerp(1.0, 0.4, warmT);
   }
+  this._mat.color.setRGB(r, g, b);
+  this._mat.opacity = _clamp(phaseBrightness + 0.1, 0.1, 0.95);
 
   // Visibility: only when above horizon
   this._mesh.visible = moonDir.y > -0.05;
@@ -1463,10 +1409,8 @@ MoonRenderer.prototype.update = function(camera, moonDir, sunDir, moonPhase, sun
 MoonRenderer.prototype.dispose = function(scene) {
   if (this._mesh && this._mesh.parent) this._mesh.parent.remove(this._mesh);
   if (this._geo) this._geo.dispose();
-  if (this._mat) {
-    if (this._mat.uniforms.uMoonTex.value) this._mat.uniforms.uMoonTex.value.dispose();
-    this._mat.dispose();
-  }
+  if (this._moonTex) this._moonTex.dispose();
+  if (this._mat) this._mat.dispose();
   this._mesh = null;
 };
 
@@ -1707,40 +1651,12 @@ AuroraRenderer.prototype.build = function(scene) {
   this._geo = new THREE.CylinderGeometry(4500, 4500, 800, 64, 16, true);
   this._geo.name = "__swa_aurora_geo__";
 
-  this._mat = new THREE.ShaderMaterial({
-    uniforms: {
-      uTex: { value: auroraTex },
-      uTime: { value: 0 },
-      uIntensity: { value: 0.5 },
-    },
-    vertexShader: [
-      "varying vec2 vUV;",
-      "varying float vHeight;",
-      "uniform float uTime;",
-      "void main() {",
-      "  vUV = uv;",
-      "  vHeight = position.y;",
-      "  vec3 pos = position;",
-      "  pos.x += sin(uv.y * 6.28 + uTime * 0.5) * 100.0;",
-      "  pos.z += cos(uv.y * 4.0 + uTime * 0.3) * 80.0;",
-      "  gl_Position = projectionMatrix * modelViewMatrix * vec4(pos, 1.0);",
-      "}"
-    ].join("\\n"),
-    fragmentShader: [
-      "uniform sampler2D uTex;",
-      "uniform float uTime;",
-      "uniform float uIntensity;",
-      "varying vec2 vUV;",
-      "varying float vHeight;",
-      "void main() {",
-      "  vec2 uv = vUV;",
-      "  uv.x += uTime * 0.02;",
-      "  vec4 tex = texture2D(uTex, uv);",
-      "  float fade = smoothstep(0.0, 0.3, vUV.y) * smoothstep(1.0, 0.7, vUV.y);",
-      "  gl_FragColor = vec4(tex.rgb * uIntensity * 1.5, tex.a * fade * uIntensity);",
-      "}"
-    ].join("\\n"),
+  this._auroraTex = auroraTex;
+  // WebGPU-compatible: MeshBasicMaterial with texture (no ShaderMaterial)
+  this._mat = new THREE.MeshBasicMaterial({
+    map: auroraTex,
     transparent: true,
+    opacity: 0.5,
     depthWrite: false,
     side: THREE.DoubleSide,
     blending: THREE.AdditiveBlending,
@@ -1771,8 +1687,7 @@ AuroraRenderer.prototype.update = function(dt, camera, latitude, sunAltDeg, sett
   this._mesh.visible = this._visible;
 
   if (this._visible) {
-    this._mat.uniforms.uTime.value = this._time;
-    this._mat.uniforms.uIntensity.value = auroraIntensity * nightFac * latFac;
+    this._mat.opacity = auroraIntensity * nightFac * latFac * 0.6;
     if (camera) {
       this._mesh.position.x = camera.position.x;
       this._mesh.position.z = camera.position.z;
@@ -1783,10 +1698,8 @@ AuroraRenderer.prototype.update = function(dt, camera, latitude, sunAltDeg, sett
 AuroraRenderer.prototype.dispose = function(scene) {
   if (this._mesh && this._mesh.parent) this._mesh.parent.remove(this._mesh);
   if (this._geo) this._geo.dispose();
-  if (this._mat) {
-    if (this._mat.uniforms.uTex.value) this._mat.uniforms.uTex.value.dispose();
-    this._mat.dispose();
-  }
+  if (this._auroraTex) this._auroraTex.dispose();
+  if (this._mat) this._mat.dispose();
   this._mesh = null;
 };
 
