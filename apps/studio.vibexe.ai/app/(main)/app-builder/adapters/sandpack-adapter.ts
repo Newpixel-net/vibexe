@@ -1600,6 +1600,12 @@ export function convertToSandpackFiles(files: AppFile[], langConfig?: SandpackLa
 		}
 	}
 
+	// Mutual exclusion: sky-weather-advanced supersedes sky-weather
+	if (installedModules["sky-weather-advanced"]?.enabled && installedModules["sky-weather"]?.enabled) {
+		installedModules["sky-weather"] = { ...installedModules["sky-weather"], enabled: false };
+		console.log("[SandpackAdapter] sky-weather disabled (sky-weather-advanced takes priority)");
+	}
+
 	// Inject enabled modules
 	for (const [moduleId, moduleConfig] of Object.entries(installedModules)) {
 		if (!moduleConfig.enabled) continue;
@@ -1679,7 +1685,7 @@ export function convertToSandpackFiles(files: AppFile[], langConfig?: SandpackLa
 						"clearInterval(_t);",
 						// Environment — skip bg/fog/lighting when sky-weather module manages them
 						"var e=_gs.environment||{};",
-						`var _swManaged=${so.modules?.installed?.["sky-weather"]?.enabled ? "true" : "false"}||!!(window as any).__skyWeather_active;`,
+						`var _swManaged=${(so.modules?.installed?.["sky-weather"]?.enabled || so.modules?.installed?.["sky-weather-advanced"]?.enabled) ? "true" : "false"}||!!(window as any).__skyWeather_active;`,
 						"if(!_swManaged){",
 						"if(e.backgroundColor){try{s.background=new T.Color(e.backgroundColor)}catch(x){}}",
 						"if(e.fogEnabled){try{s.fog=new T.Fog(e.fogColor||e.backgroundColor||'#87CEEB',e.fogNear||30,e.fogFar||100)}catch(x){}}",
