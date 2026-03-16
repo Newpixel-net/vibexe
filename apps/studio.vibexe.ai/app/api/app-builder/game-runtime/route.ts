@@ -296,6 +296,89 @@ window.addEventListener('unhandledrejection', function(e) {
       }
       bundleLoaded = true;
 
+      // Override createPostProcessing with WebGPU-aware version
+      // (old game bundles only have the legacy EffectComposer path)
+      (function() {
+        var T = window.THREE;
+        if (!T) return;
+        var _PP_PRESETS = {
+          cinematic: { bloom: { strength: 0.4, radius: 0.4, threshold: 0.85 }, fog: { color: 0x88aacc, near: 20, far: 80 }, toneMapping: "ACESFilmic", exposure: 1.0 },
+          vibrant: { bloom: { strength: 0.6, radius: 0.4, threshold: 0.8 }, toneMapping: "ACESFilmic", exposure: 1.0 },
+          dark: { bloom: { strength: 0.3, radius: 0.3, threshold: 0.9 }, fog: { color: 0x111122, near: 5, far: 40 }, toneMapping: "Cineon", exposure: 0.7 },
+          neon: { bloom: { strength: 1.5, radius: 0.6, threshold: 0.4 }, fog: { color: 0x050510, near: 10, far: 60 }, toneMapping: "ACESFilmic", exposure: 0.9 },
+          natural: { bloom: { strength: 0.2, radius: 0.3, threshold: 0.9 }, fog: { color: 0xccddee, near: 30, far: 100 }, toneMapping: "Linear", exposure: 1.0 }
+        };
+        window.POST_PROCESSING_PRESETS = _PP_PRESETS;
+
+        window.createPostProcessing = function(renderer, scene, camera, preset) {
+          function addFog(opts) {
+            scene.fog = new T.Fog((opts && opts.color != null) ? opts.color : 0x88aacc, (opts && opts.near != null) ? opts.near : 20, (opts && opts.far != null) ? opts.far : 80);
+          }
+          function setTM(type, exp) {
+            var m = { Linear: 1, Reinhard: 2, Cineon: 3, ACESFilmic: 4 };
+            renderer.toneMapping = m[type] || 1;
+            renderer.toneMappingExposure = exp || 1;
+          }
+
+          // WebGPU path: THREE.PostProcessing + TSL nodes
+          if (T.PostProcessing && T.pass) {
+            var pp = new T.PostProcessing(renderer);
+            var scenePass = T.pass(scene, camera);
+            var colorNode = scenePass.getTextureNode("output");
+            pp.outputNode = colorNode;
+            window.__vibexe_composer__ = pp;
+
+            function addBloom(opts) {
+              if (!T.bloom) { console.warn("[PostFX] bloom TSL node not loaded"); return; }
+              var s = (opts && opts.strength != null) ? opts.strength : 0.5;
+              var r = (opts && opts.radius != null) ? opts.radius : 0.4;
+              var th = (opts && opts.threshold != null) ? opts.threshold : 0.85;
+              var bloomNode = T.bloom(colorNode, s, r, th);
+              pp.outputNode = colorNode.add(bloomNode);
+              console.log("[PostFX] WebGPU bloom enabled — strength:", s);
+            }
+            function setPreset(name) {
+              var p = _PP_PRESETS[name];
+              if (!p) { console.warn("[PostFX] Unknown preset:", name); return; }
+              if (p.bloom) addBloom(p.bloom);
+              if (p.fog) addFog(p.fog); else scene.fog = null;
+              if (p.toneMapping) setTM(p.toneMapping, p.exposure || 1);
+            }
+            if (preset) setPreset(preset);
+            console.log("[PostFX] WebGPU PostProcessing pipeline created");
+            return { composer: pp, addBloom: addBloom, addFog: addFog, setPreset: setPreset, destroy: function() { window.__vibexe_composer__ = null; if (pp.dispose) pp.dispose(); } };
+          }
+
+          // WebGL fallback: legacy EffectComposer
+          if (!T.EffectComposer) {
+            console.warn("[PostFX] Neither PostProcessing nor EffectComposer available");
+            return null;
+          }
+          var composer = new T.EffectComposer(renderer);
+          composer.addPass(new T.RenderPass(scene, camera));
+          window.__vibexe_composer__ = composer;
+          var _bloomPass = null;
+          function addBloomLegacy(opts) {
+            if (!T.UnrealBloomPass) return;
+            if (_bloomPass) composer.removePass(_bloomPass);
+            var w = renderer.domElement.width / 4;
+            var h = renderer.domElement.height / 4;
+            _bloomPass = new T.UnrealBloomPass(new T.Vector2(w, h), (opts && opts.strength != null) ? opts.strength : 0.5, (opts && opts.radius != null) ? opts.radius : 0.4, (opts && opts.threshold != null) ? opts.threshold : 0.85);
+            composer.addPass(_bloomPass);
+          }
+          function setPresetLegacy(name) {
+            var p = _PP_PRESETS[name];
+            if (!p) return;
+            if (p.bloom) addBloomLegacy(p.bloom);
+            if (p.fog) addFog(p.fog); else scene.fog = null;
+            if (p.toneMapping) setTM(p.toneMapping, p.exposure || 1);
+          }
+          if (preset) setPresetLegacy(preset);
+          return { composer: composer, addBloom: addBloomLegacy, addFog: addFog, setPreset: setPresetLegacy, destroy: function() { window.__vibexe_composer__ = null; composer.dispose && composer.dispose(); } };
+        };
+        console.log("[Runtime] createPostProcessing override applied (WebGPU-aware)");
+      })();
+
       // Notify parent that bundle is loaded
       window.parent.postMessage({ type: 'vibexe-runtime-bundle-loaded' }, '*');
     }
