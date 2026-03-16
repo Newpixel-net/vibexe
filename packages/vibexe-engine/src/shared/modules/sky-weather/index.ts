@@ -507,8 +507,9 @@ function _buildSkyMaterial(u, gradTex) {
     sky.addAssign(rbCol.mul(rbMask).mul(u.uRainbowInt)
       .mul(THREE.smoothstep(THREE.float(0.0), THREE.float(0.12), dir.y)).mul(0.35).mul(rbSunVis));
 
-    // Reinhard tonemap + exposure
-    sky.assign(sky.div(sky.add(THREE.vec3(1.0, 1.0, 1.0))));
+    // Soft tonemap + exposure — only compress extreme highlights (sun/corona),
+    // preserve most of the gradient brightness for vivid sky colors
+    sky.assign(sky.div(sky.add(THREE.vec3(0.6, 0.6, 0.6))));
     sky.assign(sky.mul(u.uExposure));
     sky.assign(THREE.clamp(sky, THREE.vec3(0.0, 0.0, 0.0), THREE.vec3(1.0, 1.0, 1.0)));
 

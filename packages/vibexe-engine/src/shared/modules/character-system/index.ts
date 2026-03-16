@@ -2314,12 +2314,12 @@ function swapCharacter(scene, characterId) {
         window.__charCtrl_orbitPitch = window.__charCtrl_orbitPitch || 0.4; // Default ~23 degrees down
 
         // Camera zoom state (Blink: scroll wheel, min 2 max 15, lerp speed 15)
-        var _camDistTarget = _gsChar.camDist || _initCamOffZ;
+        var _camMinDist = _gsChar.camMinDist || 3;
+        var _camMaxDist = _gsChar.camMaxDist || 25;
+        var _camDistTarget = Math.min(Math.max(_gsChar.camDist || _initCamOffZ, _camMinDist), _camMaxDist);
         var _camHeightTarget = _gsChar.camHeight || _initCamOffY;
         var _camDist = _camDistTarget;
         var _camHeight = _camHeightTarget;
-        var _camMinDist = _gsChar.camMinDist || 3;
-        var _camMaxDist = _gsChar.camMaxDist || 25;
         var _camMinHeight = _gsChar.camMinHeight || 2;
         var _camMaxHeight = _gsChar.camMaxHeight || 20;
         var _camZoomSpeed = 15;
