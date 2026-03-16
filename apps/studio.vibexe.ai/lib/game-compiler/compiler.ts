@@ -832,6 +832,10 @@ if (!gameScene || typeof gameScene.init !== 'function') {
     if (renderer.info?.reset) renderer.info.reset();
     try { renderer.render(scene, camera); } catch(__re) { var __rm=__re?.message||""; if (!__rm.includes("already initialized")&&!__rm.includes("usedTimes")&&!__rm.includes("is not a function")) throw __re; }
 
+    // Bundle generation counter — each bundle gets a unique ID.
+    // Old animate loops detect they're orphaned by checking their gen vs the global.
+    const __bundleGen = (W.__vibexe_bundleGen__ = (W.__vibexe_bundleGen__ || 0) + 1);
+
     // Show TAP TO START overlay then start game loop
     const _startLoop = () => {
       try { _getAudioContext(); } catch {}
@@ -880,9 +884,10 @@ if (!gameScene || typeof gameScene.init !== 'function') {
       };
 
       function animate(time?: number) {
-        // Guard: stop loop if scene was destroyed (bundle reload / mode switch cleanup)
-        // Check window globals (not closure vars) — closure may hold stale disposed objects
-        if (!W.__vibexe_scene__ || !W.__vibexe_renderer__ || !W.__vibexe_camera__) return;
+        // Guard: stop orphaned game loops from previous bundles.
+        // Each bundle captures __bundleGen at creation. If the global incremented (new bundle),
+        // this loop is stale — return without scheduling next frame to let it die.
+        if (W.__vibexe_bundleGen__ !== __bundleGen) return;
         if (!scene || !renderer || !camera) return;
         W.__vibexe_animFrameId__ = requestAnimationFrame(animate);
         try {
