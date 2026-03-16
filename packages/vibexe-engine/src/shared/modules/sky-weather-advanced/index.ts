@@ -1232,12 +1232,14 @@ CloudSystem.prototype.build = function(scene) {
   var colors = new Float32Array(posAttr.count * 3);
   this._geo.setAttribute("color", new THREE.BufferAttribute(colors, 3));
 
-  // WebGPU-compatible: MeshBasicMaterial with vertex colors (no ShaderMaterial)
+  // WebGPU-compatible: MeshBasicMaterial with vertex colors + additive blend
+  // Additive blend: black vertices (no clouds) add nothing, bright vertices (clouds) add light
   this._mat = new THREE.MeshBasicMaterial({
     vertexColors: true,
     side: THREE.BackSide,
     transparent: true,
-    opacity: 0.7,
+    opacity: 0.85,
+    blending: THREE.AdditiveBlending,
     depthWrite: false,
     fog: false,
   });
@@ -2409,6 +2411,13 @@ function SkyWeatherAdvancedSystem(scene, settings) {
   this.atmosphere._exposure = (this.settings.sky || {}).exposure || 1.2;
   this.atmosphere._mieG = (this.settings.sky || {}).mieDirectionalG || 0.76;
   this.atmosphere.setSunDirection(this.orbital.sunDirection);
+
+  // Initialize cloud coverage + render immediately
+  var cs = this.settings.clouds || {};
+  this.clouds._coverage = cs.coverage != null ? cs.coverage : 0.35;
+  this.clouds._sunDir = [this.orbital.sunDirection.x, this.orbital.sunDirection.y, this.orbital.sunDirection.z];
+  if (this.clouds._dome) this.clouds._dome.visible = this.clouds._coverage > 0.01;
+  this.clouds.updateColors();
 
   // Hook into game loop
   this._animFrameId = null;
