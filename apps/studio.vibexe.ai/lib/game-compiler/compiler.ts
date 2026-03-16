@@ -881,7 +881,9 @@ if (!gameScene || typeof gameScene.init !== 'function') {
 
       function animate(time?: number) {
         // Guard: stop loop if scene was destroyed (bundle reload / mode switch cleanup)
-        if (!scene || !scene.children || !renderer || !camera) return;
+        // Check window globals (not closure vars) — closure may hold stale disposed objects
+        if (!W.__vibexe_scene__ || !W.__vibexe_renderer__ || !W.__vibexe_camera__) return;
+        if (!scene || !renderer || !camera) return;
         W.__vibexe_animFrameId__ = requestAnimationFrame(animate);
         try {
         // Skip when tab hidden
