@@ -256,22 +256,23 @@ export function SkyWeatherPanel({ sendToIframe, onClose, settings, onChange, onS
 				</button>
 			</div>
 
-			{/* Tabs */}
-			<div className="flex border-b border-white/[0.06] px-1 pt-1">
+			{/* Tabs — 3×2 grid */}
+			<div className="grid grid-cols-3 gap-0.5 border-b border-white/[0.06] px-1.5 py-1.5">
 				{tabs.map((tab) => {
 					const Icon = tab.icon;
+					const isActive = activeTab === tab.id;
 					return (
 						<button
 							key={tab.id}
 							type="button"
 							onClick={() => setActiveTab(tab.id)}
-							className={`flex-1 flex items-center justify-center gap-1 py-1.5 text-[10px] rounded-t-lg transition-all ${
-								activeTab === tab.id
-									? "bg-white/[0.06] text-amber-300 border-b-2 border-amber-400"
-									: "text-white/30 hover:text-white/50 hover:bg-white/[0.03]"
+							className={`flex items-center justify-center gap-1 py-1.5 text-[10px] rounded-md transition-all ${
+								isActive
+									? "bg-amber-500/[0.15] text-amber-300 ring-1 ring-amber-500/30"
+									: "text-white/35 hover:text-white/55 hover:bg-white/[0.05]"
 							}`}
 						>
-							<Icon className="w-3 h-3" />
+							<Icon className="w-3 h-3 shrink-0" />
 							{tab.label}
 						</button>
 					);
