@@ -2419,12 +2419,12 @@ function SkyWeatherAdvancedSystem(scene, settings) {
 
 SkyWeatherAdvancedSystem.DEFAULTS = {
   time: {
-    solarTime: 0.45,
+    solarTime: 0.65,
     cycleLengthMinutes: 10,
-    autoAdvance: false,
-    latitude: 45,
-    longitude: 0,
-    timezone: 0,
+    autoAdvance: true,
+    latitude: 35,
+    longitude: 136,
+    timezone: 9,
     year: 2024,
     month: 6,
     day: 21,
@@ -2450,13 +2450,13 @@ SkyWeatherAdvancedSystem.DEFAULTS = {
     shadowsEnabled: true,
   },
   fog: {
-    enabled: false,
+    enabled: true,
     autoColor: true,
-    density: 0.003,
+    density: 0.002,
     heightFalloff: 0,
   },
   clouds: {
-    coverage: 0,
+    coverage: 0.35,
     density: 0.85,
     speed: 1.0,
     scale: 3.0,
@@ -2477,7 +2477,7 @@ SkyWeatherAdvancedSystem.DEFAULTS = {
     forecastInterval: 60,
   },
   effects: {
-    godRays: 0,
+    godRays: 0.5,
     aurora: 0,
     rainbow: 0,
     shootingStars: 0,

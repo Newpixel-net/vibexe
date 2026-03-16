@@ -130,15 +130,15 @@ const TIME_PRESETS = [
 ];
 
 const ADVANCED_DEFAULTS: SkyWeatherConfig = {
-	time: { solarTime: 0.45, cycleLengthMinutes: 10, autoAdvance: false, latitude: 35, longitude: 136, timezone: 9, year: 2024, month: 6, day: 21 },
+	time: { solarTime: 0.65, cycleLengthMinutes: 10, autoAdvance: true, latitude: 35, longitude: 136, timezone: 9, year: 2024, month: 6, day: 21 },
 	sky: { sunDiskSize: 0.028, moonDiskSize: 0.022, mieCoefficient: 0.005, mieDirectionalG: 0.76, starIntensity: 1.0, exposure: 1.2, rayleighScale: 1.0, sunIntensity: 22.0, galaxyIntensity: 1.0, planetIntensity: 1.0, moonBrightness: 1.0 },
 	lighting: { autoSunLight: true, autoAmbient: true, sunIntensity: 1.5, ambientIntensity: 0.4, shadowsEnabled: true },
-	fog: { enabled: false, autoColor: true, density: 0.003, heightFalloff: 0 },
-	clouds: { coverage: 0, density: 0.85, speed: 1.0, scale: 3.0, brightness: 1.0 },
+	fog: { enabled: true, autoColor: true, density: 0.002, heightFalloff: 0 },
+	clouds: { coverage: 0.35, density: 0.85, speed: 1.0, scale: 3.0, brightness: 1.0 },
 	precipitation: { type: "none", intensity: 0, windDirection: 0, windStrength: 0.3 },
 	lightning: { enabled: false, frequency: 0.1 },
 	weather: { autoForecast: false, forecastInterval: 60 },
-	effects: { godRays: 0, aurora: 0, rainbow: 0, shootingStars: 0, ambientAudio: false, audioVolume: 0.5 },
+	effects: { godRays: 0.5, aurora: 0, rainbow: 0, shootingStars: 0, ambientAudio: false, audioVolume: 0.5 },
 };
 
 const BASIC_DEFAULTS: SkyWeatherConfig = {
