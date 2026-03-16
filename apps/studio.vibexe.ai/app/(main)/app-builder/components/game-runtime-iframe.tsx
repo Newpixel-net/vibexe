@@ -61,6 +61,12 @@ export function GameRuntimeIframe({
 	const filesRef = useRef(files);
 	filesRef.current = files;
 
+	// Store suppressRecompile in a ref so the file-change useEffect doesn't
+	// re-trigger when only the mode (Scene↔Game) changes with no file edits.
+	// This prevents the #1 source of freezes: a full 20-file recompile on every toggle.
+	const suppressRecompileRef = useRef(suppressRecompile);
+	suppressRecompileRef.current = suppressRecompile;
+
 	// Compile game code server-side
 	const compileAndInject = useCallback(async () => {
 		const currentFiles = filesRef.current;
@@ -249,10 +255,11 @@ export function GameRuntimeIframe({
 	}, [compileAndInject, iframeRef, onBundleLoaded]);
 
 	// Recompile when files change (debounced 500ms)
-	// Skip recompile while scene editor is active to prevent destroying scene state
+	// suppressRecompile is read from a ref — mode toggle (Scene↔Game) no longer
+	// triggers this effect, only actual file content changes do.
 	useEffect(() => {
 		if (!runtimeReady.current) return;
-		if (suppressRecompile) return;
+		if (suppressRecompileRef.current) return;
 
 		if (compileTimeout.current) {
 			clearTimeout(compileTimeout.current);
@@ -267,7 +274,7 @@ export function GameRuntimeIframe({
 				clearTimeout(compileTimeout.current);
 			}
 		};
-	}, [files, compileAndInject, suppressRecompile]);
+	}, [files, compileAndInject]);
 
 	return (
 		<div className="relative w-full h-full">

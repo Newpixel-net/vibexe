@@ -524,6 +524,12 @@ export function getVisualEditBridgeScript(): string {
   var _savedCameraPos = null;
   var _savedCameraQuat = null;
   var _savedOrbitTarget = null;
+  // Saved renderer state (restored on deactivation to prevent Game mode degradation)
+  var _savedPixelRatio = null;
+  var _savedShadowMapType = null;
+  var _savedShadowAutoUpdate = null;
+  var _savedShadowEnabled = null;
+  var _savedSkipComposer = null;
   // Persisted camera position/target from parent (survives reload / Scene↔Game transitions)
   var _restoreCameraPos = null;
   var _restoreCameraTarget = null;
@@ -2359,12 +2365,18 @@ export function getVisualEditBridgeScript(): string {
         _c.__bridgeWrapped = true;
       }
       // === Runtime renderer optimizations (patches old saved IIFE code) ===
+      // SAVE all renderer state before modifying — restored in deactivateBridge()
       if (editor.renderer) {
         var _r = editor.renderer;
+        _savedPixelRatio = _r.getPixelRatio();
+        _savedShadowMapType = _r.shadowMap ? _r.shadowMap.type : null;
+        _savedShadowAutoUpdate = _r.shadowMap ? _r.shadowMap.autoUpdate : null;
+        _savedShadowEnabled = _r.shadowMap ? _r.shadowMap.enabled : null;
+        showDebug("Saved renderer state: PR=" + _savedPixelRatio + " shadowType=" + _savedShadowMapType + " shadowAuto=" + _savedShadowAutoUpdate + " shadowOn=" + _savedShadowEnabled);
         // Cap pixelRatio at 1.0 for max FPS
         if (_r.getPixelRatio() > 1.0) {
           _r.setPixelRatio(1.0);
-          showDebug("PerfPatch: pixelRatio capped to 1.0 (was " + window.devicePixelRatio + ")");
+          showDebug("PerfPatch: pixelRatio capped to 1.0 (was " + _savedPixelRatio + ")");
         }
         // Switch to faster shadow filtering
         if (THREE.PCFShadowMap !== undefined && _r.shadowMap.type !== THREE.PCFShadowMap) {
@@ -2393,6 +2405,8 @@ export function getVisualEditBridgeScript(): string {
           });
         }
         // Disable bloom and bypass EffectComposer for editor perf
+        // Save skipComposer state — PerfGuard may have intentionally enabled/disabled it
+        _savedSkipComposer = !!window.__vibexe_skipComposer__;
         var _comp = window.__vibexe_composer__;
         if (_comp && _comp.passes) {
           for (var _bi = 0; _bi < _comp.passes.length; _bi++) {
@@ -2401,7 +2415,7 @@ export function getVisualEditBridgeScript(): string {
             }
           }
           window.__vibexe_skipComposer__ = true;
-          showDebug("PerfPatch: bloom disabled + composer bypass");
+          showDebug("PerfPatch: bloom disabled + composer bypass (was skipComposer=" + _savedSkipComposer + ")");
         }
       }
       // Fix OrbitControls for editor mode — must use deferred override because
@@ -2809,9 +2823,10 @@ export function getVisualEditBridgeScript(): string {
     active = false;
     window.__vibexe_editor_active__ = false;
     window.__vibexe_bridge_rendering__ = false;
-    // Restore composer bypass (editor disables it for perf, game needs it back)
-    window.__vibexe_skipComposer__ = false;
-    // Re-enable bloom passes that editor disabled
+    // Restore composer bypass to pre-bridge state (PerfGuard may have set it true for perf)
+    window.__vibexe_skipComposer__ = _savedSkipComposer != null ? _savedSkipComposer : false;
+    _savedSkipComposer = null;
+    // Re-enable bloom passes that editor disabled (legacy EffectComposer path)
     var _rstComp = window.__vibexe_composer__;
     if (_rstComp && _rstComp.passes) {
       for (var _ri = 0; _ri < _rstComp.passes.length; _ri++) {
@@ -2832,6 +2847,28 @@ export function getVisualEditBridgeScript(): string {
       delete _dc.__origRender;
       delete _dc.__bridgeWrapped;
     }
+    // Restore ALL saved renderer state (prevents Game mode quality degradation after Scene editing)
+    if (editor && editor.renderer) {
+      var _rr = editor.renderer;
+      if (_savedPixelRatio != null) {
+        _rr.setPixelRatio(_savedPixelRatio);
+        showDebug("Restored pixelRatio: " + _savedPixelRatio);
+      }
+      if (_rr.shadowMap) {
+        if (_savedShadowMapType != null) { _rr.shadowMap.type = _savedShadowMapType; }
+        if (_savedShadowAutoUpdate != null) { _rr.shadowMap.autoUpdate = _savedShadowAutoUpdate; }
+        if (_savedShadowEnabled != null) { _rr.shadowMap.enabled = _savedShadowEnabled; }
+        _rr.shadowMap.needsUpdate = true;
+        showDebug("Restored shadows: type=" + _savedShadowMapType + " auto=" + _savedShadowAutoUpdate + " enabled=" + _savedShadowEnabled);
+      }
+      _savedPixelRatio = null;
+      _savedShadowMapType = null;
+      _savedShadowAutoUpdate = null;
+      _savedShadowEnabled = null;
+    }
+    // Reset AdaptiveQuality counters so it doesn't fight restored state
+    var _aqState = window.__vibexe_adaptive_quality__;
+    if (_aqState) { _aqState.reductions = 0; }
     cancelAnimationFrame(editorAnimId);
     // Clear pending persistTransform timer to prevent stale messages after deactivation
     if (persistTimer) { clearTimeout(persistTimer); persistTimer = null; }
@@ -6525,7 +6562,7 @@ export function getVisualEditBridgeScript(): string {
     }
 
     // Skip when game IIFE PerfGuard is active — let it handle quality management
-    if (window.__vibexe_perfguard__) {
+    if (window.__vibexe_perfguard__ || window.__vibexe_quality_authority__ === 'perfguard') {
       return;
     }
 

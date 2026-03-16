@@ -855,8 +855,10 @@ if (!gameScene || typeof gameScene.init !== 'function') {
       const __initFI = 1000 / __defaultFPS;
       W.__vibexe_frameInterval__ = __initFI; W.__vibexe_targetFPS__ = __defaultFPS;
 
-      // Signal PerfGuard is active (bridge AdaptiveQuality should back off)
+      // Signal PerfGuard is active — single quality authority in Game mode
+      // Bridge AdaptiveQuality + route.ts safety net both check this flag and back off
       W.__vibexe_perfguard__ = true;
+      W.__vibexe_quality_authority__ = 'perfguard';
 
       // Disable bloom by default for performance — skip composer entirely and render direct
       W.__vibexe_skipComposer__ = true;
