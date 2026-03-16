@@ -128,11 +128,20 @@ window.dispatchEvent(new Event('vibexe-libs-ready'));
 <!-- Global error handlers — catch bundle crashes and report to parent -->
 <script>
 window.onerror = function(msg, url, line, col, err) {
+  var m = String(msg || '');
+  // Suppress known WebGPU transient errors — they self-resolve and spam the console
+  if (m.indexOf('already initialized') >= 0 || m.indexOf('usedTimes') >= 0
+    || (m.indexOf('Cannot read properties of') >= 0 && String(url||'').indexOf('three') >= 0)
+    || (m.indexOf('Cannot set properties of') >= 0 && String(url||'').indexOf('three') >= 0)) {
+    return true;
+  }
   console.error('[Runtime Error]', msg, 'at', url + ':' + line + ':' + col);
   try { window.parent.postMessage({ type: 'vibexe-runtime-error', error: String(msg), line: line, col: col }, '*'); } catch(e) {}
   return true;
 };
 window.addEventListener('unhandledrejection', function(e) {
+  var m = String(e.reason && e.reason.message || e.reason || '');
+  if (m.indexOf('already initialized') >= 0 || m.indexOf('usedTimes') >= 0 || m.indexOf('Cannot read properties of') >= 0) return;
   console.error('[Runtime Unhandled Rejection]', e.reason);
   try { window.parent.postMessage({ type: 'vibexe-runtime-error', error: String(e.reason) }, '*'); } catch(e2) {}
 });

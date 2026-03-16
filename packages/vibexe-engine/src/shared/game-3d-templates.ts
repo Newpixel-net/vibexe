@@ -7099,6 +7099,8 @@ export default function Game3D({ gameScene: rawScene, bgColor = "#87CEEB", camer
         }
         // Performance auto-guard state
         let __perfFrames = 0, __perfLastCheck = performance.now(), __perfDowngraded = false;
+        // Grace period: skip PerfGuard for first 8 seconds (WebGPU shader compilation is slow)
+        const __perfGraceEnd = __perfLastCheck + 8000;
         // Hoisted vectors for audio listener (avoid per-frame allocation)
         const __audioFwd = new THREE.Vector3();
         const __audioUp = new THREE.Vector3();
@@ -7177,11 +7179,12 @@ export default function Game3D({ gameScene: rawScene, bgColor = "#87CEEB", camer
             __lastFrameTime = time - (__elapsed % __frameInterval);
           }
           // Performance auto-guard: if avg FPS < 30 for 2 seconds, reduce quality
+          // (skip during grace period — WebGPU shader compilation is slow for first ~8s)
           __perfFrames++;
           const __perfNow = performance.now();
           if (__perfNow - __perfLastCheck >= 2000) {
             const __avgFps = __perfFrames / ((__perfNow - __perfLastCheck) / 1000);
-            if (__avgFps < 30 && !__perfDowngraded) {
+            if (__avgFps < 30 && !__perfDowngraded && __perfNow > __perfGraceEnd) {
               __perfDowngraded = true;
               console.log('[PerfGuard] FPS=' + Math.round(__avgFps) + ' — reducing quality');
               renderer.setPixelRatio(Math.min(renderer.getPixelRatio(), 1.0));
