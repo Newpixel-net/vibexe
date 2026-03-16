@@ -434,7 +434,7 @@ if (!gameScene || typeof gameScene.init !== 'function') {
   let __rendererNeedsInit = false;
   if (THREE.WebGPURenderer) {
     renderer = new THREE.WebGPURenderer({
-      antialias: false, // WebGPU MSAA is very expensive — disable by default (can't be changed post-creation)
+      antialias: __perf.antialias !== false, // Honor user's antialias setting (default: on)
       powerPreference: 'high-performance'
     });
     __rendererNeedsInit = true;
@@ -446,7 +446,10 @@ if (!gameScene || typeof gameScene.init !== 'function') {
     console.log('[Runtime] WebGLRenderer fallback');
   }
   renderer.setSize(container.clientWidth, container.clientHeight);
-  renderer.setPixelRatio(Math.min(__perf.pixelRatio || window.devicePixelRatio, 1.5));
+  // HiDPI: use devicePixelRatio (capped at 2) for sharp rendering.
+  // Only respect saved pixelRatio if it's > 1 (legacy setting of 1 on 2x displays looks bad).
+  const __initPR = (__perf.pixelRatio && __perf.pixelRatio > 1) ? __perf.pixelRatio : window.devicePixelRatio;
+  renderer.setPixelRatio(Math.min(__initPR, 2.0));
   renderer.shadowMap.enabled = true;
   renderer.shadowMap.type = THREE.PCFSoftShadowMap;
   renderer.shadowMap.autoUpdate = false;
@@ -582,7 +585,7 @@ if (!gameScene || typeof gameScene.init !== 'function') {
       });
       console.log("[Game3D] Deferred env map applied");
     } catch (__e) { console.warn("[Game3D] env map error:", __e); }
-  }, 5000);
+  }, 2000);
 
   // ===== Physics World =====
   const _createPhysicsWorld = W.createPhysicsWorld;
@@ -773,12 +776,13 @@ if (!gameScene || typeof gameScene.init !== 'function') {
         console.warn('[Runtime] WebGPURenderer init failed, falling back to WebGL:', initRendererErr);
         renderer = new THREE.WebGLRenderer({ antialias: __perf.antialias === true, alpha: false, stencil: false, powerPreference: 'high-performance' });
         renderer.setSize(container.clientWidth, container.clientHeight);
-        renderer.setPixelRatio(Math.min(__perf.pixelRatio || window.devicePixelRatio, 1.0));
+        const __fbPR = (__perf.pixelRatio && __perf.pixelRatio > 1) ? __perf.pixelRatio : window.devicePixelRatio;
+        renderer.setPixelRatio(Math.min(__fbPR, 2.0));
         renderer.shadowMap.enabled = true;
         renderer.shadowMap.type = THREE.PCFShadowMap;
         renderer.outputColorSpace = THREE.SRGBColorSpace;
         renderer.toneMapping = THREE.ACESFilmicToneMapping;
-        renderer.toneMappingExposure = 1.0;
+        renderer.toneMappingExposure = 1.1;
         container.innerHTML = '';
         container.appendChild(renderer.domElement);
         W.__vibexe_renderer__ = renderer;
@@ -864,8 +868,9 @@ if (!gameScene || typeof gameScene.init !== 'function') {
       W.__vibexe_perfguard__ = true;
       W.__vibexe_quality_authority__ = 'perfguard';
 
-      // Disable bloom by default for performance — skip composer entirely and render direct
-      W.__vibexe_skipComposer__ = true;
+      // Skip composer only if no post-processing was configured by the user
+      // If a preset was selected (cinematic, vibrant, etc.), respect it and keep bloom active
+      W.__vibexe_skipComposer__ = !W.__vibexe_composer__;
 
       // Reset PerfGuard counters on tab-switch to prevent false FPS trigger
       const _perfVisHandler = () => {
@@ -912,7 +917,8 @@ if (!gameScene || typeof gameScene.init !== 'function') {
             __perfDowngradeTime = __perfNow;
             W.__vibexe_perfguard_degraded__ = true;
             console.log('[PerfGuard] FPS=' + Math.round(__avgFps) + ' — reducing quality');
-            renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.0));
+            // On HiDPI: degrade to 75% of device ratio (not fixed 1.0) — keeps sharpness
+            renderer.setPixelRatio(Math.min(window.devicePixelRatio * 0.75, 1.5));
             renderer.shadowMap.enabled = false;
             W.__vibexe_cullDistance__ = 80;
             // Reduce FPS target to 30 to give GPU breathing room
@@ -925,7 +931,7 @@ if (!gameScene || typeof gameScene.init !== 'function') {
             __perfDowngraded = false;
             W.__vibexe_perfguard_degraded__ = false;
             console.log('[PerfGuard] FPS=' + Math.round(__avgFps) + ' — restoring quality');
-            renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5));
+            renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2.0));
             renderer.shadowMap.enabled = true;
             renderer.shadowMap.needsUpdate = true;
             W.__vibexe_cullDistance__ = 150;
@@ -948,7 +954,7 @@ if (!gameScene || typeof gameScene.init !== 'function') {
             if (_ir.position.x !== 0 || _ir.position.y !== 0 || _ir.position.z !== 0) _ir.position.set(0, 0, 0);
           }
           __shadowFrame++;
-          if (__shadowFrame >= 15) { __shadowFrame = 0; renderer.shadowMap.needsUpdate = true; }
+          if (__shadowFrame >= 4) { __shadowFrame = 0; renderer.shadowMap.needsUpdate = true; }
           if (!W.__vibexe_bridge_rendering__) {
             if (renderer.info?.reset) renderer.info.reset();
             try {
@@ -1037,14 +1043,14 @@ if (!gameScene || typeof gameScene.init !== 'function') {
             if (__cachedSun.target) { __cachedSun.target.position.set(__px, 0, __pz); __cachedSun.target.updateMatrixWorld(); }
             __shadowFrame++;
             const __sdx = __px - __shadowLastPX, __sdz = __pz - __shadowLastPZ;
-            if (__shadowFrame >= 15 || __sdx * __sdx + __sdz * __sdz > 9) {
+            if (__shadowFrame >= 4 || __sdx * __sdx + __sdz * __sdz > 4) {
               __shadowFrame = 0; __shadowLastPX = __px; __shadowLastPZ = __pz;
               renderer.shadowMap.needsUpdate = true;
             }
           }
         } else {
           __shadowFrame++;
-          if (__shadowFrame >= 15) { __shadowFrame = 0; renderer.shadowMap.needsUpdate = true; }
+          if (__shadowFrame >= 4) { __shadowFrame = 0; renderer.shadowMap.needsUpdate = true; }
         }
 
         // ===== LOD culling (every 4th frame) =====
