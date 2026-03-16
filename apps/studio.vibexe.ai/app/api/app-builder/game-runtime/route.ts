@@ -431,12 +431,18 @@ window.addEventListener('unhandledrejection', function(e) {
 
       // PerfGuard safety net: old game bundles have aggressive thresholds (8s grace, FPS<30)
       // that permanently degrade quality during WebGPU TSL shader compilation.
-      // Run every 15s for 2 minutes to keep overriding old PerfGuard reductions.
+      // Only reset quality during initial 30s grace period, then let game PerfGuard manage.
       (function() {
         var _pgCount = 0;
-        var _pgMax = 8; // 8 * 15s = 120s total protection
+        var _pgMax = 2; // 2 * 15s = 30s initial protection (was 8 = 2min, caused oscillation)
         var _pgInterval = setInterval(function() {
           _pgCount++;
+          // Skip reset if game's own PerfGuard already activated — it has proper thresholds
+          if (window.__vibexe_perfguard__) {
+            clearInterval(_pgInterval);
+            console.log("[Runtime] PerfGuard safety net deferred to game PerfGuard");
+            return;
+          }
           var didReset = false;
           if (window.__vibexe_skipComposer__) {
             window.__vibexe_skipComposer__ = false;
@@ -453,12 +459,12 @@ window.addEventListener('unhandledrejection', function(e) {
           }
           if (_pgCount >= _pgMax) {
             clearInterval(_pgInterval);
-            console.log("[Runtime] PerfGuard safety net expired after 2 min");
+            console.log("[Runtime] PerfGuard safety net expired after 30s");
           }
         }, 15000);
         // Clear interval on page unload
         window.addEventListener('beforeunload', function() { clearInterval(_pgInterval); });
-        console.log("[Runtime] PerfGuard safety net armed (15s interval, 2 min)");
+        console.log("[Runtime] PerfGuard safety net armed (15s interval, 30s)");
       })();
 
       // Notify parent that bundle is loaded
