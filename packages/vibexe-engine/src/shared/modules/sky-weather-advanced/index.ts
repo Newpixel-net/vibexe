@@ -1215,10 +1215,10 @@ CloudSystem.prototype._sampleCloud = function(dirX, dirY, dirZ) {
     b = baseLight * 0.2;
   }
 
-  // Alpha: based on density
-  var alpha = _clamp(totalDensity * 3.0, 0, 0.95);
+  // Alpha: based on density (boosted for visibility with additive blend)
+  var alpha = _clamp(totalDensity * 4.0, 0, 1.0);
 
-  return [_clamp(r, 0, 1.3), _clamp(gn, 0, 1.3), _clamp(b, 0, 1.3), alpha];
+  return [_clamp(r, 0, 1.5), _clamp(gn, 0, 1.5), _clamp(b, 0, 1.5), alpha];
 };
 
 CloudSystem.prototype.build = function(scene) {
@@ -1229,15 +1229,17 @@ CloudSystem.prototype.build = function(scene) {
   this._geo.name = "__swa_cloud_geo__";
 
   var posAttr = this._geo.getAttribute("position");
-  // 4-component vertex colors (RGBA) — alpha controls per-vertex transparency
-  var colors = new Float32Array(posAttr.count * 4);
-  this._geo.setAttribute("color", new THREE.BufferAttribute(colors, 4));
+  var colors = new Float32Array(posAttr.count * 3);
+  this._geo.setAttribute("color", new THREE.BufferAttribute(colors, 3));
 
-  // WebGPU-compatible: MeshBasicMaterial with RGBA vertex colors for per-vertex alpha
+  // Cloud rendering: premultiplied RGB (alpha baked in) + additive blend
+  // Clear-sky vertices = black (add nothing), cloud vertices = bright (add light)
   this._mat = new THREE.MeshBasicMaterial({
     vertexColors: true,
     side: THREE.BackSide,
     transparent: true,
+    opacity: 1.0,
+    blending: THREE.AdditiveBlending,
     depthWrite: false,
     fog: false,
   });
@@ -1268,12 +1270,12 @@ CloudSystem.prototype.updateColors = function() {
     else { dir[0] = 0; dir[1] = 1; dir[2] = 0; }
 
     var c = this._sampleCloud(dir[0], dir[1], dir[2]);
-    // RGBA vertex colors — alpha controls per-vertex transparency
-    colors[i*4]   = c[0];
-    colors[i*4+1] = c[1];
-    colors[i*4+2] = c[2];
-    colors[i*4+3] = c[3]; // 0 = fully transparent (clear sky), >0 = cloud
-    if (c[3] > maxAlpha) maxAlpha = c[3];
+    // Premultiplied alpha: RGB * alpha. Clear sky = black (adds nothing with additive blend)
+    var a = c[3];
+    colors[i*3]   = c[0] * a;
+    colors[i*3+1] = c[1] * a;
+    colors[i*3+2] = c[2] * a;
+    if (a > maxAlpha) maxAlpha = a;
   }
   colorAttr.needsUpdate = true;
 };
