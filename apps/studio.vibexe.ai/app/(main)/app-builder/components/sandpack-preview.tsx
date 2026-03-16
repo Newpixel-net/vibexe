@@ -1947,7 +1947,7 @@ export function SandpackPreview({
 			if (_sceneWasModified) {
 				console.log("[GameEditor] Scene modified during edit session — refreshing preview to apply overrides");
 				sceneModifiedDuringEditRef.current = false;
-				setTimeout(() => { sandpackRefreshRef.current?.(); }, 400);
+				setTimeout(() => { sandpackRefreshRef.current?.(); }, 800);
 			}
 			// Always auto-regenerate terrain on Scene→Game transition if terrain config exists
 			const terrainCfg = gameEditor.gameSettings.terrain;
