@@ -1255,6 +1255,368 @@ CloudSystem.prototype.dispose = function(scene) {
 
 
 // ============================================================
+// Moon Renderer — Procedural moon with phase shadow + earthshine
+// ============================================================
+// Ported from Tenkoku_moonsphere.shader (121 lines)
+
+function MoonRenderer() {
+  this._mesh = null;
+  this._geo = null;
+  this._mat = null;
+  this._moonDir = new THREE.Vector3(0, -1, 0);
+  this._sunDir = new THREE.Vector3(0, 1, 0);
+  this._moonPhase = 0.5; // 0=new, 1=full
+  this._size = 150;
+  this._brightness = 1.0;
+}
+
+MoonRenderer.prototype.build = function(scene) {
+  if (this._mesh) return;
+
+  // Generate procedural moon texture via Canvas
+  var texSize = 128;
+  var canvas = document.createElement("canvas");
+  canvas.width = canvas.height = texSize;
+  var ctx = canvas.getContext("2d");
+
+  // Base: light grey lunar surface
+  ctx.fillStyle = "#b8b0a8";
+  ctx.fillRect(0, 0, texSize, texSize);
+
+  // Add procedural "craters" (darker circles)
+  var craters = [
+    [0.3, 0.4, 0.12], [0.55, 0.3, 0.08], [0.7, 0.6, 0.15],
+    [0.4, 0.7, 0.1], [0.25, 0.6, 0.06], [0.6, 0.45, 0.05],
+    [0.5, 0.55, 0.18], [0.35, 0.25, 0.04], [0.75, 0.35, 0.07],
+    [0.2, 0.5, 0.09], [0.65, 0.75, 0.06], [0.45, 0.15, 0.05],
+  ];
+  for (var i = 0; i < craters.length; i++) {
+    var cx = craters[i][0] * texSize, cy = craters[i][1] * texSize, cr = craters[i][2] * texSize;
+    var grad = ctx.createRadialGradient(cx, cy, 0, cx, cy, cr);
+    grad.addColorStop(0, "rgba(80,75,70,0.5)");
+    grad.addColorStop(0.7, "rgba(100,95,90,0.3)");
+    grad.addColorStop(1, "rgba(184,176,168,0)");
+    ctx.fillStyle = grad;
+    ctx.beginPath();
+    ctx.arc(cx, cy, cr, 0, TWO_PI);
+    ctx.fill();
+  }
+
+  // Maria (dark areas)
+  ctx.fillStyle = "rgba(70,65,60,0.3)";
+  ctx.beginPath();
+  ctx.ellipse(texSize * 0.45, texSize * 0.4, texSize * 0.2, texSize * 0.15, 0.3, 0, TWO_PI);
+  ctx.fill();
+  ctx.beginPath();
+  ctx.ellipse(texSize * 0.55, texSize * 0.55, texSize * 0.12, texSize * 0.1, -0.2, 0, TWO_PI);
+  ctx.fill();
+
+  var moonTex = new THREE.CanvasTexture(canvas);
+  moonTex.colorSpace = THREE.SRGBColorSpace;
+
+  this._geo = new THREE.SphereGeometry(1, 32, 16);
+  this._geo.name = "__swa_moon_geo__";
+
+  // Custom shader for phase shadow
+  this._mat = new THREE.ShaderMaterial({
+    uniforms: {
+      uMoonTex: { value: moonTex },
+      uSunDir: { value: new THREE.Vector3(0, 1, 0) },
+      uPhase: { value: 0.5 },
+      uBrightness: { value: 1.0 },
+      uHorizonTint: { value: new THREE.Color(1, 1, 1) },
+    },
+    vertexShader: [
+      "varying vec2 vUV;",
+      "varying vec3 vNormal;",
+      "varying vec3 vWorldPos;",
+      "void main() {",
+      "  vUV = uv;",
+      "  vNormal = normalize(normalMatrix * normal);",
+      "  vWorldPos = (modelMatrix * vec4(position, 1.0)).xyz;",
+      "  gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);",
+      "}"
+    ].join("\\n"),
+    fragmentShader: [
+      "uniform sampler2D uMoonTex;",
+      "uniform vec3 uSunDir;",
+      "uniform float uPhase;",
+      "uniform float uBrightness;",
+      "uniform vec3 uHorizonTint;",
+      "varying vec2 vUV;",
+      "varying vec3 vNormal;",
+      "void main() {",
+      "  vec3 tex = texture2D(uMoonTex, vUV).rgb;",
+      "  float NdotL = dot(vNormal, uSunDir);",
+      "  float lit = smoothstep(-0.1, 0.3, NdotL);",
+      "  vec3 dayColor = tex * lit * 2.0 * uBrightness;",
+      "  float earthshine = 0.03 * uBrightness;",
+      "  vec3 nightColor = tex * earthshine;",
+      "  vec3 color = mix(nightColor, dayColor, lit);",
+      "  color *= uHorizonTint;",
+      "  float alpha = smoothstep(-0.05, 0.05, lit + earthshine * 5.0);",
+      "  gl_FragColor = vec4(color, alpha);",
+      "}"
+    ].join("\\n"),
+    transparent: true,
+    depthWrite: false,
+    side: THREE.FrontSide,
+    fog: false,
+  });
+  this._mat.name = "__swa_moon_mat__";
+
+  this._mesh = new THREE.Mesh(this._geo, this._mat);
+  this._mesh.name = "__swa_moon__";
+  this._mesh.renderOrder = -998;
+  this._mesh.frustumCulled = false;
+  scene.add(this._mesh);
+};
+
+MoonRenderer.prototype.update = function(camera, moonDir, sunDir, moonPhase, sunAltDeg, settings) {
+  if (!this._mesh) return;
+
+  this._size = (settings.moonDiskSize || 0.022) * 8000;
+  this._brightness = settings.moonBrightness || 1.0;
+
+  // Position moon in the sky
+  var dist = 4700;
+  if (camera) {
+    this._mesh.position.set(
+      camera.position.x + moonDir.x * dist,
+      camera.position.y + moonDir.y * dist,
+      camera.position.z + moonDir.z * dist
+    );
+  }
+  this._mesh.scale.setScalar(this._size);
+  this._mesh.lookAt(camera ? camera.position : new THREE.Vector3(0, 0, 0));
+
+  // Update uniforms
+  this._mat.uniforms.uSunDir.value.copy(sunDir);
+  this._mat.uniforms.uPhase.value = moonPhase;
+  this._mat.uniforms.uBrightness.value = this._brightness;
+
+  // Horizon tint: orange when moon is low
+  var moonAlt = moonDir.y;
+  if (moonAlt < 0.15 && moonAlt > -0.05) {
+    var warmT = 1 - _smoothstep(-0.05, 0.15, moonAlt);
+    this._mat.uniforms.uHorizonTint.value.setRGB(
+      _lerp(1.0, 1.0, warmT),
+      _lerp(1.0, 0.7, warmT),
+      _lerp(1.0, 0.4, warmT)
+    );
+  } else {
+    this._mat.uniforms.uHorizonTint.value.setRGB(1, 1, 1);
+  }
+
+  // Visibility: only when above horizon
+  this._mesh.visible = moonDir.y > -0.05;
+};
+
+MoonRenderer.prototype.dispose = function(scene) {
+  if (this._mesh && this._mesh.parent) this._mesh.parent.remove(this._mesh);
+  if (this._geo) this._geo.dispose();
+  if (this._mat) {
+    if (this._mat.uniforms.uMoonTex.value) this._mat.uniforms.uMoonTex.value.dispose();
+    this._mat.dispose();
+  }
+  this._mesh = null;
+};
+
+
+// ============================================================
+// Lightning Effect — Perlin-path bolts + thunder audio
+// ============================================================
+// Ported from TenkokuLightningFX.cs (430 lines)
+
+function LightningEffect() {
+  this._bolts = [];
+  this._flashLight = null;
+  this._scene = null;
+  this._timer = 0;
+  this._frequency = 0.1;
+  this._enabled = false;
+  this._audioCtx = null;
+}
+
+LightningEffect.prototype.init = function(scene) {
+  this._scene = scene;
+  // Flash light for lightning illumination
+  this._flashLight = new THREE.PointLight(0xCCDDFF, 0, 500);
+  this._flashLight.name = "__swa_lightning_flash__";
+  scene.add(this._flashLight);
+};
+
+LightningEffect.prototype._generateBolt = function(camera) {
+  if (!camera) return null;
+
+  // Random direction from camera
+  var angle = Math.random() * TWO_PI;
+  var distance = 100 + Math.random() * 200;
+  var baseX = camera.position.x + Math.sin(angle) * distance;
+  var baseZ = camera.position.z + Math.cos(angle) * distance;
+  var topY = camera.position.y + 80 + Math.random() * 40;
+  var bottomY = camera.position.y - 5;
+
+  var segments = 30 + Math.floor(Math.random() * 30);
+  var positions = new Float32Array(segments * 2 * 3); // line segments need pairs
+
+  var x = baseX, y = topY, z = baseZ;
+  var stepY = (topY - bottomY) / segments;
+  var jitter = 8 + Math.random() * 12;
+
+  for (var i = 0; i < segments; i++) {
+    // Start point
+    positions[i*6]   = x;
+    positions[i*6+1] = y;
+    positions[i*6+2] = z;
+
+    // Perlin-like jitter with convergence
+    var t = i / segments;
+    x += (Math.random() - 0.5) * jitter * (1 - t * 0.5);
+    y -= stepY;
+    z += (Math.random() - 0.5) * jitter * (1 - t * 0.5);
+
+    // Converge toward base
+    x = _lerp(x, baseX, 0.1);
+    z = _lerp(z, baseZ, 0.1);
+
+    // End point
+    positions[i*6+3] = x;
+    positions[i*6+4] = y;
+    positions[i*6+5] = z;
+  }
+
+  var geo = new THREE.BufferGeometry();
+  geo.setAttribute("position", new THREE.BufferAttribute(positions, 3));
+
+  var mat = new THREE.LineBasicMaterial({
+    color: 0xCCDDFF,
+    transparent: true,
+    opacity: 1.0,
+    linewidth: 2,
+  });
+
+  var line = new THREE.LineSegments(geo, mat);
+  line.name = "__swa_bolt__";
+  line.frustumCulled = false;
+  this._scene.add(line);
+
+  return {
+    mesh: line,
+    geo: geo,
+    mat: mat,
+    life: 0,
+    maxLife: 0.3 + Math.random() * 0.2,
+    intensity: 0.5 + Math.random() * 0.5,
+    position: new THREE.Vector3(baseX, (topY + bottomY) / 2, baseZ),
+    distance: distance,
+  };
+};
+
+LightningEffect.prototype._playThunder = function(distance) {
+  try {
+    if (!this._audioCtx) {
+      this._audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    }
+    var ctx = this._audioCtx;
+    if (ctx.state === "suspended") ctx.resume();
+
+    // Delay based on distance (speed of sound ~343 m/s, game scale ~1:10)
+    var delay = _clamp(distance / 50, 0.1, 3.0);
+    var volume = _clamp(1 - distance / 300, 0.1, 0.8);
+
+    // Generate thunder-like noise burst
+    var duration = 1.5 + Math.random() * 1.5;
+    var sampleRate = ctx.sampleRate;
+    var buffer = ctx.createBuffer(1, sampleRate * duration, sampleRate);
+    var data = buffer.getChannelData(0);
+
+    // Low-frequency rumble with exponential decay
+    for (var i = 0; i < data.length; i++) {
+      var t = i / sampleRate;
+      var decay = Math.exp(-t * 2);
+      // Mix of low-freq rumble + white noise bursts
+      data[i] = ((Math.random() - 0.5) * 0.6 +
+        Math.sin(t * 40 + Math.random()) * 0.3 +
+        Math.sin(t * 80) * 0.1) * decay;
+    }
+
+    var source = ctx.createBufferSource();
+    source.buffer = buffer;
+    var gain = ctx.createGain();
+    gain.gain.value = volume;
+    source.connect(gain);
+    gain.connect(ctx.destination);
+    source.start(ctx.currentTime + delay);
+  } catch(e) {
+    // Audio not available, skip
+  }
+};
+
+LightningEffect.prototype.update = function(dt, camera, settings) {
+  this._enabled = settings.enabled || false;
+  this._frequency = settings.frequency || 0.1;
+
+  // Spawn new bolts
+  if (this._enabled && camera) {
+    this._timer += dt;
+    var threshold = 1.0 / Math.max(0.01, this._frequency);
+    if (this._timer >= threshold) {
+      this._timer -= threshold;
+      var bolt = this._generateBolt(camera);
+      if (bolt) {
+        this._bolts.push(bolt);
+
+        // Flash
+        this._flashLight.position.copy(bolt.position);
+        this._flashLight.intensity = bolt.intensity * 5;
+
+        // Thunder
+        this._playThunder(bolt.distance);
+      }
+    }
+  }
+
+  // Update existing bolts
+  for (var i = this._bolts.length - 1; i >= 0; i--) {
+    var b = this._bolts[i];
+    b.life += dt;
+
+    // Fade out
+    var fadeT = b.life / b.maxLife;
+    b.mat.opacity = 1 - fadeT;
+
+    if (b.life >= b.maxLife) {
+      // Remove
+      this._scene.remove(b.mesh);
+      b.geo.dispose();
+      b.mat.dispose();
+      this._bolts.splice(i, 1);
+    }
+  }
+
+  // Decay flash light
+  if (this._flashLight.intensity > 0) {
+    this._flashLight.intensity *= 0.85;
+    if (this._flashLight.intensity < 0.01) this._flashLight.intensity = 0;
+  }
+};
+
+LightningEffect.prototype.dispose = function(scene) {
+  for (var i = 0; i < this._bolts.length; i++) {
+    scene.remove(this._bolts[i].mesh);
+    this._bolts[i].geo.dispose();
+    this._bolts[i].mat.dispose();
+  }
+  this._bolts = [];
+  if (this._flashLight) scene.remove(this._flashLight);
+  if (this._audioCtx) {
+    try { this._audioCtx.close(); } catch(e) {}
+  }
+};
+
+
+// ============================================================
 // Fog Controller
 // ============================================================
 
@@ -1324,6 +1686,8 @@ function SkyWeatherAdvancedSystem(scene, settings) {
   this.atmosphere = new AtmosphereRenderer();
   this.lighting = new SkyLightingController();
   this.clouds = new CloudSystem();
+  this.moon = new MoonRenderer();
+  this.lightning = new LightningEffect();
   this.particles = new WeatherParticles();
   this.stars = new StarField();
   this.fog = new FogController();
@@ -1338,6 +1702,8 @@ function SkyWeatherAdvancedSystem(scene, settings) {
   // Initialize all subsystems
   this.atmosphere.build(scene);
   this.clouds.build(scene);
+  this.moon.build(scene);
+  this.lightning.init(scene);
   this.lighting.init(scene);
   this.particles.init(scene);
   this.stars.init(scene);
@@ -1521,8 +1887,21 @@ SkyWeatherAdvancedSystem.prototype._tick = function(dt) {
     this.clouds.updateColors();
   }
 
+  // Moon
+  this.moon.update(
+    camera,
+    this.orbital.moonDirection,
+    this.orbital.sunDirection,
+    this.orbital.moonPhase,
+    sunAltDeg,
+    this.settings.sky || {}
+  );
+
   // Stars
   this.stars.update(sunAltDeg, camera, this._time, this.settings.sky || {});
+
+  // Lightning
+  this.lightning.update(dt, camera, this.settings.lightning || {});
 
   // Precipitation
   this.particles.update(dt, camera, this.settings.precipitation || {});
@@ -1545,6 +1924,8 @@ SkyWeatherAdvancedSystem.prototype.destroy = function() {
   }
   this.atmosphere.dispose();
   this.clouds.dispose(this.scene);
+  this.moon.dispose(this.scene);
+  this.lightning.dispose(this.scene);
   this.lighting.dispose(this.scene);
   this.particles.dispose(this.scene);
   this.stars.dispose(this.scene);
@@ -1564,6 +1945,8 @@ if (typeof window !== "undefined") {
     OrbitalCalculator: OrbitalCalculator,
     AtmosphereRenderer: AtmosphereRenderer,
     CloudSystem: CloudSystem,
+    MoonRenderer: MoonRenderer,
+    LightningEffect: LightningEffect,
     SkyLightingController: SkyLightingController,
     WeatherParticles: WeatherParticles,
     StarField: StarField,
