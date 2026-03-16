@@ -1047,11 +1047,9 @@ export function getVisualEditBridgeScript(): string {
 
   function selectObject(obj) {
     if (!obj || !editor) return;
-    // Don't select population objects (preview overlays or spawned objects)
+    // Don't select infrastructure (__xxx) or population (pop_xxx) objects
     var _n = obj.name || "";
-    if (_n.indexOf("__pop_") === 0 || _n.indexOf("pop_") === 0) return;
-    // Don't select infrastructure objects (sky dome, ground plane, terrain grid)
-    if (_n === "__skyDome__" || _n === "__default_ground__" || _n === "__terrain_boundary_grid__" || _n === "__terrain__" || _n === "__weather__" || _n === "__sky__") return;
+    if (_n.indexOf("__") === 0 || _n.indexOf("pop_") === 0) return;
     // Never attach TransformControls to the scene root — causes infinite recursion in updateMatrixWorld
     // Triple-check: reference equality, type check, AND parent check (scene root has no parent)
     if (obj === editor.scene || obj.type === "Scene" || !obj.parent) {
@@ -1741,7 +1739,7 @@ export function getVisualEditBridgeScript(): string {
     // Pass 1: standard mesh raycasting (works for static Mesh objects)
     var meshes = [];
     editor.scene.traverse(function(child) {
-      if (child.isMesh && child !== boxHelper && child.type !== "TransformControlsGizmo" && child.type !== "TransformControlsPlane" && child.type !== "SpotLightHelper" && child.type !== "PointLightHelper" && (child.name||"").indexOf("__editor_") !== 0 && (child.name||"").indexOf("__particle_") !== 0 && (child.name||"").indexOf("__trail_") !== 0 && (child.name||"").indexOf("__pop_") !== 0 && (child.name||"").indexOf("pop_") !== 0 && child.name !== "__terrain__" && child.name !== "__weather__" && child.name !== "__sky__" && child.name !== "__skyDome__" && child.name !== "__default_ground__" && child.name !== "__terrain_boundary_grid__" && !isGroundPlane(child)) {
+      if (child.isMesh && child !== boxHelper && child.type !== "TransformControlsGizmo" && child.type !== "TransformControlsPlane" && child.type !== "SpotLightHelper" && child.type !== "PointLightHelper" && (child.name||"").indexOf("__") !== 0 && (child.name||"").indexOf("pop_") !== 0 && !isGroundPlane(child)) {
         meshes.push(child);
       }
     });
@@ -1755,13 +1753,12 @@ export function getVisualEditBridgeScript(): string {
     for (var i = 0; i < editor.scene.children.length; i++) {
       var child = editor.scene.children[i];
       if (!child.visible) continue;
-      if ((child.name || "").indexOf("__editor_") === 0) continue;
+      if ((child.name || "").indexOf("__") === 0) continue;
       if (child === boxHelper || child === transformControls || child === cameraHelper) continue;
       if (child.isLight || child.type === "HemisphereLight" || child.type === "AmbientLight" || child.type === "DirectionalLight" || child.type === "SpotLight" || child.type === "PointLight") continue;
       if (child.type === "GridHelper" || child.type === "CameraHelper") continue;
       if (isGroundPlane(child)) continue;
-      if (child.name === "__terrain__" || child.name === "__weather__" || child.name === "__sky__" || child.name === "__skyDome__" || child.name === "__default_ground__" || child.name === "__terrain_boundary_grid__") continue;
-      if ((child.name || "").indexOf("__pop_") === 0 || (child.name || "").indexOf("pop_") === 0) continue;
+      if ((child.name || "").indexOf("pop_") === 0) continue;
       var box = new THREE.Box3().setFromObject(child);
       if (box.isEmpty()) continue;
       // Expand tiny boxes (SkinnedMesh bind-pose) to a minimum clickable size
