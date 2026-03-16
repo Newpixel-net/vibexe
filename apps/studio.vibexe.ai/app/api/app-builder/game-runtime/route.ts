@@ -15,7 +15,7 @@
 export function GET(request: Request) {
 	const url = new URL(request.url);
 	// Sanitize to digits only — prevents XSS via template interpolation
-	const bridgeVersion = (url.searchParams.get("bv") || "89").replace(/\D/g, "") || "89";
+	const bridgeVersion = (url.searchParams.get("bv") || "91").replace(/\D/g, "") || "91";
 
 	const html = `<!DOCTYPE html>
 <html lang="en">
