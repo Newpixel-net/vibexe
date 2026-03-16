@@ -2812,20 +2812,21 @@ export function SandpackPreview({
 							sendToIframe={gameEditor.sendToIframe}
 							onClose={() => setActiveModulePanel(null)}
 							settings={gameEditor.gameSettings}
+							moduleId={activeModulePanel as string}
 							onChange={(skyConfig) => {
 								// Live preview only — updates React state + postMessage, NO file write, NO refresh
-								// Write to both keys so both modules can read it
-								gameEditor.updateGameSettings({ skyWeather: skyConfig, skyWeatherAdvanced: skyConfig });
+								const configKey = activeModulePanel === "sky-weather-advanced" ? "skyWeatherAdvanced" : "skyWeather";
+								gameEditor.updateGameSettings({ [configKey]: skyConfig });
 							}}
 							onSave={(skyConfig) => {
 								// Persist to DB — only called on explicit save or panel close
-								// Also mirror to modules.installed config so auto-init picks it up
+								const configKey = activeModulePanel === "sky-weather-advanced" ? "skyWeatherAdvanced" : "skyWeather";
 								const modules = { ...gameEditor.gameSettings.modules };
 								const activeModId = activeModulePanel as string;
 								if (modules.installed?.[activeModId]) {
 									modules.installed = { ...modules.installed, [activeModId]: { ...modules.installed[activeModId], config: skyConfig } };
 								}
-								const updatedSettings = { ...gameEditor.gameSettings, skyWeather: skyConfig, skyWeatherAdvanced: skyConfig, modules };
+								const updatedSettings = { ...gameEditor.gameSettings, [configKey]: skyConfig, modules };
 								handleSaveSettings(updatedSettings);
 							}}
 						/>

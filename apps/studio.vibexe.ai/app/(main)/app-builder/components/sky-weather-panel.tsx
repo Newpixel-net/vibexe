@@ -88,6 +88,8 @@ interface SkyWeatherPanelProps {
 	onChange: (config: SkyWeatherConfig) => void;
 	/** Persist to DB — only called on explicit save or panel close */
 	onSave: (config: SkyWeatherConfig) => void;
+	/** Which module is active — determines config key and message prefix */
+	moduleId?: string;
 }
 
 type SkyTab = "time" | "sky" | "clouds" | "lighting" | "fog" | "fx";
@@ -121,11 +123,15 @@ function getTimeLabel(t: number): string {
 	return `${h12}:${mins.toString().padStart(2, "0")} ${ampm}`;
 }
 
-export function SkyWeatherPanel({ sendToIframe, onClose, settings, onChange, onSave }: SkyWeatherPanelProps) {
+export function SkyWeatherPanel({ sendToIframe, onClose, settings, onChange, onSave, moduleId }: SkyWeatherPanelProps) {
 	const [activeTab, setActiveTab] = useState<SkyTab>("time");
 
 	// Extract existing sky config from game settings
-	const skyWeather = settings.skyWeather;
+	// Read from the correct key based on active module
+	const isAdvanced = moduleId === "sky-weather-advanced";
+	const skyWeather = isAdvanced
+		? (settings as Record<string, unknown>).skyWeatherAdvanced as SkyWeatherConfig | undefined ?? settings.skyWeather
+		: settings.skyWeather;
 	const [config, setConfig] = useState<SkyWeatherConfig>(() => ({
 		time: { solarTime: 0.45, cycleLengthMinutes: 10, autoAdvance: false, latitude: 45, ...skyWeather?.time },
 		sky: { sunDiskSize: 0.028, moonDiskSize: 0.022, mieCoefficient: 0.005, mieDirectionalG: 0.80, starIntensity: 1.0, exposure: 1.2, ...skyWeather?.sky },
