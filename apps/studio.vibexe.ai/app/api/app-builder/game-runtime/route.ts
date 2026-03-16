@@ -299,6 +299,34 @@ window.addEventListener('unhandledrejection', function(e) {
         if (fpsEl) fpsEl.remove();
       }
 
+      // CRITICAL: Intercept WebGPURenderer constructor so OLD game bundles
+      // (stored in DB without reuse logic) automatically get the cached renderer
+      // instead of creating a new one (which causes 2 canvases + device leak).
+      var _cachedRen = window.__vibexe_renderer__;
+      if (_cachedRen && _cachedRen.domElement && window.THREE && window.THREE.WebGPURenderer) {
+        var _OrigWGPU = window.THREE.WebGPURenderer;
+        window.THREE.__OrigWebGPURenderer = _OrigWGPU;
+        // Store original init for restoration
+        var _origInit = _cachedRen.init ? _cachedRen.init.bind(_cachedRen) : null;
+        // Make init() a no-op on the cached renderer (it's already initialized)
+        _cachedRen.init = function() { return Promise.resolve(); };
+        window.THREE.WebGPURenderer = function() {
+          console.log('[Runtime] Returning cached WebGPURenderer (intercept)');
+          return _cachedRen;
+        };
+        window.THREE.WebGPURenderer.prototype = _OrigWGPU.prototype;
+        // Restore original constructor + init after bundle executes (runs sync)
+        setTimeout(function() {
+          if (window.THREE.__OrigWebGPURenderer) {
+            window.THREE.WebGPURenderer = window.THREE.__OrigWebGPURenderer;
+            delete window.THREE.__OrigWebGPURenderer;
+          }
+          if (_origInit && _cachedRen) {
+            _cachedRen.init = _origInit;
+          }
+        }, 50);
+      }
+
       try {
         var script = document.createElement('script');
         script.id = 'vibexe-game-bundle';
