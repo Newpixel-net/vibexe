@@ -979,6 +979,10 @@ StarField.prototype.init = function(scene) {
 
     // Size from magnitude (brighter = larger): mag 0→5, mag 5.5→1
     var baseSize = _lerp(5, 1, mag / 5.5);
+    // Constellation highlights: bright stars (mag < 2.5) get extra size boost
+    if (mag < 1.0) baseSize *= 2.0;       // Very bright: Sirius, Canopus, Vega, etc.
+    else if (mag < 2.0) baseSize *= 1.5;  // Bright: Polaris, Betelgeuse, etc.
+    else if (mag < 2.5) baseSize *= 1.25; // Notable constellation stars
     sizes[i] = baseSize;
     this._baseSizes[i] = baseSize;
 
@@ -2135,6 +2139,24 @@ WeatherAudio.prototype._ensureContext = function() {
     this._rainGain.connect(this._masterGain);
     this._rainNode.start();
 
+    // Night ambient: cricket-like chirp oscillator (high-freq modulated sine)
+    this._nightOsc = this._ctx.createOscillator();
+    this._nightOsc.type = "sine";
+    this._nightOsc.frequency.value = 4200; // cricket frequency
+    var nightLFO = this._ctx.createOscillator();
+    nightLFO.type = "square";
+    nightLFO.frequency.value = 6; // chirp rate
+    var lfoGain = this._ctx.createGain();
+    lfoGain.gain.value = 4200; // modulate frequency fully
+    nightLFO.connect(lfoGain);
+    lfoGain.connect(this._nightOsc.frequency);
+    this._nightGain = this._ctx.createGain();
+    this._nightGain.gain.value = 0;
+    this._nightOsc.connect(this._nightGain);
+    this._nightGain.connect(this._masterGain);
+    this._nightOsc.start();
+    nightLFO.start();
+
     return true;
   } catch(e) {
     return false;
@@ -2174,12 +2196,20 @@ WeatherAudio.prototype.update = function(precipType, precipIntensity, windStreng
   targetRain = _clamp(targetRain, 0, 0.5);
   var curRain = this._rainGain.gain.value;
   this._rainGain.gain.value = curRain + (targetRain - curRain) * 0.05;
+
+  // Night ambient: crickets (only at night, no rain)
+  if (this._nightGain) {
+    var targetNight = isNight && precipIntensity < 0.2 ? 0.02 : 0;
+    var curNight = this._nightGain.gain.value;
+    this._nightGain.gain.value = curNight + (targetNight - curNight) * 0.03;
+  }
 };
 
 WeatherAudio.prototype.dispose = function() {
   try {
     if (this._windNode) this._windNode.stop();
     if (this._rainNode) this._rainNode.stop();
+    if (this._nightOsc) this._nightOsc.stop();
     if (this._ctx) this._ctx.close();
   } catch(e) {}
   this._ctx = null;
@@ -2773,8 +2803,12 @@ SkyWeatherAdvancedSystem.prototype.applyPreset = function(presetName) {
 // ============================================================
 
 SkyWeatherAdvancedSystem.prototype.handleBridgeMessage = function(type, payload) {
-  switch (type) {
-    case "sky-weather-advanced-set-time":
+  // Normalize: accept both "sky-weather-" and "sky-weather-advanced-" prefixes
+  // so the existing SkyWeatherPanel UI works without modification
+  var t = type.replace("sky-weather-advanced-", "").replace("sky-weather-", "");
+
+  switch (t) {
+    case "set-time":
       if (payload.solarTime !== undefined) {
         this.settings.time.solarTime = payload.solarTime;
       }
@@ -2784,17 +2818,17 @@ SkyWeatherAdvancedSystem.prototype.handleBridgeMessage = function(type, payload)
       this._skyUpdateTimer = this._skyUpdateInterval; // force sky refresh
       break;
 
-    case "sky-weather-advanced-set-preset":
+    case "set-preset":
       if (payload.preset) {
         this.applyPreset(payload.preset);
       }
       break;
 
-    case "sky-weather-advanced-update-config":
-      this.updateSettings(payload);
+    case "update-config":
+      this.updateSettings(payload.config || payload);
       break;
 
-    case "sky-weather-advanced-set-weather":
+    case "set-weather":
       if (payload.state) {
         this.weather.setState(payload.state);
       }
@@ -2855,6 +2889,16 @@ if (typeof window !== "undefined") {
             } else if (gs.modules && gs.modules.installed && gs.modules.installed["sky-weather-advanced"]) {
               settings = gs.modules.installed["sky-weather-advanced"].config || {};
             }
+            // Config migration: if old sky-weather config exists, use it as fallback
+            if (!Object.keys(settings).length) {
+              if (gs.skyWeather && typeof gs.skyWeather === "object") {
+                settings = gs.skyWeather;
+                console.log("[SkyWeatherAdvanced] Migrated config from sky-weather");
+              } else if (gs.modules && gs.modules.installed && gs.modules.installed["sky-weather"]) {
+                settings = gs.modules.installed["sky-weather"].config || {};
+                console.log("[SkyWeatherAdvanced] Migrated config from sky-weather module");
+              }
+            }
           }
         } catch(e) {}
         window.__vibexe_skyWeatherAdvanced = new SkyWeatherAdvancedSystem(scene, settings);
@@ -2864,7 +2908,7 @@ if (typeof window !== "undefined") {
           if (!ev.data || !ev.data.type) return;
           var sys = window.__vibexe_skyWeatherAdvanced;
           if (!sys) return;
-          if (ev.data.type.indexOf("sky-weather-advanced-") === 0) {
+          if (ev.data.type.indexOf("sky-weather-") === 0) {
             sys.handleBridgeMessage(ev.data.type, ev.data.payload || ev.data);
           }
         });
