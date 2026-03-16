@@ -1,6 +1,6 @@
 # Sky-Weather-Advanced Module — Tenkoku Dynamic Sky Conversion
 
-## Status: 17% — Phase 1+2 Complete, Phase 3-12 Pending
+## Status: 22% — Phase 1-3 Code Complete, Phase 4-12 Pending
 
 ## Overview
 Convert **Tenkoku Dynamic Sky v2.0** (Unity C#/HLSL) → **sky-weather-advanced** Vibexe module (JS/TSL).
@@ -394,7 +394,7 @@ Vertex colors match the existing `sky-weather` module approach and keep GPU budg
 |-------|------------|-------|--------|---|
 | 1 | Module Scaffold + Atmosphere | 20 | Code done, 3 tests pending | 85% |
 | 2 | Solar Calculator + Day/Night | 20 | Code done, 3 tests pending | 85% |
-| 3 | Volumetric Clouds | 20 | Not Started | 0% |
+| 3 | Procedural Clouds (3-layer fBm) | 20 | Code done, tests pending | 85% |
 | 4 | Real Star Catalog | 13 | Partial (procedural placeholder) | 20% |
 | 5 | Moon Rendering | 12 | Not Started | 0% |
 | 6 | Weather + Precipitation | 12 | Partial (rain/snow particles) | 40% |
@@ -411,6 +411,7 @@ Vertex colors match the existing `sky-weather` module approach and keep GPU budg
 |------|---------|-----------|-------|
 | 2026-03-16 | Planning | Created comprehensive work plan from Tenkoku source analysis | 0% |
 | 2026-03-16 | Phase 1+2 | Module scaffold, Rayleigh+Mie atmosphere, Schlyter orbital calc, lighting controller, stars, weather particles, fog | 17% |
+| 2026-03-16 | Phase 3 | 3-layer procedural cloud system (cumulus/altocumulus/cirrostratus) with fBm noise, Beer-Powder scattering, HG phase | 22% |
 
 ## Key Technical Decisions
 1. **New module `sky-weather-advanced`** — does NOT modify existing `sky-weather`

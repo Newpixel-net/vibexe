@@ -1006,6 +1006,255 @@ StarField.prototype.dispose = function(scene) {
 
 
 // ============================================================
+// Cloud System — Multi-layer procedural clouds
+// ============================================================
+// Ported from Tenkoku_cloud_sphere.shader (712 lines)
+// Uses procedural fBm noise on a cloud dome mesh with vertex colors+alpha.
+// 3 layers: cumulus (1500-3500m), altocumulus (5500-6000m), cirrostratus (high wispy)
+
+function CloudSystem() {
+  this._dome = null;
+  this._geo = null;
+  this._mat = null;
+  this._sunDir = [0, 1, 0];
+  this._coverage = 0.5;
+  this._speed = 1.0;
+  this._brightness = 1.0;
+  this._density = 0.85;
+  this._windDir = 0;
+  this._time = 0;
+}
+
+// Simple hash for procedural noise
+CloudSystem.prototype._hash = function(x, y, z) {
+  var n = Math.sin(x * 127.1 + y * 311.7 + z * 74.7) * 43758.5453;
+  return n - Math.floor(n);
+};
+
+// 3D value noise
+CloudSystem.prototype._noise3D = function(x, y, z) {
+  var ix = Math.floor(x), iy = Math.floor(y), iz = Math.floor(z);
+  var fx = x - ix, fy = y - iy, fz = z - iz;
+  // Smoothstep
+  var ux = fx * fx * (3 - 2 * fx);
+  var uy = fy * fy * (3 - 2 * fy);
+  var uz = fz * fz * (3 - 2 * fz);
+
+  var h = this._hash;
+  var n000 = h(ix, iy, iz), n100 = h(ix+1, iy, iz);
+  var n010 = h(ix, iy+1, iz), n110 = h(ix+1, iy+1, iz);
+  var n001 = h(ix, iy, iz+1), n101 = h(ix+1, iy, iz+1);
+  var n011 = h(ix, iy+1, iz+1), n111 = h(ix+1, iy+1, iz+1);
+
+  var nx00 = n000 + (n100 - n000) * ux;
+  var nx10 = n010 + (n110 - n010) * ux;
+  var nx01 = n001 + (n101 - n001) * ux;
+  var nx11 = n011 + (n111 - n011) * ux;
+
+  var nxy0 = nx00 + (nx10 - nx00) * uy;
+  var nxy1 = nx01 + (nx11 - nx01) * uy;
+
+  return nxy0 + (nxy1 - nxy0) * uz;
+};
+
+// fBm (fractal Brownian motion) — 4 octaves
+CloudSystem.prototype._fbm = function(x, y, z) {
+  var val = 0, amp = 0.5, freq = 1.0;
+  for (var i = 0; i < 4; i++) {
+    val += amp * this._noise3D(x * freq, y * freq, z * freq);
+    freq *= 2.0;
+    amp *= 0.5;
+  }
+  return val;
+};
+
+// Compute cloud density for a given view direction
+CloudSystem.prototype._sampleCloud = function(dirX, dirY, dirZ) {
+  if (dirY < 0.02) return [0, 0, 0, 0]; // below horizon
+
+  var t = this._time * this._speed;
+  var coverage = this._coverage;
+  if (coverage <= 0.01) return [0, 0, 0, 0];
+
+  // Scale from view direction to world-space sample point on cloud layer
+  var scale = 3.0 / (dirY + 0.001); // perspective projection to cloud altitude
+  var sx = dirX * scale + t * 0.02;
+  var sz = dirZ * scale + t * 0.015;
+  var windOffset = this._windDir * DEG2RAD;
+  sx += Math.sin(windOffset) * t * 0.01;
+  sz += Math.cos(windOffset) * t * 0.01;
+
+  // Layer 1: Cumulus (dense, puffy)
+  var n1 = this._fbm(sx * 0.8, 0.5, sz * 0.8);
+  n1 = _clamp(n1 + coverage - 0.5, 0, 1);
+  // Altitude-based falloff
+  var altFade = _smoothstep(0.02, 0.15, dirY) * _smoothstep(0.6, 0.35, dirY);
+  n1 *= altFade;
+
+  // Layer 2: Altocumulus (lighter, higher)
+  var n2 = this._fbm(sx * 1.5 + 100, 1.0, sz * 1.5 + 100);
+  n2 = _clamp(n2 + coverage * 0.7 - 0.45, 0, 1) * 0.4;
+  var altFade2 = _smoothstep(0.05, 0.25, dirY) * _smoothstep(0.8, 0.5, dirY);
+  n2 *= altFade2;
+
+  // Layer 3: Cirrostratus (thin, wispy, highest)
+  var n3 = this._fbm(sx * 2.5 + 200, 2.0, sz * 2.5 + 200);
+  n3 = _clamp(n3 + coverage * 0.5 - 0.4, 0, 1) * 0.25;
+  var altFade3 = _smoothstep(0.1, 0.35, dirY) * _smoothstep(0.95, 0.6, dirY);
+  n3 *= altFade3;
+
+  // Combined density
+  var totalDensity = _clamp((n1 + n2 + n3) * this._density, 0, 1);
+  if (totalDensity < 0.01) return [0, 0, 0, 0];
+
+  // Beer-Powder lighting (Tenkoku method)
+  var sunDot = dirX * this._sunDir[0] + dirY * this._sunDir[1] + dirZ * this._sunDir[2];
+  var lightFac = _clamp(sunDot * 0.5 + 0.5, 0, 1);
+
+  // Henyey-Greenstein phase for silver lining
+  var g = 0.5;
+  var g2 = g * g;
+  var hg = 0.5 * (1 - g2) / Math.pow(1 + g2 - 2 * g * sunDot, 1.5);
+  hg = _clamp(hg, 0, 2);
+
+  // Beer-Powder scattering
+  var extinction = 0.01;
+  var beerPowder = Math.exp(-extinction * totalDensity * 50) *
+    (1 - Math.exp(-extinction * 0.75 * totalDensity * 50));
+
+  // Cloud color: bright on sun-facing side, darker underneath
+  var brightness = this._brightness;
+  var scatter = beerPowder * hg * 2.0;
+  var baseLight = _lerp(0.4, 1.0, lightFac) * brightness;
+
+  // Sun altitude affects cloud color temperature
+  var sunAlt = this._sunDir[1]; // Y component = sin(altitude)
+  var r, gn, b;
+  if (sunAlt > 0.1) {
+    // Day: white-ish clouds
+    r = baseLight * (0.95 + scatter * 0.3);
+    gn = baseLight * (0.95 + scatter * 0.2);
+    b = baseLight * (0.98 + scatter * 0.1);
+  } else if (sunAlt > -0.05) {
+    // Sunset/sunrise: orange/pink clouds
+    var sunsetT = _smoothstep(-0.05, 0.1, sunAlt);
+    r = baseLight * _lerp(1.2, 0.95, sunsetT) + scatter * 0.4;
+    gn = baseLight * _lerp(0.6, 0.95, sunsetT) + scatter * 0.2;
+    b = baseLight * _lerp(0.4, 0.98, sunsetT) + scatter * 0.1;
+  } else {
+    // Night: dark grey-blue
+    r = baseLight * 0.15;
+    gn = baseLight * 0.15;
+    b = baseLight * 0.2;
+  }
+
+  // Alpha: based on density
+  var alpha = _clamp(totalDensity * 3.0, 0, 0.95);
+
+  return [_clamp(r, 0, 1.3), _clamp(gn, 0, 1.3), _clamp(b, 0, 1.3), alpha];
+};
+
+CloudSystem.prototype.build = function(scene) {
+  if (this._dome) return;
+
+  var segW = 48, segH = 16;
+  this._geo = new THREE.SphereGeometry(4900, segW, segH, 0, TWO_PI, 0, PI * 0.5);
+  this._geo.name = "__swa_cloud_geo__";
+
+  var posAttr = this._geo.getAttribute("position");
+  var colors = new Float32Array(posAttr.count * 3);
+  var alphas = new Float32Array(posAttr.count);
+  this._geo.setAttribute("color", new THREE.BufferAttribute(colors, 3));
+  this._geo.setAttribute("alpha", new THREE.BufferAttribute(alphas, 1));
+
+  this._mat = new THREE.ShaderMaterial({
+    vertexShader: [
+      "attribute float alpha;",
+      "varying vec3 vColor;",
+      "varying float vAlpha;",
+      "void main() {",
+      "  vColor = color;",
+      "  vAlpha = alpha;",
+      "  gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);",
+      "}"
+    ].join("\\n"),
+    fragmentShader: [
+      "varying vec3 vColor;",
+      "varying float vAlpha;",
+      "void main() {",
+      "  gl_FragColor = vec4(vColor, vAlpha);",
+      "}"
+    ].join("\\n"),
+    vertexColors: true,
+    side: THREE.BackSide,
+    transparent: true,
+    depthWrite: false,
+    fog: false,
+  });
+  this._mat.name = "__swa_cloud_mat__";
+
+  this._dome = new THREE.Mesh(this._geo, this._mat);
+  this._dome.name = "__swa_cloud_dome__";
+  this._dome.renderOrder = -999;
+  this._dome.frustumCulled = false;
+  scene.add(this._dome);
+};
+
+CloudSystem.prototype.updateColors = function() {
+  if (!this._geo) return;
+
+  var posAttr = this._geo.getAttribute("position");
+  var colorAttr = this._geo.getAttribute("color");
+  var alphaAttr = this._geo.getAttribute("alpha");
+  var colors = colorAttr.array;
+  var alphas = alphaAttr.array;
+  var dir = [0, 0, 0];
+
+  for (var i = 0; i < posAttr.count; i++) {
+    var x = posAttr.getX(i);
+    var y = posAttr.getY(i);
+    var z = posAttr.getZ(i);
+    var len = Math.sqrt(x*x + y*y + z*z);
+    if (len > 0) { dir[0] = x/len; dir[1] = y/len; dir[2] = z/len; }
+    else { dir[0] = 0; dir[1] = 1; dir[2] = 0; }
+
+    var c = this._sampleCloud(dir[0], dir[1], dir[2]);
+    colors[i*3]   = c[0];
+    colors[i*3+1] = c[1];
+    colors[i*3+2] = c[2];
+    alphas[i]     = c[3];
+  }
+  colorAttr.needsUpdate = true;
+  alphaAttr.needsUpdate = true;
+};
+
+CloudSystem.prototype.update = function(dt, camera, sunDir, settings) {
+  this._time += dt;
+  this._sunDir = [sunDir.x, sunDir.y, sunDir.z];
+  this._coverage = settings.coverage || 0;
+  this._speed = settings.speed || 1.0;
+  this._brightness = settings.brightness || 1.0;
+  this._density = settings.density || 0.85;
+
+  if (this._dome && camera) {
+    this._dome.position.copy(camera.position);
+  }
+
+  // Visibility: skip if no coverage
+  if (this._dome) {
+    this._dome.visible = this._coverage > 0.01;
+  }
+};
+
+CloudSystem.prototype.dispose = function(scene) {
+  if (this._dome && this._dome.parent) this._dome.parent.remove(this._dome);
+  if (this._geo) this._geo.dispose();
+  if (this._mat) this._mat.dispose();
+  this._dome = null;
+};
+
+
+// ============================================================
 // Fog Controller
 // ============================================================
 
@@ -1074,6 +1323,7 @@ function SkyWeatherAdvancedSystem(scene, settings) {
   this.orbital = new OrbitalCalculator();
   this.atmosphere = new AtmosphereRenderer();
   this.lighting = new SkyLightingController();
+  this.clouds = new CloudSystem();
   this.particles = new WeatherParticles();
   this.stars = new StarField();
   this.fog = new FogController();
@@ -1082,9 +1332,12 @@ function SkyWeatherAdvancedSystem(scene, settings) {
   this._lastUpdate = Date.now();
   this._skyUpdateTimer = 0;
   this._skyUpdateInterval = 2.0; // Recompute sky colors every 2 seconds (expensive)
+  this._cloudUpdateTimer = 0;
+  this._cloudUpdateInterval = 1.0; // Recompute cloud colors every 1 second
 
   // Initialize all subsystems
   this.atmosphere.build(scene);
+  this.clouds.build(scene);
   this.lighting.init(scene);
   this.particles.init(scene);
   this.stars.init(scene);
@@ -1260,6 +1513,14 @@ SkyWeatherAdvancedSystem.prototype._tick = function(dt) {
     this.settings.lighting || {}
   );
 
+  // Clouds
+  this.clouds.update(dt, camera, this.orbital.sunDirection, this.settings.clouds || {});
+  this._cloudUpdateTimer += dt;
+  if (this._cloudUpdateTimer >= this._cloudUpdateInterval) {
+    this._cloudUpdateTimer = 0;
+    this.clouds.updateColors();
+  }
+
   // Stars
   this.stars.update(sunAltDeg, camera, this._time, this.settings.sky || {});
 
@@ -1283,6 +1544,7 @@ SkyWeatherAdvancedSystem.prototype.destroy = function() {
     this._animFrameId = null;
   }
   this.atmosphere.dispose();
+  this.clouds.dispose(this.scene);
   this.lighting.dispose(this.scene);
   this.particles.dispose(this.scene);
   this.stars.dispose(this.scene);
@@ -1301,6 +1563,7 @@ if (typeof window !== "undefined") {
     SkyWeatherAdvancedSystem: SkyWeatherAdvancedSystem,
     OrbitalCalculator: OrbitalCalculator,
     AtmosphereRenderer: AtmosphereRenderer,
+    CloudSystem: CloudSystem,
     SkyLightingController: SkyLightingController,
     WeatherParticles: WeatherParticles,
     StarField: StarField,
