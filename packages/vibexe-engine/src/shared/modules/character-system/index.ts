@@ -2592,8 +2592,8 @@ function swapCharacter(scene, characterId) {
               if (_dvl > _acs) { _currentVelX += (_dvx / _dvl) * _acs; _currentVelZ += (_dvz / _dvl) * _acs; }
               else { _currentVelX = _tVX; _currentVelZ = _tVZ; }
               // Dash velocity override (Rapier path — set by _createDashAbility)
-              if (ctx._dashVelX !== undefined && ctx._dashVelX !== 0) { _currentVelX = ctx._dashVelX; ctx._dashVelX = 0; }
-              if (ctx._dashVelZ !== undefined && ctx._dashVelZ !== 0) { _currentVelZ = ctx._dashVelZ; ctx._dashVelZ = 0; }
+              if (_orbitCtx._dashVelX !== undefined && _orbitCtx._dashVelX !== 0) { _currentVelX = _orbitCtx._dashVelX; _orbitCtx._dashVelX = 0; }
+              if (_orbitCtx._dashVelZ !== undefined && _orbitCtx._dashVelZ !== 0) { _currentVelZ = _orbitCtx._dashVelZ; _orbitCtx._dashVelZ = 0; }
               // Jump
               if (_inputState.space) _jumpBufferTimer = _jumpBuffer;
               if (_jumpBufferTimer > 0) _jumpBufferTimer -= dt;
