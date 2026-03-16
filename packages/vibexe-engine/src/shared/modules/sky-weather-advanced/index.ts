@@ -2137,21 +2137,36 @@ FogController.prototype.update = function(scene, sunAltDeg, settings) {
     this._active = true;
   }
 
-  var density = settings.density || 0.003;
+  var baseDensity = settings.density || 0.003;
+  var heightFalloff = settings.heightFalloff || 0;
+
+  // Height-based fog: increase density at lower camera heights
+  var density = baseDensity;
+  if (heightFalloff > 0) {
+    var camera = null;
+    scene.traverse(function(obj) { if (obj.isCamera && !camera) camera = obj; });
+    if (camera) {
+      var camY = Math.max(0, camera.position.y);
+      // Exponential height falloff: denser at ground level
+      var heightMult = Math.exp(-camY * heightFalloff * 0.01);
+      density = baseDensity * (1 + heightMult * 3);
+    }
+  }
+
   if (!scene.fog || !scene.fog.isFogExp2) {
     scene.fog = new THREE.FogExp2(0x87CEEB, density);
   } else {
     scene.fog.density = density;
   }
 
-  // Auto fog color from sky
+  // Auto fog color from sky (Tenkoku-style horizon color matching)
   if (settings.autoColor !== false) {
     var altNorm = _clamp(sunAltDeg / 90, -1, 1);
     if (altNorm > 0.1) {
       // Day: light blue-white
       scene.fog.color.setRGB(0.7, 0.8, 0.9);
     } else if (altNorm > -0.05) {
-      // Sunset: warm
+      // Sunset: warm orange-pink
       var t = _smoothstep(-0.05, 0.1, altNorm);
       scene.fog.color.setRGB(
         _lerp(0.4, 0.7, t),
@@ -2162,6 +2177,11 @@ FogController.prototype.update = function(scene, sunAltDeg, settings) {
       // Night: dark blue
       scene.fog.color.setRGB(0.05, 0.05, 0.12);
     }
+  }
+
+  // Also update scene background color to match fog for seamless blending
+  if (settings.autoColor !== false && scene.fog) {
+    scene.background = scene.fog.color;
   }
 };
 
@@ -2475,6 +2495,101 @@ SkyWeatherAdvancedSystem.prototype.destroy = function() {
 
 
 // ============================================================
+// Environment Presets
+// ============================================================
+
+var ENVIRONMENT_PRESETS = {
+  tropical: {
+    time: { latitude: 10, solarTime: 0.42 },
+    sky: { exposure: 1.4, mieDirectionalG: 0.85 },
+    clouds: { coverage: 0.3, speed: 0.5, brightness: 1.2 },
+    fog: { enabled: true, density: 0.002 },
+    effects: { aurora: 0 },
+  },
+  temperate: {
+    time: { latitude: 45, solarTime: 0.45 },
+    sky: { exposure: 1.2, mieDirectionalG: 0.76 },
+    clouds: { coverage: 0.4, speed: 1.0, brightness: 1.0 },
+    fog: { enabled: false },
+    effects: { aurora: 0 },
+  },
+  arctic: {
+    time: { latitude: 68, solarTime: 0.35 },
+    sky: { exposure: 1.0, mieDirectionalG: 0.7 },
+    clouds: { coverage: 0.6, speed: 1.5, brightness: 0.8 },
+    fog: { enabled: true, density: 0.005, heightFalloff: 2 },
+    precipitation: { type: "snow", intensity: 0.3, windStrength: 0.5 },
+    effects: { aurora: 0.7 },
+  },
+  desert: {
+    time: { latitude: 25, solarTime: 0.52 },
+    sky: { exposure: 1.6, mieDirectionalG: 0.9, rayleighScale: 0.8 },
+    clouds: { coverage: 0.05, speed: 0.3, brightness: 1.3 },
+    fog: { enabled: true, density: 0.001 },
+    effects: { aurora: 0 },
+  },
+  alien: {
+    time: { latitude: 30, solarTime: 0.4 },
+    sky: { exposure: 0.8, mieDirectionalG: 0.95, rayleighScale: 2.0, sunIntensity: 15 },
+    clouds: { coverage: 0.7, speed: 2.0, brightness: 0.6 },
+    fog: { enabled: true, density: 0.008 },
+    effects: { aurora: 0.5 },
+  },
+  nordic: {
+    time: { latitude: 60, solarTime: 0.3 },
+    sky: { exposure: 1.1, mieDirectionalG: 0.72 },
+    clouds: { coverage: 0.55, speed: 1.2, brightness: 0.9 },
+    fog: { enabled: true, density: 0.004, heightFalloff: 3 },
+    precipitation: { type: "none", windStrength: 0.6 },
+    effects: { aurora: 0.4 },
+  },
+};
+
+SkyWeatherAdvancedSystem.prototype.applyPreset = function(presetName) {
+  var preset = ENVIRONMENT_PRESETS[presetName];
+  if (preset) {
+    this.updateSettings(preset);
+    console.log("[SkyWeatherAdvanced] Applied preset: " + presetName);
+  }
+};
+
+
+// ============================================================
+// Bridge Message Handlers
+// ============================================================
+
+SkyWeatherAdvancedSystem.prototype.handleBridgeMessage = function(type, payload) {
+  switch (type) {
+    case "sky-weather-advanced-set-time":
+      if (payload.solarTime !== undefined) {
+        this.settings.time.solarTime = payload.solarTime;
+      }
+      if (payload.autoAdvance !== undefined) {
+        this.settings.time.autoAdvance = payload.autoAdvance;
+      }
+      this._skyUpdateTimer = this._skyUpdateInterval; // force sky refresh
+      break;
+
+    case "sky-weather-advanced-set-preset":
+      if (payload.preset) {
+        this.applyPreset(payload.preset);
+      }
+      break;
+
+    case "sky-weather-advanced-update-config":
+      this.updateSettings(payload);
+      break;
+
+    case "sky-weather-advanced-set-weather":
+      if (payload.state) {
+        this.weather.setState(payload.state);
+      }
+      break;
+  }
+};
+
+
+// ============================================================
 // Module registration & auto-init
 // ============================================================
 
@@ -2528,6 +2643,16 @@ if (typeof window !== "undefined") {
           }
         } catch(e) {}
         window.__vibexe_skyWeatherAdvanced = new SkyWeatherAdvancedSystem(scene, settings);
+
+        // Listen for bridge messages
+        window.addEventListener("message", function(ev) {
+          if (!ev.data || !ev.data.type) return;
+          var sys = window.__vibexe_skyWeatherAdvanced;
+          if (!sys) return;
+          if (ev.data.type.indexOf("sky-weather-advanced-") === 0) {
+            sys.handleBridgeMessage(ev.data.type, ev.data.payload || ev.data);
+          }
+        });
       }
       if (attempts >= 100) {
         clearInterval(timer);
@@ -2553,6 +2678,7 @@ module.exports = {
 		"sky-weather-advanced-set-time": "handleSetTime",
 		"sky-weather-advanced-set-preset": "handleSetPreset",
 		"sky-weather-advanced-update-config": "handleUpdateConfig",
+		"sky-weather-advanced-set-weather": "handleSetWeather",
 	},
 	defaultSettings: {
 		time: {

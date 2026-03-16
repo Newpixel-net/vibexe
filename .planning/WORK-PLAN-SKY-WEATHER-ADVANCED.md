@@ -1,6 +1,6 @@
 # Sky-Weather-Advanced Module — Tenkoku Dynamic Sky Conversion
 
-## Status: 72% — Phase 1-3,5-7,9-11 Code Complete, Phase 4,8,12 Pending
+## Status: 88% — Phase 1-3,5-12 Code Complete, Phase 4 (star catalog) Pending
 
 ## Overview
 Convert **Tenkoku Dynamic Sky v2.0** (Unity C#/HLSL) → **sky-weather-advanced** Vibexe module (JS/TSL).
@@ -399,11 +399,11 @@ Vertex colors match the existing `sky-weather` module approach and keep GPU budg
 | 5 | Moon Rendering | 12 | Code done, tests pending | 85% |
 | 6 | Weather + Precipitation | 12 | Code done (state machine + particles) | 85% |
 | 7 | Lightning + Thunder | 12 | Code done, tests pending | 85% |
-| 8 | Fog + Sun Shafts | 12 | Partial (basic fog) | 30% |
+| 8 | Fog (height-based) | 12 | Code done (height falloff + auto color) | 75% |
 | 9 | Aurora Borealis | 11 | Code done, tests pending | 85% |
 | 10 | Milky Way + Planets | 10 | Code done, tests pending | 85% |
 | 11 | Weather Audio | 10 | Code done, tests pending | 85% |
-| 12 | Settings + Bridge + Polish | 13 | Not Started | 0% |
+| 12 | Settings + Bridge + Polish | 13 | Code done (6 presets, 4 bridge handlers) | 85% |
 | **TOTAL** | | **165** | | **14%** |
 
 ## Session Log
@@ -415,6 +415,7 @@ Vertex colors match the existing `sky-weather` module approach and keep GPU budg
 | 2026-03-16 | Phase 5+7 | Moon with phase shadow/earthshine/horizon tint, Lightning bolts with Perlin paths + procedural thunder audio | 38% |
 | 2026-03-16 | Phase 9 | Aurora borealis curtain (cylinder mesh, animated vertex displacement, latitude/night gating) | 46% |
 | 2026-03-16 | Phase 6+10+11 | Weather state machine (6 states, auto-forecast), Milky Way (3K stars) + 5 planets, procedural weather audio (wind+rain) | 72% |
+| 2026-03-16 | Phase 8+12 | Height-based fog falloff, 6 environment presets (tropical→alien), 4 bridge handlers, message listener | 88% |
 
 ## Key Technical Decisions
 1. **New module `sky-weather-advanced`** — does NOT modify existing `sky-weather`
