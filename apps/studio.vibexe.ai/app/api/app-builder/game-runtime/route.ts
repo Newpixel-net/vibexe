@@ -82,13 +82,24 @@ try {
   console.warn('[Runtime] Rapier.js failed to load (CANNON.js only):', _rapierErr);
 }
 
-// Load WebGPU post-processing: bloom TSL node (works on both WebGPU and WebGL backends)
+// Load WebGPU post-processing TSL nodes (work on both WebGPU and WebGL backends)
 try {
-  var _bloomMod = await import('three/addons/tsl/display/BloomNode.js');
+  var [_bloomMod, _fxaaMod] = await Promise.all([
+    import('three/addons/tsl/display/BloomNode.js'),
+    import('three/addons/tsl/display/FXAANode.js')
+  ]);
   window.THREE.bloom = _bloomMod.bloom || _bloomMod.default;
+  window.THREE.fxaa = _fxaaMod.fxaa || _fxaaMod.default;
   console.log('[Runtime] Bloom TSL node loaded');
+  console.log('[Runtime] FXAA TSL node loaded');
 } catch (_bloomErr) {
-  console.log('[Runtime] Bloom TSL node unavailable');
+  console.log('[Runtime] TSL display nodes unavailable:', _bloomErr?.message);
+  // Try bloom alone if FXAA fails
+  try {
+    var _bloomMod2 = await import('three/addons/tsl/display/BloomNode.js');
+    window.THREE.bloom = _bloomMod2.bloom || _bloomMod2.default;
+    console.log('[Runtime] Bloom TSL node loaded (FXAA unavailable)');
+  } catch (_e) {}
 }
 
 // Load legacy postprocessing addons (WebGL-only — may fail with WebGPU build, that's OK)
@@ -116,9 +127,9 @@ try {
 }
 
 // Log final addon count
-var _addonCount = ['GLTFLoader','OrbitControls','TransformControls','PostProcessing','bloom']
+var _addonCount = ['GLTFLoader','OrbitControls','TransformControls','PostProcessing','bloom','fxaa']
   .filter(function(n) { return !!window.THREE[n]; }).length;
-console.log('[Runtime] ' + _addonCount + '/5 core addons loaded');
+console.log('[Runtime] ' + _addonCount + '/6 core addons loaded');
 
 // Signal that libraries are ready (bridge and game code wait for this)
 window.__vibexe_libs_ready__ = true;
@@ -361,7 +372,7 @@ window.addEventListener('unhandledrejection', function(e) {
         var T = window.THREE;
         if (!T) return;
         var _PP_PRESETS = {
-          cinematic: { bloom: { strength: 0.4, radius: 0.4, threshold: 0.85 }, fog: { color: 0x88aacc, near: 20, far: 80 }, toneMapping: "ACESFilmic", exposure: 1.0 },
+          cinematic: { bloom: { strength: 0.35, radius: 0.4, threshold: 0.85 }, fog: { color: 0x88aacc, near: 20, far: 80 }, toneMapping: "ACESFilmic", exposure: 1.05 },
           vibrant: { bloom: { strength: 0.6, radius: 0.4, threshold: 0.8 }, toneMapping: "ACESFilmic", exposure: 1.0 },
           dark: { bloom: { strength: 0.3, radius: 0.3, threshold: 0.9 }, fog: { color: 0x111122, near: 5, far: 40 }, toneMapping: "Cineon", exposure: 0.7 },
           neon: { bloom: { strength: 1.5, radius: 0.6, threshold: 0.4 }, fog: { color: 0x050510, near: 10, far: 60 }, toneMapping: "ACESFilmic", exposure: 0.9 },
@@ -397,16 +408,38 @@ window.addEventListener('unhandledrejection', function(e) {
               pp.outputNode = colorNode.add(bloomNode);
               console.log("[PostFX] WebGPU bloom enabled — strength:", s);
             }
+            function finalize() {
+              // Chain FXAA + vignette + saturation after bloom (Tier 3 quality)
+              var output = pp.outputNode;
+              // FXAA: smooth jagged edges (cheaper than MSAA, works with post-processing)
+              if (T.fxaa) {
+                try { output = T.fxaa(output); console.log("[PostFX] FXAA enabled"); } catch(_e) {}
+              }
+              // Vignette: darken edges for cinematic focus (TSL inline — extremely cheap)
+              try {
+                var screenUV = T.screenUV || T.uv();
+                var dist = screenUV.sub(0.5).length();
+                var vignette = T.float(1.0).sub(dist.mul(dist).mul(0.5));
+                output = output.mul(vignette);
+                console.log("[PostFX] Vignette enabled");
+              } catch(_e) {}
+              // Saturation: slightly richer colors
+              try {
+                if (T.saturation) { output = T.saturation(output, 1.05); console.log("[PostFX] Saturation 1.05"); }
+              } catch(_e) {}
+              pp.outputNode = output;
+            }
             function setPreset(name) {
               var p = _PP_PRESETS[name];
               if (!p) { console.warn("[PostFX] Unknown preset:", name); return; }
               if (p.bloom) addBloom(p.bloom);
               if (p.fog) addFog(p.fog); else scene.fog = null;
               if (p.toneMapping) setTM(p.toneMapping, p.exposure || 1);
+              finalize();
             }
             if (preset) setPreset(preset);
             console.log("[PostFX] WebGPU PostProcessing pipeline created");
-            return { composer: pp, addBloom: addBloom, addFog: addFog, setPreset: setPreset, destroy: function() { window.__vibexe_composer__ = null; if (pp.dispose) pp.dispose(); } };
+            return { composer: pp, addBloom: addBloom, addFog: addFog, setPreset: setPreset, finalize: finalize, destroy: function() { window.__vibexe_composer__ = null; if (pp.dispose) pp.dispose(); } };
           }
 
           // WebGL fallback: legacy EffectComposer
