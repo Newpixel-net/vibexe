@@ -880,22 +880,37 @@ function loadCharacterGLB(scene, url, position, charName, modelFileName) {
       };
 
       // Apply user animation renames from scene editor (animClipOverrides: { originalName: displayName })
+      // Validate: skip if any rename target collides with an original clip name (prevents scrambled chains)
       var _animOv = (window.__VIBEXE_GAME_SETTINGS__ || {}).animClipOverrides || {};
       var _animOvKeys = Object.keys(_animOv);
       if (_animOvKeys.length > 0) {
-        console.log("[CharacterSystem] Applying " + _animOvKeys.length + " animation renames:", _animOvKeys.join(", "));
-        for (var _ri = 0; _ri < allClips.length; _ri++) {
-          var _newName = _animOv[allClips[_ri].name];
-          if (_newName && typeof _newName === "string") {
-            allClips[_ri].name = _newName;
+        var _origNames = {};
+        for (var _oi = 0; _oi < allClips.length; _oi++) _origNames[allClips[_oi].name] = true;
+        var _hasCollision = false;
+        for (var _ck = 0; _ck < _animOvKeys.length; _ck++) {
+          var _target = _animOv[_animOvKeys[_ck]];
+          if (_target && _origNames[_target] && _target !== _animOvKeys[_ck]) {
+            _hasCollision = true;
+            break;
           }
         }
-        // Rebuild clipNames and clipMap with renamed clips
-        clipNames = [];
-        clipMap = {};
-        for (var _rn = 0; _rn < allClips.length; _rn++) {
-          clipNames.push(allClips[_rn].name);
-          clipMap[allClips[_rn].name] = allClips[_rn];
+        if (_hasCollision) {
+          console.warn("[CharacterSystem] Skipping animClipOverrides: rename targets collide with original clip names (scrambled data)");
+        } else {
+          console.log("[CharacterSystem] Applying " + _animOvKeys.length + " animation renames:", _animOvKeys.join(", "));
+          for (var _ri = 0; _ri < allClips.length; _ri++) {
+            var _newName = _animOv[allClips[_ri].name];
+            if (_newName && typeof _newName === "string") {
+              allClips[_ri].name = _newName;
+            }
+          }
+          // Rebuild clipNames and clipMap with renamed clips
+          clipNames = [];
+          clipMap = {};
+          for (var _rn = 0; _rn < allClips.length; _rn++) {
+            clipNames.push(allClips[_rn].name);
+            clipMap[allClips[_rn].name] = allClips[_rn];
+          }
         }
       }
 
@@ -914,13 +929,27 @@ function loadCharacterGLB(scene, url, position, charName, modelFileName) {
         if (acn.indexOf("dead") !== -1 || acn.indexOf("death") !== -1 || acn.indexOf("die") !== -1) { if (!autoAnimMap.die) autoAnimMap.die = allClips[aci].name; }
         if (acn.indexOf("hit") !== -1 || acn.indexOf("damage") !== -1) { if (!autoAnimMap.hit) autoAnimMap.hit = allClips[aci].name; }
       }
-      // Prefer exact name matches
+      // Phase 2: Prefer exact name matches + common suffixed forms (Walking > Walk_Forward_While_Shooting)
       for (var exi = 0; exi < allClips.length; exi++) {
         var exn = allClips[exi].name.toLowerCase();
-        if (exn === "idle" && autoAnimMap.idle && autoAnimMap.idle.toLowerCase() !== "idle") autoAnimMap.idle = allClips[exi].name;
-        if (exn === "walk" && autoAnimMap.walk && autoAnimMap.walk.toLowerCase() !== "walk") autoAnimMap.walk = allClips[exi].name;
-        if (exn === "run" && autoAnimMap.run && autoAnimMap.run.toLowerCase() !== "run") autoAnimMap.run = allClips[exi].name;
-        if (exn === "jump" && autoAnimMap.jump && autoAnimMap.jump.toLowerCase() !== "jump") autoAnimMap.jump = allClips[exi].name;
+        if ((exn === "idle" || exn === "idling") && autoAnimMap.idle && autoAnimMap.idle.toLowerCase() !== exn) autoAnimMap.idle = allClips[exi].name;
+        if ((exn === "walk" || exn === "walking") && autoAnimMap.walk && autoAnimMap.walk.toLowerCase() !== exn) autoAnimMap.walk = allClips[exi].name;
+        if ((exn === "run" || exn === "running") && autoAnimMap.run && autoAnimMap.run.toLowerCase() !== exn) autoAnimMap.run = allClips[exi].name;
+        if ((exn === "jump" || exn === "jumping") && autoAnimMap.jump && autoAnimMap.jump.toLowerCase() !== exn) autoAnimMap.jump = allClips[exi].name;
+      }
+      // Phase 2b: Among Phase 1 matches, prefer shortest clip name (e.g. Walking < Walk_Forward_While_Shooting)
+      var _shortKeys = ["idle", "walk", "run", "jump", "fall", "land", "attack", "die", "hit"];
+      for (var _ski = 0; _ski < _shortKeys.length; _ski++) {
+        var _sk = _shortKeys[_ski];
+        if (!autoAnimMap[_sk]) continue;
+        var _curLen = autoAnimMap[_sk].length;
+        for (var _sj = 0; _sj < allClips.length; _sj++) {
+          var _sjn = allClips[_sj].name.toLowerCase();
+          if (_sjn.indexOf(_sk) !== -1 && allClips[_sj].name.length < _curLen) {
+            autoAnimMap[_sk] = allClips[_sj].name;
+            _curLen = allClips[_sj].name.length;
+          }
+        }
       }
 
       // C-L4 fix: Fallback idle — prefer any clip with "idle" substring before using longest-duration heuristic
@@ -1958,10 +1987,15 @@ function swapCharacter(scene, characterId) {
           if (window._activeMixers3D) {
             var mi = window._activeMixers3D.indexOf(oldMesh.userData.__mixer);
             if (mi !== -1) window._activeMixers3D.splice(mi, 1);
-            // Fallback: also search for any mixer pointing to this mesh
+            // Fallback: remove any mixer whose root is a descendant of oldMesh
             for (var _mxi = window._activeMixers3D.length - 1; _mxi >= 0; _mxi--) {
               try {
-                if (window._activeMixers3D[_mxi]._root === oldMesh || window._activeMixers3D[_mxi]._root === oldMesh.children[0]) {
+                var _mxRoot = window._activeMixers3D[_mxi]._root || window._activeMixers3D[_mxi].getRoot();
+                var _isDesc = false;
+                var _p = _mxRoot;
+                while (_p) { if (_p === oldMesh) { _isDesc = true; break; } _p = _p.parent; }
+                if (_isDesc) {
+                  window._activeMixers3D[_mxi].stopAllAction();
                   window._activeMixers3D.splice(_mxi, 1);
                 }
               } catch(e) {}
@@ -2007,9 +2041,15 @@ function swapCharacter(scene, characterId) {
           if (window._activeMixers3D) {
             var mi = window._activeMixers3D.indexOf(m.userData.__mixer);
             if (mi !== -1) window._activeMixers3D.splice(mi, 1);
+            // Remove any mixer whose root is a descendant of this stale mesh
             for (var _mxi2 = window._activeMixers3D.length - 1; _mxi2 >= 0; _mxi2--) {
               try {
-                if (window._activeMixers3D[_mxi2]._root === m || window._activeMixers3D[_mxi2]._root === m.children[0]) {
+                var _mxRoot2 = window._activeMixers3D[_mxi2]._root || window._activeMixers3D[_mxi2].getRoot();
+                var _isDesc2 = false;
+                var _p2 = _mxRoot2;
+                while (_p2) { if (_p2 === m) { _isDesc2 = true; break; } _p2 = _p2.parent; }
+                if (_isDesc2) {
+                  window._activeMixers3D[_mxi2].stopAllAction();
                   window._activeMixers3D.splice(_mxi2, 1);
                 }
               } catch(e) {}
@@ -2110,6 +2150,18 @@ function swapCharacter(scene, characterId) {
               result.mesh.position.y = minY - halfH;
               if (physBody.velocity) physBody.velocity.set(0, 0, 0);
             }
+          }
+        }
+      }
+
+      // Scene Editor grounding fallback: no physics body, snap mesh directly to terrain
+      if (!physBody) {
+        var getH2 = window.__vibexe_getTerrainHeight;
+        if (getH2) {
+          var th2 = getH2(result.mesh.position.x, result.mesh.position.z);
+          if (th2 != null) {
+            result.mesh.position.y = th2;
+            console.log("[CharacterSystem] Grounded on terrain (no physics):", th2.toFixed(2));
           }
         }
       }
