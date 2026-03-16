@@ -1742,6 +1742,379 @@ AuroraRenderer.prototype.dispose = function(scene) {
 
 
 // ============================================================
+// Weather State Machine — auto-forecast + transitions
+// ============================================================
+// Ported from TenkokuModule.cs weather sections
+
+var WEATHER_STATES = ["clear", "partly_cloudy", "overcast", "rain", "storm", "snow"];
+
+function WeatherStateMachine() {
+  this._currentState = "clear";
+  this._targetState = "clear";
+  this._transition = 0; // 0=at target, 0-1=transitioning
+  this._transitionSpeed = 0.05; // per second
+  this._forecastTimer = 0;
+  this._forecastInterval = 60; // seconds between auto-forecast
+  this._autoForecast = false;
+  // Derived weather values (interpolated during transitions)
+  this.cloudCoverage = 0;
+  this.precipType = "none";
+  this.precipIntensity = 0;
+  this.lightningEnabled = false;
+  this.windStrength = 0.3;
+}
+
+WeatherStateMachine.prototype._stateValues = function(state) {
+  switch (state) {
+    case "clear":         return { cloud: 0.0,  precip: "none", intensity: 0, lightning: false, wind: 0.1 };
+    case "partly_cloudy": return { cloud: 0.35, precip: "none", intensity: 0, lightning: false, wind: 0.2 };
+    case "overcast":      return { cloud: 0.75, precip: "none", intensity: 0, lightning: false, wind: 0.4 };
+    case "rain":          return { cloud: 0.85, precip: "rain", intensity: 0.6, lightning: false, wind: 0.5 };
+    case "storm":         return { cloud: 1.0,  precip: "rain", intensity: 1.0, lightning: true, wind: 0.8 };
+    case "snow":          return { cloud: 0.8,  precip: "snow", intensity: 0.7, lightning: false, wind: 0.3 };
+    default:              return { cloud: 0.0,  precip: "none", intensity: 0, lightning: false, wind: 0.1 };
+  }
+};
+
+WeatherStateMachine.prototype.setState = function(state) {
+  if (WEATHER_STATES.indexOf(state) >= 0) {
+    this._targetState = state;
+    this._transition = 0;
+  }
+};
+
+WeatherStateMachine.prototype.update = function(dt, settings) {
+  this._autoForecast = settings.autoForecast || false;
+  this._forecastInterval = settings.forecastInterval || 60;
+
+  // Auto-forecast: randomly pick next weather state
+  if (this._autoForecast) {
+    this._forecastTimer += dt;
+    if (this._forecastTimer >= this._forecastInterval) {
+      this._forecastTimer = 0;
+      // Weighted random: prefer states adjacent to current
+      var idx = WEATHER_STATES.indexOf(this._currentState);
+      var roll = Math.random();
+      if (roll < 0.3) {
+        // Stay same
+      } else if (roll < 0.55) {
+        idx = Math.min(idx + 1, WEATHER_STATES.length - 1);
+      } else if (roll < 0.8) {
+        idx = Math.max(idx - 1, 0);
+      } else {
+        idx = Math.floor(Math.random() * WEATHER_STATES.length);
+      }
+      this._targetState = WEATHER_STATES[idx];
+      this._transition = 0;
+    }
+  }
+
+  // Transition smoothly
+  if (this._currentState !== this._targetState) {
+    this._transition += dt * this._transitionSpeed;
+    if (this._transition >= 1) {
+      this._transition = 0;
+      this._currentState = this._targetState;
+    }
+  }
+
+  // Interpolate values
+  var from = this._stateValues(this._currentState);
+  var to = this._stateValues(this._targetState);
+  var t = this._transition;
+
+  this.cloudCoverage = _lerp(from.cloud, to.cloud, t);
+  this.precipIntensity = _lerp(from.intensity, to.intensity, t);
+  this.windStrength = _lerp(from.wind, to.wind, t);
+  this.precipType = t > 0.5 ? to.precip : from.precip;
+  this.lightningEnabled = t > 0.5 ? to.lightning : from.lightning;
+};
+
+
+// ============================================================
+// Milky Way + Planets — Night sky deep-space objects
+// ============================================================
+// Ported from Tenkoku_galaxy.shader + Tenkoku_planet.shader
+
+function MilkyWayAndPlanets() {
+  this._milkyWay = null;
+  this._milkyGeo = null;
+  this._milkyMat = null;
+  this._planets = null;
+  this._planetGeo = null;
+  this._planetMat = null;
+}
+
+MilkyWayAndPlanets.prototype.init = function(scene) {
+  // Milky Way: band of faint points across the sky
+  var mwCount = 3000;
+  this._milkyGeo = new THREE.BufferGeometry();
+  var mwPos = new Float32Array(mwCount * 3);
+  var mwCol = new Float32Array(mwCount * 3);
+  var mwSize = new Float32Array(mwCount);
+
+  for (var i = 0; i < mwCount; i++) {
+    // Milky Way band: concentrated along galactic plane
+    // Galactic plane tilted ~63° from celestial equator
+    var galLon = Math.random() * TWO_PI;
+    var galLat = (Math.random() - 0.5) * 0.4; // narrow band ±0.2 rad
+    var r = 4750;
+
+    // Rotate galactic coords to equatorial (simplified tilt)
+    var tilt = 63 * DEG2RAD;
+    var x = r * Math.cos(galLat) * Math.cos(galLon);
+    var y = r * Math.cos(galLat) * Math.sin(galLon);
+    var z = r * Math.sin(galLat);
+
+    // Apply tilt rotation around X axis
+    var y2 = y * Math.cos(tilt) - z * Math.sin(tilt);
+    var z2 = y * Math.sin(tilt) + z * Math.cos(tilt);
+
+    mwPos[i*3]   = x;
+    mwPos[i*3+1] = y2;
+    mwPos[i*3+2] = z2;
+
+    // Milky Way color: faint blue-white with occasional warm tones
+    var warmth = Math.random();
+    mwCol[i*3]   = 0.7 + warmth * 0.3;
+    mwCol[i*3+1] = 0.75 + warmth * 0.15;
+    mwCol[i*3+2] = 0.85 + (1 - warmth) * 0.15;
+
+    mwSize[i] = 0.8 + Math.random() * 1.5;
+  }
+
+  this._milkyGeo.setAttribute("position", new THREE.BufferAttribute(mwPos, 3));
+  this._milkyGeo.setAttribute("color", new THREE.BufferAttribute(mwCol, 3));
+
+  this._milkyMat = new THREE.PointsMaterial({
+    vertexColors: true,
+    size: 1.2,
+    transparent: true,
+    opacity: 0.3,
+    depthWrite: false,
+    sizeAttenuation: false,
+    blending: THREE.AdditiveBlending,
+  });
+
+  this._milkyWay = new THREE.Points(this._milkyGeo, this._milkyMat);
+  this._milkyWay.name = "__swa_milky_way__";
+  this._milkyWay.renderOrder = -998;
+  this._milkyWay.frustumCulled = false;
+  this._milkyWay.visible = false;
+  scene.add(this._milkyWay);
+
+  // Planets: Mercury, Venus, Mars, Jupiter, Saturn (5 bright planets)
+  var planetCount = 5;
+  this._planetGeo = new THREE.BufferGeometry();
+  var pPos = new Float32Array(planetCount * 3);
+  var pCol = new Float32Array(planetCount * 3);
+  var pSize = new Float32Array(planetCount);
+
+  // Planet colors [R,G,B] and base sizes
+  var planetData = [
+    { name: "Mercury", color: [0.7, 0.7, 0.7], size: 3 },
+    { name: "Venus",   color: [1.0, 0.95, 0.8], size: 5 },
+    { name: "Mars",    color: [1.0, 0.5, 0.3], size: 4 },
+    { name: "Jupiter", color: [0.9, 0.85, 0.7], size: 4.5 },
+    { name: "Saturn",  color: [0.95, 0.9, 0.6], size: 3.5 },
+  ];
+
+  for (var j = 0; j < planetCount; j++) {
+    // Initial positions (will be updated by orbital calc)
+    pPos[j*3] = 0; pPos[j*3+1] = -1000; pPos[j*3+2] = 0;
+    pCol[j*3] = planetData[j].color[0];
+    pCol[j*3+1] = planetData[j].color[1];
+    pCol[j*3+2] = planetData[j].color[2];
+    pSize[j] = planetData[j].size;
+  }
+
+  this._planetGeo.setAttribute("position", new THREE.BufferAttribute(pPos, 3));
+  this._planetGeo.setAttribute("color", new THREE.BufferAttribute(pCol, 3));
+
+  this._planetMat = new THREE.PointsMaterial({
+    vertexColors: true,
+    size: 4,
+    transparent: true,
+    opacity: 0.8,
+    depthWrite: false,
+    sizeAttenuation: false,
+    blending: THREE.AdditiveBlending,
+  });
+
+  this._planets = new THREE.Points(this._planetGeo, this._planetMat);
+  this._planets.name = "__swa_planets__";
+  this._planets.renderOrder = -998;
+  this._planets.frustumCulled = false;
+  this._planets.visible = false;
+  scene.add(this._planets);
+
+  this._planetData = planetData;
+};
+
+MilkyWayAndPlanets.prototype.update = function(sunAltDeg, camera, time, dayNumber, settings) {
+  var nightFac = _smoothstep(-6, -18, sunAltDeg);
+  var galaxyIntensity = settings.galaxyIntensity || 1.0;
+  var planetIntensity = settings.planetIntensity || 1.0;
+
+  // Milky Way
+  if (this._milkyWay) {
+    this._milkyWay.visible = nightFac > 0.01 && galaxyIntensity > 0.01;
+    if (this._milkyWay.visible) {
+      this._milkyMat.opacity = nightFac * 0.25 * galaxyIntensity;
+      if (camera) this._milkyWay.position.copy(camera.position);
+    }
+  }
+
+  // Planets: simplified position based on day number
+  if (this._planets) {
+    this._planets.visible = nightFac > 0.05 && planetIntensity > 0.01;
+    if (this._planets.visible) {
+      this._planetMat.opacity = nightFac * 0.8 * planetIntensity;
+
+      var pPos = this._planetGeo.getAttribute("position");
+      var arr = pPos.array;
+      // Simplified planet positions (circular orbits, different periods)
+      var periods = [87.97, 224.7, 687.0, 4332.6, 10759.2]; // days
+      var dist = 4600;
+
+      for (var i = 0; i < 5; i++) {
+        var angle = ((dayNumber || 0) / periods[i]) * TWO_PI + i * 1.2;
+        var elev = 0.2 + Math.sin(angle * 0.3 + i) * 0.3; // vary altitude
+        arr[i*3]   = Math.cos(angle) * dist * Math.cos(elev);
+        arr[i*3+1] = Math.sin(elev) * dist;
+        arr[i*3+2] = Math.sin(angle) * dist * Math.cos(elev);
+      }
+      pPos.needsUpdate = true;
+
+      if (camera) this._planets.position.copy(camera.position);
+    }
+  }
+};
+
+MilkyWayAndPlanets.prototype.dispose = function(scene) {
+  if (this._milkyWay) scene.remove(this._milkyWay);
+  if (this._planets) scene.remove(this._planets);
+  if (this._milkyGeo) this._milkyGeo.dispose();
+  if (this._milkyMat) this._milkyMat.dispose();
+  if (this._planetGeo) this._planetGeo.dispose();
+  if (this._planetMat) this._planetMat.dispose();
+};
+
+
+// ============================================================
+// Weather Audio — Procedural ambient sounds
+// ============================================================
+// Ported from TenkokuGlobalSound.cs (162 lines)
+
+function WeatherAudio() {
+  this._ctx = null;
+  this._masterGain = null;
+  this._windNode = null;
+  this._windGain = null;
+  this._rainNode = null;
+  this._rainGain = null;
+  this._enabled = false;
+  this._volume = 0.5;
+}
+
+WeatherAudio.prototype._ensureContext = function() {
+  if (this._ctx) return true;
+  try {
+    this._ctx = new (window.AudioContext || window.webkitAudioContext)();
+    this._masterGain = this._ctx.createGain();
+    this._masterGain.gain.value = this._volume;
+    this._masterGain.connect(this._ctx.destination);
+
+    // Wind: filtered white noise
+    var windBuf = this._ctx.createBuffer(1, this._ctx.sampleRate * 2, this._ctx.sampleRate);
+    var windData = windBuf.getChannelData(0);
+    for (var i = 0; i < windData.length; i++) {
+      windData[i] = (Math.random() - 0.5) * 0.3;
+    }
+    this._windNode = this._ctx.createBufferSource();
+    this._windNode.buffer = windBuf;
+    this._windNode.loop = true;
+    var windFilter = this._ctx.createBiquadFilter();
+    windFilter.type = "lowpass";
+    windFilter.frequency.value = 400;
+    windFilter.Q.value = 0.5;
+    this._windGain = this._ctx.createGain();
+    this._windGain.gain.value = 0;
+    this._windNode.connect(windFilter);
+    windFilter.connect(this._windGain);
+    this._windGain.connect(this._masterGain);
+    this._windNode.start();
+
+    // Rain: filtered pink noise with higher frequency
+    var rainBuf = this._ctx.createBuffer(1, this._ctx.sampleRate * 2, this._ctx.sampleRate);
+    var rainData = rainBuf.getChannelData(0);
+    var b0 = 0, b1 = 0, b2 = 0, b3 = 0, b4 = 0, b5 = 0, b6 = 0;
+    for (var j = 0; j < rainData.length; j++) {
+      var white = Math.random() * 2 - 1;
+      b0 = 0.99886 * b0 + white * 0.0555179;
+      b1 = 0.99332 * b1 + white * 0.0750759;
+      b2 = 0.96900 * b2 + white * 0.1538520;
+      b3 = 0.86650 * b3 + white * 0.3104856;
+      b4 = 0.55000 * b4 + white * 0.5329522;
+      b5 = -0.7616 * b5 - white * 0.0168980;
+      rainData[j] = (b0 + b1 + b2 + b3 + b4 + b5 + b6 + white * 0.5362) * 0.05;
+      b6 = white * 0.115926;
+    }
+    this._rainNode = this._ctx.createBufferSource();
+    this._rainNode.buffer = rainBuf;
+    this._rainNode.loop = true;
+    var rainFilter = this._ctx.createBiquadFilter();
+    rainFilter.type = "bandpass";
+    rainFilter.frequency.value = 2000;
+    rainFilter.Q.value = 0.3;
+    this._rainGain = this._ctx.createGain();
+    this._rainGain.gain.value = 0;
+    this._rainNode.connect(rainFilter);
+    rainFilter.connect(this._rainGain);
+    this._rainGain.connect(this._masterGain);
+    this._rainNode.start();
+
+    return true;
+  } catch(e) {
+    return false;
+  }
+};
+
+WeatherAudio.prototype.update = function(precipType, precipIntensity, windStrength, settings) {
+  this._enabled = settings.ambientAudio || false;
+  this._volume = settings.audioVolume || 0.5;
+
+  if (!this._enabled) {
+    if (this._windGain) this._windGain.gain.value = 0;
+    if (this._rainGain) this._rainGain.gain.value = 0;
+    return;
+  }
+
+  if (!this._ensureContext()) return;
+  if (this._ctx.state === "suspended") this._ctx.resume();
+
+  this._masterGain.gain.value = this._volume;
+
+  // Wind volume: always some, increases with weather
+  var windVol = _clamp(0.05 + windStrength * 0.3, 0, 0.4);
+  this._windGain.gain.value = windVol;
+
+  // Rain volume: only when raining
+  var rainVol = precipType === "rain" || precipType === "snow" ? precipIntensity * 0.5 : 0;
+  this._rainGain.gain.value = _clamp(rainVol, 0, 0.5);
+};
+
+WeatherAudio.prototype.dispose = function() {
+  try {
+    if (this._windNode) this._windNode.stop();
+    if (this._rainNode) this._rainNode.stop();
+    if (this._ctx) this._ctx.close();
+  } catch(e) {}
+  this._ctx = null;
+};
+
+
+// ============================================================
 // Fog Controller
 // ============================================================
 
@@ -1814,6 +2187,9 @@ function SkyWeatherAdvancedSystem(scene, settings) {
   this.moon = new MoonRenderer();
   this.lightning = new LightningEffect();
   this.aurora = new AuroraRenderer();
+  this.weather = new WeatherStateMachine();
+  this.milkyWay = new MilkyWayAndPlanets();
+  this.audio = new WeatherAudio();
   this.particles = new WeatherParticles();
   this.stars = new StarField();
   this.fog = new FogController();
@@ -1831,6 +2207,7 @@ function SkyWeatherAdvancedSystem(scene, settings) {
   this.moon.build(scene);
   this.lightning.init(scene);
   this.aurora.build(scene);
+  this.milkyWay.init(scene);
   this.lighting.init(scene);
   this.particles.init(scene);
   this.stars.init(scene);
@@ -1880,6 +2257,9 @@ SkyWeatherAdvancedSystem.DEFAULTS = {
     exposure: 1.2,
     rayleighScale: 1.0,
     sunIntensity: 22.0,
+    galaxyIntensity: 1.0,
+    planetIntensity: 1.0,
+    moonBrightness: 1.0,
   },
   lighting: {
     autoSunLight: true,
@@ -1910,6 +2290,10 @@ SkyWeatherAdvancedSystem.DEFAULTS = {
   lightning: {
     enabled: false,
     frequency: 0.1,
+  },
+  weather: {
+    autoForecast: false,
+    forecastInterval: 60,
   },
   effects: {
     godRays: 0,
@@ -2033,8 +2417,31 @@ SkyWeatherAdvancedSystem.prototype._tick = function(dt) {
   // Aurora
   this.aurora.update(dt, camera, (this.settings.time || {}).latitude || 45, sunAltDeg, this.settings.effects || {});
 
+  // Weather state machine (auto-forecast drives clouds, precipitation, lightning)
+  this.weather.update(dt, this.settings.weather || {});
+
+  // Apply weather state to subsystems if auto-forecast is active
+  if ((this.settings.weather || {}).autoForecast) {
+    this.settings.clouds.coverage = this.weather.cloudCoverage;
+    this.settings.precipitation.type = this.weather.precipType;
+    this.settings.precipitation.intensity = this.weather.precipIntensity;
+    this.settings.precipitation.windStrength = this.weather.windStrength;
+    this.settings.lightning.enabled = this.weather.lightningEnabled;
+  }
+
   // Precipitation
   this.particles.update(dt, camera, this.settings.precipitation || {});
+
+  // Milky Way + Planets
+  this.milkyWay.update(sunAltDeg, camera, this._time, this.orbital._dayNumber, this.settings.sky || {});
+
+  // Weather Audio
+  this.audio.update(
+    this.settings.precipitation.type || "none",
+    this.settings.precipitation.intensity || 0,
+    this.settings.precipitation.windStrength || 0.3,
+    this.settings.effects || {}
+  );
 
   // Fog
   this.fog.update(this.scene, sunAltDeg, this.settings.fog || {});
@@ -2057,6 +2464,8 @@ SkyWeatherAdvancedSystem.prototype.destroy = function() {
   this.moon.dispose(this.scene);
   this.lightning.dispose(this.scene);
   this.aurora.dispose(this.scene);
+  this.milkyWay.dispose(this.scene);
+  this.audio.dispose();
   this.lighting.dispose(this.scene);
   this.particles.dispose(this.scene);
   this.stars.dispose(this.scene);
@@ -2079,6 +2488,9 @@ if (typeof window !== "undefined") {
     MoonRenderer: MoonRenderer,
     LightningEffect: LightningEffect,
     AuroraRenderer: AuroraRenderer,
+    WeatherStateMachine: WeatherStateMachine,
+    MilkyWayAndPlanets: MilkyWayAndPlanets,
+    WeatherAudio: WeatherAudio,
     SkyLightingController: SkyLightingController,
     WeatherParticles: WeatherParticles,
     StarField: StarField,
@@ -2163,6 +2575,9 @@ module.exports = {
 			exposure: 1.2,
 			rayleighScale: 1.0,
 			sunIntensity: 22.0,
+			galaxyIntensity: 1.0,
+			planetIntensity: 1.0,
+			moonBrightness: 1.0,
 		},
 		lighting: {
 			autoSunLight: true,
@@ -2193,6 +2608,10 @@ module.exports = {
 		lightning: {
 			enabled: false,
 			frequency: 0.1,
+		},
+		weather: {
+			autoForecast: false,
+			forecastInterval: 60,
 		},
 		effects: {
 			godRays: 0,
