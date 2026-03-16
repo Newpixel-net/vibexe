@@ -1072,7 +1072,7 @@ if (!gameScene || typeof gameScene.init !== 'function') {
         try {
           if (comp && !W.__vibexe_skipComposer__) comp.render(delta); else renderer.render(scene, camera);
         } catch(__re) { var __rm=__re?.message||""; if (!__rm.includes("already initialized")&&!__rm.includes("usedTimes")&&!__rm.includes("is not a function")) throw __re; }
-        } catch (__frameErr: any) { if (W.__vibexe_bundleGen__ === __bundleGen) console.error('[GameLoop] Frame error:', __frameErr?.message || __frameErr?.name || String(__frameErr), __frameErr?.stack?.split('\n')[1] || ''); }
+        } catch (__frameErr: any) { if (W.__vibexe_bundleGen__ === __bundleGen) console.error('[GameLoop] Frame error:', __frameErr?.message || __frameErr?.name || String(__frameErr)); }
       }
       // Force initial shadow render
       renderer.shadowMap.needsUpdate = true;
