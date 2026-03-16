@@ -235,6 +235,7 @@ window.addEventListener('unhandledrejection', function(e) {
         old.remove();
         // Clear globals (keep renderer alive for reuse!)
         // window.__vibexe_renderer__ is NOT cleared — reused by next bundle
+        window.__vibexe_skipComposer__ = false;
         window.__vibexe_scene__ = null;
         window.__vibexe_camera__ = null;
         window.__vibexe_world__ = null;
@@ -394,23 +395,34 @@ window.addEventListener('unhandledrejection', function(e) {
 
       // PerfGuard safety net: old game bundles have aggressive thresholds (8s grace, FPS<30)
       // that permanently degrade quality during WebGPU TSL shader compilation.
-      // After 25s, force-reset any quality degradation from startup period.
+      // Run every 15s for 2 minutes to keep overriding old PerfGuard reductions.
       (function() {
-        var _pgTimer = setTimeout(function() {
+        var _pgCount = 0;
+        var _pgMax = 8; // 8 * 15s = 120s total protection
+        var _pgInterval = setInterval(function() {
+          _pgCount++;
+          var didReset = false;
           if (window.__vibexe_skipComposer__) {
             window.__vibexe_skipComposer__ = false;
-            console.log("[Runtime] PerfGuard safety: reset skipComposer after grace period");
+            didReset = true;
           }
           // Restore pixel ratio if it was reduced
           var r = window.__vibexe_renderer__;
           if (r && typeof r.getPixelRatio === 'function' && r.getPixelRatio() < 0.9) {
             r.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1));
-            console.log("[Runtime] PerfGuard safety: restored pixelRatio to", r.getPixelRatio());
+            didReset = true;
           }
-        }, 25000);
-        // Clear timer on page unload
-        window.addEventListener('beforeunload', function() { clearTimeout(_pgTimer); });
-        console.log("[Runtime] PerfGuard safety net armed (25s grace)");
+          if (didReset) {
+            console.log("[Runtime] PerfGuard safety: reset quality (" + _pgCount + "/" + _pgMax + ")");
+          }
+          if (_pgCount >= _pgMax) {
+            clearInterval(_pgInterval);
+            console.log("[Runtime] PerfGuard safety net expired after 2 min");
+          }
+        }, 15000);
+        // Clear interval on page unload
+        window.addEventListener('beforeunload', function() { clearInterval(_pgInterval); });
+        console.log("[Runtime] PerfGuard safety net armed (15s interval, 2 min)");
       })();
 
       // Notify parent that bundle is loaded
