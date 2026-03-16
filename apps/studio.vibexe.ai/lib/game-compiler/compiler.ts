@@ -879,6 +879,8 @@ if (!gameScene || typeof gameScene.init !== 'function') {
       };
 
       function animate(time?: number) {
+        // Guard: stop loop if scene was destroyed (bundle reload / mode switch cleanup)
+        if (!scene || !scene.children || !renderer || !camera) return;
         W.__vibexe_animFrameId__ = requestAnimationFrame(animate);
         try {
         // Skip when tab hidden

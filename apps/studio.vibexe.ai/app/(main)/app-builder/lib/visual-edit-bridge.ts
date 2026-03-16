@@ -6593,8 +6593,10 @@ export function getVisualEditBridgeScript(): string {
     var _origRAF = window.requestAnimationFrame;
     window.requestAnimationFrame = function(cb) {
       return _origRAF.call(window, function(ts) {
-        var aq = window.__vibexe_adaptive_quality__;
-        if (aq && aq._onFrame) aq._onFrame();
+        try {
+          var aq = window.__vibexe_adaptive_quality__;
+          if (aq && aq._onFrame) aq._onFrame();
+        } catch(e) {}
         cb(ts);
       });
     };
