@@ -1008,7 +1008,7 @@ StarField.prototype.init = function(scene) {
   console.log("[SkyWeatherAdvanced] Star catalog loaded: " + count + " stars");
 };
 
-StarField.prototype.update = function(sunAltDeg, camera, time, settings) {
+StarField.prototype.update = function(sunAltDeg, camera, time, settings, solarTime) {
   if (!this._stars) return;
 
   // Stars visible only at night (sun below -6° civil twilight)
@@ -1026,6 +1026,14 @@ StarField.prototype.update = function(sunAltDeg, camera, time, settings) {
       sArr[i] = this._baseSizes[i] * (0.7 + 0.3 * Math.sin(time * 2.5 + this._twinklePhases[i]));
     }
     sizes.needsUpdate = true;
+  }
+
+  // Sidereal rotation: stars rotate with Earth's rotation (360° per sidereal day)
+  // solarTime 0-1 maps to one solar day; sidereal day is ~23h56m
+  // Rotate star dome around Y axis based on local sidereal time
+  if (this._stars) {
+    var siderealAngle = ((solarTime || 0) * 360 * 1.00274) * DEG2RAD; // solar→sidereal factor
+    this._stars.rotation.y = siderealAngle;
   }
 
   // Follow camera
@@ -1579,6 +1587,8 @@ LightningEffect.prototype._playThunder = function(distance) {
 
     var source = ctx.createBufferSource();
     source.buffer = buffer;
+    // Pitch variation: closer = higher pitch, distant = lower rumble (Tenkoku 0.6-1.2 range)
+    source.playbackRate.value = _lerp(0.6, 1.2, 1 - distance / 300);
     var gain = ctx.createGain();
     gain.gain.value = volume;
     source.connect(gain);
@@ -1864,6 +1874,21 @@ WeatherStateMachine.prototype.update = function(dt, settings) {
   this.windStrength = _lerp(from.wind, to.wind, t);
   this.precipType = t > 0.5 ? to.precip : from.precip;
   this.lightningEnabled = t > 0.5 ? to.lightning : from.lightning;
+
+  // Wind gust randomization (Tenkoku-style turbulence)
+  this._gustTimer = (this._gustTimer || 0) + dt;
+  if (this._gustTimer > 2 + Math.random() * 3) {
+    this._gustTimer = 0;
+    this.windStrength += (Math.random() - 0.3) * 0.15;
+    this.windStrength = _clamp(this.windStrength, 0, 1);
+  }
+
+  // Temperature-based precipitation type: below 0°C → snow, above → rain
+  // Simplified: use latitude as temperature proxy (higher lat = colder)
+  var latitude = Math.abs(settings.latitude || 45);
+  if (this.precipType === "rain" && latitude > 55) {
+    this.precipType = "snow"; // cold enough for snow at high latitudes
+  }
 };
 
 
@@ -2116,28 +2141,39 @@ WeatherAudio.prototype._ensureContext = function() {
   }
 };
 
-WeatherAudio.prototype.update = function(precipType, precipIntensity, windStrength, settings) {
+WeatherAudio.prototype.update = function(precipType, precipIntensity, windStrength, settings, sunAltDeg) {
   this._enabled = settings.ambientAudio || false;
   this._volume = settings.audioVolume || 0.5;
 
   if (!this._enabled) {
-    if (this._windGain) this._windGain.gain.value = 0;
-    if (this._rainGain) this._rainGain.gain.value = 0;
+    // Smooth fade out (not abrupt cut)
+    if (this._windGain) this._windGain.gain.value *= 0.95;
+    if (this._rainGain) this._rainGain.gain.value *= 0.95;
     return;
   }
 
   if (!this._ensureContext()) return;
   if (this._ctx.state === "suspended") this._ctx.resume();
 
-  this._masterGain.gain.value = this._volume;
+  // Smooth cross-fade master volume (no clicks/pops)
+  var targetMaster = this._volume;
+  var currentMaster = this._masterGain.gain.value;
+  this._masterGain.gain.value = currentMaster + (targetMaster - currentMaster) * 0.1;
 
-  // Wind volume: always some, increases with weather
-  var windVol = _clamp(0.05 + windStrength * 0.3, 0, 0.4);
-  this._windGain.gain.value = windVol;
+  // Wind volume: always present, scales with weather intensity
+  var targetWind = _clamp(0.05 + windStrength * 0.3, 0, 0.4);
+  // Day/night ambient: wind is slightly louder at night (more noticeable)
+  var isNight = (sunAltDeg || 0) < -6;
+  if (isNight) targetWind = Math.max(targetWind, 0.08);
+  // Smooth cross-fade wind
+  var curWind = this._windGain.gain.value;
+  this._windGain.gain.value = curWind + (targetWind - curWind) * 0.05;
 
-  // Rain volume: only when raining
-  var rainVol = precipType === "rain" || precipType === "snow" ? precipIntensity * 0.5 : 0;
-  this._rainGain.gain.value = _clamp(rainVol, 0, 0.5);
+  // Rain/snow volume with smooth cross-fade
+  var targetRain = precipType === "rain" || precipType === "snow" ? precipIntensity * 0.5 : 0;
+  targetRain = _clamp(targetRain, 0, 0.5);
+  var curRain = this._rainGain.gain.value;
+  this._rainGain.gain.value = curRain + (targetRain - curRain) * 0.05;
 };
 
 WeatherAudio.prototype.dispose = function() {
@@ -2464,8 +2500,8 @@ SkyWeatherAdvancedSystem.prototype._tick = function(dt) {
     this.settings.sky || {}
   );
 
-  // Stars
-  this.stars.update(sunAltDeg, camera, this._time, this.settings.sky || {});
+  // Stars (with sidereal rotation)
+  this.stars.update(sunAltDeg, camera, this._time, this.settings.sky || {}, ts.solarTime || 0.45);
 
   // Lightning
   this.lightning.update(dt, camera, this.settings.lightning || {});
@@ -2474,7 +2510,9 @@ SkyWeatherAdvancedSystem.prototype._tick = function(dt) {
   this.aurora.update(dt, camera, (this.settings.time || {}).latitude || 45, sunAltDeg, this.settings.effects || {});
 
   // Weather state machine (auto-forecast drives clouds, precipitation, lightning)
-  this.weather.update(dt, this.settings.weather || {});
+  var weatherSettings = this.settings.weather || {};
+  weatherSettings.latitude = (this.settings.time || {}).latitude || 45;
+  this.weather.update(dt, weatherSettings);
 
   // Apply weather state to subsystems if auto-forecast is active
   if ((this.settings.weather || {}).autoForecast) {
@@ -2483,6 +2521,14 @@ SkyWeatherAdvancedSystem.prototype._tick = function(dt) {
     this.settings.precipitation.intensity = this.weather.precipIntensity;
     this.settings.precipitation.windStrength = this.weather.windStrength;
     this.settings.lightning.enabled = this.weather.lightningEnabled;
+
+    // Overcast dimming: reduce sky exposure and sun intensity when heavily overcast
+    var overcastDim = _clamp(this.weather.cloudCoverage - 0.5, 0, 0.5) * 2; // 0 at 50%, 1 at 100%
+    this.atmosphere._sunIntensity = _lerp(
+      (this.settings.sky || {}).sunIntensity || 22.0,
+      8.0,
+      overcastDim
+    );
   }
 
   // Precipitation
@@ -2496,7 +2542,8 @@ SkyWeatherAdvancedSystem.prototype._tick = function(dt) {
     this.settings.precipitation.type || "none",
     this.settings.precipitation.intensity || 0,
     this.settings.precipitation.windStrength || 0.3,
-    this.settings.effects || {}
+    this.settings.effects || {},
+    sunAltDeg
   );
 
   // Fog
