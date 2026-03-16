@@ -1617,6 +1617,131 @@ LightningEffect.prototype.dispose = function(scene) {
 
 
 // ============================================================
+// Aurora Borealis — Animated curtain visible at high latitudes
+// ============================================================
+// Ported from Tenkoku_aurora_sphere.shader (186 lines)
+
+function AuroraRenderer() {
+  this._mesh = null;
+  this._geo = null;
+  this._mat = null;
+  this._time = 0;
+  this._visible = false;
+}
+
+AuroraRenderer.prototype.build = function(scene) {
+  if (this._mesh) return;
+
+  // Generate aurora texture
+  var texSize = 256;
+  var canvas = document.createElement("canvas");
+  canvas.width = texSize; canvas.height = texSize;
+  var ctx = canvas.getContext("2d");
+
+  // Vertical gradient bands of green/blue/purple
+  for (var y = 0; y < texSize; y++) {
+    var t = y / texSize;
+    var r = Math.floor(_lerp(20, 100, Math.sin(t * PI) * 0.5) * (0.5 + 0.5 * Math.sin(t * 8)));
+    var g = Math.floor(_lerp(180, 255, Math.sin(t * PI)) * (0.6 + 0.4 * Math.sin(t * 6 + 1)));
+    var b = Math.floor(_lerp(80, 200, Math.sin(t * PI * 0.7 + 0.5)) * (0.4 + 0.6 * Math.sin(t * 5 + 2)));
+    var a = Math.sin(t * PI) * 0.6;
+    ctx.fillStyle = "rgba(" + r + "," + g + "," + b + "," + a + ")";
+    ctx.fillRect(0, y, texSize, 1);
+  }
+
+  var auroraTex = new THREE.CanvasTexture(canvas);
+  auroraTex.wrapS = THREE.RepeatWrapping;
+  auroraTex.wrapT = THREE.ClampToEdgeWrapping;
+
+  // Cylinder geometry for aurora curtain
+  this._geo = new THREE.CylinderGeometry(4500, 4500, 800, 64, 16, true);
+  this._geo.name = "__swa_aurora_geo__";
+
+  this._mat = new THREE.ShaderMaterial({
+    uniforms: {
+      uTex: { value: auroraTex },
+      uTime: { value: 0 },
+      uIntensity: { value: 0.5 },
+    },
+    vertexShader: [
+      "varying vec2 vUV;",
+      "varying float vHeight;",
+      "uniform float uTime;",
+      "void main() {",
+      "  vUV = uv;",
+      "  vHeight = position.y;",
+      "  vec3 pos = position;",
+      "  pos.x += sin(uv.y * 6.28 + uTime * 0.5) * 100.0;",
+      "  pos.z += cos(uv.y * 4.0 + uTime * 0.3) * 80.0;",
+      "  gl_Position = projectionMatrix * modelViewMatrix * vec4(pos, 1.0);",
+      "}"
+    ].join("\\n"),
+    fragmentShader: [
+      "uniform sampler2D uTex;",
+      "uniform float uTime;",
+      "uniform float uIntensity;",
+      "varying vec2 vUV;",
+      "varying float vHeight;",
+      "void main() {",
+      "  vec2 uv = vUV;",
+      "  uv.x += uTime * 0.02;",
+      "  vec4 tex = texture2D(uTex, uv);",
+      "  float fade = smoothstep(0.0, 0.3, vUV.y) * smoothstep(1.0, 0.7, vUV.y);",
+      "  gl_FragColor = vec4(tex.rgb * uIntensity * 1.5, tex.a * fade * uIntensity);",
+      "}"
+    ].join("\\n"),
+    transparent: true,
+    depthWrite: false,
+    side: THREE.DoubleSide,
+    blending: THREE.AdditiveBlending,
+    fog: false,
+  });
+  this._mat.name = "__swa_aurora_mat__";
+
+  this._mesh = new THREE.Mesh(this._geo, this._mat);
+  this._mesh.name = "__swa_aurora__";
+  this._mesh.renderOrder = -997;
+  this._mesh.frustumCulled = false;
+  this._mesh.visible = false;
+  this._mesh.position.y = 2000; // high in the sky
+  scene.add(this._mesh);
+};
+
+AuroraRenderer.prototype.update = function(dt, camera, latitude, sunAltDeg, settings) {
+  this._time += dt;
+  if (!this._mesh) return;
+
+  var auroraIntensity = settings.aurora || 0;
+  // Aurora only visible at high latitudes, clear night
+  var latAbs = Math.abs(latitude || 45);
+  var nightFac = sunAltDeg < -12 ? 1 : (sunAltDeg < -6 ? _smoothstep(-6, -12, sunAltDeg) : 0);
+  var latFac = latAbs > 55 ? 1 : (latAbs > 45 ? _smoothstep(45, 55, latAbs) : 0);
+
+  this._visible = auroraIntensity > 0.01 && nightFac > 0.01 && latFac > 0.01;
+  this._mesh.visible = this._visible;
+
+  if (this._visible) {
+    this._mat.uniforms.uTime.value = this._time;
+    this._mat.uniforms.uIntensity.value = auroraIntensity * nightFac * latFac;
+    if (camera) {
+      this._mesh.position.x = camera.position.x;
+      this._mesh.position.z = camera.position.z;
+    }
+  }
+};
+
+AuroraRenderer.prototype.dispose = function(scene) {
+  if (this._mesh && this._mesh.parent) this._mesh.parent.remove(this._mesh);
+  if (this._geo) this._geo.dispose();
+  if (this._mat) {
+    if (this._mat.uniforms.uTex.value) this._mat.uniforms.uTex.value.dispose();
+    this._mat.dispose();
+  }
+  this._mesh = null;
+};
+
+
+// ============================================================
 // Fog Controller
 // ============================================================
 
@@ -1688,6 +1813,7 @@ function SkyWeatherAdvancedSystem(scene, settings) {
   this.clouds = new CloudSystem();
   this.moon = new MoonRenderer();
   this.lightning = new LightningEffect();
+  this.aurora = new AuroraRenderer();
   this.particles = new WeatherParticles();
   this.stars = new StarField();
   this.fog = new FogController();
@@ -1704,6 +1830,7 @@ function SkyWeatherAdvancedSystem(scene, settings) {
   this.clouds.build(scene);
   this.moon.build(scene);
   this.lightning.init(scene);
+  this.aurora.build(scene);
   this.lighting.init(scene);
   this.particles.init(scene);
   this.stars.init(scene);
@@ -1903,6 +2030,9 @@ SkyWeatherAdvancedSystem.prototype._tick = function(dt) {
   // Lightning
   this.lightning.update(dt, camera, this.settings.lightning || {});
 
+  // Aurora
+  this.aurora.update(dt, camera, (this.settings.time || {}).latitude || 45, sunAltDeg, this.settings.effects || {});
+
   // Precipitation
   this.particles.update(dt, camera, this.settings.precipitation || {});
 
@@ -1926,6 +2056,7 @@ SkyWeatherAdvancedSystem.prototype.destroy = function() {
   this.clouds.dispose(this.scene);
   this.moon.dispose(this.scene);
   this.lightning.dispose(this.scene);
+  this.aurora.dispose(this.scene);
   this.lighting.dispose(this.scene);
   this.particles.dispose(this.scene);
   this.stars.dispose(this.scene);
@@ -1947,6 +2078,7 @@ if (typeof window !== "undefined") {
     CloudSystem: CloudSystem,
     MoonRenderer: MoonRenderer,
     LightningEffect: LightningEffect,
+    AuroraRenderer: AuroraRenderer,
     SkyLightingController: SkyLightingController,
     WeatherParticles: WeatherParticles,
     StarField: StarField,
