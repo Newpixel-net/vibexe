@@ -5351,11 +5351,21 @@ export default function Game3D({ gameScene: rawScene, bgColor = "#87CEEB", camer
       }
 
       // Create renderer + store on window so idempotent helpers return it
-      // Prefer WebGPURenderer (auto-falls back to WebGL 2 on unsupported browsers)
+      // REUSE existing renderer across bundle reloads — WebGPU device.destroy() is fatal
       const __perfSettings = ((window as any).__VIBEXE_GAME_SETTINGS__ || {}).performance || {};
       const __iifeFX = !!((window as any).__VIBEXE_GAME_SETTINGS__ || {}).fxPreset;
       const __antialias = __iifeFX ? false : (__perfSettings.antialias !== false);
-      if (THREE.WebGPURenderer) {
+      const __existingRenderer = (window as any).__vibexe_renderer__;
+      if (__existingRenderer && __existingRenderer.domElement) {
+        // Reuse renderer from previous bundle — WebGPU device stays alive
+        renderer = __existingRenderer;
+        renderer.setSize(container.clientWidth, container.clientHeight);
+        // Ensure canvas is in the container (cleanup may have left it)
+        if (!renderer.domElement.parentNode || renderer.domElement.parentNode !== container) {
+          container.appendChild(renderer.domElement);
+        }
+        console.log('[Game3D] Reusing existing renderer (backend: ' + (renderer.backend?.constructor?.name || 'auto') + ')');
+      } else if (THREE.WebGPURenderer) {
         renderer = new THREE.WebGPURenderer({
           antialias: __antialias,
           powerPreference: "high-performance"
@@ -5363,6 +5373,8 @@ export default function Game3D({ gameScene: rawScene, bgColor = "#87CEEB", camer
         await renderer.init();
         (window as any).__vibexe_webgpu__ = true;
         console.log('[Game3D] WebGPURenderer initialized (backend: ' + (renderer.backend?.constructor?.name || 'auto') + ')');
+        renderer.setSize(container.clientWidth, container.clientHeight);
+        container.appendChild(renderer.domElement);
       } else {
         renderer = new THREE.WebGLRenderer({
           antialias: __antialias,
@@ -5371,8 +5383,9 @@ export default function Game3D({ gameScene: rawScene, bgColor = "#87CEEB", camer
           powerPreference: "high-performance"
         });
         (window as any).__vibexe_webgpu__ = false;
+        renderer.setSize(container.clientWidth, container.clientHeight);
+        container.appendChild(renderer.domElement);
       }
-      renderer.setSize(container.clientWidth, container.clientHeight);
       renderer.setPixelRatio(Math.min(__perfSettings.pixelRatio || window.devicePixelRatio, 1.5));
       renderer.shadowMap.enabled = true;
       renderer.shadowMap.type = THREE.PCFShadowMap;
@@ -5383,7 +5396,6 @@ export default function Game3D({ gameScene: rawScene, bgColor = "#87CEEB", camer
       // with PBR light values (~3x higher than r172 to compensate for /PI).
       renderer.toneMapping = THREE.ACESFilmicToneMapping;
       renderer.toneMappingExposure = 1.0;
-      container.appendChild(renderer.domElement);
       (window as any).__vibexe_renderer__ = renderer;
 
       // Create camera + store on window (game settings override FOV)
@@ -7368,19 +7380,16 @@ export default function Game3D({ gameScene: rawScene, bgColor = "#87CEEB", camer
       disposeScene();
       window.removeEventListener("resize", onResize);
       document.removeEventListener("visibilitychange", onVisChange);
-      // Clean up window references so idempotent helpers create fresh on next mount
-      delete (window as any).__vibexe_renderer__;
+      // Clean up window references — but KEEP renderer alive for reuse across bundle reloads
+      // (WebGPU device.destroy() is fatal — re-creating renderer causes blank screen)
+      // delete (window as any).__vibexe_renderer__; // KEEP for reuse
       delete (window as any).__vibexe_scene__;
       delete (window as any).__vibexe_camera__;
       delete (window as any).__vibexe_world__;
       delete (window as any).__vibexe_editor__;
       delete (window as any).__vibexeFactories;
-      if (renderer) {
-        renderer.dispose();
-        if (renderer.domElement.parentNode) {
-          renderer.domElement.parentNode.removeChild(renderer.domElement);
-        }
-      }
+      // Do NOT dispose renderer — it will be reused by next bundle
+      // Only dispose on actual page unload (handled by game-runtime cleanup)
     };
   }, []);
 

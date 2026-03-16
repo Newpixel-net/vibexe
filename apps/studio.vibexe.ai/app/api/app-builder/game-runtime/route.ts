@@ -187,9 +187,12 @@ window.addEventListener('unhandledrejection', function(e) {
       // Clean up previous bundle if reloading
       var old = document.getElementById('vibexe-game-bundle');
       if (old) {
-        // Dispose Three.js resources
+        // KEEP renderer alive across bundle reloads — WebGPU device.destroy() is fatal
+        // and re-creating a WebGPURenderer is expensive + causes flicker.
+        // The renderer will be REUSED by the next bundle's Game3D IIFE.
         var ren = window.__vibexe_renderer__;
-        if (ren) { try { ren.dispose(); } catch(e) {} }
+        // Just clear the render target, don't dispose
+        if (ren) { try { ren.clear(); } catch(e) {} }
         var sc = window.__vibexe_scene__;
         if (sc) {
           sc.traverse(function(obj) {
@@ -230,8 +233,8 @@ window.addEventListener('unhandledrejection', function(e) {
           window.requestAnimationFrame = window.requestAnimationFrame.__vibexe_original;
         }
         old.remove();
-        // Clear globals
-        window.__vibexe_renderer__ = null;
+        // Clear globals (keep renderer alive for reuse!)
+        // window.__vibexe_renderer__ is NOT cleared — reused by next bundle
         window.__vibexe_scene__ = null;
         window.__vibexe_camera__ = null;
         window.__vibexe_world__ = null;
@@ -277,9 +280,19 @@ window.addEventListener('unhandledrejection', function(e) {
           }
           window.__vibexe_moduleTimers__ = [];
         }
-        // Clear canvas
+        // Clear canvas — but KEEP the renderer's canvas element if reusing
         var root = document.getElementById('root');
-        if (root) root.innerHTML = '';
+        if (root) {
+          var keepCanvas = ren ? ren.domElement : null;
+          while (root.firstChild) {
+            if (root.firstChild === keepCanvas) { break; }
+            root.removeChild(root.firstChild);
+          }
+          // Remove any children AFTER the canvas too
+          while (keepCanvas && keepCanvas.nextSibling) {
+            root.removeChild(keepCanvas.nextSibling);
+          }
+        }
         // Remove FPS overlay
         var fpsEl = document.getElementById('__vibexe_fps__');
         if (fpsEl) fpsEl.remove();
