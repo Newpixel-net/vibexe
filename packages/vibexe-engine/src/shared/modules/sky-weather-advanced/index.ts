@@ -467,6 +467,12 @@ AtmosphereRenderer.prototype._computeSkyColor = function(viewDir) {
   gn = Math.pow(_clamp(gn, 0, 1), invGamma);
   b = Math.pow(_clamp(b, 0, 1), invGamma);
 
+  // Night floor: minimum sky brightness
+  var nightFloor = 0.02;
+  r = Math.max(r, nightFloor * 0.9);
+  gn = Math.max(gn, nightFloor * 0.7);
+  b = Math.max(b, nightFloor);
+
   return [r, gn, b];
 };
 
@@ -552,6 +558,98 @@ AtmosphereRenderer.prototype.dispose = function() {
   this.dome = null;
   this.geometry = null;
   this.material = null;
+};
+
+
+// ============================================================
+// Sun Disk Billboard — follows sun direction with glow halo
+// ============================================================
+
+function SunDiskRenderer() {
+  this._group = null;
+  this._diskMesh = null;
+  this._glowMesh = null;
+}
+
+SunDiskRenderer.prototype.build = function(scene) {
+  if (this._group) return;
+  this._group = new THREE.Group();
+  this._group.name = "__swa_sun_disk__";
+  this._group.renderOrder = -998;
+
+  // Sun disk — bright white circle
+  var diskGeo = new THREE.PlaneGeometry(200, 200);
+  var diskCanvas = document.createElement("canvas");
+  diskCanvas.width = 128; diskCanvas.height = 128;
+  var dCtx = diskCanvas.getContext("2d");
+  var grad = dCtx.createRadialGradient(64, 64, 0, 64, 64, 64);
+  grad.addColorStop(0, "rgba(255,255,240,1.0)");
+  grad.addColorStop(0.3, "rgba(255,250,220,0.9)");
+  grad.addColorStop(0.7, "rgba(255,220,160,0.3)");
+  grad.addColorStop(1.0, "rgba(255,200,100,0.0)");
+  dCtx.fillStyle = grad;
+  dCtx.fillRect(0, 0, 128, 128);
+  var diskTex = new THREE.CanvasTexture(diskCanvas);
+  var diskMat = new THREE.MeshBasicMaterial({
+    map: diskTex, transparent: true, depthWrite: false, fog: false,
+    side: THREE.DoubleSide, blending: THREE.AdditiveBlending,
+  });
+  this._diskMesh = new THREE.Mesh(diskGeo, diskMat);
+  this._group.add(this._diskMesh);
+
+  // Glow halo — larger, softer
+  var glowGeo = new THREE.PlaneGeometry(800, 800);
+  var glowCanvas = document.createElement("canvas");
+  glowCanvas.width = 128; glowCanvas.height = 128;
+  var gCtx = glowCanvas.getContext("2d");
+  var gGrad = gCtx.createRadialGradient(64, 64, 0, 64, 64, 64);
+  gGrad.addColorStop(0, "rgba(255,240,200,0.4)");
+  gGrad.addColorStop(0.3, "rgba(255,220,150,0.15)");
+  gGrad.addColorStop(0.6, "rgba(255,200,100,0.05)");
+  gGrad.addColorStop(1.0, "rgba(255,180,80,0.0)");
+  gCtx.fillStyle = gGrad;
+  gCtx.fillRect(0, 0, 128, 128);
+  var glowTex = new THREE.CanvasTexture(glowCanvas);
+  var glowMat = new THREE.MeshBasicMaterial({
+    map: glowTex, transparent: true, depthWrite: false, fog: false,
+    side: THREE.DoubleSide, blending: THREE.AdditiveBlending,
+  });
+  this._glowMesh = new THREE.Mesh(glowGeo, glowMat);
+  this._group.add(this._glowMesh);
+
+  scene.add(this._group);
+};
+
+SunDiskRenderer.prototype.update = function(camera, sunDir, sunAltDeg, settings) {
+  if (!this._group) return;
+
+  // Position sun disk far away in sun direction
+  var dist = 4500;
+  this._group.position.set(
+    camera.position.x + sunDir.x * dist,
+    camera.position.y + sunDir.y * dist,
+    camera.position.z + sunDir.z * dist
+  );
+
+  // Billboard: always face camera
+  this._group.lookAt(camera.position);
+
+  // Size from settings
+  var size = (settings.sunDiskSize || 0.028) * 8000;
+  if (this._diskMesh) this._diskMesh.scale.setScalar(size / 200);
+
+  // Hide when sun below horizon
+  this._group.visible = sunAltDeg > -2;
+
+  // Fade near horizon
+  var horizFade = _clamp((sunAltDeg + 2) / 10, 0, 1);
+  if (this._diskMesh && this._diskMesh.material) this._diskMesh.material.opacity = horizFade;
+  if (this._glowMesh && this._glowMesh.material) this._glowMesh.material.opacity = horizFade * 0.6;
+};
+
+SunDiskRenderer.prototype.dispose = function(scene) {
+  if (this._group && this._group.parent) this._group.parent.remove(this._group);
+  this._group = null;
 };
 
 
@@ -1212,7 +1310,7 @@ CloudSystem.prototype.updateTexture = function(atmosphere) {
     var v = py / H;
 
     // Altitude-based fade: clouds thin out near zenith and near horizon edge
-    var altFade = _smoothstep(0.0, 0.15, v) * _smoothstep(1.0, 0.75, v);
+    var altFade = _smoothstep(0.0, 0.08, v) * _smoothstep(1.0, 0.8, v);
 
     for (var px = 0; px < W; px++) {
       var u = px / W;
@@ -1228,20 +1326,20 @@ CloudSystem.prototype.updateTexture = function(atmosphere) {
 
       // Layer 1: Cumulus — large puffy formations
       var n1 = this._fbm2(nx * 0.8 + windX, ny * 0.8 + windY);
-      var c1 = _clamp(n1 + coverage - 0.5, 0, 1);
+      var c1 = _clamp(n1 + coverage * 1.5 - 0.5, 0, 1);
       // Cumulus lives in the mid-altitude band
       var fade1 = _smoothstep(0.05, 0.25, v) * _smoothstep(0.85, 0.5, v);
       c1 *= fade1;
 
       // Layer 2: Altocumulus — smaller, lighter patches (offset sampling)
       var n2 = this._fbm2(nx * 1.6 + windX * 1.3 + 50, ny * 1.6 + windY * 0.7 + 50);
-      var c2 = _clamp(n2 + coverage * 0.7 - 0.45, 0, 1) * 0.45;
+      var c2 = _clamp(n2 + coverage * 1.2 - 0.4, 0, 1) * 0.45;
       var fade2 = _smoothstep(0.1, 0.3, v) * _smoothstep(0.9, 0.55, v);
       c2 *= fade2;
 
       // Layer 3: Cirrostratus — thin wispy high-altitude streaks
       var n3 = this._fbm2(nx * 2.8 + windX * 0.6 + 120, ny * 1.2 + windY * 0.4 + 120);
-      var c3 = _clamp(n3 + coverage * 0.5 - 0.4, 0, 1) * 0.3;
+      var c3 = _clamp(n3 + coverage * 0.9 - 0.35, 0, 1) * 0.3;
       var fade3 = _smoothstep(0.0, 0.12, v) * _smoothstep(0.55, 0.3, v);
       c3 *= fade3;
 
@@ -1265,7 +1363,7 @@ CloudSystem.prototype.updateTexture = function(atmosphere) {
       var b = _clamp(baseB * lightMul / 255, 0, 1);
 
       // Alpha: ramp up from threshold for soft edges
-      var alpha = _clamp(d * 3.5, 0, 1) * altFade;
+      var alpha = _clamp(d * 5.0, 0, 1) * altFade;
 
       pix[idx]     = Math.round(r * 255);
       pix[idx + 1] = Math.round(g * 255);
@@ -2371,6 +2469,7 @@ function SkyWeatherAdvancedSystem(scene, settings) {
   this.weather = new WeatherStateMachine();
   this.milkyWay = new MilkyWayAndPlanets();
   this.sunShafts = new SunShafts();
+  this.sunDisk = new SunDiskRenderer();
   this.audio = new WeatherAudio();
   this.particles = new WeatherParticles();
   this.stars = new StarField();
@@ -2391,6 +2490,7 @@ function SkyWeatherAdvancedSystem(scene, settings) {
   this.aurora.build(scene);
   this.milkyWay.init(scene);
   this.sunShafts.build(scene);
+  this.sunDisk.build(scene);
   this.lighting.init(scene);
   this.particles.init(scene);
   this.stars.init(scene);
@@ -2649,6 +2749,9 @@ SkyWeatherAdvancedSystem.prototype._tick = function(dt) {
 
   // Sun Shafts (god rays)
   this.sunShafts.update(camera, this.orbital.sunDirection, sunAltDeg, this.settings.effects || {});
+
+  // Sun disk billboard
+  this.sunDisk.update(camera, this.orbital.sunDirection, sunAltDeg, this.settings.sky || {});
 };
 
 // Update settings from external source (bridge message)
@@ -2670,6 +2773,7 @@ SkyWeatherAdvancedSystem.prototype.destroy = function() {
   this.aurora.dispose(this.scene);
   this.milkyWay.dispose(this.scene);
   this.sunShafts.dispose(this.scene);
+  this.sunDisk.dispose(this.scene);
   this.audio.dispose();
   this.lighting.dispose(this.scene);
   this.particles.dispose(this.scene);
@@ -2796,6 +2900,7 @@ if (typeof window !== "undefined") {
     MilkyWayAndPlanets: MilkyWayAndPlanets,
     WeatherAudio: WeatherAudio,
     SunShafts: SunShafts,
+    SunDiskRenderer: SunDiskRenderer,
     SkyLightingController: SkyLightingController,
     WeatherParticles: WeatherParticles,
     StarField: StarField,
