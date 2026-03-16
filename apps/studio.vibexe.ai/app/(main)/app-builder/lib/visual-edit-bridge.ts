@@ -2809,6 +2809,17 @@ export function getVisualEditBridgeScript(): string {
     active = false;
     window.__vibexe_editor_active__ = false;
     window.__vibexe_bridge_rendering__ = false;
+    // Restore composer bypass (editor disables it for perf, game needs it back)
+    window.__vibexe_skipComposer__ = false;
+    // Re-enable bloom passes that editor disabled
+    var _rstComp = window.__vibexe_composer__;
+    if (_rstComp && _rstComp.passes) {
+      for (var _ri = 0; _ri < _rstComp.passes.length; _ri++) {
+        if (_rstComp.passes[_ri].constructor && _rstComp.passes[_ri].constructor.name === 'UnrealBloomPass') {
+          _rstComp.passes[_ri].enabled = true;
+        }
+      }
+    }
     // Restore original render methods so game loop renders normally in Game mode
     if (editor && editor.renderer && editor.renderer.__bridgeWrapped) {
       editor.renderer.render = editor.renderer.__origRender;

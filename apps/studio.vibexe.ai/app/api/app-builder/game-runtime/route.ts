@@ -379,6 +379,27 @@ window.addEventListener('unhandledrejection', function(e) {
         console.log("[Runtime] createPostProcessing override applied (WebGPU-aware)");
       })();
 
+      // PerfGuard safety net: old game bundles have aggressive thresholds (8s grace, FPS<30)
+      // that permanently degrade quality during WebGPU TSL shader compilation.
+      // After 25s, force-reset any quality degradation from startup period.
+      (function() {
+        var _pgTimer = setTimeout(function() {
+          if (window.__vibexe_skipComposer__) {
+            window.__vibexe_skipComposer__ = false;
+            console.log("[Runtime] PerfGuard safety: reset skipComposer after grace period");
+          }
+          // Restore pixel ratio if it was reduced
+          var r = window.__vibexe_renderer__;
+          if (r && typeof r.getPixelRatio === 'function' && r.getPixelRatio() < 0.9) {
+            r.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1));
+            console.log("[Runtime] PerfGuard safety: restored pixelRatio to", r.getPixelRatio());
+          }
+        }, 25000);
+        // Clear timer on page unload
+        window.addEventListener('beforeunload', function() { clearTimeout(_pgTimer); });
+        console.log("[Runtime] PerfGuard safety net armed (25s grace)");
+      })();
+
       // Notify parent that bundle is loaded
       window.parent.postMessage({ type: 'vibexe-runtime-bundle-loaded' }, '*');
     }
