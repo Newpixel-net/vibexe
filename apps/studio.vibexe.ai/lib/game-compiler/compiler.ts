@@ -492,24 +492,25 @@ if (!gameScene || typeof gameScene.init !== 'function') {
   W.__vibexe_scene__ = scene;
 
   // ===== Lighting (r183 PBR: MeshStandardMaterial divides by PI, need ~3x r172 values) =====
+  // Defaults calibrated for balanced PBR: hemi 1.0, ambient 0.4, sun 1.8 (effective ~1.0 after /PI)
   const hemi = new THREE.HemisphereLight(
     __gs.environment?.hemisphereSkyColor || '#eef4ff',
     __gs.environment?.hemisphereGroundColor || '#886644',
-    __gs.environment?.hemisphereIntensity ?? 0.8
+    __gs.environment?.hemisphereIntensity ?? 1.0
   );
   hemi.name = '__default_hemi__';
   scene.add(hemi);
 
   const ambient = new THREE.AmbientLight(
     __gs.environment?.ambientLightColor || '#ffffff',
-    __gs.environment?.ambientLightIntensity ?? 0.3
+    __gs.environment?.ambientLightIntensity ?? 0.4
   );
   ambient.name = '__default_ambient__';
   scene.add(ambient);
 
   const sun = new THREE.DirectionalLight(
     __gs.environment?.sunLightColor || '#fff8ee',
-    __gs.environment?.sunLightIntensity ?? 2.5
+    __gs.environment?.sunLightIntensity ?? 1.8
   );
   sun.name = '__default_sun__';
   sun.position.set(8, 20, 10);
@@ -942,7 +943,7 @@ if (!gameScene || typeof gameScene.init !== 'function') {
             if (_ir.position.x !== 0 || _ir.position.y !== 0 || _ir.position.z !== 0) _ir.position.set(0, 0, 0);
           }
           __shadowFrame++;
-          if (__shadowFrame >= 30) { __shadowFrame = 0; renderer.shadowMap.needsUpdate = true; }
+          if (__shadowFrame >= 15) { __shadowFrame = 0; renderer.shadowMap.needsUpdate = true; }
           if (!W.__vibexe_bridge_rendering__) {
             if (renderer.info?.reset) renderer.info.reset();
             try {
@@ -1031,14 +1032,14 @@ if (!gameScene || typeof gameScene.init !== 'function') {
             if (__cachedSun.target) { __cachedSun.target.position.set(__px, 0, __pz); __cachedSun.target.updateMatrixWorld(); }
             __shadowFrame++;
             const __sdx = __px - __shadowLastPX, __sdz = __pz - __shadowLastPZ;
-            if (__shadowFrame >= 30 || __sdx * __sdx + __sdz * __sdz > 25) {
+            if (__shadowFrame >= 15 || __sdx * __sdx + __sdz * __sdz > 9) {
               __shadowFrame = 0; __shadowLastPX = __px; __shadowLastPZ = __pz;
               renderer.shadowMap.needsUpdate = true;
             }
           }
         } else {
           __shadowFrame++;
-          if (__shadowFrame >= 30) { __shadowFrame = 0; renderer.shadowMap.needsUpdate = true; }
+          if (__shadowFrame >= 15) { __shadowFrame = 0; renderer.shadowMap.needsUpdate = true; }
         }
 
         // ===== LOD culling (every 4th frame) =====

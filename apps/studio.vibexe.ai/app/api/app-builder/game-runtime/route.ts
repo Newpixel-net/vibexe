@@ -198,10 +198,19 @@ window.addEventListener('unhandledrejection', function(e) {
           sc.traverse(function(obj) {
             if (obj.geometry) obj.geometry.dispose();
             if (obj.material) {
-              if (Array.isArray(obj.material)) {
-                obj.material.forEach(function(m) { m.dispose(); });
-              } else {
-                obj.material.dispose();
+              var mats = Array.isArray(obj.material) ? obj.material : [obj.material];
+              for (var mi = 0; mi < mats.length; mi++) {
+                var mt = mats[mi];
+                // Dispose all textures to prevent GPU memory leak on hot-reload
+                if (mt.map) mt.map.dispose();
+                if (mt.normalMap) mt.normalMap.dispose();
+                if (mt.roughnessMap) mt.roughnessMap.dispose();
+                if (mt.metalnessMap) mt.metalnessMap.dispose();
+                if (mt.aoMap) mt.aoMap.dispose();
+                if (mt.emissiveMap) mt.emissiveMap.dispose();
+                if (mt.alphaMap) mt.alphaMap.dispose();
+                if (mt.envMap) mt.envMap.dispose();
+                mt.dispose();
               }
             }
           });

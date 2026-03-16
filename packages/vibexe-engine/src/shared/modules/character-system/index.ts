@@ -1323,7 +1323,9 @@ function _createDashAbility(cfg) {
         if (_timer <= 0) { _active = false; return; }
         // Apply dash velocity
         if (ctx.useRapier && ctx.rapierBody) {
-          // Dash direction applied via velocity override in controller
+          // Apply dash velocity on Rapier path via _dashVelOverride (read by orbit controller)
+          ctx._dashVelX = _dirX * dashSpeed;
+          ctx._dashVelZ = _dirZ * dashSpeed;
         } else if (ctx.body && ctx.body.velocity) {
           ctx.body.velocity.x = _dirX * dashSpeed;
           ctx.body.velocity.z = _dirZ * dashSpeed;
@@ -1351,24 +1353,26 @@ function _createDashAbility(cfg) {
 function _createWallSlideAbility(cfg) {
   var slideSpeed = (cfg && cfg.slideSpeed) || 2;
   var wallJumpForce = (cfg && cfg.jumpForce) || 10;
+  // Pool raycaster + vectors to avoid per-frame allocation (was creating new Raycaster every update)
+  var _wsRay = new THREE.Raycaster();
+  var _wsDirs = [new THREE.Vector3(1,0,0), new THREE.Vector3(-1,0,0), new THREE.Vector3(0,0,1), new THREE.Vector3(0,0,-1)];
+  var _wsOrigin = new THREE.Vector3();
   var _onWall = false;
   var _wallNormalX = 0, _wallNormalZ = 0;
   return {
     name: 'wallSlide',
     update: function(ctx, dt, isGrounded) {
       if (isGrounded) { _onWall = false; return; }
-      // Raycast left/right to detect walls
+      // Raycast left/right to detect walls (pooled raycaster)
       var mesh = ctx.mesh;
-      var rc = new THREE.Raycaster();
-      var dirs = [new THREE.Vector3(1, 0, 0), new THREE.Vector3(-1, 0, 0), new THREE.Vector3(0, 0, 1), new THREE.Vector3(0, 0, -1)];
-      var origin = new THREE.Vector3(mesh.position.x, mesh.position.y + ctx.halfH, mesh.position.z);
+      _wsOrigin.set(mesh.position.x, mesh.position.y + ctx.halfH, mesh.position.z);
       _onWall = false;
       var scene = window.__vibexe_scene__;
       if (!scene) return;
-      for (var i = 0; i < dirs.length; i++) {
-        rc.set(origin, dirs[i]);
-        rc.far = 0.6;
-        var hits = rc.intersectObjects(scene.children, true);
+      for (var i = 0; i < _wsDirs.length; i++) {
+        _wsRay.set(_wsOrigin, _wsDirs[i]);
+        _wsRay.far = 0.6;
+        var hits = _wsRay.intersectObjects(scene.children, true);
         for (var h = 0; h < hits.length; h++) {
           if (hits[h].object === mesh || hits[h].object.name.indexOf("Character_") === 0) continue;
           if (hits[h].face) {
@@ -2584,6 +2588,9 @@ function swapCharacter(scene, characterId) {
               var _dvl = Math.sqrt(_dvx * _dvx + _dvz * _dvz);
               if (_dvl > _acs) { _currentVelX += (_dvx / _dvl) * _acs; _currentVelZ += (_dvz / _dvl) * _acs; }
               else { _currentVelX = _tVX; _currentVelZ = _tVZ; }
+              // Dash velocity override (Rapier path — set by _createDashAbility)
+              if (ctx._dashVelX !== undefined && ctx._dashVelX !== 0) { _currentVelX = ctx._dashVelX; ctx._dashVelX = 0; }
+              if (ctx._dashVelZ !== undefined && ctx._dashVelZ !== 0) { _currentVelZ = ctx._dashVelZ; ctx._dashVelZ = 0; }
               // Jump
               if (_inputState.space) _jumpBufferTimer = _jumpBuffer;
               if (_jumpBufferTimer > 0) _jumpBufferTimer -= dt;

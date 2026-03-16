@@ -972,6 +972,8 @@ export function SandpackPreview({
 
 	// Track whether scene transforms were modified during editor session
 	const sceneModifiedDuringEditRef = useRef(false);
+	// Track pending terrain timer to cancel on rapid Game↔Scene toggle
+	const terrainTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
 	// Save-all-transforms resolver for batch save
 	const allTransformsResolverRef = useRef<((transforms: Record<string, any>) => void) | null>(null);
@@ -1962,7 +1964,10 @@ export function SandpackPreview({
 				const _terrainDelay = _sceneWasModified ? 10000 : 8000;
 				console.log("[GameEditor] Sending terrain generation after recompile (" + _terrainDelay + "ms delay)");
 				const _exitIframe = iframeRef.current;
-				setTimeout(() => {
+				// Clear orphaned terrain timer from prior rapid toggle
+				if (terrainTimerRef.current) { clearTimeout(terrainTimerRef.current); terrainTimerRef.current = null; }
+				terrainTimerRef.current = setTimeout(() => {
+					terrainTimerRef.current = null;
 					// Skip if terrain was already generated (by AutoTerrain IIFE or bridge-load)
 					try {
 						const _ew = _exitIframe?.contentWindow as any;

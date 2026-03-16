@@ -1289,7 +1289,12 @@ TerrainSculpt.prototype.applyBrush = function(worldX, worldZ, type, size, streng
 
   if (modified) {
     pos.needsUpdate = true;
+    // WebGPU requires version bump to detect buffer changes
+    if (pos.version !== undefined) pos.version++;
     geo.computeVertexNormals();
+    // Also bump normal attribute version for WebGPU
+    var normAttr = geo.attributes.normal;
+    if (normAttr && normAttr.version !== undefined) normAttr.version++;
 
     // Recompute minY/maxY
     var newMinY = Infinity, newMaxY = -Infinity;
@@ -1315,6 +1320,9 @@ TerrainSculpt.prototype.applyBrush = function(worldX, worldZ, type, size, streng
       }
       hAttr.needsUpdate = true;
       sAttr.needsUpdate = true;
+      // WebGPU version bumps
+      if (hAttr.version !== undefined) hAttr.version++;
+      if (sAttr.version !== undefined) sAttr.version++;
     }
 
     // Rebuild physics heightfield after sculpt
