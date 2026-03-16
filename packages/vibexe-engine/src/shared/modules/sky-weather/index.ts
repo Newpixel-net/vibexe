@@ -1537,6 +1537,40 @@ SkyWeatherSystem.prototype._startLoop = function() {
 };
 
 SkyWeatherSystem.prototype._tick = function(dt) {
+  // SCENE-SYNC: mode switches (Scene↔Game) create new scenes — migrate all objects
+  var _curScene = window.__vibexe_scene__;
+  if (_curScene && _curScene !== this.scene) {
+    var _oldScene = this.scene;
+    console.log("[SkyWeather] Scene changed — migrating objects to new scene");
+    // Move sky dome
+    if (this.skyDome && this.skyDome.mesh) {
+      if (this.skyDome.mesh.parent === _oldScene) _oldScene.remove(this.skyDome.mesh);
+      _curScene.add(this.skyDome.mesh);
+    }
+    // Move weather particles
+    if (this.particles && this.particles._points) {
+      if (this.particles._points.parent === _oldScene) _oldScene.remove(this.particles._points);
+      _curScene.add(this.particles._points);
+      this.particles.scene = _curScene;
+    }
+    // Move lightning flash light
+    if (this.lightning && this.lightning._flashLight) {
+      if (this.lightning._flashLight.parent === _oldScene) _oldScene.remove(this.lightning._flashLight);
+      _curScene.add(this.lightning._flashLight);
+      this.lightning.scene = _curScene;
+    }
+    // Migrate fog
+    if (_oldScene.fog && _oldScene.fog.__skyWeather) {
+      _curScene.fog = _oldScene.fog;
+      _oldScene.fog = null;
+    }
+    // Clear stale camera cache (new scene has different camera)
+    this._cachedCam = null;
+    // Set background to black for sky dome rendering
+    _curScene.background = new THREE.Color(0x000000);
+    this.scene = _curScene;
+    this._orphanLogged = false;
+  }
   // X10 fix: self-healing orphan detection — if scene override script or any other
   // code removed our meshes from the scene, re-add them immediately
   if (this.skyDome && this.skyDome.mesh && !this.skyDome.mesh.parent) {
