@@ -1587,14 +1587,13 @@ SkyWeatherSystem.prototype._tick = function(dt) {
     this.skyDome._u.uShootStarInt.value = fx.shootingStars || 0;
   }
 
-  // X8 fix: skip particles, lightning, and audio in editor mode
-  // Precipitation particles
-  if (this.particles && !_inEditor) this.particles.update(dt, this.config.precipitation);
+  // Precipitation particles (allowed in editor for visual preview)
+  if (this.particles) this.particles.update(dt, this.config.precipitation);
 
-  // Lightning
-  if (this.lightning && !_inEditor) this.lightning.update(dt, this.config.lightning);
+  // Lightning (allowed in editor for visual preview)
+  if (this.lightning) this.lightning.update(dt, this.config.lightning);
 
-  // Ambient audio
+  // Ambient audio (skip in editor — audio is disruptive while editing)
   if (this.audio && !_inEditor) {
     this.audio.update(
       { enabled: fx.ambientAudio, volume: fx.audioVolume },
