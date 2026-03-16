@@ -328,7 +328,7 @@ function _buildSkyMaterial(u, gradTex) {
     console.warn("[SkyWeather] TSL not available, using basic sky material");
     return new THREE.MeshBasicMaterial({
       color: 0x4488cc, side: THREE.FrontSide,
-      depthWrite: false, depthTest: false, toneMapped: false
+      depthWrite: false, depthTest: false, toneMapped: false, fog: false
     });
   }
 
@@ -336,7 +336,8 @@ function _buildSkyMaterial(u, gradTex) {
     side: THREE.FrontSide,
     depthWrite: false,
     depthTest: false,
-    toneMapped: false
+    toneMapped: false,
+    fog: false
   });
 
   mat.colorNode = _Fn(function(_a) {
@@ -800,7 +801,8 @@ function ProceduralSkyDome(scene) {
   this._gradTex.wrapS = THREE.ClampToEdgeWrapping;
   this._gradTex.wrapT = THREE.ClampToEdgeWrapping;
   // Prevent Three.js from applying color space conversion — shader handles sRGB decode manually
-  if (THREE.NoColorSpace) this._gradTex.colorSpace = THREE.NoColorSpace;
+  // THREE.NoColorSpace is '' (falsy), so check with !== undefined
+  if (THREE.NoColorSpace !== undefined) this._gradTex.colorSpace = THREE.NoColorSpace;
   else if (THREE.LinearSRGBColorSpace) this._gradTex.colorSpace = THREE.LinearSRGBColorSpace;
   this._gradTex.generateMipmaps = false;
 
