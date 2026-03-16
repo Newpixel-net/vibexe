@@ -7099,8 +7099,8 @@ export default function Game3D({ gameScene: rawScene, bgColor = "#87CEEB", camer
         }
         // Performance auto-guard state
         let __perfFrames = 0, __perfLastCheck = performance.now(), __perfDowngraded = false;
-        // Grace period: skip PerfGuard for first 8 seconds (WebGPU shader compilation is slow)
-        const __perfGraceEnd = __perfLastCheck + 8000;
+        // Grace period: skip PerfGuard for first 20 seconds (WebGPU TSL shader compilation is slow)
+        const __perfGraceEnd = __perfLastCheck + 20000;
         // Hoisted vectors for audio listener (avoid per-frame allocation)
         const __audioFwd = new THREE.Vector3();
         const __audioUp = new THREE.Vector3();
@@ -7156,10 +7156,16 @@ export default function Game3D({ gameScene: rawScene, bgColor = "#87CEEB", camer
                   }
                 });
               }
-              // After 5 consecutive errors with composer, disable it (stale refs in passes)
-              if (__renderErrCount === 5 && (window as any).__vibexe_composer__) {
-                console.warn('[Game3D] 5 consecutive WebGPU render errors — disabling composer');
+              // After 10 consecutive errors with composer, disable it temporarily (stale refs in passes)
+              if (__renderErrCount === 10 && (window as any).__vibexe_composer__) {
+                console.warn('[Game3D] 10 consecutive WebGPU render errors — disabling composer temporarily');
                 (window as any).__vibexe_skipComposer__ = true;
+                // Auto-recovery: try re-enabling composer after 10 seconds
+                setTimeout(() => {
+                  console.log('[Game3D] Attempting composer auto-recovery');
+                  (window as any).__vibexe_skipComposer__ = false;
+                  __renderErrCount = 0;
+                }, 10000);
               }
               return;
             }
@@ -7178,13 +7184,13 @@ export default function Game3D({ gameScene: rawScene, bgColor = "#87CEEB", camer
             if (__elapsed < __frameInterval) return;
             __lastFrameTime = time - (__elapsed % __frameInterval);
           }
-          // Performance auto-guard: if avg FPS < 30 for 2 seconds, reduce quality
-          // (skip during grace period — WebGPU shader compilation is slow for first ~8s)
+          // Performance auto-guard: if avg FPS < 20 for 3 seconds, reduce quality
+          // (skip during grace period — WebGPU TSL shader compilation is slow for first ~20s)
           __perfFrames++;
           const __perfNow = performance.now();
-          if (__perfNow - __perfLastCheck >= 2000) {
+          if (__perfNow - __perfLastCheck >= 3000) {
             const __avgFps = __perfFrames / ((__perfNow - __perfLastCheck) / 1000);
-            if (__avgFps < 30 && !__perfDowngraded && __perfNow > __perfGraceEnd) {
+            if (__avgFps < 20 && !__perfDowngraded && __perfNow > __perfGraceEnd) {
               __perfDowngraded = true;
               console.log('[PerfGuard] FPS=' + Math.round(__avgFps) + ' — reducing quality');
               renderer.setPixelRatio(Math.min(renderer.getPixelRatio(), 1.0));
@@ -7198,7 +7204,7 @@ export default function Game3D({ gameScene: rawScene, bgColor = "#87CEEB", camer
                   }
                 }
               }
-            } else if (__avgFps > 55 && __perfDowngraded) {
+            } else if (__avgFps > 35 && __perfDowngraded) {
               __perfDowngraded = false;
               console.log('[PerfGuard] FPS=' + Math.round(__avgFps) + ' — restoring quality');
               renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5));

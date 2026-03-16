@@ -6355,15 +6355,17 @@ export function getVisualEditBridgeScript(): string {
 // to maintain playable FPS. Restores quality when performance recovers.
 (function() {
   var AQ_SAMPLE_SIZE = 60;
-  var AQ_CHECK_INTERVAL = 2000;
-  var AQ_LOW_FPS = 45;
-  var AQ_HIGH_FPS = 55;
+  var AQ_CHECK_INTERVAL = 3000;
+  var AQ_LOW_FPS = 18;
+  var AQ_HIGH_FPS = 30;
   var AQ_RECOVER_HOLD = 5000;
   var AQ_PR_STEP = 0.15;
   var AQ_PR_MIN = 0.75;
+  var AQ_GRACE_MS = 20000; // Skip quality checks for first 20s (WebGPU TSL shader compilation)
 
   var frameTimes = [];
   var lastCheckTime = 0;
+  var aqStartTime = performance.now();
   var highFpsSince = 0;
   var originalPixelRatio = null;
   var currentPixelRatio = null;
@@ -6515,6 +6517,9 @@ export function getVisualEditBridgeScript(): string {
     if (window.__vibexe_perfguard__) {
       return;
     }
+
+    // Skip during grace period (WebGPU TSL shader compilation causes initial low FPS)
+    if (performance.now() - aqStartTime < AQ_GRACE_MS) return;
 
     if (avgFps < AQ_LOW_FPS) {
       reduceQuality();
