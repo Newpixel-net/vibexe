@@ -1,6 +1,6 @@
 # Sky-Weather-Advanced Module — Tenkoku Dynamic Sky Conversion
 
-## Status: 75% — ALL 12 PHASES CODE COMPLETE + GAP-FILLING DONE, Visual Testing Pending
+## Status: ~35% — CODE WRITTEN BUT MOSTLY UNTESTED/BROKEN. Major integration bugs. See memory/project_sky-weather-advanced.md for bug list.
 
 ## Overview
 Convert **Tenkoku Dynamic Sky v2.0** (Unity C#/HLSL) → **sky-weather-advanced** Vibexe module (JS/TSL).
