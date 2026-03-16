@@ -545,7 +545,7 @@ if (!gameScene || typeof gameScene.init !== 'function') {
 
   // ===== Deferred Procedural Environment Map =====
   // PMREMGenerator.fromScene() creates a procedural env map for PBR reflections.
-  // Skip if bridge (Scene mode) will handle it. 5s delay to survive recompile cycles.
+  // Skip if bridge (Scene mode) will handle it. 500ms delay for renderer init.
   setTimeout(() => {
     try {
       if (!scene || !THREE.PMREMGenerator) return;
@@ -573,7 +573,7 @@ if (!gameScene || typeof gameScene.init !== 'function') {
       __addP(35, 20, -15, 1.5, 1.5, 2, 2, 2);
       const __envRT = __pmrem.fromScene(__envScene, 0, 0.1, 100);
       scene.environment = __envRT.texture;
-      if ((scene as any).environmentIntensity !== undefined) (scene as any).environmentIntensity = 0.6;
+      if ((scene as any).environmentIntensity !== undefined) (scene as any).environmentIntensity = 0.8;
       // Defer disposal to next frame — WebGPU backend needs one render pass to process textures
       requestAnimationFrame(() => {
         try { __pmrem.dispose(); } catch (_) {}
@@ -585,7 +585,7 @@ if (!gameScene || typeof gameScene.init !== 'function') {
       });
       console.log("[Game3D] Deferred env map applied");
     } catch (__e) { console.warn("[Game3D] env map error:", __e); }
-  }, 2000);
+  }, 500);
 
   // ===== Physics World =====
   const _createPhysicsWorld = W.createPhysicsWorld;
@@ -818,11 +818,16 @@ if (!gameScene || typeof gameScene.init !== 'function') {
       }
     }
 
-    // Post-processing
+    // Post-processing — always enable at least subtle bloom for atmospheric depth
     const __createPP = W.createPostProcessing;
     const __ppSettings = __gs.postProcessing;
-    if (__ppSettings?.preset && __ppSettings.preset !== 'none' && __createPP) {
-      __createPP(renderer, scene, camera, __ppSettings.preset);
+    if (__createPP) {
+      if (__ppSettings?.preset && __ppSettings.preset !== 'none') {
+        __createPP(renderer, scene, camera, __ppSettings.preset);
+      } else {
+        // Default subtle bloom when no preset selected — adds atmospheric glow
+        __createPP(renderer, scene, camera, 'subtle');
+      }
     }
 
     // Run auto-physics after init with retries (objects may still be loading GLBs)
