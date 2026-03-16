@@ -2545,7 +2545,8 @@ function swapCharacter(scene, characterId) {
               // --- RAPIER KCC PATH (native collision, no manual depenetration) ---
               var moveSpeed = isRunning ? _runSpeed : _walkSpeed;
               // Apply ability speed modifiers (crouch etc.) in orbit mode
-              for (var _ami = 0; _ami < _abilities.length; _ami++) { if (_abilities[_ami].getSpeedMultiplier) moveSpeed *= _abilities[_ami].getSpeedMultiplier(); }
+              var _oab = window.__charCtrl_orbitAbilities || _orbitAbilities || [];
+              for (var _ami = 0; _ami < _oab.length; _ami++) { if (_oab[_ami].getSpeedMultiplier) moveSpeed *= _oab[_ami].getSpeedMultiplier(); }
               _jumpCooldown = Math.max(0, _jumpCooldown - dt);
               isGrounded = _rapierKCC.computedGrounded();
               if (isGrounded) { _coyoteTimer = 0; if (_rapierGravityVel < 0) _rapierGravityVel = 0; }
@@ -2737,7 +2738,8 @@ function swapCharacter(scene, characterId) {
             // --- CANNON FALLBACK ---
             var moveSpeed = isRunning ? _runSpeed : _walkSpeed;
             // Apply ability speed modifiers (crouch etc.) in orbit mode
-            for (var _ami2 = 0; _ami2 < _abilities.length; _ami2++) { if (_abilities[_ami2].getSpeedMultiplier) moveSpeed *= _abilities[_ami2].getSpeedMultiplier(); }
+            var _oab2 = window.__charCtrl_orbitAbilities || _orbitAbilities || [];
+            for (var _ami2 = 0; _ami2 < _oab2.length; _ami2++) { if (_oab2[_ami2].getSpeedMultiplier) moveSpeed *= _oab2[_ami2].getSpeedMultiplier(); }
 
             // Grounded check (used by multiple systems)
             _jumpCooldown = Math.max(0, _jumpCooldown - dt);
