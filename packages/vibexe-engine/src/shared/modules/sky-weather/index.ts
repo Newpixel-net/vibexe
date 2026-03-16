@@ -397,20 +397,25 @@ function _buildSkyMaterial(u, gradTex) {
     var cellUV = THREE.fract(sUV).sub(0.5);
     var sh = _skyHash(cell);
     var sDist = THREE.length(cellUV);
+    // Cell-edge fade: prevent discontinuity artifacts at cell boundaries (WebGPU WGSL)
+    var cellEdge = THREE.max(THREE.abs(cellUV.x), THREE.abs(cellUV.y));
+    var cellFade = THREE.smoothstep(THREE.float(0.48), THREE.float(0.38), cellEdge);
     var tier1 = THREE.smoothstep(THREE.float(0.985), THREE.float(0.992), sh).mul(0.4);
     var tier2 = THREE.smoothstep(THREE.float(0.992), THREE.float(0.997), sh).mul(0.7);
     var tier3 = THREE.smoothstep(THREE.float(0.997), THREE.float(1.0), sh);
     var bright = THREE.max(THREE.max(tier1, tier2), tier3);
     var sRadius = THREE.float(0.25).add(bright.mul(0.2));
-    var sglow = THREE.exp(sDist.mul(sDist).negate().div(sRadius.mul(sRadius)));
-    var sLen = THREE.float(0.15).add(sh.sub(0.993).mul(20.0));
+    var sglow = THREE.exp(THREE.clamp(sDist.mul(sDist).negate().div(sRadius.mul(sRadius)), THREE.float(-20.0), THREE.float(0.0)));
+    // Clamp sLen positive to prevent Inf in exp() on WebGPU WGSL (Inf*0=NaN=black pixels)
+    var sLen = THREE.max(THREE.float(0.05), THREE.float(0.15).add(sh.sub(0.993).mul(20.0)));
     var spkMask = THREE.smoothstep(THREE.float(0.993), THREE.float(1.0), sh);
     var sx = THREE.exp(THREE.abs(cellUV.x).div(sLen).mul(-3.0)).mul(THREE.exp(THREE.abs(cellUV.y).mul(-8.0)));
     var sy = THREE.exp(THREE.abs(cellUV.y).div(sLen).mul(-3.0)).mul(THREE.exp(THREE.abs(cellUV.x).mul(-8.0)));
     var spikes = sx.add(sy).mul(0.4).mul(spkMask);
     var starCol = THREE.mix(THREE.vec3(0.75, 0.85, 1.0), THREE.vec3(1.0, 0.92, 0.8), THREE.fract(sh.mul(17.3)));
     var twinkle = sh.mul(6283.0).add(u.uTime.mul(1.5)).sin().mul(0.2).add(0.8);
-    sky.addAssign(starCol.mul(bright.mul(sglow).add(spikes)).mul(twinkle).mul(starV).mul(starFade).mul(1.2));
+    // Apply cellFade to eliminate black square artifacts at cell boundaries
+    sky.addAssign(starCol.mul(bright.mul(sglow).add(spikes)).mul(twinkle).mul(starV).mul(starFade).mul(cellFade).mul(1.2));
 
     // Shooting stars (3 meteor tracks)
     if (THREE.Loop) {
