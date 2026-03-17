@@ -2798,13 +2798,32 @@ export function SandpackPreview({
 							onClose={() => setActiveModulePanel(null)}
 							initialConfig={gameEditor.gameSettings.terrain}
 							onTerrainConfigChanged={(config) => {
-								// Preserve sculptHeightData from in-memory state (panel config doesn't include it)
-								const existingSculpt = gameEditor.gameSettings.terrain?.sculptHeightData;
-								const mergedConfig = existingSculpt ? { ...config, sculptHeightData: existingSculpt } : config;
+								// Clear stale sculptHeightData when biome/size changes — a new terrain was generated
+								const prevTerrain = gameEditor.gameSettings.terrain;
+								const biomeChanged = config.biome !== prevTerrain?.biome;
+								const sizeChanged = config.width !== prevTerrain?.width || config.depth !== prevTerrain?.depth;
+								const seedChanged = config.seed !== prevTerrain?.seed;
+								const mergedConfig = { ...config } as any;
+								if (biomeChanged || sizeChanged || seedChanged) {
+									// New terrain generated — clear old sculpt data, will be re-exported below
+									mergedConfig.sculptHeightData = null;
+								} else {
+									// Only config change (layers, etc.) — preserve existing sculpt
+									const existingSculpt = prevTerrain?.sculptHeightData;
+									if (existingSculpt) mergedConfig.sculptHeightData = existingSculpt;
+								}
 								gameEditor.updateGameSettings({ terrain: mergedConfig });
 								// Auto-save terrain config to JSON file so it persists across iframe reloads
 								const updatedSettings = { ...gameEditor.gameSettings, terrain: mergedConfig };
 								handleSaveSettings(updatedSettings);
+								// Auto-export heightmap after terrain generates (2s delay for generation to complete)
+								// This ensures the generated terrain shape persists across page reloads
+								const iframe = iframeRef.current;
+								if (iframe?.contentWindow && (biomeChanged || sizeChanged || seedChanged)) {
+									setTimeout(() => {
+										iframe.contentWindow?.postMessage({ type: "terrain-get-heightmap" }, "*");
+									}, 3000);
+								}
 							}}
 						/>
 					) : activeModulePanel === "sky-weather" || activeModulePanel === "sky-weather-advanced" ? (
