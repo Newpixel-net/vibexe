@@ -498,7 +498,8 @@ AtmosphereRenderer.prototype.build = function(scene) {
   if (this.dome) return;
 
   var segW = 48, segH = 24;
-  this.geometry = new THREE.SphereGeometry(5000, segW, segH);
+  // Dome radius must be < camera.far (typically 1000). Use 500 like working sky-weather module.
+  this.geometry = new THREE.SphereGeometry(500, segW, segH);
   this.geometry.name = "__swa_sky_dome_geo__";
 
   // Vertex colors buffer
@@ -602,7 +603,7 @@ SunDiskRenderer.prototype.build = function(scene) {
   this._group.renderOrder = -998;
 
   // Sun disk — bright white circle
-  var diskGeo = new THREE.PlaneGeometry(200, 200);
+  var diskGeo = new THREE.PlaneGeometry(20, 20);
   var diskCanvas = document.createElement("canvas");
   diskCanvas.width = 128; diskCanvas.height = 128;
   var dCtx = diskCanvas.getContext("2d");
@@ -622,7 +623,7 @@ SunDiskRenderer.prototype.build = function(scene) {
   this._group.add(this._diskMesh);
 
   // Glow halo — larger, softer
-  var glowGeo = new THREE.PlaneGeometry(800, 800);
+  var glowGeo = new THREE.PlaneGeometry(80, 80);
   var glowCanvas = document.createElement("canvas");
   glowCanvas.width = 128; glowCanvas.height = 128;
   var gCtx = glowCanvas.getContext("2d");
@@ -648,7 +649,7 @@ SunDiskRenderer.prototype.update = function(camera, sunDir, sunAltDeg, settings)
   if (!this._group) return;
 
   // Position sun disk far away in sun direction
-  var dist = 4500;
+  var dist = 450;
   this._group.position.set(
     camera.position.x + sunDir.x * dist,
     camera.position.y + sunDir.y * dist,
@@ -659,7 +660,7 @@ SunDiskRenderer.prototype.update = function(camera, sunDir, sunAltDeg, settings)
   this._group.lookAt(camera.position);
 
   // Size from settings
-  var size = (settings.sunDiskSize || 0.028) * 8000;
+  var size = (settings.sunDiskSize || 0.028) * 800;
   if (this._diskMesh) this._diskMesh.scale.setScalar(size / 200);
 
   // Hide when sun below horizon
@@ -1098,7 +1099,7 @@ StarField.prototype.init = function(scene) {
   this._twinklePhases = new Float32Array(count);
   this._baseSizes = new Float32Array(count);
 
-  var r = 4800;
+  var r = 480;
 
   for (var i = 0; i < count; i++) {
     var ra = catalog[i][0] * DEG2RAD;   // RA in radians
@@ -1265,7 +1266,7 @@ CloudSystem.prototype.build = function(scene) {
   this._tex.colorSpace = "srgb";
 
   // Upper hemisphere dome — BackSide so texture faces inward
-  this._geo = new THREE.SphereGeometry(4900, 64, 32, 0, TWO_PI, 0, PI * 0.5);
+  this._geo = new THREE.SphereGeometry(490, 64, 32, 0, TWO_PI, 0, PI * 0.5);
   this._geo.name = "__swa_cloud_geo__";
 
   this._mat = new THREE.MeshBasicMaterial({
@@ -1515,11 +1516,11 @@ MoonRenderer.prototype.build = function(scene) {
 MoonRenderer.prototype.update = function(camera, moonDir, sunDir, moonPhase, sunAltDeg, settings) {
   if (!this._mesh) return;
 
-  this._size = (settings.moonDiskSize || 0.022) * 8000;
+  this._size = (settings.moonDiskSize || 0.022) * 800;
   this._brightness = settings.moonBrightness || 1.0;
 
   // Position moon in the sky
-  var dist = 4700;
+  var dist = 470;
   if (camera) {
     this._mesh.position.set(
       camera.position.x + moonDir.x * dist,
@@ -1791,7 +1792,7 @@ AuroraRenderer.prototype.build = function(scene) {
   auroraTex.wrapT = THREE.ClampToEdgeWrapping;
 
   // Cylinder geometry for aurora curtain
-  this._geo = new THREE.CylinderGeometry(4500, 4500, 800, 64, 16, true);
+  this._geo = new THREE.CylinderGeometry(450, 450, 80, 64, 16, true);
   this._geo.name = "__swa_aurora_geo__";
 
   this._auroraTex = auroraTex;
@@ -2096,7 +2097,7 @@ MilkyWayAndPlanets.prototype.update = function(sunAltDeg, camera, time, dayNumbe
       var arr = pPos.array;
       // Simplified planet positions (circular orbits, different periods)
       var periods = [87.97, 224.7, 687.0, 4332.6, 10759.2]; // days
-      var dist = 4600;
+      var dist = 460;
 
       for (var i = 0; i < 5; i++) {
         var angle = ((dayNumber || 0) / periods[i]) * TWO_PI + i * 1.2;
@@ -2365,7 +2366,7 @@ SunShafts.prototype.update = function(camera, sunDir, sunAltDeg, settings) {
   if (!visible) return;
 
   // Position at sun location
-  var dist = 4500;
+  var dist = 450;
   if (camera) {
     this._group.position.set(
       camera.position.x + sunDir.x * dist,
