@@ -1808,8 +1808,8 @@ MoonRenderer.prototype.build = function(scene) {
 MoonRenderer.prototype.update = function(camera, moonDir, sunDir, moonPhase, sunAltDeg, settings) {
   if (!this._mesh) return;
 
-  this._size = (settings.moonDiskSize || 0.022) * 2800; // very prominent moon like Tenkoku
-  this._brightness = settings.moonBrightness || 1.0;
+  this._size = (settings.moonDiskSize != null ? settings.moonDiskSize : 0.022) * 2800;
+  this._brightness = settings.moonBrightness != null ? settings.moonBrightness : 1.0;
 
   // Position moon — clamp altitude so it's visible from default orbit camera
   var dist = 470;
@@ -1828,22 +1828,24 @@ MoonRenderer.prototype.update = function(camera, moonDir, sunDir, moonPhase, sun
   this._mesh.scale.setScalar(this._size);
   this._mesh.lookAt(camera ? camera.position : new THREE.Vector3(0, 0, 0));
 
-  // Phase rendering via color tint (bright when full, dim when new)
-  var phaseBrightness = _clamp(moonPhase * 2, 0.05, 1.0) * this._brightness;
+  // Phase rendering: brightness scales linearly with phase (quarter=0.5, full=1.0)
+  var phaseBrightness = _clamp(moonPhase, 0.05, 1.0) * this._brightness;
 
-  // Horizon tint: orange when moon is low
+  // Horizon tint: orange when moon is low (reduce green and blue channels)
   var moonAlt = moonDir.y;
   var r = phaseBrightness, g = phaseBrightness, b = phaseBrightness;
   if (moonAlt < 0.15 && moonAlt > -0.05) {
     var warmT = 1 - _smoothstep(-0.05, 0.15, moonAlt);
-    r *= _lerp(1.0, 1.0, warmT);
     g *= _lerp(1.0, 0.7, warmT);
     b *= _lerp(1.0, 0.4, warmT);
   }
   this._mat.color.setRGB(r, g, b);
-  this._mat.opacity = _clamp(phaseBrightness + 0.1, 0.1, 0.95);
 
-  // Visibility: only when above horizon
+  // Opacity: phase-based + smooth horizon fade (no pop in/out)
+  var horizonFade = _smoothstep(-0.05, 0.05, moonDir.y);
+  this._mat.opacity = _clamp(phaseBrightness + 0.1, 0.1, 0.95) * horizonFade;
+
+  // Visibility: hide when fully below horizon (after fade completes)
   this._mesh.visible = moonDir.y > -0.05;
 };
 

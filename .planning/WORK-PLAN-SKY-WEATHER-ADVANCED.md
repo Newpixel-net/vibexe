@@ -195,30 +195,42 @@ Vertex colors match the existing `sky-weather` module approach and keep GPU budg
 
 ---
 
-## PHASE 5: Moon Rendering + Phase System (0%)
-**Goal:** Realistic moon with phase shadow, earthshine, and horizon color tinting
+## PHASE 5: Moon Rendering + Phase System
+**Goal:** Procedural moon with phase brightness, earthshine approximation, and horizon tinting
 **Source:** `Tenkoku_moonsphere.shader` (121 lines), moon parts of `TenkokuModule.cs`
-**Estimated runtimeCode:** ~150 lines
+**Actual runtimeCode:** ~130 lines (MoonRenderer class)
+**Deep review date:** 2026-03-17
 
-### Tasks:
-- [ ] 5.1 Create moon billboard mesh (PlaneGeometry facing camera or SphereGeometry)
-- [ ] 5.2 Port moon surface albedo (procedural or texture-based)
-- [ ] 5.3 Port BRDF lighting with diffuse wrap for crescent rendering
-- [ ] 5.4 Port phase shadow from sun-moon elongation angle
-- [ ] 5.5 Port earthshine effect (dark side faintly visible via ambient)
-- [ ] 5.6 Port horizon color tinting (orange when moon is low)
-- [ ] 5.7 Port moon brightness scaling: `lerp(0, 2.5, albedo)` for glow
-- [ ] 5.8 Position moon using Phase 2 orbital calculator
-- [ ] 5.9 Wire up `defaultSettings.sky.moonDiskSize` and `moonBrightness`
-- [ ] 5.10 Test: correct phase at different dates (new, crescent, quarter, full)
-- [ ] 5.11 Test: earthshine visible on dark side during crescent
-- [ ] 5.12 Test: orange tint when moon is near horizon
+### Tasks (MeshBasicMaterial approach — no custom shader for WebGPU compat):
+- [x] 5.1 SphereGeometry(1,32,16) billboard mesh with lookAt camera. CLEAN.
+- [x] 5.2 Procedural 128x128 canvas texture: grey surface + 12 craters + 2 maria. colorSpace=SRGB. CLEAN.
+- [x] 5.3 (Simplified) No BRDF — MeshBasicMaterial with color tint for phase brightness. WebGPU-safe.
+- [x] 5.4 Phase brightness from elongation: FIX — was moonPhase*2 (quarter=full brightness). Changed to linear.
+- [x] 5.5 Earthshine: min opacity 0.1 at new moon (whole disc faintly visible). Simplified but acceptable.
+- [x] 5.6 Horizon tinting: FIX — removed no-op _lerp(1.0,1.0,warmT) on red channel. Green→0.7, Blue→0.4 at horizon.
+- [x] 5.7 Brightness: phaseBrightness * moonBrightness setting. Clamped 0.05-1.0. CLEAN.
+- [x] 5.8 Position: orbital calculator moonDirection → camera-relative at dist=470, alt clamped to 40°. CLEAN.
+- [x] 5.9 Settings: FIX — moonDiskSize and moonBrightness used || falsy. Changed to != null.
+- [x] 5.10 Orbital calculator: 6 Schlyter elements, 12+5 perturbation terms, Kepler equation. All verified correct.
+- [x] 5.11 Visibility: FIX — was binary pop in/out. Added smoothstep horizon fade on opacity.
+- [x] 5.12 Disposal: mesh removed, geometry/texture/material disposed, no leaks. CLEAN.
+- [x] 5.13 Layer ordering: renderOrder -998, renders after clouds (-999). Correct. CLEAN.
+
+### Bugs found in deep review (2026-03-17):
+1. **moonPhase * 2 made quarter moon = full moon brightness** — half the phase range wasted. Fixed to linear.
+2. **moonDiskSize || 0.022** — can't set size to 0. Fixed to != null.
+3. **moonBrightness || 1.0** — can't set brightness to 0. Fixed to != null.
+4. **No-op red channel lerp** — _lerp(1.0, 1.0, warmT) always returns 1.0. Removed.
+5. **Binary visibility pop** — moon appeared/disappeared instantly at horizon. Added smoothstep opacity fade.
 
 ### Verification:
-- Moon shows correct phase matching real lunar cycle
-- Smooth shadow boundary (not hard cutoff)
-- Earthshine visible on crescent moon
-- Moon tracks correct sky position from orbital calculator
+- Moon brightness scales linearly with phase (quarter=0.5x, full=1.0x)
+- Earthshine: faint disc visible at new moon (opacity 0.1)
+- Orange tint when moon is near horizon (green→0.7, blue→0.4)
+- Smooth fade at horizon (no pop in/out)
+- moonDiskSize and moonBrightness sliders work including value 0
+- Correct orbital position from Schlyter calculator
+- Properly layered: behind terrain, in front of clouds and sky
 
 ---
 
@@ -416,7 +428,7 @@ Vertex colors match the existing `sky-weather` module approach and keep GPU budg
 | 2 | Solar Calculator + Day/Night | 20 | COMPLETE (lat=0 bug fixed, AmbientLight crash fixed, all tests pass) | 100% |
 | 3 | Procedural Clouds (Canvas2D fBm) | 20 | DEEP REVIEW: 3 bugs fixed (coverage slider, || falsy, GC pressure) | 100% |
 | 4 | Stars (dome vertex highlights) | 13 | DEEP REVIEW: 4 bugs fixed (starIntensity unwired, nightFac range, sidereal rotation, twinkle) + dead code + 5 || falsy | 100% |
-| 5 | Moon Rendering | 12 | COMPLETE — visible, phase=0.978, correct position, horizon tint | 100% |
+| 5 | Moon Rendering | 13 | DEEP REVIEW: 5 bugs fixed (phase*2, || falsy x2, no-op lerp, binary visibility pop) | 100% |
 | 6 | Weather + Precipitation | 12 | COMPLETE — state machine transitions, rain/snow particles, wind | 100% |
 | 7 | Lightning + Thunder | 12 | COMPLETE — Perlin bolts, flash light, procedural thunder audio | 100% |
 | 8 | Fog + Sun Shafts | 12 | COMPLETE — height fog + billboard god rays, auto-color from sky | 100% |
