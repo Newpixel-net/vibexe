@@ -106,12 +106,12 @@ OrbitalCalculator.prototype._rev = function(x) {
 };
 
 OrbitalCalculator.prototype.update = function(solarTime, latitude, longitude, year, month, day, timezone) {
-  var lat = latitude || 45;
-  var lon = longitude || 0;
+  var lat = latitude != null ? latitude : 45;
+  var lon = longitude != null ? longitude : 0;
   year = year || 2024;
   month = month || 6;
   day = day || 21;
-  timezone = timezone || 0;
+  timezone = timezone != null ? timezone : 0;
 
   // Convert solarTime (0-1) to UT hours
   var localHour = solarTime * 24;
@@ -880,11 +880,12 @@ SkyLightingController.prototype.update = function(sunDir, sunAltDeg, settings) {
 
   if (autoAmbient && this.ambientLight) {
     var ambIntensity = settings.ambientIntensity || 0.4;
+    var isHemi = this.ambientLight.isHemisphereLight;
     if (sunAltDeg > 10) {
       // Day ambient
       this.ambientLight.intensity = ambIntensity;
       this.ambientLight.color.setRGB(0.53, 0.81, 0.92);      // sky blue
-      this.ambientLight.groundColor.setRGB(0.21, 0.18, 0.08); // warm ground
+      if (isHemi) this.ambientLight.groundColor.setRGB(0.21, 0.18, 0.08); // warm ground
     } else if (sunAltDeg > -6) {
       // Twilight
       var tw = _smoothstep(-6, 10, sunAltDeg);
@@ -898,7 +899,7 @@ SkyLightingController.prototype.update = function(sunDir, sunAltDeg, settings) {
       // Night
       this.ambientLight.intensity = 0.08;
       this.ambientLight.color.setRGB(0.08, 0.08, 0.18);
-      this.ambientLight.groundColor.setRGB(0.02, 0.02, 0.04);
+      if (isHemi) this.ambientLight.groundColor.setRGB(0.02, 0.02, 0.04);
     }
   }
 
