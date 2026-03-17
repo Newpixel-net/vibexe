@@ -1,6 +1,6 @@
 # Sky-Weather-Advanced Module — Tenkoku Dynamic Sky Conversion
 
-## Status: ~35% — CODE WRITTEN BUT MOSTLY UNTESTED/BROKEN. Major integration bugs. See memory/project_sky-weather-advanced.md for bug list.
+## Status: ~55% — CRITICAL depthTest:false fix made sun/moon/stars/aurora/milky way/god rays visible in WebGPU. All 39 panel settings wired. Sun glow visible, atmosphere gradient working at all presets. Vertex star highlights for night sky. Need: cloud quality match Tenkoku, weather preset tuning, aurora/lightning/rain visual testing, Partly Cloudy reference match.
 
 ## Overview
 Convert **Tenkoku Dynamic Sky v2.0** (Unity C#/HLSL) → **sky-weather-advanced** Vibexe module (JS/TSL).
@@ -55,15 +55,16 @@ Vertex colors match the existing `sky-weather` module approach and keep GPU budg
 - [x] 1.9 Port `ApplyPhaseFunction()` — Rayleigh `(3/16π)(1+cos²θ)` + Mie HG kernel
 - [x] 1.10 Port extinction calculation (optical depth along ray)
 - [x] 1.11 Build sky material: `MeshBasicMaterial` with CPU-computed vertex colors (throttled 2s recompute)
-- [x] 1.12 Create sky dome mesh: `SphereGeometry(5000, 48, 24)` + `BackSide` rendering
+- [x] 1.12 Create sky dome mesh: `SphereGeometry(500, 96, 48)` + inverted winding + `FrontSide`
 - [x] 1.13 Add camera-follow logic (dome follows camera position each frame)
 - [x] 1.14 Implement sun disk via Mie phase function peak (cosAngle threshold)
 - [x] 1.15 Add configurable atmosphere params: `_sunDir`, `_exposure`, `_mieG`, `_rayleighScale`, `_sunIntensity`
 - [x] 1.16 Implement tone mapping (Reinhard exponential) to prevent HDR blowout
 - [x] 1.17 Wire up `defaultSettings.sky` config → atmosphere params
-- [ ] 1.18 Test: verify blue sky at noon, orange/red sunset, dark night
-- [ ] 1.19 Test: sun disk visible with corona glow
-- [ ] 1.20 Test: no NaN/black artifacts at horizon or directly above
+- [x] 1.18 FIX: Remove double gamma (our gamma + WebGPU sRGB output = washed-out sky). Vertex colors now linear.
+- [x] 1.19 Test: blue sky at noon PASS, orange sunset PASS, dark night PASS (2026-03-17)
+- [x] 1.20 Test: sun disk visible with glow halo (renders at clamped 40° altitude) PASS
+- [x] 1.21 Test: no NaN/black artifacts at horizon or directly above PASS
 
 ### Verification:
 - Module appears in Modules panel, can be enabled/disabled
@@ -392,7 +393,7 @@ Vertex colors match the existing `sky-weather` module approach and keep GPU budg
 
 | Phase | Description | Tasks | Status | % |
 |-------|------------|-------|--------|---|
-| 1 | Module Scaffold + Atmosphere | 20 | Code done, 3 tests pending | 85% |
+| 1 | Module Scaffold + Atmosphere | 21 | COMPLETE (double-gamma fixed, all tests pass) | 100% |
 | 2 | Solar Calculator + Day/Night | 20 | Code done, 3 tests pending | 85% |
 | 3 | Procedural Clouds (3-layer fBm) | 20 | Code done, tests pending | 85% |
 | 4 | Real Star Catalog | 13 | Code done (2,887 Tycho2 stars, mag≤5.5) | 85% |
@@ -463,3 +464,13 @@ Vertex colors match the existing `sky-weather` module approach and keep GPU budg
 - **TSL complexity:** Start with MeshBasicNodeMaterial.colorNode (simpler than full node graph)
 - **Star data size:** Compress to `[ra,dec,mag,type]` arrays; consider lazy-loading if >100KB
 - **Browser compat:** TSL auto-compiles to WGSL (WebGPU) or GLSL (WebGL) — no manual shader variants needed
+
+
+
+## interpreting
+
+  1. Don't trust my eyes alone — I should read actual runtime values (RGB values, uniforms, shader outputs) via browser_evaluate instead of guessing from screenshots
+  2. State before & after — log numerical state (exposure, color values, blend modes) before and after changes so we can verify with data, not just visuals
+  3. Ask you to confirm what I'm seeing before acting on my interpretation — "I see X, does that match what you see?"
+  4. Smaller changes — one thing at a time with a screenshot + data check after each, rather than batch changes based on a visual guess
+
