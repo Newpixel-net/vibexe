@@ -624,9 +624,17 @@ export function GameEditorProvider({ children }: { children: ReactNode }) {
 		if (uuid === "__game_camera__") {
 			sendToIframe({ type: "game-editor-select-camera", uuid });
 		} else {
-			sendToIframe({ type: "game-editor-select-by-uuid", uuid });
+			// Include name for fallback lookup (UUID may change if object was regenerated)
+			const findName = (node: SceneNode | null, id: string): string | undefined => {
+				if (!node) return undefined;
+				if (node.uuid === id) return node.name;
+				for (const c of node.children) { const n = findName(c, id); if (n) return n; }
+				return undefined;
+			};
+			const name = findName(sceneTree, uuid);
+			sendToIframe({ type: "game-editor-select-by-uuid", uuid, name });
 		}
-	}, [sendToIframe]);
+	}, [sendToIframe, sceneTree]);
 
 	const toggleMultiSelect = useCallback((uuid: string) => {
 		setSelectedUuids((prev) => {

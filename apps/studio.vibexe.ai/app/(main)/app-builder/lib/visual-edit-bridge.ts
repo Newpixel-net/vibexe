@@ -3106,6 +3106,10 @@ export function getVisualEditBridgeScript(): string {
       case "game-editor-select-by-uuid":
         if (editor && d.uuid) {
           var obj = findByUuid(editor.scene, d.uuid);
+          // Fallback: if UUID not found (object was regenerated with new UUID), try by name
+          if (!obj && d.name) {
+            obj = editor.scene.getObjectByName(d.name);
+          }
           // Skip scene root at handler level too (defense in depth)
           if (obj && obj !== editor.scene && obj.type !== "Scene") selectObject(obj);
         } break;
