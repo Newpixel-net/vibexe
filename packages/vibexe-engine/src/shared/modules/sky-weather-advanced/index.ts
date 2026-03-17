@@ -513,6 +513,7 @@ AtmosphereRenderer.prototype.build = function(scene) {
     depthWrite: false,
     depthTest: false,
     fog: false,
+    toneMapped: false,
   });
   this.material.name = "__swa_sky_dome_mat__";
 
@@ -617,7 +618,7 @@ SunDiskRenderer.prototype.build = function(scene) {
   var diskTex = new THREE.CanvasTexture(diskCanvas);
   var diskMat = new THREE.MeshBasicMaterial({
     map: diskTex, transparent: true, depthWrite: false, fog: false,
-    side: THREE.DoubleSide, blending: THREE.AdditiveBlending,
+    side: THREE.DoubleSide, blending: THREE.AdditiveBlending, toneMapped: false,
   });
   this._diskMesh = new THREE.Mesh(diskGeo, diskMat);
   this._group.add(this._diskMesh);
@@ -637,7 +638,7 @@ SunDiskRenderer.prototype.build = function(scene) {
   var glowTex = new THREE.CanvasTexture(glowCanvas);
   var glowMat = new THREE.MeshBasicMaterial({
     map: glowTex, transparent: true, depthWrite: false, fog: false,
-    side: THREE.DoubleSide, blending: THREE.AdditiveBlending,
+    side: THREE.DoubleSide, blending: THREE.AdditiveBlending, toneMapped: false,
   });
   this._glowMesh = new THREE.Mesh(glowGeo, glowMat);
   this._group.add(this._glowMesh);
@@ -1274,7 +1275,9 @@ CloudSystem.prototype.build = function(scene) {
     side: THREE.BackSide,
     transparent: true,
     depthWrite: false,
+    depthTest: false,
     fog: false,
+    toneMapped: false,
   });
   this._mat.name = "__swa_cloud_mat__";
 
@@ -1503,6 +1506,7 @@ MoonRenderer.prototype.build = function(scene) {
     depthWrite: false,
     side: THREE.FrontSide,
     fog: false,
+    toneMapped: false,
   });
   this._mat.name = "__swa_moon_mat__";
 
@@ -1805,6 +1809,7 @@ AuroraRenderer.prototype.build = function(scene) {
     side: THREE.DoubleSide,
     blending: THREE.AdditiveBlending,
     fog: false,
+    toneMapped: false,
   });
   this._mat.name = "__swa_aurora_mat__";
 
