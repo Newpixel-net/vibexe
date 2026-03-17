@@ -481,8 +481,14 @@ AtmosphereRenderer.prototype._computeSkyColor = function(viewDir) {
   gn = Math.pow(_clamp(gn, 0, 1), invGamma);
   b = Math.pow(_clamp(b, 0, 1), invGamma);
 
-  // Horizon warmth — warm up the sky near the horizon (Tenkoku golden glow)
+  // Inscatter haze — pale blue-white atmospheric perspective at the horizon (Tenkoku-style)
   var horizonFac = 1.0 - Math.abs(viewDir[1]); // 1 at horizon, 0 at zenith
+  var hazeFac = horizonFac * horizonFac * 0.4; // quadratic falloff, up to 40%
+  r = _lerp(r, 0.85, hazeFac);
+  gn = _lerp(gn, 0.88, hazeFac);
+  b = _lerp(b, 0.93, hazeFac);
+
+  // Horizon warmth — warm up the sky near the horizon (Tenkoku golden glow)
   horizonFac = horizonFac * horizonFac * horizonFac; // cubic falloff — concentrated at horizon
   var sunHorizFac = Math.max(0, 1.0 - Math.abs(sunDir[1]) * 2.5); // strongest when sun is near horizon
   var warmth = horizonFac * sunHorizFac * 0.45;
@@ -845,6 +851,11 @@ SkyLightingController.prototype.update = function(sunDir, sunAltDeg, settings) {
       this.ambientLight.color.setRGB(0.08, 0.08, 0.18);
       this.ambientLight.groundColor.setRGB(0.02, 0.02, 0.04);
     }
+  }
+
+  // Shadow toggle (reactive to settings)
+  if (this.sunLight) {
+    this.sunLight.castShadow = settings.shadowsEnabled !== false;
   }
 
   // Shadow follow player
@@ -1234,6 +1245,291 @@ StarField.prototype.dispose = function(scene) {
 
 
 // ============================================================
+// Shooting Stars (Meteors) — Occasional bright streaks at night
+// ============================================================
+
+function ShootingStarsRenderer() {
+  this._meteors = [];
+  this._scene = null;
+  this._spawnTimer = 0;
+  this._spawnRate = 1.0; // scale 0-2
+}
+
+ShootingStarsRenderer.prototype.init = function(scene) {
+  this._scene = scene;
+};
+
+ShootingStarsRenderer.prototype._spawn = function(camera) {
+  if (!camera || !this._scene) return;
+
+  // Random start position on upper hemisphere at radius 450
+  var theta = Math.random() * TWO_PI;
+  var phi = Math.random() * PI * 0.4 + 0.1; // 6°-78° above horizon
+  var r = 450;
+  var startX = camera.position.x + r * Math.sin(phi) * Math.cos(theta);
+  var startY = camera.position.y + r * Math.cos(phi);
+  var startZ = camera.position.z + r * Math.sin(phi) * Math.sin(theta);
+
+  // Random direction — mostly downward and sideways
+  var dTheta = theta + (Math.random() - 0.5) * 1.5;
+  var speed = 300 + Math.random() * 200;
+  var dx = Math.cos(dTheta) * speed;
+  var dy = -(0.5 + Math.random() * 0.5) * speed;
+  var dz = Math.sin(dTheta) * speed;
+
+  // Trail: 4 line segments
+  var segCount = 4;
+  var positions = new Float32Array((segCount + 1) * 3);
+  var colors = new Float32Array((segCount + 1) * 3);
+
+  // All points start at the spawn position
+  for (var i = 0; i <= segCount; i++) {
+    positions[i * 3]     = startX;
+    positions[i * 3 + 1] = startY;
+    positions[i * 3 + 2] = startZ;
+    // Bright white head fading to transparent tail
+    var fade = 1.0 - (i / segCount);
+    colors[i * 3]     = fade;
+    colors[i * 3 + 1] = fade;
+    colors[i * 3 + 2] = fade * 0.9;
+  }
+
+  var geo = new THREE.BufferGeometry();
+  geo.setAttribute("position", new THREE.BufferAttribute(positions, 3));
+  geo.setAttribute("color", new THREE.BufferAttribute(colors, 3));
+
+  var mat = new THREE.LineBasicMaterial({
+    vertexColors: true,
+    transparent: true,
+    opacity: 1.0,
+    depthWrite: false,
+    blending: THREE.AdditiveBlending,
+    linewidth: 2,
+  });
+
+  var line = new THREE.Line(geo, mat);
+  line.name = "__swa_meteor__";
+  line.frustumCulled = false;
+  this._scene.add(line);
+
+  var maxLife = 0.3 + Math.random() * 0.5; // 0.3-0.8 seconds
+  this._meteors.push({
+    mesh: line,
+    geo: geo,
+    mat: mat,
+    life: 0,
+    maxLife: maxLife,
+    startX: startX,
+    startY: startY,
+    startZ: startZ,
+    dx: dx,
+    dy: dy,
+    dz: dz,
+    segCount: segCount,
+  });
+};
+
+ShootingStarsRenderer.prototype.update = function(dt, camera, sunAltDeg, settings) {
+  this._spawnRate = (settings.shootingStars != null) ? settings.shootingStars : 0;
+
+  // Only spawn at night (sun altitude < -6°)
+  var isNight = sunAltDeg < -6;
+
+  // Spawn new meteors
+  if (isNight && this._spawnRate > 0.01) {
+    this._spawnTimer += dt;
+    // Average interval: 4 seconds at rate=1, 2 seconds at rate=2
+    var interval = 4.0 / Math.max(0.01, this._spawnRate);
+    // Add some randomness
+    if (this._spawnTimer >= interval * (0.5 + Math.random())) {
+      this._spawnTimer = 0;
+      this._spawn(camera);
+    }
+  }
+
+  // Update existing meteors
+  for (var i = this._meteors.length - 1; i >= 0; i--) {
+    var m = this._meteors[i];
+    m.life += dt;
+
+    var t = m.life / m.maxLife;
+    if (t >= 1.0) {
+      // Remove
+      this._scene.remove(m.mesh);
+      m.geo.dispose();
+      m.mat.dispose();
+      this._meteors.splice(i, 1);
+      continue;
+    }
+
+    // Update trail positions — head moves forward, tail segments follow
+    var posAttr = m.geo.getAttribute("position");
+    var arr = posAttr.array;
+    var sc = m.segCount;
+
+    // Shift tail segments backward (oldest last)
+    for (var s = sc; s > 0; s--) {
+      arr[s * 3]     = arr[(s - 1) * 3];
+      arr[s * 3 + 1] = arr[(s - 1) * 3 + 1];
+      arr[s * 3 + 2] = arr[(s - 1) * 3 + 2];
+    }
+
+    // Move head
+    arr[0] = m.startX + m.dx * m.life;
+    arr[1] = m.startY + m.dy * m.life;
+    arr[2] = m.startZ + m.dz * m.life;
+    posAttr.needsUpdate = true;
+
+    // Fade out over lifetime
+    m.mat.opacity = 1.0 - t * t;
+  }
+};
+
+ShootingStarsRenderer.prototype.dispose = function(scene) {
+  for (var i = 0; i < this._meteors.length; i++) {
+    scene.remove(this._meteors[i].mesh);
+    this._meteors[i].geo.dispose();
+    this._meteors[i].mat.dispose();
+  }
+  this._meteors = [];
+};
+
+
+// ============================================================
+// Rainbow Renderer — Arc visible after rain when sun is low
+// ============================================================
+
+function RainbowRenderer() {
+  this._mesh = null;
+  this._geo = null;
+  this._mat = null;
+  this._opacity = 0;
+  this._targetOpacity = 0;
+  this._precipWasActive = false;
+  this._precipEndTime = 0;
+}
+
+RainbowRenderer.prototype.build = function(scene) {
+  if (this._mesh) return;
+
+  // Create rainbow gradient texture via Canvas2D
+  var texW = 256, texH = 64;
+  var canvas = document.createElement("canvas");
+  canvas.width = texW; canvas.height = texH;
+  var ctx = canvas.getContext("2d");
+
+  // ROYGBIV vertical gradient with soft alpha edges
+  var grad = ctx.createLinearGradient(0, 0, 0, texH);
+  grad.addColorStop(0.0,  "rgba(255,0,0,0)");
+  grad.addColorStop(0.08, "rgba(255,0,0,0.6)");
+  grad.addColorStop(0.18, "rgba(255,127,0,0.7)");
+  grad.addColorStop(0.30, "rgba(255,255,0,0.7)");
+  grad.addColorStop(0.42, "rgba(0,200,0,0.7)");
+  grad.addColorStop(0.55, "rgba(0,130,255,0.7)");
+  grad.addColorStop(0.68, "rgba(75,0,130,0.6)");
+  grad.addColorStop(0.80, "rgba(148,0,211,0.5)");
+  grad.addColorStop(0.92, "rgba(148,0,211,0)");
+  grad.addColorStop(1.0,  "rgba(148,0,211,0)");
+  ctx.fillStyle = grad;
+  ctx.fillRect(0, 0, texW, texH);
+
+  var rainbowTex = new THREE.CanvasTexture(canvas);
+  rainbowTex.wrapS = THREE.RepeatWrapping;
+
+  // Torus geometry for the arc — only upper half visible
+  // innerRadius=180, outerRadius differs by tube thickness
+  this._geo = new THREE.TorusGeometry(200, 12, 16, 64, PI);
+  this._geo.name = "__swa_rainbow_geo__";
+
+  this._mat = new THREE.MeshBasicMaterial({
+    map: rainbowTex,
+    transparent: true,
+    opacity: 0,
+    depthWrite: false,
+    side: THREE.DoubleSide,
+    fog: false,
+    toneMapped: false,
+  });
+  this._mat.name = "__swa_rainbow_mat__";
+
+  this._mesh = new THREE.Mesh(this._geo, this._mat);
+  this._mesh.name = "__swa_rainbow__";
+  this._mesh.renderOrder = -996;
+  this._mesh.frustumCulled = false;
+  this._mesh.visible = false;
+  scene.add(this._mesh);
+};
+
+RainbowRenderer.prototype.update = function(dt, camera, sunDir, sunAltDeg, precipSettings, settings) {
+  if (!this._mesh) return;
+
+  var rainbowScale = (settings.rainbow != null) ? settings.rainbow : 0;
+  var precipActive = precipSettings && precipSettings.type === "rain" && (precipSettings.intensity || 0) > 0.1;
+
+  // Track precipitation end time
+  if (precipActive) {
+    this._precipWasActive = true;
+    this._precipEndTime = Date.now();
+  }
+
+  // Rainbow visible when: recently rained (within 30s) AND sun is 10-42°
+  var timeSincePrecip = (Date.now() - this._precipEndTime) / 1000;
+  var recentlyRained = this._precipWasActive && timeSincePrecip < 30 && !precipActive;
+  var sunInRange = sunAltDeg >= 10 && sunAltDeg <= 42;
+
+  this._targetOpacity = (recentlyRained && sunInRange && rainbowScale > 0.01) ?
+    rainbowScale * 0.5 * (1.0 - timeSincePrecip / 30) : 0;
+
+  // Fade in/out over 5 seconds
+  var fadeSpeed = 1.0 / 5.0; // per second
+  if (this._opacity < this._targetOpacity) {
+    this._opacity = Math.min(this._opacity + fadeSpeed * dt, this._targetOpacity);
+  } else {
+    this._opacity = Math.max(this._opacity - fadeSpeed * dt, this._targetOpacity);
+  }
+
+  this._mesh.visible = this._opacity > 0.01;
+  if (!this._mesh.visible) return;
+
+  this._mat.opacity = this._opacity;
+
+  // Position: opposite to sun direction, elevated 20° above horizon
+  if (camera) {
+    var dist = 400;
+    // Rainbow appears opposite the sun
+    var antiSunX = -sunDir.x;
+    var antiSunZ = -sunDir.z;
+    var len = Math.sqrt(antiSunX * antiSunX + antiSunZ * antiSunZ) || 1;
+    antiSunX /= len;
+    antiSunZ /= len;
+
+    this._mesh.position.set(
+      camera.position.x + antiSunX * dist,
+      camera.position.y + 60,
+      camera.position.z + antiSunZ * dist
+    );
+
+    // Face the camera
+    this._mesh.lookAt(camera.position);
+    // Tilt the arc so it forms an upward arch
+    this._mesh.rotation.z = 0;
+  }
+
+  // Clear precipWasActive after 30 seconds to reset rainbow state
+  if (timeSincePrecip > 30) {
+    this._precipWasActive = false;
+  }
+};
+
+RainbowRenderer.prototype.dispose = function(scene) {
+  if (this._mesh && this._mesh.parent) this._mesh.parent.remove(this._mesh);
+  if (this._geo) this._geo.dispose();
+  if (this._mat) this._mat.dispose();
+  this._mesh = null;
+};
+
+
+// ============================================================
 // Cloud System — Canvas2D procedural noise on a textured dome
 // ============================================================
 // Renders 3 cloud layers (cumulus/altocumulus/cirrostratus) as
@@ -1254,8 +1550,8 @@ function CloudSystem() {
   this._density = 0.85;
   this._scale = 3.0;
   this._time = 0;
-  this._CW = 512;
-  this._CH = 256;
+  this._CW = 1024;
+  this._CH = 512;
 }
 
 // 2D hash — returns 0..1
@@ -1278,10 +1574,10 @@ CloudSystem.prototype._noise2 = function(x, y) {
   return nx0 + (nx1 - nx0) * uy;
 };
 
-// 2D fBm — 5 octaves for detailed cloud shapes
+// 2D fBm — 6 octaves for detailed cloud shapes
 CloudSystem.prototype._fbm2 = function(x, y) {
   var val = 0, amp = 0.5, freq = 1.0;
-  for (var i = 0; i < 5; i++) {
+  for (var i = 0; i < 6; i++) {
     val += amp * this._noise2(x * freq, y * freq);
     freq *= 2.0;
     amp *= 0.5;
@@ -1403,9 +1699,9 @@ CloudSystem.prototype.updateTexture = function(atmosphere) {
       var fade2 = _smoothstep(0.1, 0.3, v) * _smoothstep(0.9, 0.55, v);
       c2 *= fade2;
 
-      // Layer 3: Cirrostratus — thin wispy high-altitude streaks
-      var n3 = this._fbm2(nx * 2.8 + windX * 0.6 + 120, ny * 1.2 + windY * 0.4 + 120);
-      var c3 = _clamp(n3 + coverage * 0.9 - 0.35, 0, 1) * 0.3;
+      // Layer 3: Cirrostratus — thin wispy high-altitude streaks (4x freq for wispy detail)
+      var n3 = this._fbm2(nx * 4.0 + windX * 0.6 + 120, ny * 1.2 + windY * 0.4 + 120);
+      var c3 = _clamp(n3 + coverage * 0.9 - 0.35, 0, 1) * 0.18;
       var fade3 = _smoothstep(0.0, 0.12, v) * _smoothstep(0.55, 0.3, v);
       c3 *= fade3;
 
@@ -1435,6 +1731,27 @@ CloudSystem.prototype.updateTexture = function(atmosphere) {
       pix[idx + 1] = Math.round(g * 255);
       pix[idx + 2] = Math.round(b * 255);
       pix[idx + 3] = Math.round(alpha * 255);
+    }
+  }
+
+  // Edge softening: simple 3x3 box blur on alpha channel for softer cloud edges
+  if (hasCloud) {
+    var blurAlpha = new Uint8ClampedArray(W * H);
+    for (var by = 1; by < H - 1; by++) {
+      for (var bx = 1; bx < W - 1; bx++) {
+        var sum = 0;
+        for (var ky = -1; ky <= 1; ky++) {
+          for (var kx = -1; kx <= 1; kx++) {
+            sum += pix[((by + ky) * W + (bx + kx)) * 4 + 3];
+          }
+        }
+        blurAlpha[by * W + bx] = Math.round(sum / 9);
+      }
+    }
+    for (var by2 = 1; by2 < H - 1; by2++) {
+      for (var bx2 = 1; bx2 < W - 1; bx2++) {
+        pix[(by2 * W + bx2) * 4 + 3] = blurAlpha[by2 * W + bx2];
+      }
     }
   }
 
@@ -2540,6 +2857,8 @@ function SkyWeatherAdvancedSystem(scene, settings) {
   this.audio = new WeatherAudio();
   this.particles = new WeatherParticles();
   this.stars = new StarField();
+  this.shootingStars = new ShootingStarsRenderer();
+  this.rainbow = new RainbowRenderer();
   this.fog = new FogController();
 
   this._time = 0;
@@ -2561,6 +2880,8 @@ function SkyWeatherAdvancedSystem(scene, settings) {
   this.lighting.init(scene);
   this.particles.init(scene);
   this.stars.init(scene);
+  this.shootingStars.init(scene);
+  this.rainbow.build(scene);
 
   // Initial solar calculation
   var ts = this.settings.time || {};
@@ -2579,16 +2900,11 @@ function SkyWeatherAdvancedSystem(scene, settings) {
   this.atmosphere._mieG = (this.settings.sky || {}).mieDirectionalG || 0.76;
   this.atmosphere.setSunDirection(this.orbital.sunDirection);
 
-  // Set scene background to zenith sky color for base sky visibility
-  // _computeSkyColor returns sRGB-gamma values; THREE.Color needs linear for correct display
+  // The dome's vertex-color gradient provides the full sky —
+  // a flat scene.background underneath it would wash out the gradient.
   this._origBg = this.scene ? this.scene.background : null;
-  var zenithColor = this.atmosphere._computeSkyColor([0, 1, 0]);
   if (this.scene) {
-    // Convert sRGB-gamma to linear: linear = pow(srgb, 2.2)
-    var lr = Math.pow(zenithColor[0], 2.2);
-    var lg = Math.pow(zenithColor[1], 2.2);
-    var lb = Math.pow(zenithColor[2], 2.2);
-    this.scene.background = new THREE.Color(lr, lg, lb);
+    this.scene.background = null;
   }
 
   // Initialize cloud coverage + render immediately
@@ -2748,15 +3064,9 @@ SkyWeatherAdvancedSystem.prototype._tick = function(dt) {
     this.atmosphere._sunIntensity = skySettings.sunIntensity || 22.0;
     this.atmosphere.setSunDirection(this.orbital.sunDirection);
 
-    // Sync scene background to sky zenith color (convert sRGB-gamma → linear)
-    var zenithColor = this.atmosphere._computeSkyColor([0, 1, 0]);
-    if (this.scene) {
-      if (!this.scene.background) this.scene.background = new THREE.Color();
-      this.scene.background.setRGB(
-        Math.pow(zenithColor[0], 2.2),
-        Math.pow(zenithColor[1], 2.2),
-        Math.pow(zenithColor[2], 2.2)
-      );
+    // Keep scene.background null — the dome gradient covers it
+    if (this.scene && this.scene.background !== null) {
+      this.scene.background = null;
     }
 
     // Overcast reduces exposure
@@ -2802,6 +3112,9 @@ SkyWeatherAdvancedSystem.prototype._tick = function(dt) {
   // Stars (with sidereal rotation)
   this.stars.update(sunAltDeg, camera, this._time, this.settings.sky || {}, ts.solarTime || 0.45);
 
+  // Shooting stars (meteors) — after stars update
+  this.shootingStars.update(dt, camera, sunAltDeg, this.settings.effects || {});
+
   // Lightning
   this.lightning.update(dt, camera, this.settings.lightning || {});
 
@@ -2832,6 +3145,13 @@ SkyWeatherAdvancedSystem.prototype._tick = function(dt) {
 
   // Precipitation
   this.particles.update(dt, camera, this.settings.precipitation || {});
+
+  // Rainbow — visible after rain when sun is low
+  this.rainbow.update(
+    dt, camera, this.orbital.sunDirection, sunAltDeg,
+    this.settings.precipitation || {},
+    this.settings.effects || {}
+  );
 
   // Milky Way + Planets
   this.milkyWay.update(sunAltDeg, camera, this._time, this.orbital._dayNumber, this.settings.sky || {});
@@ -2884,6 +3204,8 @@ SkyWeatherAdvancedSystem.prototype.destroy = function() {
   this.lighting.dispose(this.scene);
   this.particles.dispose(this.scene);
   this.stars.dispose(this.scene);
+  this.shootingStars.dispose(this.scene);
+  this.rainbow.dispose(this.scene);
   this.fog.dispose(this.scene);
   console.log("[SkyWeatherAdvanced] Destroyed");
 };
@@ -3010,6 +3332,8 @@ if (typeof window !== "undefined") {
     SkyLightingController: SkyLightingController,
     WeatherParticles: WeatherParticles,
     StarField: StarField,
+    ShootingStarsRenderer: ShootingStarsRenderer,
+    RainbowRenderer: RainbowRenderer,
     FogController: FogController
   };
 
@@ -3082,6 +3406,8 @@ module.exports = {
   SkyLightingController: SkyLightingController,
   WeatherParticles: WeatherParticles,
   StarField: StarField,
+  ShootingStarsRenderer: ShootingStarsRenderer,
+  RainbowRenderer: RainbowRenderer,
   FogController: FogController
 };
 `,
