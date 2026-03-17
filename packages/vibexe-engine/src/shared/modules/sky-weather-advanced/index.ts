@@ -304,13 +304,19 @@ OrbitalCalculator.prototype.update = function(solarTime, latitude, longitude, ye
 
 var EARTH_RADIUS = 6371000;        // meters
 var ATMOSPHERE_HEIGHT = 100000;    // meters (100km)
-var RAYLEIGH_SCALE_HEIGHT = 8500;  // meters
-var MIE_SCALE_HEIGHT = 1200;       // meters
+var RAYLEIGH_SCALE_HEIGHT = 10000; // meters (Tenkoku sky shader: 10000)
+var MIE_SCALE_HEIGHT = 3000;       // meters (Tenkoku: 5000, Earth std: 1200, compromise: 3000)
 
 // Rayleigh scattering coefficients at sea level (per meter)
 var RAYLEIGH_COEFF = [5.8e-6, 13.5e-6, 33.1e-6]; // RGB
 // Mie scattering coefficient at sea level
 var MIE_COEFF = 2.0e-5;
+
+// Tenkoku incoming light spectral distribution — blue-biased
+// Source: _IncomingLight = float4(3.6, 3.9, 6.0, 4) in Tenkoku_sky_elek.shader
+// Normalized to ratios: R=0.80, G=0.867, B=1.333 (B/R ratio = 1.67x)
+// This deepens the blue zenith and enriches sunset/sunrise colors
+var INCOMING_LIGHT_RATIO = [0.80, 0.867, 1.333];
 
 function AtmosphereRenderer() {
   this.dome = null;
@@ -326,6 +332,11 @@ function AtmosphereRenderer() {
   this._starIntensity = 1.0;  // from settings.sky.starIntensity
   this._solarTime = 0.45;     // for sidereal rotation of star highlights
   this._time = 0;             // elapsed time for star twinkle animation
+  this._moonDir = [0, -1, 0]; // moon direction for atmosphere moon Mie glow
+  this._nightBrightness = 0.4; // Tenkoku default: 0.4 — controls night sky floor brightness
+  this._overcastAmount = 0;   // 0-1 overcast weather dimming (from weather system)
+  this._skyTintColor = [1, 1, 1]; // RGB tint multiplier (Tenkoku globalSkyColor)
+  this._skyTintAlpha = 0;     // tint blend amount (0 = no tint)
 }
 
 // Ray-sphere intersection (returns [near, far] or null)
@@ -454,11 +465,12 @@ AtmosphereRenderer.prototype._computeSkyColor = function(viewDir) {
   var phaseM = (1.0 / (4.0 * PI)) * ((3.0 * (1 - g2)) / (2.0 * (2 + g2))) *
     ((1 + cosAngle * cosAngle) / Math.pow(1 + g2 - 2 * g * cosAngle, 1.5));
 
-  // Combine scattering
+  // Combine scattering with Tenkoku spectral incoming light (Task 1)
+  // INCOMING_LIGHT_RATIO: R=0.80, G=0.867, B=1.333 — blue-biased for deeper blue zenith
   var intensity = this._sunIntensity;
-  var r = (scatterR[0] * RAYLEIGH_COEFF[0] * phaseR + scatterM[0] * MIE_COEFF * phaseM) * intensity;
-  var gn = (scatterR[1] * RAYLEIGH_COEFF[1] * phaseR + scatterM[1] * MIE_COEFF * phaseM) * intensity;
-  var b = (scatterR[2] * RAYLEIGH_COEFF[2] * phaseR + scatterM[2] * MIE_COEFF * phaseM) * intensity;
+  var r = (scatterR[0] * RAYLEIGH_COEFF[0] * phaseR + scatterM[0] * MIE_COEFF * phaseM) * intensity * INCOMING_LIGHT_RATIO[0];
+  var gn = (scatterR[1] * RAYLEIGH_COEFF[1] * phaseR + scatterM[1] * MIE_COEFF * phaseM) * intensity * INCOMING_LIGHT_RATIO[1];
+  var b = (scatterR[2] * RAYLEIGH_COEFF[2] * phaseR + scatterM[2] * MIE_COEFF * phaseM) * intensity * INCOMING_LIGHT_RATIO[2];
 
   // Sun disk (Mie peak for very narrow angle)
   if (cosAngle > this._sunDiskSize) {
@@ -471,56 +483,105 @@ AtmosphereRenderer.prototype._computeSkyColor = function(viewDir) {
     b += scatterM[2] * sunAdd;
   }
 
-  // Tone mapping (Reinhard exponential)
-  // Raw HDR scattering values are small (~0.1-0.5), need strong exposure
-  // NOTE: No gamma correction here — Three.js WebGPU renderer converts
-  // linear vertex colors to sRGB on output (outputColorSpace="srgb").
-  // Adding manual gamma causes double-gamma = washed-out pale sky.
+  // Moon Mie scattering — multi-ring atmospheric glow around moon (Task 5)
+  // Ported from Tenkoku_sky_elek.shader: concentric dot-product rings
+  var moonDir = this._moonDir;
+  if (moonDir[1] > -0.1) {
+    var dotMoon = rd[0]*moonDir[0] + rd[1]*moonDir[1] + rd[2]*moonDir[2];
+    var moonMie = 0;
+    moonMie += Math.max(0, dotMoon - 0.9995) * 1.0;
+    moonMie += Math.max(0, dotMoon - 0.999) * 1.0;
+    moonMie += Math.max(0, dotMoon - 0.997) * 1.0;
+    moonMie += Math.max(0, dotMoon - 0.990) * 0.75;
+    moonMie += Math.max(0, dotMoon - 0.97) * 0.5;
+    moonMie = _clamp(moonMie, 0, 1);
+    var nightFac = _clamp(1.0 - sunDir[1] * 5, 0, 1);
+    r += moonMie * 0.2 * nightFac;
+    gn += moonMie * 0.28 * nightFac;
+    b += moonMie * 0.4 * nightFac;
+  }
+
+  // Tone mapping (Reinhard exponential) — no manual gamma, WebGPU handles sRGB
   var exposure = this._exposure * 2.5;
   r = 1 - Math.exp(-r * exposure);
   gn = 1 - Math.exp(-gn * exposure);
   b = 1 - Math.exp(-b * exposure);
 
-  // Inscatter haze — subtle pale blue-white at the very horizon (atmospheric perspective)
-  // Values in linear space (lower than sRGB equivalents)
-  var horizonFac = 1.0 - Math.abs(viewDir[1]); // 1 at horizon, 0 at zenith
-  var hazeFac = horizonFac * horizonFac * horizonFac * 0.15; // cubic, gentle 15% max
+  // Inscatter haze — subtle pale blue-white at horizon (atmospheric perspective)
+  var horizonFac = 1.0 - Math.abs(viewDir[1]);
+  var hazeFac = horizonFac * horizonFac * horizonFac * 0.15;
   r = _lerp(r, 0.65, hazeFac);
   gn = _lerp(gn, 0.70, hazeFac);
   b = _lerp(b, 0.78, hazeFac);
 
-  // Horizon warmth — warm up the sky near the horizon (Tenkoku golden glow)
-  horizonFac = horizonFac * horizonFac * horizonFac; // cubic falloff — concentrated at horizon
-  var sunHorizFac = Math.max(0, 1.0 - Math.abs(sunDir[1]) * 2.5); // strongest when sun is near horizon
+  // Horizon warmth — warm up near horizon when sun is low (Tenkoku golden glow)
+  horizonFac = horizonFac * horizonFac * horizonFac;
+  var sunHorizFac = Math.max(0, 1.0 - Math.abs(sunDir[1]) * 2.5);
   var warmth = horizonFac * sunHorizFac * 0.35;
-  r += warmth * 1.0;  // add warm orange
+  r += warmth * 1.0;
   gn += warmth * 0.4;
   b += warmth * 0.05;
 
-  // Sun-facing horizon glow — extra warmth on the side where the sun is
-  var viewSunDot = rd[0]*sunDir[0] + rd[2]*sunDir[2]; // XZ plane dot (horizontal alignment)
+  // Sun-facing horizon glow — extra warmth toward the sun
+  var viewSunDot = rd[0]*sunDir[0] + rd[2]*sunDir[2];
   var sunGlow = _clamp(viewSunDot, 0, 1) * horizonFac * sunHorizFac * 0.15;
   r += sunGlow * 1.0;
   gn += sunGlow * 0.3;
 
-  // Boost saturation to make blue more vivid (Tenkoku-style deep blue zenith)
+  // Boost saturation for vivid colors (reduced from 1.4→1.25 since
+  // INCOMING_LIGHT_RATIO already provides blue bias naturally)
   var luma = r * 0.299 + gn * 0.587 + b * 0.114;
-  var satBoost = 1.4;
+  var satBoost = 1.25;
   r = luma + (r - luma) * satBoost;
   gn = luma + (gn - luma) * satBoost;
   b = luma + (b - luma) * satBoost;
 
-  // Tenkoku-style deeper blue at zenith (blue channel push for overhead sky)
+  // Deeper blue at zenith (reduced from 0.04→0.02 — spectral ratio now handles this)
   var zenithFac = _clamp(viewDir[1], 0, 1);
-  zenithFac = zenithFac * zenithFac; // quadratic: strongest directly overhead
-  b += zenithFac * 0.04; // gentle blue push at zenith
-  r -= zenithFac * 0.02; // reduce red at zenith for cooler sky
+  zenithFac = zenithFac * zenithFac;
+  b += zenithFac * 0.02;
+  r -= zenithFac * 0.01;
 
-  // Night floor: minimum sky brightness (in linear space)
-  var nightFloor = 0.005;
-  r = Math.max(r, nightFloor * 0.6);
-  gn = Math.max(gn, nightFloor * 0.4);
-  b = Math.max(b, nightFloor);
+  // Overcast sky desaturation (Task 6)
+  // Tenkoku: lerp to greyscale*0.1 based on overcast amount
+  var overcast = this._overcastAmount;
+  if (overcast > 0) {
+    var grey = Math.max(r, Math.max(gn, b)) * 0.1;
+    var overcastT = _clamp(overcast * 3, 0, 1);
+    r = _lerp(r, grey, overcastT);
+    gn = _lerp(gn, grey, overcastT);
+    b = _lerp(b, grey, overcastT);
+  }
+
+  // Sky tinting (Task 12 — Tenkoku globalSkyColor)
+  if (this._skyTintAlpha > 0) {
+    r = _lerp(r, r * this._skyTintColor[0], this._skyTintAlpha);
+    gn = _lerp(gn, gn * this._skyTintColor[1], this._skyTintAlpha);
+    b = _lerp(b, b * this._skyTintColor[2], this._skyTintAlpha);
+  }
+
+  // Night sky brightness (Task 3)
+  // Tenkoku: _NightColor * nightBrightness * nBright where nBright=float3(0.027,0.02,0.025)
+  var nightBright = this._nightBrightness;
+  var nightR = 0.027 * nightBright;
+  var nightG = 0.020 * nightBright;
+  var nightB = 0.030 * nightBright;
+  r = Math.max(r, nightR);
+  gn = Math.max(gn, nightG);
+  b = Math.max(b, nightB);
+
+  // Night horizon brightening (Task 4)
+  // Tenkoku: subtle warm glow near horizon at night (light pollution / atmospheric glow)
+  var sunAlt01 = _clamp(sunDir[1], -1, 1);
+  var isNight = _clamp(-sunAlt01 * 5, 0, 1);
+  if (isNight > 0.01) {
+    var nhFac = _clamp(1.0 - viewDir[1] * 3, 0, 1);
+    nhFac = nhFac * nhFac;
+    var nightHorizon = nhFac * isNight * nightBright * 0.15;
+    r += nightHorizon * 0.07;
+    gn += nightHorizon * 0.06;
+    b += nightHorizon * 0.06;
+  }
 
   return [_clamp(r, 0, 1), _clamp(gn, 0, 1), _clamp(b, 0, 1)];
 };
@@ -715,8 +776,8 @@ SunDiskRenderer.prototype.update = function(camera, sunDir, sunAltDeg, settings)
   var diskSize = (settings.sunDiskSize != null ? settings.sunDiskSize : 0.028) * 5000;
   var diskScale = diskSize / 33; // large enough to be Tenkoku-like
   if (this._diskMesh) this._diskMesh.scale.setScalar(diskScale);
-  // Glow halo is 10x the disk for atmospheric bloom visible from wide angles
-  if (this._glowMesh) this._glowMesh.scale.setScalar(diskScale * 10.0);
+  // Glow halo: 6x disk scale (geometry is 4x larger → 24x total = ~50° visible bloom)
+  if (this._glowMesh) this._glowMesh.scale.setScalar(diskScale * 6.0);
 
   // Hide when sun below horizon
   this._group.visible = sunAltDeg > -2;
@@ -838,8 +899,8 @@ SkyLightingController.prototype.update = function(sunDir, sunAltDeg, settings) {
       this.sunLight.intensity = dayIntensity * _smoothstep(-0.1, 0.05, altNorm) * 0.3;
       this.sunLight.position.set(sunDir.x * 100, sunDir.y * 100, sunDir.z * 100);
     } else {
-      // Night: dim moonlight from above — enough to see terrain/objects
-      this.sunLight.intensity = 0.08;
+      // Night: moonlight from above (Tenkoku: moonLightIntensity=0.25, compromise: 0.15)
+      this.sunLight.intensity = 0.15;
       this.sunLight.position.set(20, 80, 20);
     }
 
@@ -879,10 +940,10 @@ SkyLightingController.prototype.update = function(sunDir, sunAltDeg, settings) {
         _lerp(0.25, 0.92, tw)
       );
     } else {
-      // Night
-      this.ambientLight.intensity = 0.08;
-      this.ambientLight.color.setRGB(0.08, 0.08, 0.18);
-      if (isHemi) this.ambientLight.groundColor.setRGB(0.02, 0.02, 0.04);
+      // Night — slightly brighter ambient for visibility (Tenkoku: ambientNightAmt configurable)
+      this.ambientLight.intensity = 0.12;
+      this.ambientLight.color.setRGB(0.10, 0.10, 0.20);
+      if (isHemi) this.ambientLight.groundColor.setRGB(0.03, 0.03, 0.05);
     }
   }
 
@@ -1145,43 +1206,91 @@ StarField.prototype._generateStarTexture = function() {
   ctx.fillStyle = "black";
   ctx.fillRect(0, 0, W, H);
 
-  // Spectral colors for variety
+  // Milky Way band — subtle diffuse nebulous ribbon across the sky
+  // Diagonal band from lower-left to upper-right, Gaussian cross-section
+  ctx.save();
+  ctx.globalAlpha = 1.0;
+  var bandCenterY = H * 0.25; // center of upper hemisphere
+  var bandWidth = H * 0.12;   // width of the band
+  var bandAngle = 0.3;        // slight tilt
+  for (var bx = 0; bx < W; bx += 2) {
+    var bandY = bandCenterY + Math.sin((bx / W) * PI + bandAngle) * H * 0.1;
+    // Gaussian brightness profile across the band
+    for (var by = Math.max(0, bandY - bandWidth); by < Math.min(H * 0.5, bandY + bandWidth); by += 2) {
+      var dist = Math.abs(by - bandY) / bandWidth;
+      var gauss = Math.exp(-dist * dist * 3);
+      // Subtle cloudy variation along the band
+      var noise = 0.5 + 0.5 * Math.sin(bx * 0.05) * Math.cos(by * 0.08 + bx * 0.02);
+      var alpha = gauss * noise * 0.06; // very subtle
+      if (alpha < 0.005) continue;
+      ctx.fillStyle = "rgba(200,195,220," + alpha + ")";
+      ctx.fillRect(bx, by, 3, 3);
+    }
+  }
+  ctx.restore();
+
+  // Spectral colors — Tenkoku uses 6 spectral types
   var spectralColors = [
-    [160, 190, 255],  // blue-white (O/B)
-    [220, 230, 255],  // white (A)
-    [255, 255, 240],  // yellow-white (F)
-    [255, 245, 200],  // yellow (G)
-    [255, 210, 140],  // orange (K)
-    [255, 160, 120],  // red-orange (M)
+    [160, 190, 255],  // blue-white (O/B type — hottest, rarest)
+    [200, 215, 255],  // blue-white (B type)
+    [220, 230, 255],  // white (A type)
+    [255, 255, 240],  // yellow-white (F type)
+    [255, 245, 200],  // yellow (G type — like our Sun)
+    [255, 220, 160],  // orange (K type)
+    [255, 180, 130],  // red-orange (M type — coolest, most common)
   ];
+  // Spectral type weights: M stars most common, O/B rarest
+  var typeWeights = [0.02, 0.05, 0.08, 0.15, 0.20, 0.25, 0.25];
 
-  // Generate ~600 stars on the upper hemisphere (y > 0 in equirectangular)
   var stars = [];
-  for (var i = 0; i < 600; i++) {
-    // Equirectangular projection: x = longitude [0, W), y = latitude [0, H/2) for upper hemisphere
+
+  // 25 bright "landmark" stars — prominent, larger dots with higher brightness
+  for (var i = 0; i < 25; i++) {
     var sx = Math.random() * W;
-    var sy = Math.random() * H * 0.48; // upper hemisphere only (top half of texture)
-
-    // Magnitude: cubic distribution (few bright, many dim)
-    var mag = Math.random();
-    mag = mag * mag * mag; // cubic — most values near 0 (dim)
-    var radius = 0.5 + mag * 2.5; // 0.5px to 3px
-    var brightness = 0.3 + mag * 0.7; // 0.3 to 1.0
-
-    // Random spectral color
-    var colorIdx = Math.floor(Math.random() * spectralColors.length);
+    var sy = Math.random() * H * 0.45; // upper hemisphere
+    var radius = 2.5 + Math.random() * 2.5; // 2.5-5px
+    var brightness = 0.8 + Math.random() * 0.2; // 0.8-1.0
+    // Bright stars tend to be hotter (bluer)
+    var colorIdx = Math.floor(Math.random() * 4); // O/B/A/F types
     var col = spectralColors[colorIdx];
 
-    // Draw star as radial gradient dot
     var grad = ctx.createRadialGradient(sx, sy, 0, sx, sy, radius * 2);
-    var r = col[0], g = col[1], b = col[2];
-    var a = brightness;
-    grad.addColorStop(0, "rgba(" + r + "," + g + "," + b + "," + a + ")");
-    grad.addColorStop(0.3, "rgba(" + r + "," + g + "," + b + "," + (a * 0.6) + ")");
-    grad.addColorStop(1, "rgba(" + r + "," + g + "," + b + ",0)");
+    grad.addColorStop(0, "rgba(" + col[0] + "," + col[1] + "," + col[2] + "," + brightness + ")");
+    grad.addColorStop(0.2, "rgba(" + col[0] + "," + col[1] + "," + col[2] + "," + (brightness * 0.7) + ")");
+    grad.addColorStop(0.5, "rgba(" + col[0] + "," + col[1] + "," + col[2] + "," + (brightness * 0.3) + ")");
+    grad.addColorStop(1, "rgba(" + col[0] + "," + col[1] + "," + col[2] + ",0)");
     ctx.fillStyle = grad;
     ctx.fillRect(sx - radius * 2, sy - radius * 2, radius * 4, radius * 4);
+    stars.push({ x: sx, y: sy, r: radius, brightness: brightness, colorIdx: colorIdx });
+  }
 
+  // 800 background stars — quadratic magnitude distribution
+  for (var i = 0; i < 800; i++) {
+    var sx = Math.random() * W;
+    var sy = Math.random() * H * 0.50; // full upper hemisphere
+
+    // Quadratic magnitude distribution (more visible mid-range than cubic)
+    var mag = Math.random();
+    mag = mag * mag; // quadratic — balanced between dim and bright
+    var radius = 0.5 + mag * 2.0; // 0.5px to 2.5px
+    var brightness = 0.35 + mag * 0.65; // 0.35 to 1.0
+
+    // Weighted spectral color selection
+    var rnd = Math.random();
+    var cumul = 0;
+    var colorIdx = spectralColors.length - 1;
+    for (var ci = 0; ci < typeWeights.length; ci++) {
+      cumul += typeWeights[ci];
+      if (rnd < cumul) { colorIdx = ci; break; }
+    }
+    var col = spectralColors[colorIdx];
+
+    var grad = ctx.createRadialGradient(sx, sy, 0, sx, sy, radius * 2);
+    grad.addColorStop(0, "rgba(" + col[0] + "," + col[1] + "," + col[2] + "," + brightness + ")");
+    grad.addColorStop(0.3, "rgba(" + col[0] + "," + col[1] + "," + col[2] + "," + (brightness * 0.5) + ")");
+    grad.addColorStop(1, "rgba(" + col[0] + "," + col[1] + "," + col[2] + ",0)");
+    ctx.fillStyle = grad;
+    ctx.fillRect(sx - radius * 2, sy - radius * 2, radius * 4, radius * 4);
     stars.push({ x: sx, y: sy, r: radius, brightness: brightness, colorIdx: colorIdx });
   }
 
@@ -1230,8 +1339,9 @@ StarField.prototype.update = function(sunAltDeg, camera, time, settings, solarTi
 
   var starIntensity = settings.starIntensity != null ? settings.starIntensity : 1.0;
 
-  // Night visibility: fade in at dusk, out at dawn
-  var nightFac = sunAltDeg < -17 ? 1 : (sunAltDeg < -3 ? _smoothstep(-3, -17, sunAltDeg) : 0);
+  // Night visibility: fade in starting at civil twilight (-6°), full at -18° (astronomical)
+  // Bright stars become visible earlier than dim ones (matches real sky behavior)
+  var nightFac = sunAltDeg < -18 ? 1 : (sunAltDeg < -4 ? _smoothstep(-4, -18, sunAltDeg) : 0);
 
   var visible = nightFac > 0.01 && starIntensity > 0.01;
   this._dome.visible = visible;
@@ -1243,8 +1353,8 @@ StarField.prototype.update = function(sunAltDeg, camera, time, settings, solarTi
     // Sidereal rotation: rotate dome around Y axis with solar time
     this._dome.rotation.y = solarTime * TWO_PI;
 
-    // Opacity based on night factor and intensity
-    this._mat.opacity = nightFac * starIntensity * 0.8;
+    // Opacity: stronger than before (0.8→0.9) since we now have proper star rendering
+    this._mat.opacity = nightFac * starIntensity * 0.9;
   }
 };
 
@@ -2884,22 +2994,24 @@ function SkyWeatherAdvancedSystem(scene, settings) {
   this.settings = this._deepMerge(SkyWeatherAdvancedSystem.DEFAULTS, settings || {});
 
   // Sanitize settings — fix known-bad values from old DB saves
+  // All checks use != null guard to avoid treating null/undefined as numeric
   var sky = this.settings.sky;
-  if (sky.mieDirectionalG < 0.5) sky.mieDirectionalG = 0.76;
-  if (sky.exposure < 0.5 || sky.exposure > 4) sky.exposure = 1.2;
-  if (sky.sunIntensity < 10) sky.sunIntensity = 22.0;
+  if (sky.mieDirectionalG == null || sky.mieDirectionalG < 0.5) sky.mieDirectionalG = 0.76;
+  if (sky.exposure == null || sky.exposure < 0.5 || sky.exposure > 4) sky.exposure = 1.2;
+  if (sky.sunIntensity == null || sky.sunIntensity < 10) sky.sunIntensity = 22.0;
+  if (sky.nightBrightness == null) sky.nightBrightness = 0.4;
   var fog = this.settings.fog;
-  if (fog.density > 0.01) fog.density = 0.002;
+  if (fog.density != null && fog.density > 0.01) fog.density = 0.002;
   var clouds = this.settings.clouds;
   // Don't let saved overcast or zero-coverage override default
-  if (clouds.coverage > 0.8 && !(this.settings.weather || {}).autoForecast) {
+  if (clouds.coverage != null && clouds.coverage > 0.8 && !(this.settings.weather || {}).autoForecast) {
     clouds.coverage = 0.35;
   }
   // If coverage was saved as exactly 0, restore to default partly-cloudy
   if (clouds.coverage === 0 || clouds.coverage == null) {
     clouds.coverage = 0.35;
   }
-  if (clouds.brightness < 0.5) clouds.brightness = 1.0;
+  if (clouds.brightness == null || clouds.brightness < 0.5) clouds.brightness = 1.0;
   // Clear rain/snow if auto-forecast is off
   var precip = this.settings.precipitation;
   if (precip && precip.type !== "none" && !(this.settings.weather || {}).autoForecast) {
@@ -2920,7 +3032,7 @@ function SkyWeatherAdvancedSystem(scene, settings) {
   // Force fog enabled — saved DB value may be false but SWA needs fog for atmosphere
   if (!fog.enabled) {
     fog.enabled = true;
-    fog.density = fog.density || 0.002;
+    fog.density = fog.density != null ? fog.density : 0.002;
   }
 
   this.orbital = new OrbitalCalculator();
@@ -2980,7 +3092,9 @@ function SkyWeatherAdvancedSystem(scene, settings) {
   this.atmosphere._exposure = initSky.exposure != null ? initSky.exposure : 1.2;
   this.atmosphere._mieG = initSky.mieDirectionalG != null ? initSky.mieDirectionalG : 0.76;
   this.atmosphere._starIntensity = initSky.starIntensity != null ? initSky.starIntensity : 1.0;
+  this.atmosphere._nightBrightness = initSky.nightBrightness != null ? initSky.nightBrightness : 0.4;
   this.atmosphere._solarTime = ts.solarTime != null ? ts.solarTime : 0.45;
+  this.atmosphere._moonDir = [this.orbital.moonDirection.x, this.orbital.moonDirection.y, this.orbital.moonDirection.z];
   this.atmosphere.setSunDirection(this.orbital.sunDirection);
 
   // Set scene.background to zenith color as safety net (dome gradient renders on top)
@@ -3023,6 +3137,7 @@ SkyWeatherAdvancedSystem.DEFAULTS = {
     mieCoefficient: 0.005,
     mieDirectionalG: 0.76,
     starIntensity: 1.0,
+    nightBrightness: 0.4,
     exposure: 1.2,
     rayleighScale: 1.0,
     sunIntensity: 22.0,
@@ -3148,20 +3263,31 @@ SkyWeatherAdvancedSystem.prototype._tick = function(dt) {
     this.atmosphere._rayleighScale = _clamp(skySettings.rayleighScale != null ? skySettings.rayleighScale : 1.0, 0.5, 3.0);
     this.atmosphere._sunIntensity = _clamp(skySettings.sunIntensity != null ? skySettings.sunIntensity : 22.0, 5.0, 50.0);
     this.atmosphere._starIntensity = _clamp(skySettings.starIntensity != null ? skySettings.starIntensity : 1.0, 0, 3.0);
+    this.atmosphere._nightBrightness = _clamp(skySettings.nightBrightness != null ? skySettings.nightBrightness : 0.4, 0, 1.0);
     this.atmosphere._solarTime = ts.solarTime != null ? ts.solarTime : 0.45;
     this.atmosphere._time = this._time;
+    this.atmosphere._moonDir = [this.orbital.moonDirection.x, this.orbital.moonDirection.y, this.orbital.moonDirection.z];
+
+    // Overcast amount for atmosphere desaturation (Task 6)
+    var overcastAmt = (this.settings.clouds || {}).coverage != null ? (this.settings.clouds || {}).coverage : 0;
+    this.atmosphere._overcastAmount = overcastAmt;
+
+    // Sky tinting from settings (Task 12)
+    if (skySettings.skyTintColor) {
+      this.atmosphere._skyTintColor = skySettings.skyTintColor;
+      this.atmosphere._skyTintAlpha = skySettings.skyTintAlpha != null ? skySettings.skyTintAlpha : 0;
+    }
+
     this.atmosphere.setSunDirection(this.orbital.sunDirection);
 
     // Sync scene.background to zenith color as fallback (dome gradient renders on top)
     var zenithColor = this.atmosphere._computeSkyColor([0, 1, 0]);
     if (this.scene) {
       if (!this.scene.background) this.scene.background = new THREE.Color();
-      // Vertex colors are linear — use directly (renderer converts to sRGB)
       this.scene.background.setRGB(zenithColor[0], zenithColor[1], zenithColor[2]);
     }
 
-    // Overcast reduces exposure
-    var overcastAmt = (this.settings.clouds || {}).coverage || 0;
+    // Overcast reduces exposure (in addition to atmosphere desaturation)
     if (overcastAmt > 0.5) {
       this.atmosphere._exposure *= _lerp(1.0, 0.6, (overcastAmt - 0.5) * 2);
     }
@@ -3277,17 +3403,18 @@ SkyWeatherAdvancedSystem.prototype.updateSettings = function(patch) {
   // Re-sanitize after every settings update — panel sends full DB config
   // which may contain bad saved values that override our init sanitization
   var sky = this.settings.sky;
-  if (sky.mieDirectionalG < 0.5) sky.mieDirectionalG = 0.76;
-  if (sky.exposure < 0.5 || sky.exposure > 4) sky.exposure = 1.2;
-  if (sky.sunIntensity < 10) sky.sunIntensity = 22.0;
+  if (sky.mieDirectionalG == null || sky.mieDirectionalG < 0.5) sky.mieDirectionalG = 0.76;
+  if (sky.exposure == null || sky.exposure < 0.5 || sky.exposure > 4) sky.exposure = 1.2;
+  if (sky.sunIntensity == null || sky.sunIntensity < 10) sky.sunIntensity = 22.0;
+  if (sky.nightBrightness == null) sky.nightBrightness = 0.4;
   var fog = this.settings.fog;
-  if (fog.density > 0.01) fog.density = 0.002;
-  if (!fog.enabled) { fog.enabled = true; fog.density = fog.density || 0.002; }
+  if (fog.density != null && fog.density > 0.01) fog.density = 0.002;
+  if (!fog.enabled) { fog.enabled = true; fog.density = fog.density != null ? fog.density : 0.002; }
   // Cloud coverage: DB saves 0 which means no clouds — restore default
   var clouds = this.settings.clouds;
   if (clouds.coverage === 0 || clouds.coverage == null) clouds.coverage = 0.35;
-  if (clouds.coverage > 0.8 && !(this.settings.weather || {}).autoForecast) clouds.coverage = 0.35;
-  if (clouds.brightness < 0.5) clouds.brightness = 1.0;
+  if (clouds.coverage != null && clouds.coverage > 0.8 && !(this.settings.weather || {}).autoForecast) clouds.coverage = 0.35;
+  if (clouds.brightness == null || clouds.brightness < 0.5) clouds.brightness = 1.0;
   var ts = this.settings.time;
   if (ts.longitude != null && ts.timezone != null) {
     var expectedTz = Math.round(ts.longitude / 15);
