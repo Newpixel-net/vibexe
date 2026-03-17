@@ -587,9 +587,9 @@ AtmosphereRenderer.prototype._updateVertexColors = function() {
     colors[i * 3 + 1] = c[1];
     colors[i * 3 + 2] = c[2];
 
-    // Night star highlights: ~815 upper-hemisphere vertices become visible "stars"
-    // 96x48 dome = ~4753 vertices, ~2300 above horizon, 35% = ~815 highlights.
-    // WebGPU-safe: dome vertex highlights avoid Points(1px) and Sprite(terrain bleed).
+    // Night star highlights: ~460 upper-hemisphere vertices become visible "stars"
+    // 96x48 dome = ~4753 vertices, ~2300 above horizon, 20% = ~460 highlights.
+    // Low brightness (0.2 max) prevents visible triangle interpolation patterns.
     var sunDir = this._sunDir;
     if (sunDir[1] < -0.05 && dir[1] > 0.05) {
       // Sidereal rotation: rotate hash input by solarTime for star field rotation
@@ -599,16 +599,17 @@ AtmosphereRenderer.prototype._updateVertexColors = function() {
       var rotZ = dir[0] * sinS + dir[2] * cosS;
       var starSeed = Math.abs(Math.sin(rotX * 127.1 + rotZ * 311.7) * 43758.5453);
       starSeed = starSeed - Math.floor(starSeed); // 0-1
-      // ~35% of upper vertices become visible "stars"
-      if (starSeed > 0.65) {
+      // ~20% of upper vertices become visible "stars" (fewer = less visible grid pattern)
+      if (starSeed > 0.80) {
         // nightFac: 0 at sun alt -3°, 1.0 at sun alt -17° (astronomical twilight)
         var nightFac = _clamp((-sunDir[1] - 0.05) / 0.25, 0, 1);
-        var starBright = (starSeed - 0.65) * 2.857; // 0 to 1
+        var starBright = (starSeed - 0.80) * 5.0; // 0 to 1
         // Cubic distribution: few very bright stars, many dim ones (realistic)
         starBright = starBright * starBright * starBright;
         // Twinkle: per-star phase offset + time-based oscillation
         var twinkle = 0.7 + 0.3 * Math.sin(starSeed * 100 + this._time * 3);
-        starBright *= nightFac * 0.8 * this._starIntensity * twinkle;
+        // Keep brightness LOW (0.2 max) to avoid visible triangle interpolation patterns
+        starBright *= nightFac * 0.2 * this._starIntensity * twinkle;
         // Spectral color variation: warm (orange/yellow) vs cool (blue/white)
         var warmStar = Math.sin(rotX * 50 + rotZ * 70) * 0.5 + 0.5;
         colors[i*3]   = _clamp(colors[i*3] + starBright * _lerp(0.5, 1.0, warmStar), 0, 1);
