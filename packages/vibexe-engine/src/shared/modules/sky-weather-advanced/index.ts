@@ -2989,13 +2989,13 @@ function SkyWeatherAdvancedSystem(scene, settings) {
   // Initial solar calculation
   var ts = this.settings.time || {};
   this.orbital.update(
-    ts.solarTime || 0.45,
-    ts.latitude || 45,
-    ts.longitude || 0,
+    ts.solarTime != null ? ts.solarTime : 0.45,
+    ts.latitude != null ? ts.latitude : 45,
+    ts.longitude != null ? ts.longitude : 0,
     ts.year || 2024,
     ts.month || 6,
     ts.day || 21,
-    ts.timezone || 0
+    ts.timezone != null ? ts.timezone : 0
   );
 
   // Set initial atmosphere
@@ -3141,19 +3141,19 @@ SkyWeatherAdvancedSystem.prototype._tick = function(dt) {
 
   // Auto-advance time
   if (ts.autoAdvance && ts.cycleLengthMinutes > 0) {
-    ts.solarTime = (ts.solarTime || 0) + dt / (ts.cycleLengthMinutes * 60);
+    ts.solarTime = (ts.solarTime != null ? ts.solarTime : 0) + dt / (ts.cycleLengthMinutes * 60);
     if (ts.solarTime >= 1) ts.solarTime -= 1;
   }
 
-  // Update orbital calculator
+  // Update orbital calculator (use != null to allow 0 values like midnight)
   this.orbital.update(
-    ts.solarTime || 0.45,
-    ts.latitude || 45,
-    ts.longitude || 0,
+    ts.solarTime != null ? ts.solarTime : 0.45,
+    ts.latitude != null ? ts.latitude : 45,
+    ts.longitude != null ? ts.longitude : 0,
     ts.year || 2024,
     ts.month || 6,
     ts.day || 21,
-    ts.timezone || 0
+    ts.timezone != null ? ts.timezone : 0
   );
 
   var sunAltDeg = this.orbital.sunAltitude * RAD2DEG;
@@ -3223,7 +3223,7 @@ SkyWeatherAdvancedSystem.prototype._tick = function(dt) {
   );
 
   // Stars (with sidereal rotation)
-  this.stars.update(sunAltDeg, camera, this._time, this.settings.sky || {}, ts.solarTime || 0.45);
+  this.stars.update(sunAltDeg, camera, this._time, this.settings.sky || {}, ts.solarTime != null ? ts.solarTime : 0.45);
 
   // Shooting stars (meteors) — after stars update
   this.shootingStars.update(dt, camera, sunAltDeg, this.settings.effects || {});
