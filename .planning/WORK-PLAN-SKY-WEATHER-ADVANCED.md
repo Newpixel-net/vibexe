@@ -444,7 +444,7 @@ None — Phase 7 is fully clean.
 | 1 | Module Scaffold + Atmosphere | 21 | COMPLETE (double-gamma fixed, all tests pass) | 100% |
 | 2 | Solar Calculator + Day/Night | 20 | COMPLETE (lat=0 bug fixed, AmbientLight crash fixed, all tests pass) | 100% |
 | 3 | Procedural Clouds (Canvas2D fBm) | 20 | DEEP REVIEW: 3 bugs fixed (coverage slider, || falsy, GC pressure) | 100% |
-| 4 | Stars (dome vertex highlights) | 13 | DEEP REVIEW: 4 bugs fixed (starIntensity unwired, nightFac range, sidereal rotation, twinkle) + dead code + 5 || falsy | 100% |
+| 4 | Stars (dome vertex highlights) | 13 | DEEP REVIEW + VISUAL FIX: brightness 0.8→0.2, density 35%→20% (starburst pattern) | 100% |
 | 5 | Moon Rendering | 13 | DEEP REVIEW: 5 bugs fixed (phase*2, || falsy x2, no-op lerp, binary visibility pop) | 100% |
 | 6 | Weather + Precipitation | 12 | DEEP REVIEW: 3 bugs fixed (windStrength/forecastInterval/windDirection || falsy) | 100% |
 | 7 | Lightning + Thunder | 12 | DEEP REVIEW: ALL CLEAN — no bugs found | 100% |
