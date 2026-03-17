@@ -1202,38 +1202,23 @@ StarField.prototype.init = function(scene) {
   this._starGeo.setAttribute("color", new THREE.BufferAttribute(colors, 3));
   this._starGeo.setAttribute("size", new THREE.BufferAttribute(sizes, 1));
 
-  // WebGPU renders Points as 1px — use InstancedMesh with PlaneGeometry instead
+  // Use PointsMaterial with map texture — in WebGPU r183 this renders bigger than 1px
   var starTex = this._createStarTexture();
-  this._starMat = new THREE.MeshBasicMaterial({
+  this._starMat = new THREE.PointsMaterial({
     map: starTex,
+    vertexColors: true,
+    size: 8,
     transparent: true,
+    opacity: 1.0,
     depthWrite: false,
-    side: THREE.DoubleSide,
+    sizeAttenuation: false,
     blending: THREE.AdditiveBlending,
-    toneMapped: false,
+    alphaTest: 0.01,
   });
 
-  var starPlane = new THREE.PlaneGeometry(1, 1);
-  this._stars = new THREE.InstancedMesh(starPlane, this._starMat, count);
+  this._stars = new THREE.Points(this._starGeo, this._starMat);
   this._stars.name = "__swa_stars__";
   this._stars.renderOrder = -999;
-
-  // Set instance transforms from positions and sizes
-  var dummy = new THREE.Object3D();
-  var instanceColor = new Float32Array(count * 3);
-  for (var si = 0; si < count; si++) {
-    dummy.position.set(positions[si*3], positions[si*3+1], positions[si*3+2]);
-    var starSize = sizes[si] * 0.6; // scale factor for billboard size
-    dummy.scale.setScalar(starSize);
-    dummy.updateMatrix();
-    this._stars.setMatrixAt(si, dummy.matrix);
-    instanceColor[si*3]   = colors[si*3];
-    instanceColor[si*3+1] = colors[si*3+1];
-    instanceColor[si*3+2] = colors[si*3+2];
-  }
-  this._stars.instanceMatrix.needsUpdate = true;
-  // Instance colors for spectral tinting
-  this._stars.instanceColor = new THREE.InstancedBufferAttribute(instanceColor, 3);
   this._stars.frustumCulled = false;
   scene.add(this._stars);
 
@@ -1248,11 +1233,21 @@ StarField.prototype.update = function(sunAltDeg, camera, time, settings, solarTi
   var nightFactor = _smoothstep(0, -12, sunAltDeg);
   this._stars.visible = nightFactor > 0.01;
 
-  if (this._stars.visible) {
+  if (this._stars.visible && this._starGeo) {
     this._starMat.opacity = nightFactor * starIntensity;
+
+    // Twinkle animation using base sizes from magnitude
+    var sizes = this._starGeo.getAttribute("size");
+    if (sizes && this._baseSizes) {
+      var sArr = sizes.array;
+      for (var i = 0; i < sArr.length; i++) {
+        sArr[i] = this._baseSizes[i] * (0.7 + 0.3 * Math.sin(time * 2.5 + this._twinklePhases[i]));
+      }
+      sizes.needsUpdate = true;
+    }
   }
 
-  // Sidereal rotation: stars rotate with Earth's rotation
+  // Sidereal rotation
   if (this._stars) {
     var siderealAngle = ((solarTime || 0) * 360 * 1.00274) * DEG2RAD;
     this._stars.rotation.y = siderealAngle;
@@ -1265,10 +1260,8 @@ StarField.prototype.update = function(sunAltDeg, camera, time, settings, solarTi
 };
 
 StarField.prototype.dispose = function(scene) {
-  if (this._stars) {
-    scene.remove(this._stars);
-    if (this._stars.dispose) this._stars.dispose();
-  }
+  if (this._stars) scene.remove(this._stars);
+  if (this._starGeo) this._starGeo.dispose();
   if (this._starMat) this._starMat.dispose();
 };
 
