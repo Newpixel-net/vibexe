@@ -456,7 +456,7 @@ AtmosphereRenderer.prototype._computeSkyColor = function(viewDir) {
   }
 
   // Tone mapping (Reinhard)
-  var exposure = this._exposure;
+  var exposure = this._exposure * 0.7;
   r = 1 - Math.exp(-r * exposure);
   gn = 1 - Math.exp(-gn * exposure);
   b = 1 - Math.exp(-b * exposure);
@@ -467,13 +467,22 @@ AtmosphereRenderer.prototype._computeSkyColor = function(viewDir) {
   gn = Math.pow(_clamp(gn, 0, 1), invGamma);
   b = Math.pow(_clamp(b, 0, 1), invGamma);
 
+  // Horizon warmth — warm up the sky near the horizon
+  var horizonFac = 1.0 - Math.abs(viewDir[1]); // 1 at horizon, 0 at zenith
+  horizonFac = horizonFac * horizonFac * horizonFac; // cubic falloff — concentrated at horizon
+  var sunHorizFac = Math.max(0, 1.0 - Math.abs(sunDir[1]) * 3.0); // strongest when sun is near horizon
+  var warmth = horizonFac * sunHorizFac * 0.3;
+  r += warmth * 1.0;  // add warm orange
+  gn += warmth * 0.5;
+  b += warmth * 0.1;
+
   // Night floor: minimum sky brightness
   var nightFloor = 0.02;
   r = Math.max(r, nightFloor * 0.9);
   gn = Math.max(gn, nightFloor * 0.7);
   b = Math.max(b, nightFloor);
 
-  return [r, gn, b];
+  return [_clamp(r, 0, 1), _clamp(gn, 0, 1), _clamp(b, 0, 1)];
 };
 
 // Build the sky dome mesh with vertex colors
@@ -1344,7 +1353,7 @@ CloudSystem.prototype.updateTexture = function(atmosphere) {
       c3 *= fade3;
 
       // Combined density
-      var d = _clamp((c1 + c2 + c3) * density, 0, 1);
+      var d = _clamp(Math.pow((c1 + c2 + c3) * density, 0.7), 0, 1);
       if (d < 0.02) continue;
 
       hasCloud = true;
@@ -1354,7 +1363,7 @@ CloudSystem.prototype.updateTexture = function(atmosphere) {
       var pixAngle = u * TWO_PI;
       var sunDot = Math.cos(pixAngle - sunAngle) * 0.5 + 0.5;
       // Boost brightness on sun side, darken opposite side
-      var lightMul = _lerp(0.55, 1.3, sunDot) * brightness;
+      var lightMul = _lerp(0.7, 1.4, sunDot) * brightness;
       // Altitude shading: cloud bottoms darker
       lightMul *= _lerp(0.65, 1.0, 1.0 - v);
 
@@ -1363,7 +1372,7 @@ CloudSystem.prototype.updateTexture = function(atmosphere) {
       var b = _clamp(baseB * lightMul / 255, 0, 1);
 
       // Alpha: ramp up from threshold for soft edges
-      var alpha = _clamp(d * 5.0, 0, 1) * altFade;
+      var alpha = _clamp(d * 6.0, 0, 0.95) * altFade;
 
       pix[idx]     = Math.round(r * 255);
       pix[idx + 1] = Math.round(g * 255);
@@ -2663,6 +2672,12 @@ SkyWeatherAdvancedSystem.prototype._tick = function(dt) {
     this.atmosphere._rayleighScale = skySettings.rayleighScale || 1.0;
     this.atmosphere._sunIntensity = skySettings.sunIntensity || 22.0;
     this.atmosphere.setSunDirection(this.orbital.sunDirection);
+
+    // Overcast reduces exposure
+    var overcastAmt = (this.settings.clouds || {}).coverage || 0;
+    if (overcastAmt > 0.5) {
+      this.atmosphere._exposure *= _lerp(1.0, 0.6, (overcastAmt - 0.5) * 2);
+    }
   }
 
   // Camera follow
