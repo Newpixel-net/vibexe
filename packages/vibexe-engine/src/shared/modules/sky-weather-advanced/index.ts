@@ -665,7 +665,7 @@ SunDiskRenderer.prototype.build = function(scene) {
   dCtx.fillRect(0, 0, 128, 128);
   var diskTex = new THREE.CanvasTexture(diskCanvas);
   var diskMat = new THREE.MeshBasicMaterial({
-    map: diskTex, transparent: true, depthWrite: false, fog: false,
+    map: diskTex, transparent: true, depthWrite: false, depthTest: false, fog: false,
     side: THREE.DoubleSide, blending: THREE.AdditiveBlending, toneMapped: false,
   });
   this._diskMesh = new THREE.Mesh(diskGeo, diskMat);
@@ -685,7 +685,7 @@ SunDiskRenderer.prototype.build = function(scene) {
   gCtx.fillRect(0, 0, 128, 128);
   var glowTex = new THREE.CanvasTexture(glowCanvas);
   var glowMat = new THREE.MeshBasicMaterial({
-    map: glowTex, transparent: true, depthWrite: false, fog: false,
+    map: glowTex, transparent: true, depthWrite: false, depthTest: false, fog: false,
     side: THREE.DoubleSide, blending: THREE.AdditiveBlending, toneMapped: false,
   });
   this._glowMesh = new THREE.Mesh(glowGeo, glowMat);
@@ -1226,6 +1226,7 @@ StarField.prototype.init = function(scene) {
     transparent: true,
     opacity: 1.0,
     depthWrite: false,
+    depthTest: false,
     sizeAttenuation: false,
     blending: THREE.AdditiveBlending,
     alphaTest: 0.01,
@@ -1483,6 +1484,7 @@ RainbowRenderer.prototype.build = function(scene) {
     transparent: true,
     opacity: 0,
     depthWrite: false,
+    depthTest: false,
     side: THREE.DoubleSide,
     fog: false,
     toneMapped: false,
@@ -1896,6 +1898,7 @@ MoonRenderer.prototype.build = function(scene) {
     transparent: true,
     opacity: 0.9,
     depthWrite: false,
+    depthTest: false,
     side: THREE.FrontSide,
     fog: false,
     toneMapped: false,
@@ -2198,6 +2201,7 @@ AuroraRenderer.prototype.build = function(scene) {
     transparent: true,
     opacity: 0.5,
     depthWrite: false,
+    depthTest: false,
     side: THREE.DoubleSide,
     blending: THREE.AdditiveBlending,
     fog: false,
@@ -2411,6 +2415,7 @@ MilkyWayAndPlanets.prototype.init = function(scene) {
     transparent: true,
     opacity: 0.3,
     depthWrite: false,
+    depthTest: false,
     sizeAttenuation: false,
     blending: THREE.AdditiveBlending,
   });
@@ -2456,6 +2461,7 @@ MilkyWayAndPlanets.prototype.init = function(scene) {
     transparent: true,
     opacity: 0.8,
     depthWrite: false,
+    depthTest: false,
     sizeAttenuation: false,
     blending: THREE.AdditiveBlending,
   });
@@ -2705,6 +2711,7 @@ SunShafts.prototype.build = function(scene) {
       transparent: true,
       opacity: 0,
       depthWrite: false,
+      depthTest: false,
       side: THREE.DoubleSide,
       blending: THREE.AdditiveBlending,
       fog: false,
