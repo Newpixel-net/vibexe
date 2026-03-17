@@ -599,17 +599,18 @@ AtmosphereRenderer.prototype._updateVertexColors = function() {
       var rotZ = dir[0] * sinS + dir[2] * cosS;
       var starSeed = Math.abs(Math.sin(rotX * 127.1 + rotZ * 311.7) * 43758.5453);
       starSeed = starSeed - Math.floor(starSeed); // 0-1
-      // ~20% of upper vertices become visible "stars" (fewer = less visible grid pattern)
-      if (starSeed > 0.80) {
+      // ~10% of upper vertices become visible "stars" (fewer = less visible grid pattern)
+      if (starSeed > 0.90) {
         // nightFac: 0 at sun alt -3°, 1.0 at sun alt -17° (astronomical twilight)
         var nightFac = _clamp((-sunDir[1] - 0.05) / 0.25, 0, 1);
-        var starBright = (starSeed - 0.80) * 5.0; // 0 to 1
+        var starBright = (starSeed - 0.90) * 10.0; // 0 to 1
         // Cubic distribution: few very bright stars, many dim ones (realistic)
         starBright = starBright * starBright * starBright;
         // Twinkle: per-star phase offset + time-based oscillation
         var twinkle = 0.7 + 0.3 * Math.sin(starSeed * 100 + this._time * 3);
-        // Keep brightness LOW (0.2 max) to avoid visible triangle interpolation patterns
-        starBright *= nightFac * 0.2 * this._starIntensity * twinkle;
+        // Keep brightness very low — vertex highlights bleed across triangles
+        // creating visible geometric patterns if too bright
+        starBright *= nightFac * 0.06 * this._starIntensity * twinkle;
         // Spectral color variation: warm (orange/yellow) vs cool (blue/white)
         var warmStar = Math.sin(rotX * 50 + rotZ * 70) * 0.5 + 0.5;
         colors[i*3]   = _clamp(colors[i*3] + starBright * _lerp(0.5, 1.0, warmStar), 0, 1);
