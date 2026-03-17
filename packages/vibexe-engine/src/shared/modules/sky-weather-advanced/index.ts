@@ -2888,6 +2888,26 @@ function SkyWeatherAdvancedSystem(scene, settings) {
   this.scene = scene;
   this.settings = this._deepMerge(SkyWeatherAdvancedSystem.DEFAULTS, settings || {});
 
+  // Sanitize settings — fix known-bad values from old DB saves
+  var sky = this.settings.sky;
+  if (sky.mieDirectionalG < 0.5) sky.mieDirectionalG = 0.76;
+  if (sky.exposure < 0.5 || sky.exposure > 4) sky.exposure = 1.2;
+  if (sky.sunIntensity < 10) sky.sunIntensity = 22.0;
+  var fog = this.settings.fog;
+  if (fog.density > 0.01) fog.density = 0.002;
+  var clouds = this.settings.clouds;
+  // Don't let saved overcast override clear default on fresh load
+  if (clouds.coverage > 0.8 && !(this.settings.weather || {}).autoForecast) {
+    clouds.coverage = 0.35;
+  }
+  if (clouds.brightness < 0.5) clouds.brightness = 1.0;
+  // Clear rain/snow if auto-forecast is off
+  var precip = this.settings.precipitation;
+  if (precip && precip.type !== "none" && !(this.settings.weather || {}).autoForecast) {
+    precip.type = "none";
+    precip.intensity = 0;
+  }
+
   this.orbital = new OrbitalCalculator();
   this.atmosphere = new AtmosphereRenderer();
   this.lighting = new SkyLightingController();
