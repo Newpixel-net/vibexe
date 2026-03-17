@@ -693,11 +693,12 @@ SunDiskRenderer.prototype.update = function(camera, sunDir, sunAltDeg, settings)
   // Billboard: always face camera
   this._group.lookAt(camera.position);
 
-  // Size from settings — scale sun disk relative to distance
-  var size = (settings.sunDiskSize || 0.028) * 2400;
-  var diskScale = size / 200;
+  // Size from settings — Tenkoku-style big atmospheric sun
+  var diskSize = (settings.sunDiskSize || 0.028) * 5000;
+  var diskScale = diskSize / 200;
   if (this._diskMesh) this._diskMesh.scale.setScalar(diskScale);
-  if (this._glowMesh) this._glowMesh.scale.setScalar(diskScale * 1.2);
+  // Glow halo is 4x the disk — creates that atmospheric bloom look
+  if (this._glowMesh) this._glowMesh.scale.setScalar(diskScale * 4.0);
 
   // Hide when sun below horizon
   this._group.visible = sunAltDeg > -2;
@@ -1724,8 +1725,8 @@ CloudSystem.prototype.updateTexture = function(atmosphere) {
       var g = _clamp(baseG * lightMul / 255, 0, 1);
       var b = _clamp(baseB * lightMul / 255, 0, 1);
 
-      // Alpha: ramp up from threshold for soft edges
-      var alpha = _clamp(d * 6.0, 0, 0.95) * altFade;
+      // Alpha: stronger cloud opacity for visible formations (Tenkoku reference)
+      var alpha = _clamp(d * 8.0, 0, 0.92) * altFade;
 
       pix[idx]     = Math.round(r * 255);
       pix[idx + 1] = Math.round(g * 255);
