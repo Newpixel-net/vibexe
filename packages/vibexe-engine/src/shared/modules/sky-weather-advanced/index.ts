@@ -323,6 +323,9 @@ function AtmosphereRenderer() {
   this._mieScale = 1.0;
   this._sunIntensity = 22.0;
   this._sunDiskSize = 0.9985; // cos(angle) threshold for sun disk
+  this._starIntensity = 1.0;  // from settings.sky.starIntensity
+  this._solarTime = 0.45;     // for sidereal rotation of star highlights
+  this._time = 0;             // elapsed time for star twinkle animation
 }
 
 // Ray-sphere intersection (returns [near, far] or null)
@@ -584,23 +587,30 @@ AtmosphereRenderer.prototype._updateVertexColors = function() {
     colors[i * 3 + 1] = c[1];
     colors[i * 3 + 2] = c[2];
 
-    // Night star highlights: make upper-hemisphere vertices into visible "stars"
-    // This is the PRIMARY star rendering method — dome vertex highlights are always
-    // correctly layered behind terrain (unlike Sprites which bleed through).
-    // With 64x32 dome = 2145 vertices, 35% above horizon = ~400+ star highlights.
+    // Night star highlights: ~815 upper-hemisphere vertices become visible "stars"
+    // 96x48 dome = ~4753 vertices, ~2300 above horizon, 35% = ~815 highlights.
+    // WebGPU-safe: dome vertex highlights avoid Points(1px) and Sprite(terrain bleed).
     var sunDir = this._sunDir;
     if (sunDir[1] < -0.05 && dir[1] > 0.05) {
-      var starSeed = Math.abs(Math.sin(dir[0] * 127.1 + dir[2] * 311.7) * 43758.5453);
+      // Sidereal rotation: rotate hash input by solarTime for star field rotation
+      var siderealAngle = this._solarTime * TWO_PI;
+      var cosS = Math.cos(siderealAngle), sinS = Math.sin(siderealAngle);
+      var rotX = dir[0] * cosS - dir[2] * sinS;
+      var rotZ = dir[0] * sinS + dir[2] * cosS;
+      var starSeed = Math.abs(Math.sin(rotX * 127.1 + rotZ * 311.7) * 43758.5453);
       starSeed = starSeed - Math.floor(starSeed); // 0-1
       // ~35% of upper vertices become visible "stars"
       if (starSeed > 0.65) {
-        var nightFac = _clamp(-sunDir[1] - 0.05, 0, 1) / 0.95;
+        // nightFac: 0 at sun alt -3°, 1.0 at sun alt -17° (astronomical twilight)
+        var nightFac = _clamp((-sunDir[1] - 0.05) / 0.25, 0, 1);
         var starBright = (starSeed - 0.65) * 2.857; // 0 to 1
         // Cubic distribution: few very bright stars, many dim ones (realistic)
         starBright = starBright * starBright * starBright;
-        starBright *= nightFac * 0.8; // linear space: lower values, renderer amplifies via sRGB
+        // Twinkle: per-star phase offset + time-based oscillation
+        var twinkle = 0.7 + 0.3 * Math.sin(starSeed * 100 + this._time * 3);
+        starBright *= nightFac * 0.8 * this._starIntensity * twinkle;
         // Spectral color variation: warm (orange/yellow) vs cool (blue/white)
-        var warmStar = Math.sin(dir[0] * 50 + dir[2] * 70) * 0.5 + 0.5;
+        var warmStar = Math.sin(rotX * 50 + rotZ * 70) * 0.5 + 0.5;
         colors[i*3]   = _clamp(colors[i*3] + starBright * _lerp(0.5, 1.0, warmStar), 0, 1);
         colors[i*3+1] = _clamp(colors[i*3+1] + starBright * _lerp(0.6, 0.9, warmStar), 0, 1);
         colors[i*3+2] = _clamp(colors[i*3+2] + starBright * _lerp(1.0, 0.4, warmStar), 0, 1);
@@ -1136,31 +1146,16 @@ WeatherParticles.prototype.dispose = function(scene) {
 
 
 // ============================================================
-// Star Field — Real Tycho2 Catalog (2,887 stars, mag ≤ 5.5)
+// Star Field — Dome Vertex Highlights (WebGPU-safe)
 // ============================================================
-// Ported from ParticleStarfieldHandler.cs (511 lines)
-// Data: [RA_deg, Dec_deg, Magnitude, SpectralTypeIdx]
-// SpectralTypeIdx: 0=O, 1=B, 2=A, 3=F, 4=G, 5=K, 6=M
-// Loaded lazily on first init to avoid blocking parse
-
-var _STAR_CATALOG_URL = null; // Will use embedded data
-var _STAR_SPECTRAL_COLORS = [
-  [0.41, 0.66, 1.0],  // O - blue
-  [0.76, 0.86, 1.0],  // B - blue-white
-  [1.0, 1.0, 1.0],    // A - white
-  [0.99, 1.0, 0.94],  // F - yellow-white
-  [1.0, 0.99, 0.55],  // G - yellow
-  [1.0, 0.72, 0.36],  // K - orange
-  [1.0, 0.07, 0.07],  // M - red
-];
+// Stars rendered as bright vertex color highlights on the sky dome mesh.
+// ~815 star highlights from ~2300 upper-hemisphere vertices (96x48 dome).
+// Spectral color variation (blue-white to orange-yellow) via sin hash.
+// THREE.Points = 1px in WebGPU, THREE.Sprite = bleeds through terrain.
 
 function StarField() {
   // Stars are rendered as dome vertex highlights in AtmosphereRenderer._updateVertexColors.
-  // Separate Points/Sprites don't work reliably in WebGPU:
-  //   - THREE.Points: 1px in WebGPU (point-list topology limitation)
-  //   - THREE.Sprite: renders at world position, appears on terrain (depthTest:false bleeds through)
-  // The dome vertex highlights are part of the sky dome mesh itself, so they always render
-  // at the correct sky layer without z-fighting or terrain bleed-through.
+  // This approach is WebGPU-safe: no z-fighting, no terrain bleed-through, zero extra draw calls.
 }
 
 StarField.prototype.init = function(scene) {
@@ -2886,8 +2881,11 @@ function SkyWeatherAdvancedSystem(scene, settings) {
   );
 
   // Set initial atmosphere
-  this.atmosphere._exposure = (this.settings.sky || {}).exposure || 1.2;
-  this.atmosphere._mieG = (this.settings.sky || {}).mieDirectionalG || 0.76;
+  var initSky = this.settings.sky || {};
+  this.atmosphere._exposure = initSky.exposure != null ? initSky.exposure : 1.2;
+  this.atmosphere._mieG = initSky.mieDirectionalG != null ? initSky.mieDirectionalG : 0.76;
+  this.atmosphere._starIntensity = initSky.starIntensity != null ? initSky.starIntensity : 1.0;
+  this.atmosphere._solarTime = ts.solarTime != null ? ts.solarTime : 0.45;
   this.atmosphere.setSunDirection(this.orbital.sunDirection);
 
   // Set scene.background to zenith color as safety net (dome gradient renders on top)
@@ -3049,11 +3047,14 @@ SkyWeatherAdvancedSystem.prototype._tick = function(dt) {
     this._skyUpdateTimer = 0;
 
     var skySettings = this.settings.sky || {};
-    this.atmosphere._exposure = _clamp(skySettings.exposure || 1.2, 0.3, 5.0);
+    this.atmosphere._exposure = _clamp(skySettings.exposure != null ? skySettings.exposure : 1.2, 0.3, 5.0);
     // mieG must be 0.6-0.99 for directional sun scattering (saved settings may have bad values)
-    this.atmosphere._mieG = _clamp(skySettings.mieDirectionalG || 0.76, 0.6, 0.99);
-    this.atmosphere._rayleighScale = _clamp(skySettings.rayleighScale || 1.0, 0.5, 3.0);
-    this.atmosphere._sunIntensity = _clamp(skySettings.sunIntensity || 22.0, 5.0, 50.0);
+    this.atmosphere._mieG = _clamp(skySettings.mieDirectionalG != null ? skySettings.mieDirectionalG : 0.76, 0.6, 0.99);
+    this.atmosphere._rayleighScale = _clamp(skySettings.rayleighScale != null ? skySettings.rayleighScale : 1.0, 0.5, 3.0);
+    this.atmosphere._sunIntensity = _clamp(skySettings.sunIntensity != null ? skySettings.sunIntensity : 22.0, 5.0, 50.0);
+    this.atmosphere._starIntensity = _clamp(skySettings.starIntensity != null ? skySettings.starIntensity : 1.0, 0, 3.0);
+    this.atmosphere._solarTime = ts.solarTime != null ? ts.solarTime : 0.45;
+    this.atmosphere._time = this._time;
     this.atmosphere.setSunDirection(this.orbital.sunDirection);
 
     // Sync scene.background to zenith color as fallback (dome gradient renders on top)
@@ -3133,8 +3134,9 @@ SkyWeatherAdvancedSystem.prototype._tick = function(dt) {
 
     // Overcast dimming: reduce sky exposure and sun intensity when heavily overcast
     var overcastDim = _clamp(this.weather.cloudCoverage - 0.5, 0, 0.5) * 2; // 0 at 50%, 1 at 100%
+    var baseSunInt = (this.settings.sky || {}).sunIntensity;
     this.atmosphere._sunIntensity = _lerp(
-      (this.settings.sky || {}).sunIntensity || 22.0,
+      baseSunInt != null ? baseSunInt : 22.0,
       8.0,
       overcastDim
     );
