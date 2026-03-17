@@ -65,6 +65,21 @@ Vertex colors match the existing `sky-weather` module approach and keep GPU budg
 - [x] 1.19 Test: blue sky at noon PASS, orange sunset PASS, dark night PASS (2026-03-17)
 - [x] 1.20 Test: sun disk visible with glow halo (renders at clamped 40° altitude) PASS
 - [x] 1.21 Test: no NaN/black artifacts at horizon or directly above PASS
+- [x] 1.22 DEEP REVIEW: Port Tenkoku spectral incoming light (R=0.80, G=0.87, B=1.33) for deeper blue zenith
+- [x] 1.23 DEEP REVIEW: Match Tenkoku density scale heights (Rayleigh 10km, Mie 3km)
+- [x] 1.24 DEEP REVIEW: Port night sky brightness floor (Tenkoku nightBrightness=0.4)
+- [x] 1.25 DEEP REVIEW: Add night horizon brightening (Tenkoku atmospheric glow)
+- [x] 1.26 DEEP REVIEW: Add moon Mie scattering (5-ring atmospheric halo from Tenkoku_sky_elek.shader)
+- [x] 1.27 DEEP REVIEW: Add overcast sky desaturation (Tenkoku greyscale lerp at high coverage)
+- [x] 1.28 DEEP REVIEW: Add global sky tinting support (skyTintColor/skyTintAlpha)
+- [x] 1.29 DEEP REVIEW: Rebalance tone mapping (satBoost 1.4→1.25, zenith push reduced)
+- [x] 1.30 DEEP REVIEW: Improve star field — 825 stars, Milky Way band, weighted spectral types
+- [x] 1.31 DEEP REVIEW: Fix night moonlight intensity (0.08→0.15) and ambient (0.08→0.12)
+- [x] 1.32 DEEP REVIEW: Sun glow scale 10x→6x to match Tenkoku reference
+- [x] 1.33 DEEP REVIEW: Fix settings sanitizer null guards (both constructor + updateSettings)
+- [x] 1.34 DEEP REVIEW: Fix || falsy bug in fog density init
+- [x] 1.35 DEEP REVIEW: Add nightBrightness to defaultSettings.sky
+- [x] 1.36 DEEP REVIEW: Visual verification — deployed, blue sky confirmed (2026-03-18)
 
 ### Verification:
 - Module appears in Modules panel, can be enabled/disabled
