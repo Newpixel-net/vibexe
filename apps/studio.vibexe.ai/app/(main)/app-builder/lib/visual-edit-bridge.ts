@@ -4562,6 +4562,7 @@ export function getVisualEditBridgeScript(): string {
 
         // If sculpt heightmap data was saved, overlay it on the generated terrain
         // T5 fix: validate Base64 sculpt data — check length, NaN, and reasonable range
+        var _tpSculptRestored = false;
         if (_tpS.sculptHeightData && typeof _tpS.sculptHeightData === "string" && _tpS.sculptHeightData.length > 0) {
           try {
             var _sData = atob(_tpS.sculptHeightData);
@@ -4595,6 +4596,7 @@ export function getVisualEditBridgeScript(): string {
               }
               _tpPos.needsUpdate = true;
               _tpGeo.computeVertexNormals();
+              _tpSculptRestored = true;
               console.log("[TerrainPainter] Restored sculpt heightmap (" + _sFloats.length + " vertices)");
               }
             }
@@ -4602,8 +4604,9 @@ export function getVisualEditBridgeScript(): string {
         }
 
         // TERRAIN-AS-FLOOR: Normalize height range to [0, heightScale]
-        // Simple min-shift can inflate heights when erosion creates deep valleys.
-        // Rescale full range to fit within the target heightScale instead.
+        // SKIP when sculpted data was restored — sculpt heights are already in correct space.
+        // Normalizing after sculpt restore destroys the sculpted detail.
+        if (!_tpSculptRestored) {
         var _tpPostRange = _tpMaxY - _tpMinY;
         if (_tpPostRange > 0.001) {
           for (var nvi = 0; nvi < _tpPos.count; nvi++) {
@@ -4615,6 +4618,7 @@ export function getVisualEditBridgeScript(): string {
           _tpMinY = 0;
           _tpPos.needsUpdate = true;
           _tpGeo.computeVertexNormals();
+        }
         }
 
         // Store per-vertex height (0-1 normalized) and slope (degrees) as attributes
