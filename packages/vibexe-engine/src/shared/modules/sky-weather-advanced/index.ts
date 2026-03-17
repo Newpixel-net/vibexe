@@ -528,7 +528,7 @@ AtmosphereRenderer.prototype._computeSkyColor = function(viewDir) {
 AtmosphereRenderer.prototype.build = function(scene) {
   if (this.dome) return;
 
-  var segW = 48, segH = 24;
+  var segW = 64, segH = 32; // more vertices = more visible vertex star highlights
   // Dome radius must be < camera.far (typically 1000). Use 500 like working sky-weather module.
   this.geometry = new THREE.SphereGeometry(500, segW, segH);
   this.geometry.name = "__swa_sky_dome_geo__";
@@ -586,17 +586,20 @@ AtmosphereRenderer.prototype._updateVertexColors = function() {
     colors[i * 3 + 1] = c[1];
     colors[i * 3 + 2] = c[2];
 
-    // Night star highlights: make some upper-hemisphere vertices brighter
+    // Night star highlights: make upper-hemisphere vertices into visible "stars"
     var sunDir = this._sunDir;
-    if (sunDir[1] < -0.1 && dir[1] > 0.2) {
+    if (sunDir[1] < -0.05 && dir[1] > 0.1) {
       var starSeed = Math.abs(Math.sin(dir[0] * 127.1 + dir[2] * 311.7) * 43758.5453);
       starSeed = starSeed - Math.floor(starSeed); // 0-1
-      if (starSeed > 0.92) { // ~8% of upper vertices become "stars"
-        var nightFac = _clamp(-sunDir[1] - 0.1, 0, 1) / 0.9; // 0 at -0.1, 1 at -1
-        var starBright = (starSeed - 0.92) * 12.5; // 0 to 1
-        starBright *= nightFac * 0.5; // modulate by how dark it is
-        colors[i*3]   = _clamp(colors[i*3] + starBright * 0.9, 0, 1);
-        colors[i*3+1] = _clamp(colors[i*3+1] + starBright * 0.95, 0, 1);
+      // ~15% of upper vertices become visible "stars" (was 8%)
+      if (starSeed > 0.85) {
+        var nightFac = _clamp(-sunDir[1] - 0.05, 0, 1) / 0.95; // 0 at -0.05, 1 at -1
+        var starBright = (starSeed - 0.85) * 6.67; // 0 to 1
+        // Brightest stars are very prominent — create visible points
+        starBright = starBright * starBright; // quadratic for more bright stars
+        starBright *= nightFac * 1.2; // strong modulation — clearly visible at night
+        colors[i*3]   = _clamp(colors[i*3] + starBright * 0.85, 0, 1);
+        colors[i*3+1] = _clamp(colors[i*3+1] + starBright * 0.9, 0, 1);
         colors[i*3+2] = _clamp(colors[i*3+2] + starBright * 1.0, 0, 1);
       }
     }
@@ -3303,6 +3306,11 @@ SkyWeatherAdvancedSystem.prototype.updateSettings = function(patch) {
   var fog = this.settings.fog;
   if (fog.density > 0.01) fog.density = 0.002;
   if (!fog.enabled) { fog.enabled = true; fog.density = fog.density || 0.002; }
+  // Cloud coverage: DB saves 0 which means no clouds — restore default
+  var clouds = this.settings.clouds;
+  if (clouds.coverage === 0 || clouds.coverage == null) clouds.coverage = 0.35;
+  if (clouds.coverage > 0.8 && !(this.settings.weather || {}).autoForecast) clouds.coverage = 0.35;
+  if (clouds.brightness < 0.5) clouds.brightness = 1.0;
   var ts = this.settings.time;
   if (ts.longitude != null && ts.timezone != null) {
     var expectedTz = Math.round(ts.longitude / 15);
