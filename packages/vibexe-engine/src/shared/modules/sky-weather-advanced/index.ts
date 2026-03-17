@@ -41,6 +41,19 @@ function _lerpV3(a, b, t) {
   return [_lerp(a[0], b[0], t), _lerp(a[1], b[1], t), _lerp(a[2], b[2], t)];
 }
 function _saturate(x) { return _clamp(x, 0, 1); }
+
+// Invert triangle winding order so inside faces become FrontSide
+// Required for WebGPU: BackSide + vertexColors/textures = invisible
+function _invertWinding(geo) {
+  var idx = geo.index;
+  if (!idx) return;
+  var arr = idx.array;
+  for (var i = 0; i < arr.length; i += 3) {
+    var tmp = arr[i]; arr[i] = arr[i + 2]; arr[i + 2] = tmp;
+  }
+  idx.needsUpdate = true;
+}
+
 var DEG2RAD = Math.PI / 180;
 var RAD2DEG = 180 / Math.PI;
 var PI = Math.PI;
@@ -501,6 +514,8 @@ AtmosphereRenderer.prototype.build = function(scene) {
   // Dome radius must be < camera.far (typically 1000). Use 500 like working sky-weather module.
   this.geometry = new THREE.SphereGeometry(500, segW, segH);
   this.geometry.name = "__swa_sky_dome_geo__";
+  // Invert winding so inside faces become FrontSide (WebGPU compat)
+  _invertWinding(this.geometry);
 
   // Vertex colors buffer
   var posAttr = this.geometry.getAttribute("position");
@@ -509,7 +524,7 @@ AtmosphereRenderer.prototype.build = function(scene) {
 
   this.material = new THREE.MeshBasicMaterial({
     vertexColors: true,
-    side: THREE.BackSide,
+    side: THREE.FrontSide,
     depthWrite: false,
     depthTest: false,
     fog: false,
@@ -1266,13 +1281,14 @@ CloudSystem.prototype.build = function(scene) {
   this._tex.wrapT = THREE.ClampToEdgeWrapping;
   this._tex.colorSpace = "srgb";
 
-  // Upper hemisphere dome — BackSide so texture faces inward
+  // Upper hemisphere dome — inverted winding + FrontSide (WebGPU compat)
   this._geo = new THREE.SphereGeometry(490, 64, 32, 0, TWO_PI, 0, PI * 0.5);
   this._geo.name = "__swa_cloud_geo__";
+  _invertWinding(this._geo);
 
   this._mat = new THREE.MeshBasicMaterial({
     map: this._tex,
-    side: THREE.BackSide,
+    side: THREE.FrontSide,
     transparent: true,
     depthWrite: false,
     depthTest: false,
@@ -1818,7 +1834,7 @@ AuroraRenderer.prototype.build = function(scene) {
   this._mesh.renderOrder = -997;
   this._mesh.frustumCulled = false;
   this._mesh.visible = false;
-  this._mesh.position.y = 2000; // high in the sky
+  this._mesh.position.y = 400; // high in the sky but within camera.far (1000)
   scene.add(this._mesh);
 };
 
