@@ -2509,6 +2509,11 @@ function SkyWeatherAdvancedSystem(scene, settings) {
   this.particles.init(scene);
   this.stars.init(scene);
 
+  // CRITICAL: Remove scene.background so sky dome is visible
+  // The game template sets scene.background to a solid color which covers the sky dome
+  this._savedBackground = scene.background;
+  scene.background = null;
+
   // Initial solar calculation
   var ts = this.settings.time || {};
   this.orbital.update(
@@ -2800,6 +2805,8 @@ SkyWeatherAdvancedSystem.prototype.destroy = function() {
   this.particles.dispose(this.scene);
   this.stars.dispose(this.scene);
   this.fog.dispose(this.scene);
+  // Restore scene background that was removed on init
+  if (this._savedBackground && this.scene) this.scene.background = this._savedBackground;
   console.log("[SkyWeatherAdvanced] Destroyed");
 };
 
