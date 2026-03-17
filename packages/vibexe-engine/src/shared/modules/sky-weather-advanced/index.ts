@@ -587,37 +587,8 @@ AtmosphereRenderer.prototype._updateVertexColors = function() {
     colors[i * 3 + 1] = c[1];
     colors[i * 3 + 2] = c[2];
 
-    // Night star highlights: ~460 upper-hemisphere vertices become visible "stars"
-    // 96x48 dome = ~4753 vertices, ~2300 above horizon, 20% = ~460 highlights.
-    // Low brightness (0.2 max) prevents visible triangle interpolation patterns.
-    var sunDir = this._sunDir;
-    if (sunDir[1] < -0.05 && dir[1] > 0.05) {
-      // Sidereal rotation: rotate hash input by solarTime for star field rotation
-      var siderealAngle = this._solarTime * TWO_PI;
-      var cosS = Math.cos(siderealAngle), sinS = Math.sin(siderealAngle);
-      var rotX = dir[0] * cosS - dir[2] * sinS;
-      var rotZ = dir[0] * sinS + dir[2] * cosS;
-      var starSeed = Math.abs(Math.sin(rotX * 127.1 + rotZ * 311.7) * 43758.5453);
-      starSeed = starSeed - Math.floor(starSeed); // 0-1
-      // ~10% of upper vertices become visible "stars" (fewer = less visible grid pattern)
-      if (starSeed > 0.90) {
-        // nightFac: 0 at sun alt -3°, 1.0 at sun alt -17° (astronomical twilight)
-        var nightFac = _clamp((-sunDir[1] - 0.05) / 0.25, 0, 1);
-        var starBright = (starSeed - 0.90) * 10.0; // 0 to 1
-        // Cubic distribution: few very bright stars, many dim ones (realistic)
-        starBright = starBright * starBright * starBright;
-        // Twinkle: per-star phase offset + time-based oscillation
-        var twinkle = 0.7 + 0.3 * Math.sin(starSeed * 100 + this._time * 3);
-        // Keep brightness very low — vertex highlights bleed across triangles
-        // creating visible geometric patterns if too bright
-        starBright *= nightFac * 0.06 * this._starIntensity * twinkle;
-        // Spectral color variation: warm (orange/yellow) vs cool (blue/white)
-        var warmStar = Math.sin(rotX * 50 + rotZ * 70) * 0.5 + 0.5;
-        colors[i*3]   = _clamp(colors[i*3] + starBright * _lerp(0.5, 1.0, warmStar), 0, 1);
-        colors[i*3+1] = _clamp(colors[i*3+1] + starBright * _lerp(0.6, 0.9, warmStar), 0, 1);
-        colors[i*3+2] = _clamp(colors[i*3+2] + starBright * _lerp(1.0, 0.4, warmStar), 0, 1);
-      }
-    }
+    // Stars are now rendered on a separate textured dome (StarField class)
+    // instead of vertex highlights which caused visible triangle patterns.
   }
   colorAttr.needsUpdate = true;
 };
@@ -1148,28 +1119,143 @@ WeatherParticles.prototype.dispose = function(scene) {
 
 
 // ============================================================
-// Star Field — Dome Vertex Highlights (WebGPU-safe)
+// Star Field — Canvas-baked texture on separate dome
 // ============================================================
-// Stars rendered as bright vertex color highlights on the sky dome mesh.
-// ~815 star highlights from ~2300 upper-hemisphere vertices (96x48 dome).
-// Spectral color variation (blue-white to orange-yellow) via sin hash.
-// THREE.Points = 1px in WebGPU, THREE.Sprite = bleeds through terrain.
+// Stars rendered as round dots on a pre-baked canvas texture applied to a
+// dedicated sphere dome. This avoids vertex color triangle interpolation
+// artifacts that made vertex highlights look like geometric starbursts.
+// WebGPU-safe: MeshBasicMaterial + CanvasTexture, no Points/Sprites.
 
 function StarField() {
-  // Stars are rendered as dome vertex highlights in AtmosphereRenderer._updateVertexColors.
-  // This approach is WebGPU-safe: no z-fighting, no terrain bleed-through, zero extra draw calls.
+  this._dome = null;
+  this._geo = null;
+  this._mat = null;
+  this._tex = null;
+  this._canvas = null;
+  this._starData = null; // cached star positions for twinkle
 }
 
+StarField.prototype._generateStarTexture = function() {
+  var W = 2048, H = 1024;
+  var canvas = document.createElement("canvas");
+  canvas.width = W; canvas.height = H;
+  var ctx = canvas.getContext("2d");
+
+  // Black background (transparent won't work with additive blending on dark sky)
+  ctx.fillStyle = "black";
+  ctx.fillRect(0, 0, W, H);
+
+  // Spectral colors for variety
+  var spectralColors = [
+    [160, 190, 255],  // blue-white (O/B)
+    [220, 230, 255],  // white (A)
+    [255, 255, 240],  // yellow-white (F)
+    [255, 245, 200],  // yellow (G)
+    [255, 210, 140],  // orange (K)
+    [255, 160, 120],  // red-orange (M)
+  ];
+
+  // Generate ~600 stars on the upper hemisphere (y > 0 in equirectangular)
+  var stars = [];
+  for (var i = 0; i < 600; i++) {
+    // Equirectangular projection: x = longitude [0, W), y = latitude [0, H/2) for upper hemisphere
+    var sx = Math.random() * W;
+    var sy = Math.random() * H * 0.48; // upper hemisphere only (top half of texture)
+
+    // Magnitude: cubic distribution (few bright, many dim)
+    var mag = Math.random();
+    mag = mag * mag * mag; // cubic — most values near 0 (dim)
+    var radius = 0.5 + mag * 2.5; // 0.5px to 3px
+    var brightness = 0.3 + mag * 0.7; // 0.3 to 1.0
+
+    // Random spectral color
+    var colorIdx = Math.floor(Math.random() * spectralColors.length);
+    var col = spectralColors[colorIdx];
+
+    // Draw star as radial gradient dot
+    var grad = ctx.createRadialGradient(sx, sy, 0, sx, sy, radius * 2);
+    var r = col[0], g = col[1], b = col[2];
+    var a = brightness;
+    grad.addColorStop(0, "rgba(" + r + "," + g + "," + b + "," + a + ")");
+    grad.addColorStop(0.3, "rgba(" + r + "," + g + "," + b + "," + (a * 0.6) + ")");
+    grad.addColorStop(1, "rgba(" + r + "," + g + "," + b + ",0)");
+    ctx.fillStyle = grad;
+    ctx.fillRect(sx - radius * 2, sy - radius * 2, radius * 4, radius * 4);
+
+    stars.push({ x: sx, y: sy, r: radius, brightness: brightness, colorIdx: colorIdx });
+  }
+
+  this._canvas = canvas;
+  this._starData = stars;
+  return canvas;
+};
+
 StarField.prototype.init = function(scene) {
-  console.log("[SkyWeatherAdvanced] Stars rendered via dome vertex highlights (WebGPU-safe)");
+  if (this._dome) return;
+
+  var canvas = this._generateStarTexture();
+  this._tex = new THREE.CanvasTexture(canvas);
+  this._tex.colorSpace = THREE.SRGBColorSpace;
+
+  this._geo = new THREE.SphereGeometry(495, 64, 32);
+  this._geo.name = "__swa_star_dome_geo__";
+  // Invert winding so we see inside faces
+  _invertWinding(this._geo);
+
+  this._mat = new THREE.MeshBasicMaterial({
+    map: this._tex,
+    side: THREE.FrontSide,
+    transparent: true,
+    opacity: 0,
+    depthWrite: false,
+    depthTest: false,
+    fog: false,
+    toneMapped: false,
+    blending: THREE.AdditiveBlending,
+  });
+  this._mat.name = "__swa_star_dome_mat__";
+
+  this._dome = new THREE.Mesh(this._geo, this._mat);
+  this._dome.name = "__swa_star_dome__";
+  this._dome.renderOrder = -999.5; // between sky dome (-1000) and cloud dome (-999)
+  this._dome.frustumCulled = false;
+  this._dome.visible = false;
+  scene.add(this._dome);
+
+  console.log("[SkyWeatherAdvanced] Stars rendered via canvas-baked dome texture (WebGPU-safe)");
 };
 
 StarField.prototype.update = function(sunAltDeg, camera, time, settings, solarTime) {
-  // No-op: star rendering handled by AtmosphereRenderer._updateVertexColors
+  if (!this._dome) return;
+
+  var starIntensity = settings.starIntensity != null ? settings.starIntensity : 1.0;
+
+  // Night visibility: fade in at dusk, out at dawn
+  var nightFac = sunAltDeg < -17 ? 1 : (sunAltDeg < -3 ? _smoothstep(-3, -17, sunAltDeg) : 0);
+
+  var visible = nightFac > 0.01 && starIntensity > 0.01;
+  this._dome.visible = visible;
+
+  if (visible && camera) {
+    // Follow camera
+    this._dome.position.copy(camera.position);
+
+    // Sidereal rotation: rotate dome around Y axis with solar time
+    this._dome.rotation.y = solarTime * TWO_PI;
+
+    // Opacity based on night factor and intensity
+    this._mat.opacity = nightFac * starIntensity * 0.8;
+  }
 };
 
 StarField.prototype.dispose = function(scene) {
-  // No-op: nothing to clean up
+  if (this._dome && this._dome.parent) this._dome.parent.remove(this._dome);
+  if (this._geo) this._geo.dispose();
+  if (this._tex) this._tex.dispose();
+  if (this._mat) this._mat.dispose();
+  this._dome = null;
+  this._canvas = null;
+  this._starData = null;
 };
 
 
