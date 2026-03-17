@@ -481,12 +481,12 @@ AtmosphereRenderer.prototype._computeSkyColor = function(viewDir) {
   gn = Math.pow(_clamp(gn, 0, 1), invGamma);
   b = Math.pow(_clamp(b, 0, 1), invGamma);
 
-  // Inscatter haze — pale blue-white atmospheric perspective at the horizon (Tenkoku-style)
+  // Inscatter haze — subtle pale blue-white at the very horizon (atmospheric perspective)
   var horizonFac = 1.0 - Math.abs(viewDir[1]); // 1 at horizon, 0 at zenith
-  var hazeFac = horizonFac * horizonFac * 0.4; // quadratic falloff, up to 40%
-  r = _lerp(r, 0.85, hazeFac);
-  gn = _lerp(gn, 0.88, hazeFac);
-  b = _lerp(b, 0.93, hazeFac);
+  var hazeFac = horizonFac * horizonFac * horizonFac * 0.15; // cubic, gentle 15% max
+  r = _lerp(r, 0.82, hazeFac);
+  gn = _lerp(gn, 0.85, hazeFac);
+  b = _lerp(b, 0.90, hazeFac);
 
   // Horizon warmth — warm up the sky near the horizon (Tenkoku golden glow)
   horizonFac = horizonFac * horizonFac * horizonFac; // cubic falloff — concentrated at horizon
@@ -2781,7 +2781,8 @@ FogController.prototype.update = function(scene, sunAltDeg, settings, skyHorizon
     this._active = true;
   }
 
-  var baseDensity = settings.density || 0.003;
+  // Clamp fog density to sane range — saved settings from DB may have bad values
+  var baseDensity = _clamp(settings.density || 0.002, 0.0005, 0.01);
   var heightFalloff = settings.heightFalloff || 0;
 
   // Height-based fog: increase density at lower camera heights
@@ -2900,11 +2901,14 @@ function SkyWeatherAdvancedSystem(scene, settings) {
   this.atmosphere._mieG = (this.settings.sky || {}).mieDirectionalG || 0.76;
   this.atmosphere.setSunDirection(this.orbital.sunDirection);
 
-  // The dome's vertex-color gradient provides the full sky —
-  // a flat scene.background underneath it would wash out the gradient.
+  // Set scene.background to zenith color as safety net (dome gradient renders on top)
   this._origBg = this.scene ? this.scene.background : null;
+  var zenithColor = this.atmosphere._computeSkyColor([0, 1, 0]);
   if (this.scene) {
-    this.scene.background = null;
+    var lr = Math.pow(zenithColor[0], 2.2);
+    var lg = Math.pow(zenithColor[1], 2.2);
+    var lb = Math.pow(zenithColor[2], 2.2);
+    this.scene.background = new THREE.Color(lr, lg, lb);
   }
 
   // Initialize cloud coverage + render immediately
@@ -3058,15 +3062,22 @@ SkyWeatherAdvancedSystem.prototype._tick = function(dt) {
     this._skyUpdateTimer = 0;
 
     var skySettings = this.settings.sky || {};
-    this.atmosphere._exposure = skySettings.exposure || 1.2;
-    this.atmosphere._mieG = skySettings.mieDirectionalG || 0.76;
-    this.atmosphere._rayleighScale = skySettings.rayleighScale || 1.0;
-    this.atmosphere._sunIntensity = skySettings.sunIntensity || 22.0;
+    this.atmosphere._exposure = _clamp(skySettings.exposure || 1.2, 0.3, 5.0);
+    // mieG must be 0.6-0.99 for directional sun scattering (saved settings may have bad values)
+    this.atmosphere._mieG = _clamp(skySettings.mieDirectionalG || 0.76, 0.6, 0.99);
+    this.atmosphere._rayleighScale = _clamp(skySettings.rayleighScale || 1.0, 0.5, 3.0);
+    this.atmosphere._sunIntensity = _clamp(skySettings.sunIntensity || 22.0, 5.0, 50.0);
     this.atmosphere.setSunDirection(this.orbital.sunDirection);
 
-    // Keep scene.background null — the dome gradient covers it
-    if (this.scene && this.scene.background !== null) {
-      this.scene.background = null;
+    // Sync scene.background to zenith color as fallback (dome gradient renders on top)
+    var zenithColor = this.atmosphere._computeSkyColor([0, 1, 0]);
+    if (this.scene) {
+      if (!this.scene.background) this.scene.background = new THREE.Color();
+      this.scene.background.setRGB(
+        Math.pow(zenithColor[0], 2.2),
+        Math.pow(zenithColor[1], 2.2),
+        Math.pow(zenithColor[2], 2.2)
+      );
     }
 
     // Overcast reduces exposure
