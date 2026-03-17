@@ -418,26 +418,6 @@ TerrainGenerator.prototype.generate = function() {
     }
   }
 
-  // Deferred ground plane removal — catches planes added after initial terrain generation
-  var _terrainScene = this.scene;
-  var _terrainMesh = mesh;
-  setTimeout(function() {
-    var _late = [];
-    _terrainScene.traverse(function(child) {
-      if (!child.isMesh || child === _terrainMesh) return;
-      if (child.name && child.name.indexOf("__") === 0) return;
-      if (child.geometry && child.geometry.type === "PlaneGeometry" &&
-          Math.abs(child.rotation.x + Math.PI / 2) < 0.1 &&
-          Math.abs(child.position.y) < 0.5) {
-        _late.push(child);
-      }
-    });
-    for (var _li = 0; _li < _late.length; _li++) {
-      _late[_li].visible = false;
-      console.log("[TerrainPainter] Hid late ground plane:", _late[_li].geometry.parameters.width + "x" + _late[_li].geometry.parameters.height);
-    }
-  }, 2000);
-
   var W = this.width, D = this.depth, H = this.heightScale, seg = this.segments;
   var segX = this._segX, segZ = this._segZ;
 
