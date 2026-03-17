@@ -1051,11 +1051,13 @@ export function getVisualEditBridgeScript(): string {
     }
   }
 
-  function selectObject(obj) {
+  function selectObject(obj, fromHierarchy) {
     if (!obj || !editor) return;
-    // Don't select infrastructure (__xxx) or population (pop_xxx) objects
+    // Don't select population (pop_xxx) objects
     var _n = obj.name || "";
-    if (_n.indexOf("__") === 0 || _n.indexOf("pop_") === 0) return;
+    if (_n.indexOf("pop_") === 0) return;
+    // Block infrastructure (__xxx) selection only from viewport clicks, not from hierarchy
+    if (!fromHierarchy && _n.indexOf("__") === 0) return;
     // Never attach TransformControls to the scene root — causes infinite recursion in updateMatrixWorld
     // Triple-check: reference equality, type check, AND parent check (scene root has no parent)
     if (obj === editor.scene || obj.type === "Scene" || !obj.parent) {
@@ -3111,7 +3113,7 @@ export function getVisualEditBridgeScript(): string {
             obj = editor.scene.getObjectByName(d.name);
           }
           // Skip scene root at handler level too (defense in depth)
-          if (obj && obj !== editor.scene && obj.type !== "Scene") selectObject(obj);
+          if (obj && obj !== editor.scene && obj.type !== "Scene") selectObject(obj, true);
         } break;
       case "game-editor-deselect": deselectObject(); break;
       case "game-editor-update-property":
