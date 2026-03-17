@@ -1485,6 +1485,7 @@ function CloudSystem() {
   this._time = 0;
   this._CW = 1024;
   this._CH = 512;
+  this._blurBuf = null; // cached blur buffer to avoid GC pressure
 }
 
 // 2D hash — returns 0..1
@@ -1619,28 +1620,30 @@ CloudSystem.prototype.updateTexture = function(atmosphere) {
       var windX = t * 0.03;
       var windY = t * 0.008;
 
-      // Layer 1: Cumulus — large puffy formations (Tenkoku-like thick clouds)
+      // Layer 1: Cumulus — large puffy formations
+      // Offset -0.8 ensures coverage=0 produces very few clouds
+      // coverage slider range: 0=nearly clear, 0.35=partly cloudy, 0.7=overcast, 1=full
       var n1 = this._fbm2(nx * 0.7 + windX, ny * 0.7 + windY);
-      var c1 = _clamp(n1 + coverage * 2.5 - 0.3, 0, 1);
+      var c1 = _clamp(n1 + coverage * 2.5 - 0.8, 0, 1);
       // Cumulus lives in the mid-altitude band — wide range for max visibility
       var fade1 = _smoothstep(0.03, 0.15, v) * _smoothstep(0.92, 0.4, v);
       c1 *= fade1;
 
-      // Layer 2: Altocumulus — medium patches, strong presence
+      // Layer 2: Altocumulus — medium patches
       var n2 = this._fbm2(nx * 1.4 + windX * 1.3 + 50, ny * 1.4 + windY * 0.7 + 50);
-      var c2 = _clamp(n2 + coverage * 1.8 - 0.25, 0, 1) * 0.6;
+      var c2 = _clamp(n2 + coverage * 1.8 - 0.65, 0, 1) * 0.6;
       var fade2 = _smoothstep(0.06, 0.2, v) * _smoothstep(0.94, 0.45, v);
       c2 *= fade2;
 
-      // Layer 3: Cirrus — wispy high-altitude streaks (visible in Tenkoku reference)
+      // Layer 3: Cirrus — wispy high-altitude streaks
       var n3 = this._fbm2(nx * 3.5 + windX * 0.6 + 120, ny * 1.0 + windY * 0.4 + 120);
-      var c3 = _clamp(n3 + coverage * 1.3 - 0.2, 0, 1) * 0.35;
+      var c3 = _clamp(n3 + coverage * 1.3 - 0.5, 0, 1) * 0.35;
       var fade3 = _smoothstep(0.0, 0.08, v) * _smoothstep(0.55, 0.2, v);
       c3 *= fade3;
 
-      // Combined density — sharper contrast between clear sky and cloud cores
-      var d = _clamp(Math.pow((c1 + c2 + c3) * density, 0.5), 0, 1);
-      if (d < 0.015) continue;
+      // Combined density — coverage controls cloud amount, density controls thickness
+      var d = _clamp((c1 + c2 + c3) * density, 0, 1);
+      if (d < 0.01) continue;
 
       hasCloud = true;
 
@@ -1657,8 +1660,8 @@ CloudSystem.prototype.updateTexture = function(atmosphere) {
       var g = _clamp(baseG * lightMul / 255, 0, 1);
       var b = _clamp(baseB * lightMul / 255, 0, 1);
 
-      // Alpha: high opacity for dense, clearly visible clouds (Tenkoku reference)
-      var alpha = _clamp(d * 25.0, 0, 1.0) * altFade;
+      // Alpha: gradual opacity — thin clouds semi-transparent, dense cores opaque
+      var alpha = _clamp(d * 4.0, 0, 1.0) * altFade;
 
       pix[idx]     = Math.round(r * 255);
       pix[idx + 1] = Math.round(g * 255);
@@ -1669,7 +1672,8 @@ CloudSystem.prototype.updateTexture = function(atmosphere) {
 
   // Edge softening: simple 3x3 box blur on alpha channel for softer cloud edges
   if (hasCloud) {
-    var blurAlpha = new Uint8ClampedArray(W * H);
+    if (!this._blurBuf || this._blurBuf.length !== W * H) this._blurBuf = new Uint8ClampedArray(W * H);
+    var blurAlpha = this._blurBuf;
     for (var by = 1; by < H - 1; by++) {
       for (var bx = 1; bx < W - 1; bx++) {
         var sum = 0;
@@ -1697,10 +1701,10 @@ CloudSystem.prototype.update = function(dt, camera, sunDir, settings) {
   this._time += dt;
   this._sunDir = [sunDir.x, sunDir.y, sunDir.z];
   this._coverage = settings.coverage != null ? settings.coverage : 0.35;
-  this._speed = settings.speed || 1.0;
-  this._brightness = settings.brightness || 1.0;
-  this._density = settings.density || 0.85;
-  this._scale = settings.scale || 3.0;
+  this._speed = settings.speed != null ? settings.speed : 1.0;
+  this._brightness = settings.brightness != null ? settings.brightness : 1.0;
+  this._density = settings.density != null ? settings.density : 0.85;
+  this._scale = settings.scale != null ? settings.scale : 3.0;
 
   if (this._dome && camera) {
     this._dome.position.copy(camera.position);
