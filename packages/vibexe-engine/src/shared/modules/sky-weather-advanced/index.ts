@@ -528,7 +528,7 @@ AtmosphereRenderer.prototype._computeSkyColor = function(viewDir) {
 AtmosphereRenderer.prototype.build = function(scene) {
   if (this.dome) return;
 
-  var segW = 64, segH = 32; // more vertices = more visible vertex star highlights
+  var segW = 96, segH = 48; // high resolution = ~4600 vertices, ~1600 star highlights at night
   // Dome radius must be < camera.far (typically 1000). Use 500 like working sky-weather module.
   this.geometry = new THREE.SphereGeometry(500, segW, segH);
   this.geometry.name = "__swa_sky_dome_geo__";
@@ -587,20 +587,25 @@ AtmosphereRenderer.prototype._updateVertexColors = function() {
     colors[i * 3 + 2] = c[2];
 
     // Night star highlights: make upper-hemisphere vertices into visible "stars"
+    // This is the PRIMARY star rendering method — dome vertex highlights are always
+    // correctly layered behind terrain (unlike Sprites which bleed through).
+    // With 64x32 dome = 2145 vertices, 35% above horizon = ~400+ star highlights.
     var sunDir = this._sunDir;
-    if (sunDir[1] < -0.05 && dir[1] > 0.1) {
+    if (sunDir[1] < -0.05 && dir[1] > 0.05) {
       var starSeed = Math.abs(Math.sin(dir[0] * 127.1 + dir[2] * 311.7) * 43758.5453);
       starSeed = starSeed - Math.floor(starSeed); // 0-1
-      // ~15% of upper vertices become visible "stars" (was 8%)
-      if (starSeed > 0.85) {
-        var nightFac = _clamp(-sunDir[1] - 0.05, 0, 1) / 0.95; // 0 at -0.05, 1 at -1
-        var starBright = (starSeed - 0.85) * 6.67; // 0 to 1
-        // Brightest stars are very prominent — create visible points
-        starBright = starBright * starBright; // quadratic for more bright stars
-        starBright *= nightFac * 1.2; // strong modulation — clearly visible at night
-        colors[i*3]   = _clamp(colors[i*3] + starBright * 0.85, 0, 1);
-        colors[i*3+1] = _clamp(colors[i*3+1] + starBright * 0.9, 0, 1);
-        colors[i*3+2] = _clamp(colors[i*3+2] + starBright * 1.0, 0, 1);
+      // ~35% of upper vertices become visible "stars"
+      if (starSeed > 0.65) {
+        var nightFac = _clamp(-sunDir[1] - 0.05, 0, 1) / 0.95;
+        var starBright = (starSeed - 0.65) * 2.857; // 0 to 1
+        // Cubic distribution: few very bright stars, many dim ones (realistic)
+        starBright = starBright * starBright * starBright;
+        starBright *= nightFac * 3.5; // very strong — clearly visible as stars
+        // Spectral color variation: warm (orange/yellow) vs cool (blue/white)
+        var warmStar = Math.sin(dir[0] * 50 + dir[2] * 70) * 0.5 + 0.5;
+        colors[i*3]   = _clamp(colors[i*3] + starBright * _lerp(0.7, 1.0, warmStar), 0, 1);
+        colors[i*3+1] = _clamp(colors[i*3+1] + starBright * _lerp(0.8, 0.95, warmStar), 0, 1);
+        colors[i*3+2] = _clamp(colors[i*3+2] + starBright * _lerp(1.0, 0.5, warmStar), 0, 1);
       }
     }
   }
@@ -1151,168 +1156,24 @@ var _STAR_SPECTRAL_COLORS = [
 ];
 
 function StarField() {
-  this._group = null;
-  this._starMats = null;
-  this._starSprites = null;
-  this._twinklePhases = null;
-  this._baseSizes = null;
-  this._twinkleFrame = 0;
+  // Stars are rendered as dome vertex highlights in AtmosphereRenderer._updateVertexColors.
+  // Separate Points/Sprites don't work reliably in WebGPU:
+  //   - THREE.Points: 1px in WebGPU (point-list topology limitation)
+  //   - THREE.Sprite: renders at world position, appears on terrain (depthTest:false bleeds through)
+  // The dome vertex highlights are part of the sky dome mesh itself, so they always render
+  // at the correct sky layer without z-fighting or terrain bleed-through.
 }
 
-StarField.prototype._createStarTexture = function() {
-  var s = 64;
-  var canvas = document.createElement("canvas");
-  canvas.width = s; canvas.height = s;
-  var ctx = canvas.getContext("2d");
-  var grad = ctx.createRadialGradient(s/2, s/2, 0, s/2, s/2, s/2);
-  grad.addColorStop(0, "rgba(255,255,255,1.0)");
-  grad.addColorStop(0.08, "rgba(255,255,255,0.95)");
-  grad.addColorStop(0.2, "rgba(255,255,255,0.5)");
-  grad.addColorStop(0.4, "rgba(200,220,255,0.15)");
-  grad.addColorStop(0.7, "rgba(150,180,255,0.03)");
-  grad.addColorStop(1.0, "rgba(100,130,255,0.0)");
-  ctx.fillStyle = grad;
-  ctx.fillRect(0, 0, s, s);
-  var tex = new THREE.CanvasTexture(canvas);
-  tex.colorSpace = THREE.SRGBColorSpace;
-  return tex;
-};
-
-StarField.prototype._loadCatalog = function() {
-  try {
-    var url = window.location.origin + "/static/star-catalog.json";
-    var xhr = new XMLHttpRequest();
-    xhr.open("GET", url, false);
-    xhr.send();
-    if (xhr.status === 200) {
-      return JSON.parse(xhr.responseText);
-    }
-  } catch(e) {}
-  // Fallback: generate 500 procedural stars with varied brightness
-  var fallback = [];
-  for (var i = 0; i < 500; i++) {
-    fallback.push([
-      Math.random() * 360,
-      (Math.random() - 0.5) * 180,
-      1 + Math.random() * 4.5,
-      Math.floor(Math.random() * 7)
-    ]);
-  }
-  return fallback;
-};
-
 StarField.prototype.init = function(scene) {
-  var catalog = this._loadCatalog();
-  var starTex = this._createStarTexture();
-
-  // 7 shared SpriteMaterials (one per spectral class) — WebGPU renders
-  // Sprites as proper quads, unlike Points which are limited to 1px
-  this._starMats = [];
-  for (var s = 0; s < 7; s++) {
-    var sc = _STAR_SPECTRAL_COLORS[s];
-    this._starMats.push(new THREE.SpriteMaterial({
-      map: starTex,
-      color: new THREE.Color(sc[0], sc[1], sc[2]),
-      transparent: true,
-      opacity: 1.0,
-      depthWrite: false,
-      depthTest: false,
-      fog: false,
-      blending: THREE.AdditiveBlending,
-      toneMapped: false,
-    }));
-  }
-
-  this._group = new THREE.Group();
-  this._group.name = "__swa_stars__";
-  this._group.renderOrder = -999;
-  this._group.frustumCulled = false;
-
-  var r = 480;
-  this._starSprites = [];
-  this._twinklePhases = [];
-  this._baseSizes = [];
-
-  // Only create sprites for stars bright enough to be visible (mag < 4.0)
-  // Dimmer stars are handled by dome vertex highlights in _updateVertexColors
-  // This keeps draw calls under ~500 to avoid performance issues
-  for (var i = 0; i < catalog.length; i++) {
-    var mag = catalog[i][2];
-    if (mag > 4.0) continue; // skip dim stars — too many sprites kills FPS
-
-    var ra = catalog[i][0] * DEG2RAD;
-    var dec = catalog[i][1] * DEG2RAD;
-    var specIdx = _clamp(Math.floor(catalog[i][3] || 0), 0, 6);
-
-    var x = r * Math.cos(dec) * Math.cos(ra);
-    var y = r * Math.sin(dec);
-    var z = r * Math.cos(dec) * Math.sin(ra);
-
-    // Size from magnitude: brighter = bigger sprite
-    var baseSize = _lerp(7, 1.2, _clamp(mag / 5.5, 0, 1));
-    if (mag < 0.5) baseSize *= 3.5;       // Sirius, Canopus
-    else if (mag < 1.5) baseSize *= 2.5;   // Vega, Arcturus
-    else if (mag < 2.5) baseSize *= 1.8;   // Polaris, Betelgeuse
-    else if (mag < 3.5) baseSize *= 1.3;   // Notable stars
-
-    var sprite = new THREE.Sprite(this._starMats[specIdx]);
-    sprite.position.set(x, y, z);
-    sprite.scale.setScalar(baseSize);
-    this._group.add(sprite);
-
-    this._starSprites.push(sprite);
-    this._twinklePhases.push(Math.random() * TWO_PI);
-    this._baseSizes.push(baseSize);
-  }
-
-  scene.add(this._group);
-  console.log("[SkyWeatherAdvanced] Star sprites: " + this._starSprites.length + " / " + catalog.length + " catalog (mag<4.0, WebGPU)");
+  console.log("[SkyWeatherAdvanced] Stars rendered via dome vertex highlights (WebGPU-safe)");
 };
 
 StarField.prototype.update = function(sunAltDeg, camera, time, settings, solarTime) {
-  if (!this._group) return;
-
-  var starIntensity = settings.starIntensity || 1.0;
-  var nightFactor = _smoothstep(0, -12, sunAltDeg);
-  this._group.visible = nightFactor > 0.01;
-
-  if (this._group.visible) {
-    // Modulate all 7 spectral materials at once
-    var opacity = nightFactor * starIntensity;
-    for (var m = 0; m < this._starMats.length; m++) {
-      this._starMats[m].opacity = opacity;
-    }
-
-    // Twinkle every 3rd frame to reduce overhead with many sprites
-    this._twinkleFrame++;
-    if (this._twinkleFrame % 3 === 0) {
-      for (var i = 0; i < this._starSprites.length; i++) {
-        var twinkle = 0.75 + 0.25 * Math.sin(time * 2.0 + this._twinklePhases[i]);
-        this._starSprites[i].scale.setScalar(this._baseSizes[i] * twinkle);
-      }
-    }
-  }
-
-  // Sidereal rotation
-  var siderealAngle = ((solarTime || 0) * 360 * 1.00274) * DEG2RAD;
-  this._group.rotation.y = siderealAngle;
-
-  // Follow camera
-  if (camera) {
-    this._group.position.copy(camera.position);
-  }
+  // No-op: star rendering handled by AtmosphereRenderer._updateVertexColors
 };
 
 StarField.prototype.dispose = function(scene) {
-  if (this._group) scene.remove(this._group);
-  if (this._starMats) {
-    for (var i = 0; i < this._starMats.length; i++) {
-      this._starMats[i].dispose();
-    }
-  }
-  this._group = null;
-  this._starSprites = null;
-  this._starMats = null;
+  // No-op: nothing to clean up
 };
 
 
