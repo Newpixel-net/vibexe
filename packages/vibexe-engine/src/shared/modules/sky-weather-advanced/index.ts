@@ -713,13 +713,13 @@ SunDiskRenderer.prototype.update = function(camera, sunDir, sunAltDeg, settings)
   // Billboard: always face camera
   this._group.lookAt(camera.position);
 
-  // Size from settings — Tenkoku-style visible atmospheric sun
-  // sunDiskSize 0.028 → diskSize = 140 → scale = 1.4 (28 world units disk)
+  // Size — Tenkoku reference shows prominent sun disk with wide glow
+  // sunDiskSize 0.028 → scale 4.2 (84 world-unit disk at 450 dist ≈ 10.7° apparent)
   var diskSize = (settings.sunDiskSize || 0.028) * 5000;
-  var diskScale = diskSize / 100; // doubled from /200 for better visibility
+  var diskScale = diskSize / 33; // large enough to be Tenkoku-like
   if (this._diskMesh) this._diskMesh.scale.setScalar(diskScale);
-  // Glow halo is 5x the disk
-  if (this._glowMesh) this._glowMesh.scale.setScalar(diskScale * 5.0);
+  // Glow halo is 6x the disk for atmospheric bloom (Tenkoku has wide glow)
+  if (this._glowMesh) this._glowMesh.scale.setScalar(diskScale * 6.0);
 
   // Hide when sun below horizon
   this._group.visible = sunAltDeg > -2;
@@ -727,24 +727,24 @@ SunDiskRenderer.prototype.update = function(camera, sunDir, sunAltDeg, settings)
   // Fade near horizon
   var horizFade = _clamp((sunAltDeg + 2) / 10, 0, 1);
   if (this._diskMesh && this._diskMesh.material) this._diskMesh.material.opacity = horizFade;
-  // Glow stronger at low angles (sunrise/sunset), subtle at noon
-  var glowOpacity = sunAltDeg < 20 ? horizFade * 0.7 : horizFade * 0.35;
+  // Glow always visible when sun is up (Tenkoku reference shows prominent glow at all times)
+  var glowOpacity = sunAltDeg < 20 ? horizFade * 0.8 : horizFade * 0.5;
   if (this._glowMesh && this._glowMesh.material) this._glowMesh.material.opacity = glowOpacity;
 
   // Warm sun color at low angles (orange-gold sunrise/sunset)
   if (this._diskMesh && this._diskMesh.material) {
-    if (sunAltDeg < 15) {
-      var warmT = _clamp(1 - sunAltDeg / 15, 0, 1);
-      this._diskMesh.material.color.setRGB(1, _lerp(1, 0.75, warmT), _lerp(0.96, 0.35, warmT));
+    if (sunAltDeg < 20) {
+      var warmT = _clamp(1 - sunAltDeg / 20, 0, 1);
+      this._diskMesh.material.color.setRGB(1, _lerp(1, 0.7, warmT), _lerp(0.96, 0.25, warmT));
     } else {
       this._diskMesh.material.color.setRGB(1, 1, 0.96);
     }
   }
-  // Glow color follows disk color
+  // Glow color follows disk but softer
   if (this._glowMesh && this._glowMesh.material) {
-    if (sunAltDeg < 15) {
-      var warmT2 = _clamp(1 - sunAltDeg / 15, 0, 1);
-      this._glowMesh.material.color.setRGB(1, _lerp(1, 0.8, warmT2), _lerp(0.9, 0.4, warmT2));
+    if (sunAltDeg < 20) {
+      var warmT2 = _clamp(1 - sunAltDeg / 20, 0, 1);
+      this._glowMesh.material.color.setRGB(1, _lerp(1, 0.75, warmT2), _lerp(0.9, 0.3, warmT2));
     } else {
       this._glowMesh.material.color.setRGB(1, 1, 0.9);
     }
@@ -1744,28 +1744,28 @@ CloudSystem.prototype.updateTexture = function(atmosphere) {
       var windX = t * 0.03;
       var windY = t * 0.008;
 
-      // Layer 1: Cumulus — large puffy formations
-      var n1 = this._fbm2(nx * 0.8 + windX, ny * 0.8 + windY);
-      var c1 = _clamp(n1 + coverage * 1.5 - 0.5, 0, 1);
-      // Cumulus lives in the mid-altitude band
-      var fade1 = _smoothstep(0.05, 0.25, v) * _smoothstep(0.85, 0.5, v);
+      // Layer 1: Cumulus — large puffy formations (Tenkoku-like thick clouds)
+      var n1 = this._fbm2(nx * 0.7 + windX, ny * 0.7 + windY);
+      var c1 = _clamp(n1 + coverage * 1.8 - 0.45, 0, 1);
+      // Cumulus lives in the mid-altitude band — wider range for more visibility
+      var fade1 = _smoothstep(0.03, 0.2, v) * _smoothstep(0.9, 0.45, v);
       c1 *= fade1;
 
-      // Layer 2: Altocumulus — smaller, lighter patches (offset sampling)
-      var n2 = this._fbm2(nx * 1.6 + windX * 1.3 + 50, ny * 1.6 + windY * 0.7 + 50);
-      var c2 = _clamp(n2 + coverage * 1.2 - 0.4, 0, 1) * 0.45;
-      var fade2 = _smoothstep(0.1, 0.3, v) * _smoothstep(0.9, 0.55, v);
+      // Layer 2: Altocumulus — medium patches with more presence
+      var n2 = this._fbm2(nx * 1.4 + windX * 1.3 + 50, ny * 1.4 + windY * 0.7 + 50);
+      var c2 = _clamp(n2 + coverage * 1.4 - 0.35, 0, 1) * 0.55;
+      var fade2 = _smoothstep(0.08, 0.25, v) * _smoothstep(0.92, 0.5, v);
       c2 *= fade2;
 
-      // Layer 3: Cirrostratus — thin wispy high-altitude streaks (4x freq for wispy detail)
-      var n3 = this._fbm2(nx * 4.0 + windX * 0.6 + 120, ny * 1.2 + windY * 0.4 + 120);
-      var c3 = _clamp(n3 + coverage * 0.9 - 0.35, 0, 1) * 0.18;
-      var fade3 = _smoothstep(0.0, 0.12, v) * _smoothstep(0.55, 0.3, v);
+      // Layer 3: Cirrus — thin wispy high-altitude streaks (Tenkoku reference shows these)
+      var n3 = this._fbm2(nx * 3.5 + windX * 0.6 + 120, ny * 1.0 + windY * 0.4 + 120);
+      var c3 = _clamp(n3 + coverage * 1.0 - 0.3, 0, 1) * 0.25;
+      var fade3 = _smoothstep(0.0, 0.1, v) * _smoothstep(0.5, 0.25, v);
       c3 *= fade3;
 
-      // Combined density
-      var d = _clamp(Math.pow((c1 + c2 + c3) * density, 0.7), 0, 1);
-      if (d < 0.02) continue;
+      // Combined density — higher power for more contrast between clear and cloudy
+      var d = _clamp(Math.pow((c1 + c2 + c3) * density, 0.65), 0, 1);
+      if (d < 0.015) continue;
 
       hasCloud = true;
 
@@ -1782,8 +1782,8 @@ CloudSystem.prototype.updateTexture = function(atmosphere) {
       var g = _clamp(baseG * lightMul / 255, 0, 1);
       var b = _clamp(baseB * lightMul / 255, 0, 1);
 
-      // Alpha: stronger cloud opacity for visible formations (Tenkoku reference)
-      var alpha = _clamp(d * 8.0, 0, 0.92) * altFade;
+      // Alpha: high opacity for clearly visible cloud formations (Tenkoku reference)
+      var alpha = _clamp(d * 12.0, 0, 0.95) * altFade;
 
       pix[idx]     = Math.round(r * 255);
       pix[idx + 1] = Math.round(g * 255);
@@ -1934,7 +1934,7 @@ MoonRenderer.prototype.build = function(scene) {
 MoonRenderer.prototype.update = function(camera, moonDir, sunDir, moonPhase, sunAltDeg, settings) {
   if (!this._mesh) return;
 
-  this._size = (settings.moonDiskSize || 0.022) * 800;
+  this._size = (settings.moonDiskSize || 0.022) * 1800; // larger moon like Tenkoku
   this._brightness = settings.moonBrightness || 1.0;
 
   // Position moon in the sky
