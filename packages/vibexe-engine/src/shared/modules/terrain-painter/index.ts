@@ -878,27 +878,39 @@ TerrainGenerator.prototype.generate = function() {
 
   console.log("[TerrainGenerator] Generated:", pos.count, "vertices, height range:", minY.toFixed(1), "-", maxY.toFixed(1));
 
-  // Deferred ground plane hiding — catches planes added after terrain generation
+  // Deferred ground plane REMOVAL — catches planes added after terrain generation (e.g. double-compile)
   var _tScene = this.scene;
   var _tMesh = mesh;
-  var _hideGroundPlanes = function() {
+  var _removeGroundPlanes = function() {
+    // First: remove named default ground/grid that may have been re-created
+    var _dg = _tScene.getObjectByName("__default_ground__");
+    if (_dg) { _tScene.remove(_dg); if (_dg.geometry) _dg.geometry.dispose(); if (_dg.material) _dg.material.dispose(); console.log("[TerrainPainter] Removed __default_ground__ (deferred)"); }
+    var _dgr = _tScene.getObjectByName("__default_grid__");
+    if (_dgr) { _tScene.remove(_dgr); if (_dgr.geometry) _dgr.geometry.dispose(); if (_dgr.material) _dgr.material.dispose(); }
+    // Then: remove any unnamed flat PlaneGeometry ground planes
+    var _toKill = [];
     _tScene.traverse(function(child) {
       if (!child.isMesh || child === _tMesh) return;
-      if (child.name && child.name.indexOf("__") === 0) return;
+      if (child.name === "__terrain__" || child.name === "__terrain_boundary_grid__") return;
       if (child.geometry && child.geometry.type === "PlaneGeometry" &&
           Math.abs(child.rotation.x + Math.PI / 2) < 0.1 &&
           Math.abs(child.position.y) < 1.0) {
         var p = child.geometry.parameters || {};
-        if ((p.width >= 50 || p.height >= 50) && child.visible) {
-          child.visible = false;
-          console.log("[TerrainPainter] Hid ground plane: " + (p.width||0) + "x" + (p.height||0));
+        if (p.width >= 50 || p.height >= 50) {
+          _toKill.push(child);
         }
       }
     });
+    for (var _ki = 0; _ki < _toKill.length; _ki++) {
+      _tScene.remove(_toKill[_ki]);
+      if (_toKill[_ki].geometry) _toKill[_ki].geometry.dispose();
+      if (_toKill[_ki].material) _toKill[_ki].material.dispose();
+      console.log("[TerrainPainter] Removed ground plane: " + ((_toKill[_ki].geometry.parameters||{}).width||0) + "x" + ((_toKill[_ki].geometry.parameters||{}).height||0));
+    }
   };
-  setTimeout(_hideGroundPlanes, 1000);
-  setTimeout(_hideGroundPlanes, 3000);
-  setTimeout(_hideGroundPlanes, 5000);
+  setTimeout(_removeGroundPlanes, 1000);
+  setTimeout(_removeGroundPlanes, 3000);
+  setTimeout(_removeGroundPlanes, 5000);
 
   return mesh;
 };

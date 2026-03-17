@@ -611,12 +611,21 @@ export function createSkyGradient(
 
 /**
  * Creates a flat ground plane with optional grid lines.
+ * Skipped when terrain-painter module is installed (module creates its own terrain).
  */
 export function createGround3D(
   scene: any,
   size: number = 100,
   color: number = 0x4a8f4a,
 ): any {
+  // Skip if terrain-painter module is installed — it creates its own terrain
+  const __gs = (window as any).__VIBEXE_GAME_SETTINGS__ || {};
+  const __mods = (window as any).__VIBEXE_INSTALLED_MODULES__ || [];
+  const __hasTerrain = __gs.terrain?.enabled || __mods.includes("terrain-painter");
+  if (__hasTerrain) {
+    return null;
+  }
+
   const geometry = new THREE.PlaneGeometry(size, size);
   const material = new THREE.MeshStandardMaterial({
     color,

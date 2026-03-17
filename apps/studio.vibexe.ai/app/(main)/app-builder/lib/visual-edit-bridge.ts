@@ -5160,14 +5160,18 @@ export function getVisualEditBridgeScript(): string {
 
         console.log("[TerrainPainter] Terrain generated:", _tpPos.count, "vertices, height range:", _tpMinY.toFixed(1), "-", _tpMaxY.toFixed(1));
 
-          // Create boundary grid for terrain visualization
+          // Create boundary grid for terrain visualization — sized to actual terrain bounds
           try {
             var _bgOld = window.__vibexe_terrainBoundaryGrid;
             if (_bgOld && _bgOld.parent) _bgOld.parent.remove(_bgOld);
-            var _bgEdges = new _tpTHREE.EdgesGeometry(new _tpTHREE.BoxGeometry(_tpW, 0.01, _tpD));
+            // Also remove by name in case reference was lost
+            var _bgByName = _tpScene.getObjectByName("__terrain_boundary_grid__");
+            if (_bgByName) { _tpScene.remove(_bgByName); }
+            var _bgBoxH = Math.max((_tpMaxY - _tpMinY) + 2, 2); // Height of boundary box = terrain height range + margin
+            var _bgEdges = new _tpTHREE.EdgesGeometry(new _tpTHREE.BoxGeometry(_tpW, _bgBoxH, _tpD));
             var _bgMat = new _tpTHREE.LineBasicMaterial({ color: 0xff4444, transparent: true, opacity: 0.5 });
             var _bgMesh = new _tpTHREE.LineSegments(_bgEdges, _bgMat);
-            _bgMesh.position.set(0, 0.5, 0);
+            _bgMesh.position.set(0, _tpMinY + _bgBoxH / 2, 0); // Center vertically around terrain height range
             _bgMesh.name = "__terrain_boundary_grid__";
             _bgMesh.visible = false;
             _tpScene.add(_bgMesh);
