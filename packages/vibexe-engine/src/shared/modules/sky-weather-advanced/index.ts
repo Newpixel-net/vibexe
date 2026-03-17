@@ -455,8 +455,9 @@ AtmosphereRenderer.prototype._computeSkyColor = function(viewDir) {
     b += scatterM[2] * sunAdd;
   }
 
-  // Tone mapping (Reinhard)
-  var exposure = this._exposure * 0.15;
+  // Tone mapping (Reinhard exponential)
+  // Raw HDR scattering values are small (~0.1-0.5), need strong exposure
+  var exposure = this._exposure * 2.5;
   r = 1 - Math.exp(-r * exposure);
   gn = 1 - Math.exp(-gn * exposure);
   b = 1 - Math.exp(-b * exposure);
