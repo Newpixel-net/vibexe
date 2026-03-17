@@ -2941,9 +2941,10 @@ function SkyWeatherAdvancedSystem(scene, settings) {
       ts.timezone = 9;
     }
   }
-  // Ensure fog is enabled by default
-  if (fog.enabled !== true && fog.enabled !== false) {
+  // Force fog enabled — saved DB value may be false but SWA needs fog for atmosphere
+  if (!fog.enabled) {
     fog.enabled = true;
+    fog.density = fog.density || 0.002;
   }
 
   this.orbital = new OrbitalCalculator();

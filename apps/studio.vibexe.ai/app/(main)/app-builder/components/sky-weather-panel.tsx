@@ -109,14 +109,14 @@ interface SkyWeatherPanelProps {
 type SkyTab = "time" | "celestial" | "atmos" | "weather" | "fog" | "fx";
 
 const WEATHER_PRESETS = [
-	{ label: "Clear", icon: "☀️", clouds: { coverage: 0 }, fog: { enabled: false }, precipitation: { type: "none", intensity: 0 }, lightning: { enabled: false } },
-	{ label: "Fair", icon: "🌤", clouds: { coverage: 0.2, brightness: 1.0 }, fog: { enabled: false }, precipitation: { type: "none", intensity: 0 }, lightning: { enabled: false } },
-	{ label: "Partly Cloudy", icon: "⛅", clouds: { coverage: 0.5, brightness: 1.0 }, fog: { enabled: false }, precipitation: { type: "none", intensity: 0 }, lightning: { enabled: false } },
-	{ label: "Cloudy", icon: "☁️", clouds: { coverage: 0.8, brightness: 0.9 }, fog: { enabled: true, density: 0.002 }, precipitation: { type: "none", intensity: 0 }, lightning: { enabled: false } },
-	{ label: "Overcast", icon: "🌥", clouds: { coverage: 1.0, brightness: 0.65 }, fog: { enabled: true, density: 0.004 }, precipitation: { type: "none", intensity: 0 }, lightning: { enabled: false } },
-	{ label: "Rainy", icon: "🌧", clouds: { coverage: 0.85, brightness: 0.5 }, fog: { enabled: true, density: 0.004, autoColor: true }, precipitation: { type: "rain", intensity: 0.6 }, lightning: { enabled: false } },
-	{ label: "Snowy", icon: "🌨", clouds: { coverage: 0.9, brightness: 0.7 }, fog: { enabled: true, density: 0.006, autoColor: true }, precipitation: { type: "snow", intensity: 0.7 }, lightning: { enabled: false } },
-	{ label: "Foggy", icon: "🌫", clouds: { coverage: 0.6, brightness: 0.6 }, fog: { enabled: true, density: 0.02, autoColor: true }, precipitation: { type: "none", intensity: 0 }, lightning: { enabled: false } },
+	{ label: "Clear", icon: "☀️", clouds: { coverage: 0.05, brightness: 1.1 }, fog: { enabled: true, density: 0.001, autoColor: true }, precipitation: { type: "none", intensity: 0 }, lightning: { enabled: false } },
+	{ label: "Fair", icon: "🌤", clouds: { coverage: 0.2, brightness: 1.0 }, fog: { enabled: true, density: 0.0015, autoColor: true }, precipitation: { type: "none", intensity: 0 }, lightning: { enabled: false } },
+	{ label: "Partly Cloudy", icon: "⛅", clouds: { coverage: 0.45, brightness: 1.0 }, fog: { enabled: true, density: 0.002, autoColor: true }, precipitation: { type: "none", intensity: 0 }, lightning: { enabled: false } },
+	{ label: "Cloudy", icon: "☁️", clouds: { coverage: 0.75, brightness: 0.85 }, fog: { enabled: true, density: 0.003, autoColor: true }, precipitation: { type: "none", intensity: 0 }, lightning: { enabled: false } },
+	{ label: "Overcast", icon: "🌥", clouds: { coverage: 0.95, brightness: 0.6 }, fog: { enabled: true, density: 0.005, autoColor: true }, precipitation: { type: "none", intensity: 0 }, lightning: { enabled: false } },
+	{ label: "Rainy", icon: "🌧", clouds: { coverage: 0.85, brightness: 0.5 }, fog: { enabled: true, density: 0.005, autoColor: true }, precipitation: { type: "rain", intensity: 0.6, windStrength: 0.4 }, lightning: { enabled: false } },
+	{ label: "Snowy", icon: "🌨", clouds: { coverage: 0.9, brightness: 0.7 }, fog: { enabled: true, density: 0.006, autoColor: true }, precipitation: { type: "snow", intensity: 0.7, windStrength: 0.3 }, lightning: { enabled: false } },
+	{ label: "Foggy", icon: "🌫", clouds: { coverage: 0.6, brightness: 0.6 }, fog: { enabled: true, density: 0.015, autoColor: true }, precipitation: { type: "none", intensity: 0 }, lightning: { enabled: false } },
 	{ label: "Stormy", icon: "⛈", clouds: { coverage: 0.95, brightness: 0.35, density: 1.0 }, fog: { enabled: true, density: 0.008, autoColor: true }, precipitation: { type: "rain", intensity: 0.9, windStrength: 0.7 }, lightning: { enabled: true, frequency: 0.15 } },
 ] as const;
 
