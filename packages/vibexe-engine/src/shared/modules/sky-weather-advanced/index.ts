@@ -651,38 +651,43 @@ SunDiskRenderer.prototype.build = function(scene) {
   this._group.name = "__swa_sun_disk__";
   this._group.renderOrder = -998;
 
-  // Sun disk — bright white circle
+  // Sun disk — bright white/yellow circle with hard edge (Tenkoku BRDF sun)
+  // NormalBlending so it's visible against bright sky (additive = invisible on white)
   var diskGeo = new THREE.PlaneGeometry(20, 20);
   var diskCanvas = document.createElement("canvas");
-  diskCanvas.width = 128; diskCanvas.height = 128;
+  diskCanvas.width = 256; diskCanvas.height = 256;
   var dCtx = diskCanvas.getContext("2d");
-  var grad = dCtx.createRadialGradient(64, 64, 0, 64, 64, 64);
-  grad.addColorStop(0, "rgba(255,255,240,1.0)");
-  grad.addColorStop(0.3, "rgba(255,250,220,0.9)");
-  grad.addColorStop(0.7, "rgba(255,220,160,0.3)");
+  // Hard-edge sun disk with soft corona fringe
+  var grad = dCtx.createRadialGradient(128, 128, 0, 128, 128, 128);
+  grad.addColorStop(0, "rgba(255,255,245,1.0)");
+  grad.addColorStop(0.35, "rgba(255,252,235,1.0)");
+  grad.addColorStop(0.5, "rgba(255,245,210,0.95)");
+  grad.addColorStop(0.7, "rgba(255,230,170,0.5)");
+  grad.addColorStop(0.85, "rgba(255,210,130,0.15)");
   grad.addColorStop(1.0, "rgba(255,200,100,0.0)");
   dCtx.fillStyle = grad;
-  dCtx.fillRect(0, 0, 128, 128);
+  dCtx.fillRect(0, 0, 256, 256);
   var diskTex = new THREE.CanvasTexture(diskCanvas);
   var diskMat = new THREE.MeshBasicMaterial({
     map: diskTex, transparent: true, depthWrite: false, depthTest: false, fog: false,
-    side: THREE.DoubleSide, blending: THREE.AdditiveBlending, toneMapped: false,
+    side: THREE.DoubleSide, toneMapped: false,
   });
   this._diskMesh = new THREE.Mesh(diskGeo, diskMat);
   this._group.add(this._diskMesh);
 
-  // Glow halo — larger, softer
+  // Glow halo — larger atmospheric bloom around the sun
   var glowGeo = new THREE.PlaneGeometry(80, 80);
   var glowCanvas = document.createElement("canvas");
-  glowCanvas.width = 128; glowCanvas.height = 128;
+  glowCanvas.width = 256; glowCanvas.height = 256;
   var gCtx = glowCanvas.getContext("2d");
-  var gGrad = gCtx.createRadialGradient(64, 64, 0, 64, 64, 64);
-  gGrad.addColorStop(0, "rgba(255,240,200,0.4)");
-  gGrad.addColorStop(0.3, "rgba(255,220,150,0.15)");
-  gGrad.addColorStop(0.6, "rgba(255,200,100,0.05)");
+  var gGrad = gCtx.createRadialGradient(128, 128, 0, 128, 128, 128);
+  gGrad.addColorStop(0, "rgba(255,245,220,0.6)");
+  gGrad.addColorStop(0.15, "rgba(255,235,190,0.4)");
+  gGrad.addColorStop(0.35, "rgba(255,220,150,0.15)");
+  gGrad.addColorStop(0.6, "rgba(255,200,100,0.04)");
   gGrad.addColorStop(1.0, "rgba(255,180,80,0.0)");
   gCtx.fillStyle = gGrad;
-  gCtx.fillRect(0, 0, 128, 128);
+  gCtx.fillRect(0, 0, 256, 256);
   var glowTex = new THREE.CanvasTexture(glowCanvas);
   var glowMat = new THREE.MeshBasicMaterial({
     map: glowTex, transparent: true, depthWrite: false, depthTest: false, fog: false,
@@ -697,7 +702,7 @@ SunDiskRenderer.prototype.build = function(scene) {
 SunDiskRenderer.prototype.update = function(camera, sunDir, sunAltDeg, settings) {
   if (!this._group) return;
 
-  // Position sun disk far away in sun direction
+  // Position sun disk far away in sun direction (inside camera.far)
   var dist = 450;
   this._group.position.set(
     camera.position.x + sunDir.x * dist,
@@ -708,27 +713,41 @@ SunDiskRenderer.prototype.update = function(camera, sunDir, sunAltDeg, settings)
   // Billboard: always face camera
   this._group.lookAt(camera.position);
 
-  // Size from settings — Tenkoku-style big atmospheric sun
+  // Size from settings — Tenkoku-style visible atmospheric sun
+  // sunDiskSize 0.028 → diskSize = 140 → scale = 1.4 (28 world units disk)
   var diskSize = (settings.sunDiskSize || 0.028) * 5000;
-  var diskScale = diskSize / 200;
+  var diskScale = diskSize / 100; // doubled from /200 for better visibility
   if (this._diskMesh) this._diskMesh.scale.setScalar(diskScale);
-  // Glow halo is 4x the disk — creates that atmospheric bloom look
-  if (this._glowMesh) this._glowMesh.scale.setScalar(diskScale * 4.0);
+  // Glow halo is 5x the disk
+  if (this._glowMesh) this._glowMesh.scale.setScalar(diskScale * 5.0);
 
   // Hide when sun below horizon
   this._group.visible = sunAltDeg > -2;
 
-  // Fade near horizon + sun color warmth
+  // Fade near horizon
   var horizFade = _clamp((sunAltDeg + 2) / 10, 0, 1);
   if (this._diskMesh && this._diskMesh.material) this._diskMesh.material.opacity = horizFade;
-  if (this._glowMesh && this._glowMesh.material) this._glowMesh.material.opacity = horizFade * 0.5;
+  // Glow stronger at low angles (sunrise/sunset), subtle at noon
+  var glowOpacity = sunAltDeg < 20 ? horizFade * 0.7 : horizFade * 0.35;
+  if (this._glowMesh && this._glowMesh.material) this._glowMesh.material.opacity = glowOpacity;
 
-  // Warm sun color at low angles
-  if (this._diskMesh && this._diskMesh.material && sunAltDeg < 15) {
-    var warmT = _clamp(1 - sunAltDeg / 15, 0, 1);
-    this._diskMesh.material.color.setRGB(1, _lerp(1, 0.7, warmT), _lerp(0.95, 0.3, warmT));
-  } else if (this._diskMesh && this._diskMesh.material) {
-    this._diskMesh.material.color.setRGB(1, 1, 0.95);
+  // Warm sun color at low angles (orange-gold sunrise/sunset)
+  if (this._diskMesh && this._diskMesh.material) {
+    if (sunAltDeg < 15) {
+      var warmT = _clamp(1 - sunAltDeg / 15, 0, 1);
+      this._diskMesh.material.color.setRGB(1, _lerp(1, 0.75, warmT), _lerp(0.96, 0.35, warmT));
+    } else {
+      this._diskMesh.material.color.setRGB(1, 1, 0.96);
+    }
+  }
+  // Glow color follows disk color
+  if (this._glowMesh && this._glowMesh.material) {
+    if (sunAltDeg < 15) {
+      var warmT2 = _clamp(1 - sunAltDeg / 15, 0, 1);
+      this._glowMesh.material.color.setRGB(1, _lerp(1, 0.8, warmT2), _lerp(0.9, 0.4, warmT2));
+    } else {
+      this._glowMesh.material.color.setRGB(1, 1, 0.9);
+    }
   }
 };
 
@@ -2896,8 +2915,12 @@ function SkyWeatherAdvancedSystem(scene, settings) {
   var fog = this.settings.fog;
   if (fog.density > 0.01) fog.density = 0.002;
   var clouds = this.settings.clouds;
-  // Don't let saved overcast override clear default on fresh load
+  // Don't let saved overcast or zero-coverage override default
   if (clouds.coverage > 0.8 && !(this.settings.weather || {}).autoForecast) {
+    clouds.coverage = 0.35;
+  }
+  // If coverage was saved as exactly 0, restore to default partly-cloudy
+  if (clouds.coverage === 0 || clouds.coverage == null) {
     clouds.coverage = 0.35;
   }
   if (clouds.brightness < 0.5) clouds.brightness = 1.0;
@@ -2906,6 +2929,21 @@ function SkyWeatherAdvancedSystem(scene, settings) {
   if (precip && precip.type !== "none" && !(this.settings.weather || {}).autoForecast) {
     precip.type = "none";
     precip.intensity = 0;
+  }
+  // Fix timezone/longitude mismatch — timezone should roughly match longitude/15
+  var ts = this.settings.time;
+  if (ts.longitude != null && ts.timezone != null) {
+    var expectedTz = Math.round(ts.longitude / 15);
+    // If mismatch is > 3 hours, reset to defaults (Japan)
+    if (Math.abs(ts.timezone - expectedTz) > 3) {
+      ts.latitude = 35;
+      ts.longitude = 136;
+      ts.timezone = 9;
+    }
+  }
+  // Ensure fog is enabled by default
+  if (fog.enabled !== true && fog.enabled !== false) {
+    fog.enabled = true;
   }
 
   this.orbital = new OrbitalCalculator();
