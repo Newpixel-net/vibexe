@@ -585,6 +585,21 @@ AtmosphereRenderer.prototype._updateVertexColors = function() {
     colors[i * 3] = c[0];
     colors[i * 3 + 1] = c[1];
     colors[i * 3 + 2] = c[2];
+
+    // Night star highlights: make some upper-hemisphere vertices brighter
+    var sunDir = this._sunDir;
+    if (sunDir[1] < -0.1 && dir[1] > 0.2) {
+      var starSeed = Math.abs(Math.sin(dir[0] * 127.1 + dir[2] * 311.7) * 43758.5453);
+      starSeed = starSeed - Math.floor(starSeed); // 0-1
+      if (starSeed > 0.92) { // ~8% of upper vertices become "stars"
+        var nightFac = _clamp(-sunDir[1] - 0.1, 0, 1) / 0.9; // 0 at -0.1, 1 at -1
+        var starBright = (starSeed - 0.92) * 12.5; // 0 to 1
+        starBright *= nightFac * 0.5; // modulate by how dark it is
+        colors[i*3]   = _clamp(colors[i*3] + starBright * 0.9, 0, 1);
+        colors[i*3+1] = _clamp(colors[i*3+1] + starBright * 0.95, 0, 1);
+        colors[i*3+2] = _clamp(colors[i*3+2] + starBright * 1.0, 0, 1);
+      }
+    }
   }
   colorAttr.needsUpdate = true;
 };
@@ -2790,7 +2805,7 @@ function FogController() {
 }
 
 FogController.prototype.update = function(scene, sunAltDeg, settings, skyHorizonColor) {
-  if (!settings.enabled) {
+  if (settings.enabled === false) {
     if (this._active && this._originalFog !== undefined) {
       scene.fog = this._originalFog;
       this._active = false;
