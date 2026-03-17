@@ -509,6 +509,7 @@ AtmosphereRenderer.prototype.build = function(scene) {
     vertexColors: true,
     side: THREE.BackSide,
     depthWrite: false,
+    depthTest: false,
     fog: false,
   });
   this.material.name = "__swa_sky_dome_mat__";
@@ -2533,11 +2534,11 @@ function SkyWeatherAdvancedSystem(scene, settings) {
   this.atmosphere._mieG = (this.settings.sky || {}).mieDirectionalG || 0.76;
   this.atmosphere.setSunDirection(this.orbital.sunDirection);
 
-  // Sync scene background to sky zenith color on init
-  var zenithColor = this.atmosphere._computeSkyColor([0, 1, 0]);
+  // Set scene background to BLACK so sky dome gradient is visible
+  // (scene.background renders as fullscreen pass — non-black covers the dome)
+  this._origBg = this.scene ? this.scene.background : null;
   if (this.scene) {
-    if (!this.scene.background) this.scene.background = new THREE.Color();
-    this.scene.background.setRGB(zenithColor[0], zenithColor[1], zenithColor[2]);
+    this.scene.background = new THREE.Color(0x000000);
   }
 
   // Initialize cloud coverage + render immediately
@@ -2661,6 +2662,11 @@ SkyWeatherAdvancedSystem.prototype._startLoop = function() {
 SkyWeatherAdvancedSystem.prototype._tick = function(dt) {
   var ts = this.settings.time || {};
 
+  // Orphan detection: re-add sky dome if removed from scene
+  if (this.atmosphere.dome && !this.atmosphere.dome.parent && this.scene) {
+    this.scene.add(this.atmosphere.dome);
+  }
+
   // Auto-advance time
   if (ts.autoAdvance && ts.cycleLengthMinutes > 0) {
     ts.solarTime = (ts.solarTime || 0) + dt / (ts.cycleLengthMinutes * 60);
@@ -2692,11 +2698,12 @@ SkyWeatherAdvancedSystem.prototype._tick = function(dt) {
     this.atmosphere._sunIntensity = skySettings.sunIntensity || 22.0;
     this.atmosphere.setSunDirection(this.orbital.sunDirection);
 
-    // Sync scene background to sky zenith color
-    var zenithColor = this.atmosphere._computeSkyColor([0, 1, 0]);
+    // Enforce BLACK background — other modules may overwrite it
     if (this.scene) {
-      if (!this.scene.background) this.scene.background = new THREE.Color();
-      this.scene.background.setRGB(zenithColor[0], zenithColor[1], zenithColor[2]);
+      var bg = this.scene.background;
+      if (!bg || bg.r > 0.01 || bg.g > 0.01 || bg.b > 0.01) {
+        this.scene.background = new THREE.Color(0x000000);
+      }
     }
 
     // Overcast reduces exposure
@@ -2807,6 +2814,10 @@ SkyWeatherAdvancedSystem.prototype.destroy = function() {
   if (this._animFrameId) {
     cancelAnimationFrame(this._animFrameId);
     this._animFrameId = null;
+  }
+  // Restore original scene background
+  if (this.scene && this._origBg !== undefined) {
+    this.scene.background = this._origBg;
   }
   this.atmosphere.dispose();
   this.clouds.dispose(this.scene);
