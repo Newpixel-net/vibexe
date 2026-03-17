@@ -3293,8 +3293,27 @@ SkyWeatherAdvancedSystem.prototype._tick = function(dt) {
 // Update settings from external source (bridge message)
 SkyWeatherAdvancedSystem.prototype.updateSettings = function(patch) {
   this.settings = this._deepMerge(this.settings, patch);
+
+  // Re-sanitize after every settings update — panel sends full DB config
+  // which may contain bad saved values that override our init sanitization
+  var sky = this.settings.sky;
+  if (sky.mieDirectionalG < 0.5) sky.mieDirectionalG = 0.76;
+  if (sky.exposure < 0.5 || sky.exposure > 4) sky.exposure = 1.2;
+  if (sky.sunIntensity < 10) sky.sunIntensity = 22.0;
+  var fog = this.settings.fog;
+  if (fog.density > 0.01) fog.density = 0.002;
+  if (!fog.enabled) { fog.enabled = true; fog.density = fog.density || 0.002; }
+  var ts = this.settings.time;
+  if (ts.longitude != null && ts.timezone != null) {
+    var expectedTz = Math.round(ts.longitude / 15);
+    if (Math.abs(ts.timezone - expectedTz) > 3) {
+      ts.latitude = 35; ts.longitude = 136; ts.timezone = 9;
+    }
+  }
+
   // Force immediate sky recompute on settings change
   this._skyUpdateTimer = this._skyUpdateInterval;
+  this._cloudUpdateTimer = this._cloudUpdateInterval;
 };
 
 SkyWeatherAdvancedSystem.prototype.destroy = function() {
