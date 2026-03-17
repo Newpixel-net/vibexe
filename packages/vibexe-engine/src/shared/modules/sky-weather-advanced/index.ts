@@ -481,21 +481,33 @@ AtmosphereRenderer.prototype._computeSkyColor = function(viewDir) {
   gn = Math.pow(_clamp(gn, 0, 1), invGamma);
   b = Math.pow(_clamp(b, 0, 1), invGamma);
 
-  // Horizon warmth — warm up the sky near the horizon
+  // Horizon warmth — warm up the sky near the horizon (Tenkoku golden glow)
   var horizonFac = 1.0 - Math.abs(viewDir[1]); // 1 at horizon, 0 at zenith
   horizonFac = horizonFac * horizonFac * horizonFac; // cubic falloff — concentrated at horizon
-  var sunHorizFac = Math.max(0, 1.0 - Math.abs(sunDir[1]) * 3.0); // strongest when sun is near horizon
-  var warmth = horizonFac * sunHorizFac * 0.3;
+  var sunHorizFac = Math.max(0, 1.0 - Math.abs(sunDir[1]) * 2.5); // strongest when sun is near horizon
+  var warmth = horizonFac * sunHorizFac * 0.45;
   r += warmth * 1.0;  // add warm orange
-  gn += warmth * 0.5;
-  b += warmth * 0.1;
+  gn += warmth * 0.55;
+  b += warmth * 0.12;
 
-  // Boost saturation to make blue more vivid
+  // Sun-facing horizon glow — extra warmth on the side where the sun is
+  var viewSunDot = rd[0]*sunDir[0] + rd[2]*sunDir[2]; // XZ plane dot (horizontal alignment)
+  var sunGlow = _clamp(viewSunDot, 0, 1) * horizonFac * sunHorizFac * 0.2;
+  r += sunGlow * 1.0;
+  gn += sunGlow * 0.4;
+
+  // Boost saturation to make blue more vivid (Tenkoku-style deep blue zenith)
   var luma = r * 0.299 + gn * 0.587 + b * 0.114;
-  var satBoost = 1.4;
+  var satBoost = 1.6;
   r = luma + (r - luma) * satBoost;
   gn = luma + (gn - luma) * satBoost;
   b = luma + (b - luma) * satBoost;
+
+  // Tenkoku-style deeper blue at zenith (blue channel push for overhead sky)
+  var zenithFac = _clamp(viewDir[1], 0, 1);
+  zenithFac = zenithFac * zenithFac; // quadratic: strongest directly overhead
+  b += zenithFac * 0.06; // gentle blue push at zenith
+  r -= zenithFac * 0.03; // reduce red at zenith for cooler sky
 
   // Night floor: minimum sky brightness
   var nightFloor = 0.02;
@@ -675,17 +687,27 @@ SunDiskRenderer.prototype.update = function(camera, sunDir, sunAltDeg, settings)
   // Billboard: always face camera
   this._group.lookAt(camera.position);
 
-  // Size from settings
-  var size = (settings.sunDiskSize || 0.028) * 800;
-  if (this._diskMesh) this._diskMesh.scale.setScalar(size / 200);
+  // Size from settings — scale sun disk relative to distance
+  var size = (settings.sunDiskSize || 0.028) * 2400;
+  var diskScale = size / 200;
+  if (this._diskMesh) this._diskMesh.scale.setScalar(diskScale);
+  if (this._glowMesh) this._glowMesh.scale.setScalar(diskScale * 1.2);
 
   // Hide when sun below horizon
   this._group.visible = sunAltDeg > -2;
 
-  // Fade near horizon
+  // Fade near horizon + sun color warmth
   var horizFade = _clamp((sunAltDeg + 2) / 10, 0, 1);
   if (this._diskMesh && this._diskMesh.material) this._diskMesh.material.opacity = horizFade;
-  if (this._glowMesh && this._glowMesh.material) this._glowMesh.material.opacity = horizFade * 0.6;
+  if (this._glowMesh && this._glowMesh.material) this._glowMesh.material.opacity = horizFade * 0.5;
+
+  // Warm sun color at low angles
+  if (this._diskMesh && this._diskMesh.material && sunAltDeg < 15) {
+    var warmT = _clamp(1 - sunAltDeg / 15, 0, 1);
+    this._diskMesh.material.color.setRGB(1, _lerp(1, 0.7, warmT), _lerp(0.95, 0.3, warmT));
+  } else if (this._diskMesh && this._diskMesh.material) {
+    this._diskMesh.material.color.setRGB(1, 1, 0.95);
+  }
 };
 
 SunDiskRenderer.prototype.dispose = function(scene) {
