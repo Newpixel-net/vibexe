@@ -1233,10 +1233,15 @@ StarField.prototype.init = function(scene) {
   this._twinklePhases = [];
   this._baseSizes = [];
 
+  // Only create sprites for stars bright enough to be visible (mag < 4.0)
+  // Dimmer stars are handled by dome vertex highlights in _updateVertexColors
+  // This keeps draw calls under ~500 to avoid performance issues
   for (var i = 0; i < catalog.length; i++) {
+    var mag = catalog[i][2];
+    if (mag > 4.0) continue; // skip dim stars — too many sprites kills FPS
+
     var ra = catalog[i][0] * DEG2RAD;
     var dec = catalog[i][1] * DEG2RAD;
-    var mag = catalog[i][2];
     var specIdx = _clamp(Math.floor(catalog[i][3] || 0), 0, 6);
 
     var x = r * Math.cos(dec) * Math.cos(ra);
@@ -1261,7 +1266,7 @@ StarField.prototype.init = function(scene) {
   }
 
   scene.add(this._group);
-  console.log("[SkyWeatherAdvanced] Star sprites: " + catalog.length + " (WebGPU-compatible)");
+  console.log("[SkyWeatherAdvanced] Star sprites: " + this._starSprites.length + " / " + catalog.length + " catalog (mag<4.0, WebGPU)");
 };
 
 StarField.prototype.update = function(sunAltDeg, camera, time, settings, solarTime) {
