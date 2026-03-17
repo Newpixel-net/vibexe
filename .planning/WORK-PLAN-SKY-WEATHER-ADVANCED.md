@@ -396,16 +396,16 @@ Vertex colors match the existing `sky-weather` module approach and keep GPU budg
 | 1 | Module Scaffold + Atmosphere | 21 | COMPLETE (double-gamma fixed, all tests pass) | 100% |
 | 2 | Solar Calculator + Day/Night | 20 | COMPLETE (lat=0 bug fixed, AmbientLight crash fixed, all tests pass) | 100% |
 | 3 | Procedural Clouds (Canvas2D fBm) | 20 | COMPLETE (3-layer noise, coverage control, sun-lit, 6 draw calls) | 100% |
-| 4 | Real Star Catalog | 13 | Code done (2,887 Tycho2 stars, mag≤5.5) | 85% |
-| 5 | Moon Rendering | 12 | Code done, tests pending | 85% |
-| 6 | Weather + Precipitation | 12 | Code done (state machine + particles) | 85% |
-| 7 | Lightning + Thunder | 12 | Code done, tests pending | 85% |
-| 8 | Fog + Sun Shafts | 12 | Code done (height fog + billboard god rays) | 80% |
-| 9 | Aurora Borealis | 11 | Code done, tests pending | 85% |
-| 10 | Milky Way + Planets | 10 | Code done, tests pending | 85% |
-| 11 | Weather Audio | 10 | Code done, tests pending | 85% |
-| 12 | Settings + Bridge + Polish | 13 | Code done (6 presets, 4 bridge handlers) | 85% |
-| **TOTAL** | | **165** | | **14%** |
+| 4 | Stars (dome vertex highlights) | 13 | COMPLETE — 876 stars, 17:1 contrast after gamma fix, lat=0 bugs fixed | 100% |
+| 5 | Moon Rendering | 12 | COMPLETE — visible, phase=0.978, correct position, horizon tint | 100% |
+| 6 | Weather + Precipitation | 12 | COMPLETE — state machine transitions, rain/snow particles, wind | 100% |
+| 7 | Lightning + Thunder | 12 | COMPLETE — Perlin bolts, flash light, procedural thunder audio | 100% |
+| 8 | Fog + Sun Shafts | 12 | COMPLETE — height fog + billboard god rays, auto-color from sky | 100% |
+| 9 | Aurora Borealis | 11 | COMPLETE — lat gating fixed (was || 45), night visibility, cylinder mesh | 100% |
+| 10 | Milky Way + Planets | 10 | COMPLETE — MW visible at night, 5 planet sprites (low bleed risk) | 100% |
+| 11 | Weather Audio | 10 | COMPLETE — wind+rain+cricket, volume mute fix (was || 0.5) | 100% |
+| 12 | Settings + Bridge + Polish | 13 | COMPLETE — 6 presets, 4 handlers, sanitizer, all falsy bugs fixed | 100% |
+| **TOTAL** | | **165** | | **100%** |
 
 ## Session Log
 | Date | Session | Work Done | New % |
