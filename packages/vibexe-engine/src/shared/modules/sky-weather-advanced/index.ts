@@ -2133,6 +2133,11 @@ AuroraRenderer.prototype.update = function(dt, camera, latitude, sunAltDeg, sett
 
   if (this._visible) {
     this._mat.opacity = auroraIntensity * nightFac * latFac * 0.6;
+    // Curtain wave animation: slowly scroll texture UV for aurora motion
+    if (this._auroraTex) {
+      this._auroraTex.offset.x = this._time * 0.02;
+      this._auroraTex.offset.y = Math.sin(this._time * 0.3) * 0.05;
+    }
     if (camera) {
       this._mesh.position.x = camera.position.x;
       this._mesh.position.z = camera.position.z;
@@ -2728,8 +2733,8 @@ FogController.prototype.update = function(scene, sunAltDeg, settings, skyHorizon
   }
 
   // Clamp fog density to sane range — saved settings from DB may have bad values
-  var baseDensity = _clamp(settings.density || 0.002, 0.0005, 0.01);
-  var heightFalloff = settings.heightFalloff || 0;
+  var baseDensity = _clamp(settings.density != null ? settings.density : 0.002, 0.0005, 0.01);
+  var heightFalloff = settings.heightFalloff != null ? settings.heightFalloff : 0;
 
   // Height-based fog: increase density at lower camera heights
   var density = baseDensity;
