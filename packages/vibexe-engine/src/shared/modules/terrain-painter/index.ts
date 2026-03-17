@@ -730,13 +730,15 @@ TerrainGenerator.prototype.generate = function() {
   // full range to fit within the target heightScale.
   var postRange = maxY - minY;
   if (postRange > 0.001) {
+    // Center terrain vertically: range [-H/2, +H/2] so average terrain is near Y=0
+    var halfH = H / 2;
     for (var nvi = 0; nvi < pos.count; nvi++) {
-      var normH = ((heightData[nvi] - minY) / postRange) * H;
+      var normH = ((heightData[nvi] - minY) / postRange) * H - halfH;
       pos.setY(nvi, normH);
       heightData[nvi] = normH;
     }
-    maxY = H;
-    minY = 0;
+    maxY = halfH;
+    minY = -halfH;
     pos.needsUpdate = true;
     geo.computeVertexNormals();
   }

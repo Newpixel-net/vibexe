@@ -149,6 +149,7 @@ export function getGameEditorBridgeScript(): string {
   function sendSceneTree() {
     if (!editor || !editor.scene) return;
     var tree = serializeNode(editor.scene);
+    window.__vibexe_lastSceneTree__ = tree; // Cache for UUID→name fallback lookup
     window.parent.postMessage({ type: "game-editor-scene-tree", tree: tree }, "*");
   }
 
@@ -684,6 +685,19 @@ export function getGameEditorBridgeScript(): string {
       case "game-editor-select-by-uuid":
         if (editor && d.uuid) {
           var obj = findObjectByUuid(editor.scene, d.uuid);
+          // Fallback: if UUID not found (e.g. object was regenerated with new UUID),
+          // search by name — find the scene tree node with matching UUID to get its name
+          if (!obj) {
+            var _findName = function(node, uuid) {
+              if (!node) return null;
+              if (node.uuid === uuid) return node.name;
+              if (node.children) { for (var i = 0; i < node.children.length; i++) { var n = _findName(node.children[i], uuid); if (n) return n; } }
+              return null;
+            };
+            var _lastTree = window.__vibexe_lastSceneTree__;
+            var _objName = d.name || (_lastTree ? _findName(_lastTree, d.uuid) : null);
+            if (_objName) obj = editor.scene.getObjectByName(_objName);
+          }
           if (obj) selectObject(obj);
         }
         break;
