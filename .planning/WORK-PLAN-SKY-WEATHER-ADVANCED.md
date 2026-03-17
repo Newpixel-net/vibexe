@@ -115,28 +115,35 @@ Vertex colors match the existing `sky-weather` module approach and keep GPU budg
 **Goal:** 3-layer procedural clouds on textured hemisphere dome
 **Source:** Canvas2D fBm noise (simpler and much more performant than ray marching)
 **Actual runtimeCode:** ~260 lines
+**Deep review date:** 2026-03-17
 
 ### Tasks (Canvas2D approach — diverged from original volumetric plan):
-- [x] 3.1 Implement 2D value noise + 6-octave fBm (hash2, noise2, fbm2)
-- [x] 3.2 (Skipped) Worley noise — not needed for 2D canvas approach
-- [x] 3.3 Noise composition: fBm with density bias per layer
+- [x] 3.1 2D value noise + 6-octave fBm — reviewed: hash2 self-contained, smoothstep interpolation, amp=0.5 decay. CLEAN.
+- [x] 3.2 (Skipped) Worley noise — N/A for 2D approach
+- [x] 3.3 Noise composition — FIX: offsets -0.3/-0.25/-0.2 too small → coverage slider had NO effect. Changed to -0.8/-0.65/-0.5.
 - [x] 3.4 (N/A) Ray marching replaced by canvas texture on hemisphere dome
 - [x] 3.5 (N/A) Adaptive marching replaced by 1s throttled canvas redraw
-- [x] 3.6 Cumulus layer: coverage*2.5 bias, mid-altitude smoothstep fade
-- [x] 3.7 Altocumulus layer: coverage*1.8 bias, higher altitude band
-- [x] 3.8 Cirrostratus layer: coverage*1.3 bias, wispy high-altitude
-- [x] 3.9 Altitude-based density falloff: smoothstep per layer
-- [x] 3.10 Simplified Beer-Powder: sun-side brightness gradient + altitude shading
-- [x] 3.11 Simplified HG lighting: sun angle → base color (white/orange/blue) + sun-dot gradient
-- [x] 3.12 Coverage control: 0-1 slider modifies fBm density bias per layer
-- [x] 3.13 Wind animation: UV offset in noise coords (windX/windY * speed)
-- [x] 3.14 (N/A) TSL uniforms replaced by Canvas2D settings properties
-- [x] 3.15 MeshBasicMaterial with CanvasTexture on hemisphere dome (r=490, FrontSide)
-- [x] 3.16 Performance: Canvas2D 1024x512 redrawn 1/sec = 6 draw calls total, excellent
-- [x] 3.17 Wire up settings: coverage, speed, brightness, density, scale all wired
-- [x] 3.18 Test: clear=no clouds, partly=patches visible, overcast=full coverage. PASS.
-- [x] 3.19 Test: sunset clouds show warm-colored formations against gradient sky. PASS.
-- [x] 3.20 Test: 6 draw calls/frame, ~30fps+ on all hardware. PASS.
+- [x] 3.6 Cumulus layer: coverage*2.5 bias - 0.8, mid-altitude smoothstep fade. FIXED offset.
+- [x] 3.7 Altocumulus layer: coverage*1.8 bias - 0.65. FIXED offset.
+- [x] 3.8 Cirrostratus layer: coverage*1.3 bias - 0.5. FIXED offset.
+- [x] 3.9 Altitude-based density falloff: smoothstep per layer. CLEAN.
+- [x] 3.10 Sun-side brightness gradient (0.7-1.4x range) + altitude shading (bottoms 0.65x). CLEAN.
+- [x] 3.11 Base color: day=white(245), sunset=orange-pink(255/160/120), night=dark(40/42/55). CLEAN.
+- [x] 3.12 FIX: Coverage slider — alpha d*25 → d*4 (was making ALL clouds fully opaque). Removed sqrt gamma.
+- [x] 3.13 Wind: UV offset windX=t*0.03, windY=t*0.008 × speed. CLEAN.
+- [x] 3.14 FIX: settings.speed/brightness/density/scale used || default → changed to != null.
+- [x] 3.15 MeshBasicMaterial: transparent, FrontSide, inverted winding, r=490, renderOrder=-999. CLEAN.
+- [x] 3.16 FIX: GC pressure — blur buffer Uint8ClampedArray(512KB) allocated every 1s. Cached.
+- [x] 3.17 Settings: coverage uses != null (correct), speed/brightness/density/scale FIXED to != null.
+- [x] 3.18 Test: clear=all transparent dome hidden, partly=pixels present, overcast=dense. PASS.
+- [x] 3.19 Test: time colors: dawn=white, noon=bright, sunset=grey, night=dark. PASS.
+- [x] 3.20 Test: 6 draw calls/frame, 1s texture update. PASS.
+
+### Bugs found in deep review (2026-03-17):
+1. **CRITICAL: Coverage slider had no visible effect** — offsets too small + alpha 25x too aggressive = 73% opaque at all settings
+2. **settings.speed/brightness/density/scale || default** — can't set to 0 (3 bugs)
+3. **GC pressure** — 512KB blur buffer allocated every 1s (cached now)
+4. **Design concern**: sanitizer resets coverage=0→0.35 (user can't save clear sky)
 
 ### Verification:
 - 3D volumetric clouds visible from all camera angles
@@ -395,7 +402,7 @@ Vertex colors match the existing `sky-weather` module approach and keep GPU budg
 |-------|------------|-------|--------|---|
 | 1 | Module Scaffold + Atmosphere | 21 | COMPLETE (double-gamma fixed, all tests pass) | 100% |
 | 2 | Solar Calculator + Day/Night | 20 | COMPLETE (lat=0 bug fixed, AmbientLight crash fixed, all tests pass) | 100% |
-| 3 | Procedural Clouds (Canvas2D fBm) | 20 | COMPLETE (3-layer noise, coverage control, sun-lit, 6 draw calls) | 100% |
+| 3 | Procedural Clouds (Canvas2D fBm) | 20 | DEEP REVIEW: 3 bugs fixed (coverage slider, || falsy, GC pressure) | 100% |
 | 4 | Stars (dome vertex highlights) | 13 | COMPLETE — 876 stars, 17:1 contrast after gamma fix, lat=0 bugs fixed | 100% |
 | 5 | Moon Rendering | 12 | COMPLETE — visible, phase=0.978, correct position, horizon tint | 100% |
 | 6 | Weather + Precipitation | 12 | COMPLETE — state machine transitions, rain/snow particles, wind | 100% |
