@@ -1084,7 +1084,7 @@ WeatherParticles.prototype.init = function(scene) {
 WeatherParticles.prototype.update = function(dt, camera, settings) {
   var precipType = settings.type || "none";
   var intensity = settings.intensity || 0;
-  this._windDir = (settings.windDirection || 0) * DEG2RAD;
+  this._windDir = (settings.windDirection != null ? settings.windDirection : 0) * DEG2RAD;
   this._windStrength = settings.windStrength != null ? settings.windStrength : 0.3;
 
   this._rain.visible = precipType === "rain" && intensity > 0;
@@ -2193,7 +2193,7 @@ WeatherStateMachine.prototype.setState = function(state) {
 
 WeatherStateMachine.prototype.update = function(dt, settings) {
   this._autoForecast = settings.autoForecast || false;
-  this._forecastInterval = settings.forecastInterval || 60;
+  this._forecastInterval = settings.forecastInterval != null ? settings.forecastInterval : 60;
 
   // Auto-forecast: randomly pick next weather state
   if (this._autoForecast) {
@@ -3161,7 +3161,7 @@ SkyWeatherAdvancedSystem.prototype._tick = function(dt) {
   this.audio.update(
     this.settings.precipitation.type || "none",
     this.settings.precipitation.intensity || 0,
-    this.settings.precipitation.windStrength || 0.3,
+    this.settings.precipitation.windStrength != null ? this.settings.precipitation.windStrength : 0.3,
     this.settings.effects || {},
     sunAltDeg
   );
