@@ -918,6 +918,28 @@ TerrainGenerator.prototype.generate = function() {
   setTimeout(_removeGroundPlanes, 3000);
   setTimeout(_removeGroundPlanes, 5000);
 
+  // Reposition player/character to terrain surface (init runs before terrain generates)
+  var _tRepos = function() {
+    var _playerMesh = window.__vibexe_playerMesh__;
+    if (!_playerMesh) {
+      _tScene.traverse(function(c) {
+        if (c.name && (c.name.indexOf("Character_") === 0) && c.type === "Group") _playerMesh = c;
+      });
+    }
+    if (_playerMesh) {
+      var _pH = window.__vibexe_getTerrainHeight;
+      if (_pH) {
+        var _pTH = _pH(_playerMesh.position.x, _playerMesh.position.z);
+        if (_pTH != null && _playerMesh.position.y < _pTH + 1) {
+          _playerMesh.position.y = _pTH + 1.5;
+          console.log("[TerrainPainter] Repositioned player to terrain surface Y=" + (_pTH + 1.5).toFixed(1));
+        }
+      }
+    }
+  };
+  setTimeout(_tRepos, 500);
+  setTimeout(_tRepos, 2000);
+
   return mesh;
 };
 
