@@ -684,11 +684,12 @@ SunDiskRenderer.prototype.build = function(scene) {
   glowCanvas.width = 256; glowCanvas.height = 256;
   var gCtx = glowCanvas.getContext("2d");
   var gGrad = gCtx.createRadialGradient(128, 128, 0, 128, 128, 128);
-  gGrad.addColorStop(0, "rgba(255,245,220,0.6)");
-  gGrad.addColorStop(0.15, "rgba(255,235,190,0.4)");
-  gGrad.addColorStop(0.35, "rgba(255,220,150,0.15)");
-  gGrad.addColorStop(0.6, "rgba(255,200,100,0.04)");
-  gGrad.addColorStop(1.0, "rgba(255,180,80,0.0)");
+  gGrad.addColorStop(0, "rgba(255,245,220,1.0)");
+  gGrad.addColorStop(0.1, "rgba(255,240,200,0.85)");
+  gGrad.addColorStop(0.25, "rgba(255,225,170,0.45)");
+  gGrad.addColorStop(0.45, "rgba(255,210,130,0.15)");
+  gGrad.addColorStop(0.7, "rgba(255,190,100,0.04)");
+  gGrad.addColorStop(1.0, "rgba(255,170,70,0.0)");
   gCtx.fillStyle = gGrad;
   gCtx.fillRect(0, 0, 256, 256);
   var glowTex = new THREE.CanvasTexture(glowCanvas);
@@ -721,8 +722,8 @@ SunDiskRenderer.prototype.update = function(camera, sunDir, sunAltDeg, settings)
   var diskSize = (settings.sunDiskSize || 0.028) * 5000;
   var diskScale = diskSize / 33; // large enough to be Tenkoku-like
   if (this._diskMesh) this._diskMesh.scale.setScalar(diskScale);
-  // Glow halo is 6x the disk for atmospheric bloom (Tenkoku has wide glow)
-  if (this._glowMesh) this._glowMesh.scale.setScalar(diskScale * 6.0);
+  // Glow halo is 10x the disk for atmospheric bloom visible from wide angles
+  if (this._glowMesh) this._glowMesh.scale.setScalar(diskScale * 10.0);
 
   // Hide when sun below horizon
   this._group.visible = sunAltDeg > -2;
@@ -730,8 +731,8 @@ SunDiskRenderer.prototype.update = function(camera, sunDir, sunAltDeg, settings)
   // Fade near horizon
   var horizFade = _clamp((sunAltDeg + 2) / 10, 0, 1);
   if (this._diskMesh && this._diskMesh.material) this._diskMesh.material.opacity = horizFade;
-  // Glow always visible when sun is up (Tenkoku reference shows prominent glow at all times)
-  var glowOpacity = sunAltDeg < 20 ? horizFade * 0.8 : horizFade * 0.5;
+  // Glow always visible when sun is up — stronger opacity for visibility from wider angles
+  var glowOpacity = sunAltDeg < 20 ? horizFade * 0.95 : horizFade * 0.7;
   if (this._glowMesh && this._glowMesh.material) this._glowMesh.material.opacity = glowOpacity;
 
   // Warm sun color at low angles (orange-gold sunrise/sunset)
@@ -1143,23 +1144,26 @@ var _STAR_SPECTRAL_COLORS = [
 ];
 
 function StarField() {
-  this._stars = null;
-  this._starGeo = null;
-  this._starMat = null;
+  this._group = null;
+  this._starMats = null;
+  this._starSprites = null;
   this._twinklePhases = null;
   this._baseSizes = null;
+  this._twinkleFrame = 0;
 }
 
 StarField.prototype._createStarTexture = function() {
-  var s = 32;
+  var s = 64;
   var canvas = document.createElement("canvas");
   canvas.width = s; canvas.height = s;
   var ctx = canvas.getContext("2d");
   var grad = ctx.createRadialGradient(s/2, s/2, 0, s/2, s/2, s/2);
   grad.addColorStop(0, "rgba(255,255,255,1.0)");
-  grad.addColorStop(0.2, "rgba(255,255,255,0.8)");
-  grad.addColorStop(0.5, "rgba(200,210,255,0.3)");
-  grad.addColorStop(1.0, "rgba(150,170,255,0.0)");
+  grad.addColorStop(0.08, "rgba(255,255,255,0.95)");
+  grad.addColorStop(0.2, "rgba(255,255,255,0.5)");
+  grad.addColorStop(0.4, "rgba(200,220,255,0.15)");
+  grad.addColorStop(0.7, "rgba(150,180,255,0.03)");
+  grad.addColorStop(1.0, "rgba(100,130,255,0.0)");
   ctx.fillStyle = grad;
   ctx.fillRect(0, 0, s, s);
   var tex = new THREE.CanvasTexture(canvas);
@@ -1168,24 +1172,22 @@ StarField.prototype._createStarTexture = function() {
 };
 
 StarField.prototype._loadCatalog = function() {
-  // Fetch star catalog from server (compiled into bundle as string)
-  // Falls back to a minimal procedural set if fetch fails
   try {
     var url = window.location.origin + "/static/star-catalog.json";
     var xhr = new XMLHttpRequest();
-    xhr.open("GET", url, false); // synchronous for simplicity in init
+    xhr.open("GET", url, false);
     xhr.send();
     if (xhr.status === 200) {
       return JSON.parse(xhr.responseText);
     }
   } catch(e) {}
-  // Fallback: generate 500 procedural stars
+  // Fallback: generate 500 procedural stars with varied brightness
   var fallback = [];
   for (var i = 0; i < 500; i++) {
     fallback.push([
       Math.random() * 360,
       (Math.random() - 0.5) * 180,
-      2 + Math.random() * 3.5,
+      1 + Math.random() * 4.5,
       Math.floor(Math.random() * 7)
     ]);
   }
@@ -1194,113 +1196,111 @@ StarField.prototype._loadCatalog = function() {
 
 StarField.prototype.init = function(scene) {
   var catalog = this._loadCatalog();
-  var count = catalog.length;
+  var starTex = this._createStarTexture();
 
-  this._starGeo = new THREE.BufferGeometry();
-  var positions = new Float32Array(count * 3);
-  var colors = new Float32Array(count * 3);
-  var sizes = new Float32Array(count);
-  this._twinklePhases = new Float32Array(count);
-  this._baseSizes = new Float32Array(count);
-
-  var r = 480;
-
-  for (var i = 0; i < count; i++) {
-    var ra = catalog[i][0] * DEG2RAD;   // RA in radians
-    var dec = catalog[i][1] * DEG2RAD;  // Dec in radians
-    var mag = catalog[i][2];
-    var specIdx = catalog[i][3];
-
-    // RA/Dec → 3D position (equatorial → Cartesian)
-    // X = cos(Dec) * cos(RA), Y = sin(Dec), Z = cos(Dec) * sin(RA)
-    positions[i*3]   = r * Math.cos(dec) * Math.cos(ra);
-    positions[i*3+1] = r * Math.sin(dec);
-    positions[i*3+2] = r * Math.cos(dec) * Math.sin(ra);
-
-    // Spectral color from type index
-    var sc = _STAR_SPECTRAL_COLORS[_clamp(specIdx, 0, 6)];
-    colors[i*3]   = sc[0];
-    colors[i*3+1] = sc[1];
-    colors[i*3+2] = sc[2];
-
-    // Size from magnitude (brighter = larger): mag 0→5, mag 5.5→1
-    var baseSize = _lerp(5, 1, mag / 5.5);
-    // Constellation highlights: bright stars (mag < 2.5) get extra size boost
-    if (mag < 1.0) baseSize *= 2.0;       // Very bright: Sirius, Canopus, Vega, etc.
-    else if (mag < 2.0) baseSize *= 1.5;  // Bright: Polaris, Betelgeuse, etc.
-    else if (mag < 2.5) baseSize *= 1.25; // Notable constellation stars
-    sizes[i] = baseSize;
-    this._baseSizes[i] = baseSize;
-
-    this._twinklePhases[i] = Math.random() * TWO_PI;
+  // 7 shared SpriteMaterials (one per spectral class) — WebGPU renders
+  // Sprites as proper quads, unlike Points which are limited to 1px
+  this._starMats = [];
+  for (var s = 0; s < 7; s++) {
+    var sc = _STAR_SPECTRAL_COLORS[s];
+    this._starMats.push(new THREE.SpriteMaterial({
+      map: starTex,
+      color: new THREE.Color(sc[0], sc[1], sc[2]),
+      transparent: true,
+      opacity: 1.0,
+      depthWrite: false,
+      depthTest: false,
+      fog: false,
+      blending: THREE.AdditiveBlending,
+      toneMapped: false,
+    }));
   }
 
-  this._starGeo.setAttribute("position", new THREE.BufferAttribute(positions, 3));
-  this._starGeo.setAttribute("color", new THREE.BufferAttribute(colors, 3));
-  this._starGeo.setAttribute("size", new THREE.BufferAttribute(sizes, 1));
+  this._group = new THREE.Group();
+  this._group.name = "__swa_stars__";
+  this._group.renderOrder = -999;
+  this._group.frustumCulled = false;
 
-  // Use PointsMaterial with map texture — in WebGPU r183 this renders bigger than 1px
-  var starTex = this._createStarTexture();
-  this._starMat = new THREE.PointsMaterial({
-    map: starTex,
-    vertexColors: true,
-    size: 8,
-    transparent: true,
-    opacity: 1.0,
-    depthWrite: false,
-    depthTest: false,
-    sizeAttenuation: false,
-    blending: THREE.AdditiveBlending,
-    alphaTest: 0.01,
-  });
+  var r = 480;
+  this._starSprites = [];
+  this._twinklePhases = [];
+  this._baseSizes = [];
 
-  this._stars = new THREE.Points(this._starGeo, this._starMat);
-  this._stars.name = "__swa_stars__";
-  this._stars.renderOrder = -999;
-  this._stars.frustumCulled = false;
-  scene.add(this._stars);
+  for (var i = 0; i < catalog.length; i++) {
+    var ra = catalog[i][0] * DEG2RAD;
+    var dec = catalog[i][1] * DEG2RAD;
+    var mag = catalog[i][2];
+    var specIdx = _clamp(Math.floor(catalog[i][3] || 0), 0, 6);
 
-  console.log("[SkyWeatherAdvanced] Star catalog loaded: " + count + " stars");
+    var x = r * Math.cos(dec) * Math.cos(ra);
+    var y = r * Math.sin(dec);
+    var z = r * Math.cos(dec) * Math.sin(ra);
+
+    // Size from magnitude: brighter = bigger sprite
+    var baseSize = _lerp(7, 1.2, _clamp(mag / 5.5, 0, 1));
+    if (mag < 0.5) baseSize *= 3.5;       // Sirius, Canopus
+    else if (mag < 1.5) baseSize *= 2.5;   // Vega, Arcturus
+    else if (mag < 2.5) baseSize *= 1.8;   // Polaris, Betelgeuse
+    else if (mag < 3.5) baseSize *= 1.3;   // Notable stars
+
+    var sprite = new THREE.Sprite(this._starMats[specIdx]);
+    sprite.position.set(x, y, z);
+    sprite.scale.setScalar(baseSize);
+    this._group.add(sprite);
+
+    this._starSprites.push(sprite);
+    this._twinklePhases.push(Math.random() * TWO_PI);
+    this._baseSizes.push(baseSize);
+  }
+
+  scene.add(this._group);
+  console.log("[SkyWeatherAdvanced] Star sprites: " + catalog.length + " (WebGPU-compatible)");
 };
 
 StarField.prototype.update = function(sunAltDeg, camera, time, settings, solarTime) {
-  if (!this._stars) return;
+  if (!this._group) return;
 
-  // Stars visible at night — start fading in at sunset (0°), fully visible by -12°
   var starIntensity = settings.starIntensity || 1.0;
   var nightFactor = _smoothstep(0, -12, sunAltDeg);
-  this._stars.visible = nightFactor > 0.01;
+  this._group.visible = nightFactor > 0.01;
 
-  if (this._stars.visible && this._starGeo) {
-    this._starMat.opacity = nightFactor * starIntensity;
+  if (this._group.visible) {
+    // Modulate all 7 spectral materials at once
+    var opacity = nightFactor * starIntensity;
+    for (var m = 0; m < this._starMats.length; m++) {
+      this._starMats[m].opacity = opacity;
+    }
 
-    // Twinkle animation using base sizes from magnitude
-    var sizes = this._starGeo.getAttribute("size");
-    if (sizes && this._baseSizes) {
-      var sArr = sizes.array;
-      for (var i = 0; i < sArr.length; i++) {
-        sArr[i] = this._baseSizes[i] * (0.7 + 0.3 * Math.sin(time * 2.5 + this._twinklePhases[i]));
+    // Twinkle every 3rd frame to reduce overhead with many sprites
+    this._twinkleFrame++;
+    if (this._twinkleFrame % 3 === 0) {
+      for (var i = 0; i < this._starSprites.length; i++) {
+        var twinkle = 0.75 + 0.25 * Math.sin(time * 2.0 + this._twinklePhases[i]);
+        this._starSprites[i].scale.setScalar(this._baseSizes[i] * twinkle);
       }
-      sizes.needsUpdate = true;
     }
   }
 
   // Sidereal rotation
-  if (this._stars) {
-    var siderealAngle = ((solarTime || 0) * 360 * 1.00274) * DEG2RAD;
-    this._stars.rotation.y = siderealAngle;
-  }
+  var siderealAngle = ((solarTime || 0) * 360 * 1.00274) * DEG2RAD;
+  this._group.rotation.y = siderealAngle;
 
   // Follow camera
   if (camera) {
-    this._stars.position.copy(camera.position);
+    this._group.position.copy(camera.position);
   }
 };
 
 StarField.prototype.dispose = function(scene) {
-  if (this._stars) scene.remove(this._stars);
-  if (this._starGeo) this._starGeo.dispose();
-  if (this._starMat) this._starMat.dispose();
+  if (this._group) scene.remove(this._group);
+  if (this._starMats) {
+    for (var i = 0; i < this._starMats.length; i++) {
+      this._starMats[i].dispose();
+    }
+  }
+  this._group = null;
+  this._starSprites = null;
+  this._starMats = null;
 };
 
 
@@ -1749,25 +1749,25 @@ CloudSystem.prototype.updateTexture = function(atmosphere) {
 
       // Layer 1: Cumulus — large puffy formations (Tenkoku-like thick clouds)
       var n1 = this._fbm2(nx * 0.7 + windX, ny * 0.7 + windY);
-      var c1 = _clamp(n1 + coverage * 1.8 - 0.45, 0, 1);
-      // Cumulus lives in the mid-altitude band — wider range for more visibility
-      var fade1 = _smoothstep(0.03, 0.2, v) * _smoothstep(0.9, 0.45, v);
+      var c1 = _clamp(n1 + coverage * 2.5 - 0.3, 0, 1);
+      // Cumulus lives in the mid-altitude band — wide range for max visibility
+      var fade1 = _smoothstep(0.03, 0.15, v) * _smoothstep(0.92, 0.4, v);
       c1 *= fade1;
 
-      // Layer 2: Altocumulus — medium patches with more presence
+      // Layer 2: Altocumulus — medium patches, strong presence
       var n2 = this._fbm2(nx * 1.4 + windX * 1.3 + 50, ny * 1.4 + windY * 0.7 + 50);
-      var c2 = _clamp(n2 + coverage * 1.4 - 0.35, 0, 1) * 0.55;
-      var fade2 = _smoothstep(0.08, 0.25, v) * _smoothstep(0.92, 0.5, v);
+      var c2 = _clamp(n2 + coverage * 1.8 - 0.25, 0, 1) * 0.6;
+      var fade2 = _smoothstep(0.06, 0.2, v) * _smoothstep(0.94, 0.45, v);
       c2 *= fade2;
 
-      // Layer 3: Cirrus — thin wispy high-altitude streaks (Tenkoku reference shows these)
+      // Layer 3: Cirrus — wispy high-altitude streaks (visible in Tenkoku reference)
       var n3 = this._fbm2(nx * 3.5 + windX * 0.6 + 120, ny * 1.0 + windY * 0.4 + 120);
-      var c3 = _clamp(n3 + coverage * 1.0 - 0.3, 0, 1) * 0.25;
-      var fade3 = _smoothstep(0.0, 0.1, v) * _smoothstep(0.5, 0.25, v);
+      var c3 = _clamp(n3 + coverage * 1.3 - 0.2, 0, 1) * 0.35;
+      var fade3 = _smoothstep(0.0, 0.08, v) * _smoothstep(0.55, 0.2, v);
       c3 *= fade3;
 
-      // Combined density — higher power for more contrast between clear and cloudy
-      var d = _clamp(Math.pow((c1 + c2 + c3) * density, 0.65), 0, 1);
+      // Combined density — sharper contrast between clear sky and cloud cores
+      var d = _clamp(Math.pow((c1 + c2 + c3) * density, 0.5), 0, 1);
       if (d < 0.015) continue;
 
       hasCloud = true;
@@ -1785,8 +1785,8 @@ CloudSystem.prototype.updateTexture = function(atmosphere) {
       var g = _clamp(baseG * lightMul / 255, 0, 1);
       var b = _clamp(baseB * lightMul / 255, 0, 1);
 
-      // Alpha: high opacity for clearly visible cloud formations (Tenkoku reference)
-      var alpha = _clamp(d * 12.0, 0, 0.95) * altFade;
+      // Alpha: high opacity for dense, clearly visible clouds (Tenkoku reference)
+      var alpha = _clamp(d * 25.0, 0, 1.0) * altFade;
 
       pix[idx]     = Math.round(r * 255);
       pix[idx + 1] = Math.round(g * 255);
@@ -1937,7 +1937,7 @@ MoonRenderer.prototype.build = function(scene) {
 MoonRenderer.prototype.update = function(camera, moonDir, sunDir, moonPhase, sunAltDeg, settings) {
   if (!this._mesh) return;
 
-  this._size = (settings.moonDiskSize || 0.022) * 1800; // larger moon like Tenkoku
+  this._size = (settings.moonDiskSize || 0.022) * 2800; // very prominent moon like Tenkoku
   this._brightness = settings.moonBrightness || 1.0;
 
   // Position moon in the sky
