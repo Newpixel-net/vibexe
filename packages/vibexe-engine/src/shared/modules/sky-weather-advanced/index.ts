@@ -2542,11 +2542,15 @@ function SkyWeatherAdvancedSystem(scene, settings) {
   this.atmosphere.setSunDirection(this.orbital.sunDirection);
 
   // Set scene background to zenith sky color for base sky visibility
-  // Vertex-color dome provides gradient; scene.background provides fallback
+  // _computeSkyColor returns sRGB-gamma values; THREE.Color needs linear for correct display
   this._origBg = this.scene ? this.scene.background : null;
   var zenithColor = this.atmosphere._computeSkyColor([0, 1, 0]);
   if (this.scene) {
-    this.scene.background = new THREE.Color(zenithColor[0], zenithColor[1], zenithColor[2]);
+    // Convert sRGB-gamma to linear: linear = pow(srgb, 2.2)
+    var lr = Math.pow(zenithColor[0], 2.2);
+    var lg = Math.pow(zenithColor[1], 2.2);
+    var lb = Math.pow(zenithColor[2], 2.2);
+    this.scene.background = new THREE.Color(lr, lg, lb);
   }
 
   // Initialize cloud coverage + render immediately
@@ -2706,11 +2710,15 @@ SkyWeatherAdvancedSystem.prototype._tick = function(dt) {
     this.atmosphere._sunIntensity = skySettings.sunIntensity || 22.0;
     this.atmosphere.setSunDirection(this.orbital.sunDirection);
 
-    // Sync scene background to sky zenith color
+    // Sync scene background to sky zenith color (convert sRGB-gamma → linear)
     var zenithColor = this.atmosphere._computeSkyColor([0, 1, 0]);
     if (this.scene) {
       if (!this.scene.background) this.scene.background = new THREE.Color();
-      this.scene.background.setRGB(zenithColor[0], zenithColor[1], zenithColor[2]);
+      this.scene.background.setRGB(
+        Math.pow(zenithColor[0], 2.2),
+        Math.pow(zenithColor[1], 2.2),
+        Math.pow(zenithColor[2], 2.2)
+      );
     }
 
     // Overcast reduces exposure
