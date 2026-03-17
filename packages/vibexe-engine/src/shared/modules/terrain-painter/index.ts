@@ -877,6 +877,29 @@ TerrainGenerator.prototype.generate = function() {
   });
 
   console.log("[TerrainGenerator] Generated:", pos.count, "vertices, height range:", minY.toFixed(1), "-", maxY.toFixed(1));
+
+  // Deferred ground plane hiding — catches planes added after terrain generation
+  var _tScene = this.scene;
+  var _tMesh = mesh;
+  var _hideGroundPlanes = function() {
+    _tScene.traverse(function(child) {
+      if (!child.isMesh || child === _tMesh) return;
+      if (child.name && child.name.indexOf("__") === 0) return;
+      if (child.geometry && child.geometry.type === "PlaneGeometry" &&
+          Math.abs(child.rotation.x + Math.PI / 2) < 0.1 &&
+          Math.abs(child.position.y) < 1.0) {
+        var p = child.geometry.parameters || {};
+        if ((p.width >= 50 || p.height >= 50) && child.visible) {
+          child.visible = false;
+          console.log("[TerrainPainter] Hid ground plane: " + (p.width||0) + "x" + (p.height||0));
+        }
+      }
+    });
+  };
+  setTimeout(_hideGroundPlanes, 1000);
+  setTimeout(_hideGroundPlanes, 3000);
+  setTimeout(_hideGroundPlanes, 5000);
+
   return mesh;
 };
 

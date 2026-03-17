@@ -456,7 +456,7 @@ AtmosphereRenderer.prototype._computeSkyColor = function(viewDir) {
   }
 
   // Tone mapping (Reinhard)
-  var exposure = this._exposure * 0.7;
+  var exposure = this._exposure * 0.15;
   r = 1 - Math.exp(-r * exposure);
   gn = 1 - Math.exp(-gn * exposure);
   b = 1 - Math.exp(-b * exposure);
@@ -475,6 +475,13 @@ AtmosphereRenderer.prototype._computeSkyColor = function(viewDir) {
   r += warmth * 1.0;  // add warm orange
   gn += warmth * 0.5;
   b += warmth * 0.1;
+
+  // Boost saturation to make blue more vivid
+  var luma = r * 0.299 + gn * 0.587 + b * 0.114;
+  var satBoost = 1.4;
+  r = luma + (r - luma) * satBoost;
+  gn = luma + (gn - luma) * satBoost;
+  b = luma + (b - luma) * satBoost;
 
   // Night floor: minimum sky brightness
   var nightFloor = 0.02;
@@ -2526,6 +2533,13 @@ function SkyWeatherAdvancedSystem(scene, settings) {
   this.atmosphere._mieG = (this.settings.sky || {}).mieDirectionalG || 0.76;
   this.atmosphere.setSunDirection(this.orbital.sunDirection);
 
+  // Sync scene background to sky zenith color on init
+  var zenithColor = this.atmosphere._computeSkyColor([0, 1, 0]);
+  if (this.scene) {
+    if (!this.scene.background) this.scene.background = new THREE.Color();
+    this.scene.background.setRGB(zenithColor[0], zenithColor[1], zenithColor[2]);
+  }
+
   // Initialize cloud coverage + render immediately
   var cs = this.settings.clouds || {};
   this.clouds._coverage = cs.coverage != null ? cs.coverage : 0.35;
@@ -2677,6 +2691,13 @@ SkyWeatherAdvancedSystem.prototype._tick = function(dt) {
     this.atmosphere._rayleighScale = skySettings.rayleighScale || 1.0;
     this.atmosphere._sunIntensity = skySettings.sunIntensity || 22.0;
     this.atmosphere.setSunDirection(this.orbital.sunDirection);
+
+    // Sync scene background to sky zenith color
+    var zenithColor = this.atmosphere._computeSkyColor([0, 1, 0]);
+    if (this.scene) {
+      if (!this.scene.background) this.scene.background = new THREE.Color();
+      this.scene.background.setRGB(zenithColor[0], zenithColor[1], zenithColor[2]);
+    }
 
     // Overcast reduces exposure
     var overcastAmt = (this.settings.clouds || {}).coverage || 0;
