@@ -558,6 +558,12 @@ AtmosphereRenderer.prototype.followCamera = function(camera) {
   }
 };
 
+// Get horizon color for fog integration — samples sky at horizon level
+AtmosphereRenderer.prototype.getHorizonColor = function() {
+  // Sample the sky color looking toward the horizon (y=0, z=-1)
+  return this._computeSkyColor([0, 0.02, -1]);
+};
+
 AtmosphereRenderer.prototype.dispose = function() {
   if (this.dome && this.dome.parent) {
     this.dome.parent.remove(this.dome);
@@ -733,30 +739,30 @@ SkyLightingController.prototype.update = function(sunDir, sunAltDeg, settings) {
   var autoAmbient = settings.autoAmbient !== false;
 
   if (autoSun) {
-    // Sun direction
-    this.sunLight.position.set(sunDir.x * 100, sunDir.y * 100, sunDir.z * 100);
-
     // Sun intensity based on altitude
     var altNorm = _clamp(sunAltDeg / 90, -1, 1);
     var dayIntensity = settings.sunIntensity || 1.5;
 
     if (altNorm > 0.05) {
-      // Day: full intensity
+      // Day: full intensity, position from sun direction
       this.sunLight.intensity = dayIntensity * _smoothstep(0.05, 0.2, altNorm);
+      this.sunLight.position.set(sunDir.x * 100, sunDir.y * 100, sunDir.z * 100);
     } else if (altNorm > -0.1) {
-      // Twilight: fade
+      // Twilight: fade from sun to moonlight
       this.sunLight.intensity = dayIntensity * _smoothstep(-0.1, 0.05, altNorm) * 0.3;
+      this.sunLight.position.set(sunDir.x * 100, sunDir.y * 100, sunDir.z * 100);
     } else {
-      // Night
-      this.sunLight.intensity = 0;
+      // Night: dim moonlight from above — enough to see terrain/objects
+      this.sunLight.intensity = 0.08;
+      this.sunLight.position.set(20, 80, 20);
     }
 
     // Sun color temperature
     if (altNorm > 0.15) {
-      // High sun: warm white
+      // High sun (>13.5°): warm white
       this.sunLight.color.setRGB(1.0, 0.96, 0.92);
     } else if (altNorm > 0) {
-      // Low sun: orange-gold
+      // Low sun (0°-13.5°): orange-gold
       var warmT = _smoothstep(0, 0.15, altNorm);
       this.sunLight.color.setRGB(
         _lerp(1.0, 1.0, warmT),
@@ -764,8 +770,8 @@ SkyLightingController.prototype.update = function(sunDir, sunAltDeg, settings) {
         _lerp(0.3, 0.92, warmT)
       );
     } else {
-      // Below horizon: dim blue
-      this.sunLight.color.setRGB(0.4, 0.5, 0.7);
+      // Below horizon: cool blue moonlight
+      this.sunLight.color.setRGB(0.3, 0.35, 0.55);
     }
   }
 
@@ -1121,7 +1127,7 @@ StarField.prototype.init = function(scene) {
 
   this._starMat = new THREE.PointsMaterial({
     vertexColors: true,
-    size: 3,
+    size: 4,
     transparent: true,
     opacity: 1.0,
     depthWrite: false,
@@ -1141,9 +1147,9 @@ StarField.prototype.init = function(scene) {
 StarField.prototype.update = function(sunAltDeg, camera, time, settings, solarTime) {
   if (!this._stars) return;
 
-  // Stars visible only at night (sun below -6° civil twilight)
+  // Stars visible at night — start fading in at sunset (0°), fully visible by -12°
   var starIntensity = settings.starIntensity || 1.0;
-  var nightFactor = _smoothstep(-6, -18, sunAltDeg);
+  var nightFactor = _smoothstep(0, -12, sunAltDeg);
   this._stars.visible = nightFactor > 0.01;
 
   if (this._stars.visible) {
@@ -2391,7 +2397,7 @@ function FogController() {
   this._active = false;
 }
 
-FogController.prototype.update = function(scene, sunAltDeg, settings) {
+FogController.prototype.update = function(scene, sunAltDeg, settings, skyHorizonColor) {
   if (!settings.enabled) {
     if (this._active && this._originalFog !== undefined) {
       scene.fog = this._originalFog;
@@ -2427,29 +2433,28 @@ FogController.prototype.update = function(scene, sunAltDeg, settings) {
     scene.fog.density = density;
   }
 
-  // Auto fog color from sky (Tenkoku-style horizon color matching)
+  // Auto fog color: prefer sky horizon color from atmosphere, fall back to sun-altitude heuristic
   if (settings.autoColor !== false) {
-    var altNorm = _clamp(sunAltDeg / 90, -1, 1);
-    if (altNorm > 0.1) {
-      // Day: light blue-white
-      scene.fog.color.setRGB(0.7, 0.8, 0.9);
-    } else if (altNorm > -0.05) {
-      // Sunset: warm orange-pink
-      var t = _smoothstep(-0.05, 0.1, altNorm);
-      scene.fog.color.setRGB(
-        _lerp(0.4, 0.7, t),
-        _lerp(0.25, 0.8, t),
-        _lerp(0.15, 0.9, t)
-      );
+    if (skyHorizonColor && skyHorizonColor.length >= 3) {
+      scene.fog.color.setRGB(skyHorizonColor[0], skyHorizonColor[1], skyHorizonColor[2]);
     } else {
-      // Night: dark blue
-      scene.fog.color.setRGB(0.05, 0.05, 0.12);
+      var altNorm = _clamp(sunAltDeg / 90, -1, 1);
+      if (altNorm > 0.1) {
+        // Day: light blue-white
+        scene.fog.color.setRGB(0.7, 0.8, 0.9);
+      } else if (altNorm > -0.05) {
+        // Sunset: warm orange-pink
+        var t = _smoothstep(-0.05, 0.1, altNorm);
+        scene.fog.color.setRGB(
+          _lerp(0.4, 0.7, t),
+          _lerp(0.25, 0.8, t),
+          _lerp(0.15, 0.9, t)
+        );
+      } else {
+        // Night: dark blue
+        scene.fog.color.setRGB(0.05, 0.05, 0.12);
+      }
     }
-  }
-
-  // Also update scene background color to match fog for seamless blending
-  if (settings.autoColor !== false && scene.fog) {
-    scene.background = scene.fog.color;
   }
 };
 
@@ -2759,8 +2764,9 @@ SkyWeatherAdvancedSystem.prototype._tick = function(dt) {
     sunAltDeg
   );
 
-  // Fog
-  this.fog.update(this.scene, sunAltDeg, this.settings.fog || {});
+  // Fog — pass sky horizon color for accurate color matching
+  var horizonColor = this.atmosphere.getHorizonColor();
+  this.fog.update(this.scene, sunAltDeg, this.settings.fog || {}, horizonColor);
 
   // Sun Shafts (god rays)
   this.sunShafts.update(camera, this.orbital.sunDirection, sunAltDeg, this.settings.effects || {});
