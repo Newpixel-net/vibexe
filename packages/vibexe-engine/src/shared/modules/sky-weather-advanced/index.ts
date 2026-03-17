@@ -1075,7 +1075,7 @@ WeatherParticles.prototype.update = function(dt, camera, settings) {
   var precipType = settings.type || "none";
   var intensity = settings.intensity || 0;
   this._windDir = (settings.windDirection || 0) * DEG2RAD;
-  this._windStrength = settings.windStrength || 0.3;
+  this._windStrength = settings.windStrength != null ? settings.windStrength : 0.3;
 
   this._rain.visible = precipType === "rain" && intensity > 0;
   this._snow.visible = precipType === "snow" && intensity > 0;
@@ -2123,7 +2123,7 @@ AuroraRenderer.prototype.update = function(dt, camera, latitude, sunAltDeg, sett
 
   var auroraIntensity = settings.aurora || 0;
   // Aurora only visible at high latitudes, clear night
-  var latAbs = Math.abs(latitude || 45);
+  var latAbs = Math.abs(latitude != null ? latitude : 45);
   var nightFac = sunAltDeg < -12 ? 1 : (sunAltDeg < -6 ? _smoothstep(-6, -12, sunAltDeg) : 0);
   var latFac = latAbs > 55 ? 1 : (latAbs > 45 ? _smoothstep(45, 55, latAbs) : 0);
 
@@ -2246,7 +2246,7 @@ WeatherStateMachine.prototype.update = function(dt, settings) {
 
   // Temperature-based precipitation type: below 0°C → snow, above → rain
   // Simplified: use latitude as temperature proxy (higher lat = colder)
-  var latitude = Math.abs(settings.latitude || 45);
+  var latitude = Math.abs(settings.latitude != null ? settings.latitude : 45);
   if (this.precipType === "rain" && latitude > 55) {
     this.precipType = "snow"; // cold enough for snow at high latitudes
   }
@@ -2526,7 +2526,7 @@ WeatherAudio.prototype._ensureContext = function() {
 
 WeatherAudio.prototype.update = function(precipType, precipIntensity, windStrength, settings, sunAltDeg) {
   this._enabled = settings.ambientAudio || false;
-  this._volume = settings.audioVolume || 0.5;
+  this._volume = settings.audioVolume != null ? settings.audioVolume : 0.5;
 
   if (!this._enabled) {
     // Smooth fade out (not abrupt cut)
@@ -3110,11 +3110,13 @@ SkyWeatherAdvancedSystem.prototype._tick = function(dt) {
   this.lightning.update(dt, camera, this.settings.lightning || {});
 
   // Aurora
-  this.aurora.update(dt, camera, (this.settings.time || {}).latitude || 45, sunAltDeg, this.settings.effects || {});
+  var _lat = (this.settings.time || {}).latitude;
+  _lat = _lat != null ? _lat : 45;
+  this.aurora.update(dt, camera, _lat, sunAltDeg, this.settings.effects || {});
 
   // Weather state machine (auto-forecast drives clouds, precipitation, lightning)
   var weatherSettings = this.settings.weather || {};
-  weatherSettings.latitude = (this.settings.time || {}).latitude || 45;
+  weatherSettings.latitude = _lat;
   this.weather.update(dt, weatherSettings);
 
   // Apply weather state to subsystems if auto-forecast is active
