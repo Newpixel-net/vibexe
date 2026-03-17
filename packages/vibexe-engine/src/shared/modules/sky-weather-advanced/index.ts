@@ -706,12 +706,19 @@ SunDiskRenderer.prototype.build = function(scene) {
 SunDiskRenderer.prototype.update = function(camera, sunDir, sunAltDeg, settings) {
   if (!this._group) return;
 
-  // Position sun disk far away in sun direction (inside camera.far)
+  // Position sun disk — clamp altitude so sun is visible from default orbit camera
+  // Real orbital direction for lighting, but rendering capped at ~40° elevation
+  // so the disk+glow appear near the top of the viewport instead of above it
   var dist = 450;
+  var renderY = sunDir.y;
+  if (renderY > 0.64) renderY = 0.64; // cap at sin(40°) ≈ 0.64
+  var renderXZ = Math.sqrt(sunDir.x * sunDir.x + sunDir.z * sunDir.z) || 0.001;
+  var targetXZ = Math.sqrt(1 - renderY * renderY);
+  var xzScale = targetXZ / renderXZ;
   this._group.position.set(
-    camera.position.x + sunDir.x * dist,
-    camera.position.y + sunDir.y * dist,
-    camera.position.z + sunDir.z * dist
+    camera.position.x + sunDir.x * xzScale * dist,
+    camera.position.y + renderY * dist,
+    camera.position.z + sunDir.z * xzScale * dist
   );
 
   // Billboard: always face camera
@@ -1940,13 +1947,18 @@ MoonRenderer.prototype.update = function(camera, moonDir, sunDir, moonPhase, sun
   this._size = (settings.moonDiskSize || 0.022) * 2800; // very prominent moon like Tenkoku
   this._brightness = settings.moonBrightness || 1.0;
 
-  // Position moon in the sky
+  // Position moon — clamp altitude so it's visible from default orbit camera
   var dist = 470;
+  var moonRenderY = moonDir.y;
+  if (moonRenderY > 0.64) moonRenderY = 0.64; // cap at ~40° elevation
+  var moonXZ = Math.sqrt(moonDir.x * moonDir.x + moonDir.z * moonDir.z) || 0.001;
+  var moonTargetXZ = Math.sqrt(1 - moonRenderY * moonRenderY);
+  var moonXZScale = moonTargetXZ / moonXZ;
   if (camera) {
     this._mesh.position.set(
-      camera.position.x + moonDir.x * dist,
-      camera.position.y + moonDir.y * dist,
-      camera.position.z + moonDir.z * dist
+      camera.position.x + moonDir.x * moonXZScale * dist,
+      camera.position.y + moonRenderY * dist,
+      camera.position.z + moonDir.z * moonXZScale * dist
     );
   }
   this._mesh.scale.setScalar(this._size);
@@ -2385,9 +2397,9 @@ function MilkyWayAndPlanets() {
   this._milkyWay = null;
   this._milkyGeo = null;
   this._milkyMat = null;
-  this._planets = null;
-  this._planetGeo = null;
-  this._planetMat = null;
+  this._planetGroup = null;
+  this._planetSprites = null;
+  this._planetMats = null;
 }
 
 MilkyWayAndPlanets.prototype.init = function(scene) {
@@ -2449,52 +2461,51 @@ MilkyWayAndPlanets.prototype.init = function(scene) {
   this._milkyWay.visible = false;
   scene.add(this._milkyWay);
 
-  // Planets: Mercury, Venus, Mars, Jupiter, Saturn (5 bright planets)
-  var planetCount = 5;
-  this._planetGeo = new THREE.BufferGeometry();
-  var pPos = new Float32Array(planetCount * 3);
-  var pCol = new Float32Array(planetCount * 3);
-  var pSize = new Float32Array(planetCount);
-
-  // Planet colors [R,G,B] and base sizes
+  // Planets: 5 bright planets as Sprites (WebGPU renders Sprites properly, not Points)
   var planetData = [
-    { name: "Mercury", color: [0.7, 0.7, 0.7], size: 3 },
-    { name: "Venus",   color: [1.0, 0.95, 0.8], size: 5 },
-    { name: "Mars",    color: [1.0, 0.5, 0.3], size: 4 },
-    { name: "Jupiter", color: [0.9, 0.85, 0.7], size: 4.5 },
-    { name: "Saturn",  color: [0.95, 0.9, 0.6], size: 3.5 },
+    { name: "Mercury", color: [0.7, 0.7, 0.7], size: 5 },
+    { name: "Venus",   color: [1.0, 0.95, 0.8], size: 8 },
+    { name: "Mars",    color: [1.0, 0.5, 0.3], size: 6 },
+    { name: "Jupiter", color: [0.9, 0.85, 0.7], size: 7 },
+    { name: "Saturn",  color: [0.95, 0.9, 0.6], size: 5.5 },
   ];
 
-  for (var j = 0; j < planetCount; j++) {
-    // Initial positions (will be updated by orbital calc)
-    pPos[j*3] = 0; pPos[j*3+1] = -1000; pPos[j*3+2] = 0;
-    pCol[j*3] = planetData[j].color[0];
-    pCol[j*3+1] = planetData[j].color[1];
-    pCol[j*3+2] = planetData[j].color[2];
-    pSize[j] = planetData[j].size;
+  var pCanvas = document.createElement("canvas");
+  pCanvas.width = 32; pCanvas.height = 32;
+  var pCtx = pCanvas.getContext("2d");
+  var pGrad = pCtx.createRadialGradient(16, 16, 0, 16, 16, 16);
+  pGrad.addColorStop(0, "rgba(255,255,255,1.0)");
+  pGrad.addColorStop(0.12, "rgba(255,255,255,0.9)");
+  pGrad.addColorStop(0.35, "rgba(255,255,255,0.3)");
+  pGrad.addColorStop(1.0, "rgba(255,255,255,0.0)");
+  pCtx.fillStyle = pGrad;
+  pCtx.fillRect(0, 0, 32, 32);
+  var planetTex = new THREE.CanvasTexture(pCanvas);
+
+  this._planetSprites = [];
+  this._planetMats = [];
+  this._planetGroup = new THREE.Group();
+  this._planetGroup.name = "__swa_planets__";
+  this._planetGroup.renderOrder = -998;
+  this._planetGroup.frustumCulled = false;
+  this._planetGroup.visible = false;
+
+  for (var j = 0; j < planetData.length; j++) {
+    var pm = new THREE.SpriteMaterial({
+      map: planetTex,
+      color: new THREE.Color(planetData[j].color[0], planetData[j].color[1], planetData[j].color[2]),
+      transparent: true, opacity: 0.8,
+      depthWrite: false, depthTest: false, fog: false,
+      blending: THREE.AdditiveBlending, toneMapped: false,
+    });
+    var ps = new THREE.Sprite(pm);
+    ps.scale.setScalar(planetData[j].size);
+    ps.position.set(0, -1000, 0);
+    this._planetGroup.add(ps);
+    this._planetSprites.push(ps);
+    this._planetMats.push(pm);
   }
-
-  this._planetGeo.setAttribute("position", new THREE.BufferAttribute(pPos, 3));
-  this._planetGeo.setAttribute("color", new THREE.BufferAttribute(pCol, 3));
-
-  this._planetMat = new THREE.PointsMaterial({
-    vertexColors: true,
-    size: 4,
-    transparent: true,
-    opacity: 0.8,
-    depthWrite: false,
-    depthTest: false,
-    sizeAttenuation: false,
-    blending: THREE.AdditiveBlending,
-  });
-
-  this._planets = new THREE.Points(this._planetGeo, this._planetMat);
-  this._planets.name = "__swa_planets__";
-  this._planets.renderOrder = -998;
-  this._planets.frustumCulled = false;
-  this._planets.visible = false;
-  scene.add(this._planets);
-
+  scene.add(this._planetGroup);
   this._planetData = planetData;
 };
 
@@ -2512,39 +2523,42 @@ MilkyWayAndPlanets.prototype.update = function(sunAltDeg, camera, time, dayNumbe
     }
   }
 
-  // Planets: simplified position based on day number
-  if (this._planets) {
-    this._planets.visible = nightFac > 0.05 && planetIntensity > 0.01;
-    if (this._planets.visible) {
-      this._planetMat.opacity = nightFac * 0.8 * planetIntensity;
-
-      var pPos = this._planetGeo.getAttribute("position");
-      var arr = pPos.array;
-      // Simplified planet positions (circular orbits, different periods)
-      var periods = [87.97, 224.7, 687.0, 4332.6, 10759.2]; // days
-      var dist = 460;
-
-      for (var i = 0; i < 5; i++) {
-        var angle = ((dayNumber || 0) / periods[i]) * TWO_PI + i * 1.2;
-        var elev = 0.2 + Math.sin(angle * 0.3 + i) * 0.3; // vary altitude
-        arr[i*3]   = Math.cos(angle) * dist * Math.cos(elev);
-        arr[i*3+1] = Math.sin(elev) * dist;
-        arr[i*3+2] = Math.sin(angle) * dist * Math.cos(elev);
+  // Planets: sprite-based rendering (WebGPU-compatible)
+  if (this._planetGroup) {
+    this._planetGroup.visible = nightFac > 0.05 && planetIntensity > 0.01;
+    if (this._planetGroup.visible) {
+      var pOpacity = nightFac * 0.8 * planetIntensity;
+      for (var pm = 0; pm < this._planetMats.length; pm++) {
+        this._planetMats[pm].opacity = pOpacity;
       }
-      pPos.needsUpdate = true;
 
-      if (camera) this._planets.position.copy(camera.position);
+      var periods = [87.97, 224.7, 687.0, 4332.6, 10759.2];
+      var dist = 460;
+      for (var pi = 0; pi < this._planetSprites.length; pi++) {
+        var angle = ((dayNumber || 0) / periods[pi]) * TWO_PI + pi * 1.2;
+        var elev = 0.2 + Math.sin(angle * 0.3 + pi) * 0.3;
+        this._planetSprites[pi].position.set(
+          Math.cos(angle) * dist * Math.cos(elev),
+          Math.sin(elev) * dist,
+          Math.sin(angle) * dist * Math.cos(elev)
+        );
+      }
+
+      if (camera) this._planetGroup.position.copy(camera.position);
     }
   }
 };
 
 MilkyWayAndPlanets.prototype.dispose = function(scene) {
   if (this._milkyWay) scene.remove(this._milkyWay);
-  if (this._planets) scene.remove(this._planets);
+  if (this._planetGroup) scene.remove(this._planetGroup);
   if (this._milkyGeo) this._milkyGeo.dispose();
   if (this._milkyMat) this._milkyMat.dispose();
-  if (this._planetGeo) this._planetGeo.dispose();
-  if (this._planetMat) this._planetMat.dispose();
+  if (this._planetMats) {
+    for (var i = 0; i < this._planetMats.length; i++) {
+      this._planetMats[i].dispose();
+    }
+  }
 };
 
 
