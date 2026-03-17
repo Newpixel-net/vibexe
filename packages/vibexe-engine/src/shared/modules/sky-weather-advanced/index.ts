@@ -470,41 +470,39 @@ AtmosphereRenderer.prototype._computeSkyColor = function(viewDir) {
 
   // Tone mapping (Reinhard exponential)
   // Raw HDR scattering values are small (~0.1-0.5), need strong exposure
+  // NOTE: No gamma correction here — Three.js WebGPU renderer converts
+  // linear vertex colors to sRGB on output (outputColorSpace="srgb").
+  // Adding manual gamma causes double-gamma = washed-out pale sky.
   var exposure = this._exposure * 2.5;
   r = 1 - Math.exp(-r * exposure);
   gn = 1 - Math.exp(-gn * exposure);
   b = 1 - Math.exp(-b * exposure);
 
-  // Gamma correction (linear → sRGB)
-  var invGamma = 1.0 / 2.2;
-  r = Math.pow(_clamp(r, 0, 1), invGamma);
-  gn = Math.pow(_clamp(gn, 0, 1), invGamma);
-  b = Math.pow(_clamp(b, 0, 1), invGamma);
-
   // Inscatter haze — subtle pale blue-white at the very horizon (atmospheric perspective)
+  // Values in linear space (lower than sRGB equivalents)
   var horizonFac = 1.0 - Math.abs(viewDir[1]); // 1 at horizon, 0 at zenith
   var hazeFac = horizonFac * horizonFac * horizonFac * 0.15; // cubic, gentle 15% max
-  r = _lerp(r, 0.82, hazeFac);
-  gn = _lerp(gn, 0.85, hazeFac);
-  b = _lerp(b, 0.90, hazeFac);
+  r = _lerp(r, 0.65, hazeFac);
+  gn = _lerp(gn, 0.70, hazeFac);
+  b = _lerp(b, 0.78, hazeFac);
 
   // Horizon warmth — warm up the sky near the horizon (Tenkoku golden glow)
   horizonFac = horizonFac * horizonFac * horizonFac; // cubic falloff — concentrated at horizon
   var sunHorizFac = Math.max(0, 1.0 - Math.abs(sunDir[1]) * 2.5); // strongest when sun is near horizon
-  var warmth = horizonFac * sunHorizFac * 0.45;
+  var warmth = horizonFac * sunHorizFac * 0.35;
   r += warmth * 1.0;  // add warm orange
-  gn += warmth * 0.55;
-  b += warmth * 0.12;
+  gn += warmth * 0.4;
+  b += warmth * 0.05;
 
   // Sun-facing horizon glow — extra warmth on the side where the sun is
   var viewSunDot = rd[0]*sunDir[0] + rd[2]*sunDir[2]; // XZ plane dot (horizontal alignment)
-  var sunGlow = _clamp(viewSunDot, 0, 1) * horizonFac * sunHorizFac * 0.2;
+  var sunGlow = _clamp(viewSunDot, 0, 1) * horizonFac * sunHorizFac * 0.15;
   r += sunGlow * 1.0;
-  gn += sunGlow * 0.4;
+  gn += sunGlow * 0.3;
 
   // Boost saturation to make blue more vivid (Tenkoku-style deep blue zenith)
   var luma = r * 0.299 + gn * 0.587 + b * 0.114;
-  var satBoost = 1.6;
+  var satBoost = 1.4;
   r = luma + (r - luma) * satBoost;
   gn = luma + (gn - luma) * satBoost;
   b = luma + (b - luma) * satBoost;
@@ -512,13 +510,13 @@ AtmosphereRenderer.prototype._computeSkyColor = function(viewDir) {
   // Tenkoku-style deeper blue at zenith (blue channel push for overhead sky)
   var zenithFac = _clamp(viewDir[1], 0, 1);
   zenithFac = zenithFac * zenithFac; // quadratic: strongest directly overhead
-  b += zenithFac * 0.06; // gentle blue push at zenith
-  r -= zenithFac * 0.03; // reduce red at zenith for cooler sky
+  b += zenithFac * 0.04; // gentle blue push at zenith
+  r -= zenithFac * 0.02; // reduce red at zenith for cooler sky
 
-  // Night floor: minimum sky brightness
-  var nightFloor = 0.02;
-  r = Math.max(r, nightFloor * 0.9);
-  gn = Math.max(gn, nightFloor * 0.7);
+  // Night floor: minimum sky brightness (in linear space)
+  var nightFloor = 0.005;
+  r = Math.max(r, nightFloor * 0.6);
+  gn = Math.max(gn, nightFloor * 0.4);
   b = Math.max(b, nightFloor);
 
   return [_clamp(r, 0, 1), _clamp(gn, 0, 1), _clamp(b, 0, 1)];
@@ -600,12 +598,12 @@ AtmosphereRenderer.prototype._updateVertexColors = function() {
         var starBright = (starSeed - 0.65) * 2.857; // 0 to 1
         // Cubic distribution: few very bright stars, many dim ones (realistic)
         starBright = starBright * starBright * starBright;
-        starBright *= nightFac * 3.5; // very strong — clearly visible as stars
+        starBright *= nightFac * 0.8; // linear space: lower values, renderer amplifies via sRGB
         // Spectral color variation: warm (orange/yellow) vs cool (blue/white)
         var warmStar = Math.sin(dir[0] * 50 + dir[2] * 70) * 0.5 + 0.5;
-        colors[i*3]   = _clamp(colors[i*3] + starBright * _lerp(0.7, 1.0, warmStar), 0, 1);
-        colors[i*3+1] = _clamp(colors[i*3+1] + starBright * _lerp(0.8, 0.95, warmStar), 0, 1);
-        colors[i*3+2] = _clamp(colors[i*3+2] + starBright * _lerp(1.0, 0.5, warmStar), 0, 1);
+        colors[i*3]   = _clamp(colors[i*3] + starBright * _lerp(0.5, 1.0, warmStar), 0, 1);
+        colors[i*3+1] = _clamp(colors[i*3+1] + starBright * _lerp(0.6, 0.9, warmStar), 0, 1);
+        colors[i*3+2] = _clamp(colors[i*3+2] + starBright * _lerp(1.0, 0.4, warmStar), 0, 1);
       }
     }
   }
@@ -2888,13 +2886,11 @@ function SkyWeatherAdvancedSystem(scene, settings) {
   this.atmosphere.setSunDirection(this.orbital.sunDirection);
 
   // Set scene.background to zenith color as safety net (dome gradient renders on top)
+  // Vertex colors are now in linear space (no manual gamma), use directly
   this._origBg = this.scene ? this.scene.background : null;
   var zenithColor = this.atmosphere._computeSkyColor([0, 1, 0]);
   if (this.scene) {
-    var lr = Math.pow(zenithColor[0], 2.2);
-    var lg = Math.pow(zenithColor[1], 2.2);
-    var lb = Math.pow(zenithColor[2], 2.2);
-    this.scene.background = new THREE.Color(lr, lg, lb);
+    this.scene.background = new THREE.Color(zenithColor[0], zenithColor[1], zenithColor[2]);
   }
 
   // Initialize cloud coverage + render immediately
@@ -3059,11 +3055,8 @@ SkyWeatherAdvancedSystem.prototype._tick = function(dt) {
     var zenithColor = this.atmosphere._computeSkyColor([0, 1, 0]);
     if (this.scene) {
       if (!this.scene.background) this.scene.background = new THREE.Color();
-      this.scene.background.setRGB(
-        Math.pow(zenithColor[0], 2.2),
-        Math.pow(zenithColor[1], 2.2),
-        Math.pow(zenithColor[2], 2.2)
-      );
+      // Vertex colors are linear — use directly (renderer converts to sRGB)
+      this.scene.background.setRGB(zenithColor[0], zenithColor[1], zenithColor[2]);
     }
 
     // Overcast reduces exposure
