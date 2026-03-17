@@ -456,7 +456,7 @@ AtmosphereRenderer.prototype._computeSkyColor = function(viewDir) {
   }
 
   // Tone mapping (Reinhard)
-  var exposure = this._exposure * 0.25;
+  var exposure = this._exposure * 0.7;
   r = 1 - Math.exp(-r * exposure);
   gn = 1 - Math.exp(-gn * exposure);
   b = 1 - Math.exp(-b * exposure);
@@ -2542,7 +2542,6 @@ function SkyWeatherAdvancedSystem(scene, settings) {
   this._animFrameId = null;
   this._startLoop();
 
-  window.__swa_system__ = this;
   console.log("[SkyWeatherAdvanced] Initialized — Tenkoku atmosphere active");
 }
 
