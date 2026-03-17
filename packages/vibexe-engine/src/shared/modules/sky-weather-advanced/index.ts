@@ -729,7 +729,7 @@ SunDiskRenderer.prototype.update = function(camera, sunDir, sunAltDeg, settings)
 
   // Size — Tenkoku reference shows prominent sun disk with wide glow
   // sunDiskSize 0.028 → scale 4.2 (84 world-unit disk at 450 dist ≈ 10.7° apparent)
-  var diskSize = (settings.sunDiskSize || 0.028) * 5000;
+  var diskSize = (settings.sunDiskSize != null ? settings.sunDiskSize : 0.028) * 5000;
   var diskScale = diskSize / 33; // large enough to be Tenkoku-like
   if (this._diskMesh) this._diskMesh.scale.setScalar(diskScale);
   // Glow halo is 10x the disk for atmospheric bloom visible from wide angles
@@ -844,7 +844,7 @@ SkyLightingController.prototype.update = function(sunDir, sunAltDeg, settings) {
   if (autoSun) {
     // Sun intensity based on altitude
     var altNorm = _clamp(sunAltDeg / 90, -1, 1);
-    var dayIntensity = settings.sunIntensity || 1.5;
+    var dayIntensity = settings.sunIntensity != null ? settings.sunIntensity : 1.5;
 
     if (altNorm > 0.05) {
       // Day: full intensity, position from sun direction
@@ -879,7 +879,7 @@ SkyLightingController.prototype.update = function(sunDir, sunAltDeg, settings) {
   }
 
   if (autoAmbient && this.ambientLight) {
-    var ambIntensity = settings.ambientIntensity || 0.4;
+    var ambIntensity = settings.ambientIntensity != null ? settings.ambientIntensity : 0.4;
     var isHemi = this.ambientLight.isHemisphereLight;
     if (sunAltDeg > 10) {
       // Day ambient
@@ -1991,7 +1991,7 @@ LightningEffect.prototype._playThunder = function(distance) {
 
 LightningEffect.prototype.update = function(dt, camera, settings) {
   this._enabled = settings.enabled || false;
-  this._frequency = settings.frequency || 0.1;
+  this._frequency = settings.frequency != null ? settings.frequency : 0.1;
 
   // Spawn new bolts
   if (this._enabled && camera) {
@@ -2376,8 +2376,8 @@ MilkyWayAndPlanets.prototype.init = function(scene) {
 
 MilkyWayAndPlanets.prototype.update = function(sunAltDeg, camera, time, dayNumber, settings) {
   var nightFac = _smoothstep(-6, -18, sunAltDeg);
-  var galaxyIntensity = settings.galaxyIntensity || 1.0;
-  var planetIntensity = settings.planetIntensity || 1.0;
+  var galaxyIntensity = settings.galaxyIntensity != null ? settings.galaxyIntensity : 1.0;
+  var planetIntensity = settings.planetIntensity != null ? settings.planetIntensity : 1.0;
 
   // Milky Way
   if (this._milkyWay) {
