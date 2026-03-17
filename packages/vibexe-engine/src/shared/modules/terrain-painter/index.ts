@@ -872,6 +872,7 @@ TerrainGenerator.prototype.generate = function() {
     }
     if (child.isGridHelper || child.type === "GridHelper") {
       child.visible = false;
+      child.userData.__removeByTerrain = true;
       child.userData.__hiddenByTerrain = true;
     }
   });
@@ -887,9 +888,14 @@ TerrainGenerator.prototype.generate = function() {
     if (_dg) { _tScene.remove(_dg); if (_dg.geometry) _dg.geometry.dispose(); if (_dg.material) _dg.material.dispose(); console.log("[TerrainPainter] Removed __default_ground__ (deferred)"); }
     var _dgr = _tScene.getObjectByName("__default_grid__");
     if (_dgr) { _tScene.remove(_dgr); if (_dgr.geometry) _dgr.geometry.dispose(); if (_dgr.material) _dgr.material.dispose(); }
-    // Then: remove any unnamed flat PlaneGeometry ground planes
+    // Then: remove any unnamed flat PlaneGeometry ground planes AND GridHelpers
     var _toKill = [];
     _tScene.traverse(function(child) {
+      // Remove GridHelpers (the grid lines that come with __default_ground__)
+      if (child.isGridHelper || child.type === "GridHelper") {
+        _toKill.push(child);
+        return;
+      }
       if (!child.isMesh || child === _tMesh) return;
       if (child.name === "__terrain__" || child.name === "__terrain_boundary_grid__") return;
       if (child.geometry && child.geometry.type === "PlaneGeometry" &&
@@ -904,8 +910,8 @@ TerrainGenerator.prototype.generate = function() {
     for (var _ki = 0; _ki < _toKill.length; _ki++) {
       _tScene.remove(_toKill[_ki]);
       if (_toKill[_ki].geometry) _toKill[_ki].geometry.dispose();
-      if (_toKill[_ki].material) _toKill[_ki].material.dispose();
-      console.log("[TerrainPainter] Removed ground plane: " + ((_toKill[_ki].geometry.parameters||{}).width||0) + "x" + ((_toKill[_ki].geometry.parameters||{}).height||0));
+      if (_toKill[_ki].material) { try { _toKill[_ki].material.dispose(); } catch(e) {} }
+      console.log("[TerrainPainter] Removed: " + (_toKill[_ki].type || 'mesh') + " " + (_toKill[_ki].name || '(unnamed)'));
     }
   };
   setTimeout(_removeGroundPlanes, 1000);
