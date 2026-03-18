@@ -4330,6 +4330,10 @@ export function getVisualEditBridgeScript(): string {
         var _tpSeg = Math.min(_tpS.terrainSegments || 128, 128);
 
         // Biome support — use resolved params from panel (preferred), or module fallback
+        // IMPORTANT: Only override _tpH with biome heightScale if resolvedBiomeParams is explicit.
+        // On reload, the saved terrainHeightScale IS the correct value from the original generation.
+        // Recalculating from getBiomeParams() may produce a DIFFERENT heightScale (non-deterministic
+        // between panel's resolveBiomeParams and module's getBiomeParams implementations).
         var _tpBP = d.resolvedBiomeParams || null;
         if (_tpBP) {
           _tpH = _tpBP.heightScale;
@@ -4337,7 +4341,8 @@ export function getVisualEditBridgeScript(): string {
           var _tpMod = window.__vibexe_modules__ && window.__vibexe_modules__["terrain-painter"];
           if (_tpMod && _tpMod.getBiomeParams) {
             _tpBP = _tpMod.getBiomeParams(d.biome, d.seed || Math.floor(Math.random() * 999999));
-            _tpH = _tpBP.heightScale;
+            // DO NOT override _tpH here — the saved terrainHeightScale is authoritative.
+            // Only use biome params for noise shape (gamma, freq, etc.), not height.
           }
         }
 
