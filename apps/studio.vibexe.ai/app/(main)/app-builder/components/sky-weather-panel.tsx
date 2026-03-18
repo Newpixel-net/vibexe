@@ -121,11 +121,11 @@ const WEATHER_PRESETS = [
 ] as const;
 
 const TIME_PRESETS = [
-	{ label: "Dawn", time: 0.25, icon: "🌅", sky: { exposure: 1.0, rayleighScale: 1.2 } },
+	{ label: "Dawn", time: 0.22, icon: "🌅", sky: { exposure: 1.0, rayleighScale: 1.2 } },
 	{ label: "Morning", time: 0.35, icon: "🌤", sky: { exposure: 1.15, rayleighScale: 1.1 } },
 	{ label: "Noon", time: 0.5, icon: "☀️", sky: { exposure: 1.2, rayleighScale: 1.0 } },
 	{ label: "Afternoon", time: 0.65, icon: "🌤", sky: { exposure: 1.15, rayleighScale: 1.0 } },
-	{ label: "Dusk", time: 0.75, icon: "🌇", sky: { exposure: 0.95, rayleighScale: 1.3 } },
+	{ label: "Dusk", time: 0.78, icon: "🌇", sky: { exposure: 0.95, rayleighScale: 1.3 } },
 	{ label: "Night", time: 0.0, icon: "🌙", sky: { exposure: 0.8, rayleighScale: 1.0 } },
 ];
 
