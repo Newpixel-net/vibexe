@@ -1206,92 +1206,85 @@ StarField.prototype._generateStarTexture = function() {
   ctx.fillStyle = "black";
   ctx.fillRect(0, 0, W, H);
 
-  // Milky Way band — subtle diffuse nebulous ribbon across the sky
-  // Diagonal band from lower-left to upper-right, Gaussian cross-section
-  ctx.save();
-  ctx.globalAlpha = 1.0;
-  var bandCenterY = H * 0.25; // center of upper hemisphere
-  var bandWidth = H * 0.12;   // width of the band
-  var bandAngle = 0.3;        // slight tilt
-  for (var bx = 0; bx < W; bx += 2) {
-    var bandY = bandCenterY + Math.sin((bx / W) * PI + bandAngle) * H * 0.1;
-    // Gaussian brightness profile across the band
-    for (var by = Math.max(0, bandY - bandWidth); by < Math.min(H * 0.5, bandY + bandWidth); by += 2) {
-      var dist = Math.abs(by - bandY) / bandWidth;
-      var gauss = Math.exp(-dist * dist * 3);
-      // Subtle cloudy variation along the band
-      var noise = 0.5 + 0.5 * Math.sin(bx * 0.05) * Math.cos(by * 0.08 + bx * 0.02);
-      var alpha = gauss * noise * 0.06; // very subtle
-      if (alpha < 0.005) continue;
-      ctx.fillStyle = "rgba(200,195,220," + alpha + ")";
-      ctx.fillRect(bx, by, 3, 3);
-    }
-  }
-  ctx.restore();
-
-  // Spectral colors — Tenkoku uses 6 spectral types
+  // Spectral colors — Tenkoku uses 7 spectral types
   var spectralColors = [
-    [160, 190, 255],  // blue-white (O/B type — hottest, rarest)
-    [200, 215, 255],  // blue-white (B type)
-    [220, 230, 255],  // white (A type)
-    [255, 255, 240],  // yellow-white (F type)
-    [255, 245, 200],  // yellow (G type — like our Sun)
-    [255, 220, 160],  // orange (K type)
-    [255, 180, 130],  // red-orange (M type — coolest, most common)
+    [155, 185, 255],  // O/B type — hot blue-white
+    [195, 210, 255],  // B type — blue-white
+    [225, 235, 255],  // A type — white
+    [255, 255, 245],  // F type — yellow-white
+    [255, 240, 200],  // G type — yellow (like our Sun)
+    [255, 215, 155],  // K type — orange
+    [255, 175, 125],  // M type — red-orange (coolest, most common)
   ];
-  // Spectral type weights: M stars most common, O/B rarest
-  var typeWeights = [0.02, 0.05, 0.08, 0.15, 0.20, 0.25, 0.25];
+  var typeWeights = [0.02, 0.04, 0.08, 0.14, 0.22, 0.25, 0.25];
 
   var stars = [];
 
-  // 25 bright "landmark" stars — prominent, larger dots with higher brightness
-  for (var i = 0; i < 25; i++) {
+  // --- Layer 1: 40 bright "landmark" stars with large glow halos ---
+  for (var i = 0; i < 40; i++) {
     var sx = Math.random() * W;
-    var sy = Math.random() * H * 0.45; // upper hemisphere
-    var radius = 2.5 + Math.random() * 2.5; // 2.5-5px
-    var brightness = 0.8 + Math.random() * 0.2; // 0.8-1.0
-    // Bright stars tend to be hotter (bluer)
-    var colorIdx = Math.floor(Math.random() * 4); // O/B/A/F types
+    var sy = Math.random() * H * 0.48;
+    var radius = 2 + Math.random() * 2; // 2-4px core
+    var glowR = radius * 4; // 8-16px glow halo
+    var brightness = 0.9 + Math.random() * 0.1; // 0.9-1.0
+    var colorIdx = Math.floor(Math.random() * 4); // hotter stars
     var col = spectralColors[colorIdx];
 
-    var grad = ctx.createRadialGradient(sx, sy, 0, sx, sy, radius * 2);
+    // Outer glow halo
+    var grad = ctx.createRadialGradient(sx, sy, 0, sx, sy, glowR);
     grad.addColorStop(0, "rgba(" + col[0] + "," + col[1] + "," + col[2] + "," + brightness + ")");
-    grad.addColorStop(0.2, "rgba(" + col[0] + "," + col[1] + "," + col[2] + "," + (brightness * 0.7) + ")");
-    grad.addColorStop(0.5, "rgba(" + col[0] + "," + col[1] + "," + col[2] + "," + (brightness * 0.3) + ")");
+    grad.addColorStop(0.08, "rgba(" + col[0] + "," + col[1] + "," + col[2] + "," + (brightness * 0.85) + ")");
+    grad.addColorStop(0.2, "rgba(" + col[0] + "," + col[1] + "," + col[2] + "," + (brightness * 0.4) + ")");
+    grad.addColorStop(0.5, "rgba(" + col[0] + "," + col[1] + "," + col[2] + "," + (brightness * 0.08) + ")");
     grad.addColorStop(1, "rgba(" + col[0] + "," + col[1] + "," + col[2] + ",0)");
     ctx.fillStyle = grad;
-    ctx.fillRect(sx - radius * 2, sy - radius * 2, radius * 4, radius * 4);
-    stars.push({ x: sx, y: sy, r: radius, brightness: brightness, colorIdx: colorIdx });
+    ctx.fillRect(sx - glowR, sy - glowR, glowR * 2, glowR * 2);
+    stars.push({ x: sx, y: sy, r: radius, brightness: brightness });
   }
 
-  // 800 background stars — quadratic magnitude distribution
-  for (var i = 0; i < 800; i++) {
+  // --- Layer 2: 200 medium-bright stars ---
+  for (var i = 0; i < 200; i++) {
     var sx = Math.random() * W;
-    var sy = Math.random() * H * 0.50; // full upper hemisphere
-
-    // Quadratic magnitude distribution (more visible mid-range than cubic)
-    var mag = Math.random();
-    mag = mag * mag; // quadratic — balanced between dim and bright
-    var radius = 0.5 + mag * 2.0; // 0.5px to 2.5px
-    var brightness = 0.35 + mag * 0.65; // 0.35 to 1.0
-
-    // Weighted spectral color selection
-    var rnd = Math.random();
-    var cumul = 0;
-    var colorIdx = spectralColors.length - 1;
+    var sy = Math.random() * H * 0.50;
+    var radius = 1.2 + Math.random() * 1.5; // 1.2-2.7px
+    var brightness = 0.6 + Math.random() * 0.35; // 0.6-0.95
+    var rnd = Math.random(), cumul = 0, colorIdx = 6;
     for (var ci = 0; ci < typeWeights.length; ci++) {
-      cumul += typeWeights[ci];
-      if (rnd < cumul) { colorIdx = ci; break; }
+      cumul += typeWeights[ci]; if (rnd < cumul) { colorIdx = ci; break; }
     }
     var col = spectralColors[colorIdx];
+    var glowR = radius * 2.5;
+    var grad = ctx.createRadialGradient(sx, sy, 0, sx, sy, glowR);
+    grad.addColorStop(0, "rgba(" + col[0] + "," + col[1] + "," + col[2] + "," + brightness + ")");
+    grad.addColorStop(0.15, "rgba(" + col[0] + "," + col[1] + "," + col[2] + "," + (brightness * 0.7) + ")");
+    grad.addColorStop(0.5, "rgba(" + col[0] + "," + col[1] + "," + col[2] + "," + (brightness * 0.15) + ")");
+    grad.addColorStop(1, "rgba(" + col[0] + "," + col[1] + "," + col[2] + ",0)");
+    ctx.fillStyle = grad;
+    ctx.fillRect(sx - glowR, sy - glowR, glowR * 2, glowR * 2);
+    stars.push({ x: sx, y: sy, r: radius, brightness: brightness });
+  }
 
+  // --- Layer 3: 1800 dim background stars (faint scattered dots) ---
+  for (var i = 0; i < 1800; i++) {
+    var sx = Math.random() * W;
+    var sy = Math.random() * H * 0.50;
+    var mag = Math.random();
+    mag = mag * mag; // quadratic — many faint, few medium
+    var radius = 0.4 + mag * 1.2; // 0.4-1.6px
+    var brightness = 0.2 + mag * 0.55; // 0.2-0.75
+    var rnd = Math.random(), cumul = 0, colorIdx = 6;
+    for (var ci = 0; ci < typeWeights.length; ci++) {
+      cumul += typeWeights[ci]; if (rnd < cumul) { colorIdx = ci; break; }
+    }
+    var col = spectralColors[colorIdx];
+    // Small stars: just a dot with tiny glow
     var grad = ctx.createRadialGradient(sx, sy, 0, sx, sy, radius * 2);
     grad.addColorStop(0, "rgba(" + col[0] + "," + col[1] + "," + col[2] + "," + brightness + ")");
-    grad.addColorStop(0.3, "rgba(" + col[0] + "," + col[1] + "," + col[2] + "," + (brightness * 0.5) + ")");
+    grad.addColorStop(0.4, "rgba(" + col[0] + "," + col[1] + "," + col[2] + "," + (brightness * 0.3) + ")");
     grad.addColorStop(1, "rgba(" + col[0] + "," + col[1] + "," + col[2] + ",0)");
     ctx.fillStyle = grad;
     ctx.fillRect(sx - radius * 2, sy - radius * 2, radius * 4, radius * 4);
-    stars.push({ x: sx, y: sy, r: radius, brightness: brightness, colorIdx: colorIdx });
+    stars.push({ x: sx, y: sy, r: radius, brightness: brightness });
   }
 
   this._canvas = canvas;
@@ -1339,22 +1332,18 @@ StarField.prototype.update = function(sunAltDeg, camera, time, settings, solarTi
 
   var starIntensity = settings.starIntensity != null ? settings.starIntensity : 1.0;
 
-  // Night visibility: fade in starting at civil twilight (-6°), full at -18° (astronomical)
-  // Bright stars become visible earlier than dim ones (matches real sky behavior)
-  var nightFac = sunAltDeg < -18 ? 1 : (sunAltDeg < -4 ? _smoothstep(-4, -18, sunAltDeg) : 0);
+  // Night visibility: bright stars appear at -3° (civil twilight), full sky by -12°
+  var nightFac = sunAltDeg < -12 ? 1 : (sunAltDeg < -3 ? _smoothstep(-3, -12, sunAltDeg) : 0);
 
   var visible = nightFac > 0.01 && starIntensity > 0.01;
   this._dome.visible = visible;
 
   if (visible && camera) {
-    // Follow camera
     this._dome.position.copy(camera.position);
-
-    // Sidereal rotation: rotate dome around Y axis with solar time
+    // Sidereal rotation
     this._dome.rotation.y = solarTime * TWO_PI;
-
-    // Opacity: stronger than before (0.8→0.9) since we now have proper star rendering
-    this._mat.opacity = nightFac * starIntensity * 0.9;
+    // Full opacity at night — the canvas texture already has correct alpha per star
+    this._mat.opacity = nightFac * starIntensity;
   }
 };
 
@@ -3138,8 +3127,8 @@ SkyWeatherAdvancedSystem.DEFAULTS = {
     exposure: 1.2,
     rayleighScale: 1.0,
     sunIntensity: 22.0,
-    galaxyIntensity: 1.0,
-    planetIntensity: 1.0,
+    galaxyIntensity: 0,
+    planetIntensity: 0,
     moonBrightness: 1.0,
   },
   lighting: {
