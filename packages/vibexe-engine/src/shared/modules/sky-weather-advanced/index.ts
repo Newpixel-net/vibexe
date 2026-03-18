@@ -16,7 +16,7 @@ import type { ModuleManifest } from "../module-types";
 export const SKY_WEATHER_ADVANCED_MANIFEST: ModuleManifest = {
 	id: "sky-weather-advanced",
 	name: "Sky & Weather Advanced",
-	version: "1.6.0",
+	version: "1.7.0",
 	category: "lighting",
 	description:
 		"Physically-based atmosphere with Rayleigh+Mie scattering, real orbital mechanics, volumetric clouds, 9K star catalog, and full weather system",
@@ -592,25 +592,25 @@ AtmosphereRenderer.prototype._computeSkyColor = function(viewDir) {
     b = _lerp(b, b * this._skyTintColor[2], this._skyTintAlpha);
   }
 
-  // Night sky brightness — dark blue-black gradient (not pure black)
+  // Night sky brightness — near-black with subtle blue tint (Tenkoku ref: deep black zenith)
   var nightBright = this._nightBrightness;
-  var nightR = 0.018 * nightBright;
-  var nightG = 0.022 * nightBright;
-  var nightB = 0.045 * nightBright; // bluer night sky
+  var nightR = 0.008 * nightBright;
+  var nightG = 0.010 * nightBright;
+  var nightB = 0.025 * nightBright; // subtle blue tint only
   r = Math.max(r, nightR);
   gn = Math.max(gn, nightG);
   b = Math.max(b, nightB);
 
-  // Night horizon brightening — atmospheric glow visible near horizon
+  // Night horizon brightening — very subtle atmospheric glow (Tenkoku: visible but faint)
   var sunAlt01 = _clamp(sunDir[1], -1, 1);
   var isNight = _clamp(-sunAlt01 * 5, 0, 1);
   if (isNight > 0.01) {
-    var nhFac = _clamp(1.0 - viewDir[1] * 2.5, 0, 1);
-    nhFac = nhFac * nhFac * nhFac; // cubic falloff for softer glow
-    var nightHorizon = nhFac * isNight * nightBright * 0.2;
-    r += nightHorizon * 0.06;
-    gn += nightHorizon * 0.065;
-    b += nightHorizon * 0.09; // blue-ish horizon glow
+    var nhFac = _clamp(1.0 - viewDir[1] * 3.0, 0, 1);
+    nhFac = nhFac * nhFac * nhFac * nhFac; // quartic falloff — tighter near horizon
+    var nightHorizon = nhFac * isNight * nightBright * 0.12;
+    r += nightHorizon * 0.04;
+    gn += nightHorizon * 0.045;
+    b += nightHorizon * 0.07; // blue-ish horizon glow
   }
 
   return [_clamp(r, 0, 1), _clamp(gn, 0, 1), _clamp(b, 0, 1)];
@@ -1475,10 +1475,10 @@ StarField.prototype._generateStarTexture = function() {
     var u = ra / 24.0;
     var v = 0.5 - (dec / 180.0);
 
-    // Skip stars too far below equator (won't be visible on upper hemisphere dome)
-    if (v > 0.53) continue;
-    // Skip stars too close to south pole
+    // Render ALL catalog stars across full sphere — latitude rotation handles visibility
+    // Stars below equator (v > 0.5) visible from southern latitudes
     if (v < 0.0) v += 1.0;
+    if (v > 1.0) v -= 1.0;
 
     var sx = u * W;
     var sy = v * H;
@@ -1539,16 +1539,16 @@ StarField.prototype._generateStarTexture = function() {
     stars.push({ x: sx, y: sy, r: radius, brightness: brightness });
   }
 
-  // --- Layer 2: 6000 random faint background stars for density ---
-  // These fill in the dimmer stars (mag 4-8) that aren't in our top-400 catalog
+  // --- Layer 2: 10000 random faint background stars for density ---
+  // Cover FULL sphere (not just upper hemisphere) — latitude rotation handles visibility
   var typeWeights = [0.02, 0.04, 0.08, 0.14, 0.22, 0.25, 0.25];
-  for (var i = 0; i < 6000; i++) {
+  for (var i = 0; i < 10000; i++) {
     var sx = Math.random() * W;
-    var sy = Math.random() * H * 0.52;
+    var sy = Math.random() * H; // FULL sphere coverage (not * 0.52)
     var mag = Math.random();
     mag = mag * mag; // bias toward dimmer stars
-    var radius = 0.3 + mag * 0.6; // 0.3-0.9px
-    var brightness = 0.15 + mag * 0.55; // 0.15-0.70
+    var radius = 0.3 + mag * 0.8; // 0.3-1.1px (larger for visibility)
+    var brightness = 0.25 + mag * 0.65; // 0.25-0.90 (brighter for visibility)
     var rnd = Math.random(), cumul = 0, colorIdx = 6;
     for (var ci = 0; ci < typeWeights.length; ci++) {
       cumul += typeWeights[ci]; if (rnd < cumul) { colorIdx = ci; break; }
@@ -1604,7 +1604,7 @@ StarField.prototype.init = function(scene) {
   console.log("[SkyWeatherAdvanced] Stars rendered via canvas-baked dome texture (WebGPU-safe)");
 };
 
-StarField.prototype.update = function(sunAltDeg, camera, time, settings, solarTime) {
+StarField.prototype.update = function(sunAltDeg, camera, time, settings, solarTime, latitude) {
   if (!this._dome) return;
 
   var starIntensity = settings.starIntensity != null ? settings.starIntensity : 1.0;
@@ -1617,8 +1617,13 @@ StarField.prototype.update = function(sunAltDeg, camera, time, settings, solarTi
 
   if (visible && camera) {
     this._dome.position.copy(camera.position);
-    // Sidereal rotation
-    this._dome.rotation.y = solarTime * TWO_PI;
+    // Latitude rotation: tilt the celestial sphere to match observer's latitude
+    // At equator (lat=0): no tilt. At north pole (lat=90): north celestial pole at zenith.
+    var lat = (latitude != null ? latitude : 45) * DEG2RAD;
+    this._dome.rotation.set(0, 0, 0); // reset
+    this._dome.rotation.x = (PI / 2 - lat); // tilt by co-latitude
+    // Sidereal rotation around the celestial pole axis (local Y after tilt)
+    this._dome.rotateY(solarTime * TWO_PI);
     // Full opacity at night — the canvas texture already has correct alpha per star
     this._mat.opacity = nightFac * starIntensity;
   }
@@ -3076,7 +3081,9 @@ MilkyWayAndPlanets.prototype.update = function(sunAltDeg, camera, time, dayNumbe
     this._milkyWay.visible = nightFac > 0.01 && galaxyIntensity > 0.01;
     if (this._milkyWay.visible) {
       this._milkyMat.opacity = nightFac * 0.45 * galaxyIntensity;
-      if (camera) this._milkyWay.position.copy(camera.position);
+      if (camera) {
+        this._milkyWay.position.copy(camera.position);
+      }
     }
   }
 
@@ -3818,7 +3825,7 @@ SkyWeatherAdvancedSystem.prototype._tick = function(dt) {
   );
 
   // Stars (with sidereal rotation)
-  this.stars.update(sunAltDeg, camera, this._time, this.settings.sky || {}, ts.solarTime != null ? ts.solarTime : 0.45);
+  this.stars.update(sunAltDeg, camera, this._time, this.settings.sky || {}, ts.solarTime != null ? ts.solarTime : 0.45, ts.latitude);
 
   // Shooting stars (meteors) — skip during daytime (sun > 5°)
   if (sunAltDeg < 5) {
