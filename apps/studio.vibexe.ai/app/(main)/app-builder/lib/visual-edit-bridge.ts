@@ -5197,7 +5197,11 @@ export function getVisualEditBridgeScript(): string {
 
         // Auto-export heightmap to parent for DB persistence — ensures terrain shape
         // survives page reload without requiring Scene→Game transition.
-        // This runs 1s after generation so physics/normals are settled.
+        // ONLY export if no sculptHeightData was already provided (fresh generation).
+        // If sculptHeightData was provided, the restore code already applied it and
+        // we must NOT overwrite it with the regenerated terrain data.
+        var _aeHasSculpt = _tpS.sculptHeightData && typeof _tpS.sculptHeightData === "string" && _tpS.sculptHeightData.length > 0;
+        if (!_aeHasSculpt) {
         setTimeout(function() {
           try {
             var _aeData = window.__vibexe_terrainData;
@@ -5215,6 +5219,7 @@ export function getVisualEditBridgeScript(): string {
             }
           } catch(e) { console.warn("[TerrainPainter] Auto-export failed:", e); }
         }, 1500);
+        }
         break;
       }
 
