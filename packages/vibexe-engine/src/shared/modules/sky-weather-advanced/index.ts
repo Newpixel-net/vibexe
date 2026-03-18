@@ -16,7 +16,7 @@ import type { ModuleManifest } from "../module-types";
 export const SKY_WEATHER_ADVANCED_MANIFEST: ModuleManifest = {
 	id: "sky-weather-advanced",
 	name: "Sky & Weather Advanced",
-	version: "1.1.0",
+	version: "1.2.0",
 	category: "lighting",
 	description:
 		"Physically-based atmosphere with Rayleigh+Mie scattering, real orbital mechanics, volumetric clouds, 9K star catalog, and full weather system",
@@ -1256,71 +1256,69 @@ StarField.prototype._generateStarTexture = function() {
 
   var stars = [];
 
-  // --- Layer 1: 80 bright "landmark" stars — sharp white dots with tight glow ---
-  for (var i = 0; i < 80; i++) {
+  // Tenkoku reference: hundreds of TINY white dots, not glowing orbs
+  // --- Layer 1: 15 brightest stars — small dots with very tight glow ---
+  for (var i = 0; i < 15; i++) {
     var sx = Math.random() * W;
-    var sy = Math.random() * H * 0.48;
-    var radius = 1.5 + Math.random() * 1.5; // 1.5-3px core (sharper)
-    var glowR = radius * 3; // 4.5-9px glow (tighter, brighter)
-    var brightness = 0.95 + Math.random() * 0.05; // 0.95-1.0
-    var colorIdx = Math.floor(Math.random() * 4); // hotter stars
+    var sy = Math.random() * H * 0.45;
+    var radius = 1.2 + Math.random() * 0.8; // 1.2-2px
+    var glowR = radius * 2; // 2.4-4px (very tight)
+    var brightness = 0.95 + Math.random() * 0.05;
+    var colorIdx = Math.floor(Math.random() * 4);
     var col = spectralColors[colorIdx];
 
-    // Outer glow halo
     var grad = ctx.createRadialGradient(sx, sy, 0, sx, sy, glowR);
-    // Sharp bright core + tight glow (Tenkoku-style crisp stars)
     grad.addColorStop(0, "rgba(255,255,255," + brightness + ")");
-    grad.addColorStop(0.12, "rgba(" + col[0] + "," + col[1] + "," + col[2] + "," + (brightness * 0.9) + ")");
-    grad.addColorStop(0.3, "rgba(" + col[0] + "," + col[1] + "," + col[2] + "," + (brightness * 0.3) + ")");
-    grad.addColorStop(0.6, "rgba(" + col[0] + "," + col[1] + "," + col[2] + "," + (brightness * 0.05) + ")");
+    grad.addColorStop(0.3, "rgba(255,255,255," + (brightness * 0.5) + ")");
+    grad.addColorStop(0.6, "rgba(" + col[0] + "," + col[1] + "," + col[2] + "," + (brightness * 0.1) + ")");
     grad.addColorStop(1, "rgba(" + col[0] + "," + col[1] + "," + col[2] + ",0)");
     ctx.fillStyle = grad;
     ctx.fillRect(sx - glowR, sy - glowR, glowR * 2, glowR * 2);
     stars.push({ x: sx, y: sy, r: radius, brightness: brightness });
   }
 
-  // --- Layer 2: 400 medium-bright stars ---
-  for (var i = 0; i < 400; i++) {
+  // --- Layer 2: 120 medium stars — tiny white dots ---
+  for (var i = 0; i < 120; i++) {
     var sx = Math.random() * W;
-    var sy = Math.random() * H * 0.50;
-    var radius = 1.0 + Math.random() * 1.2; // 1.0-2.2px (sharper)
-    var brightness = 0.7 + Math.random() * 0.3; // 0.7-1.0
+    var sy = Math.random() * H * 0.48;
+    var radius = 0.7 + Math.random() * 0.6; // 0.7-1.3px
+    var brightness = 0.7 + Math.random() * 0.3;
     var rnd = Math.random(), cumul = 0, colorIdx = 6;
     for (var ci = 0; ci < typeWeights.length; ci++) {
       cumul += typeWeights[ci]; if (rnd < cumul) { colorIdx = ci; break; }
     }
     var col = spectralColors[colorIdx];
-    var glowR = radius * 2;
+    var glowR = radius * 1.5;
     var grad = ctx.createRadialGradient(sx, sy, 0, sx, sy, glowR);
     grad.addColorStop(0, "rgba(255,255,255," + brightness + ")");
-    grad.addColorStop(0.2, "rgba(" + col[0] + "," + col[1] + "," + col[2] + "," + (brightness * 0.6) + ")");
-    grad.addColorStop(0.5, "rgba(" + col[0] + "," + col[1] + "," + col[2] + "," + (brightness * 0.1) + ")");
-    grad.addColorStop(1, "rgba(" + col[0] + "," + col[1] + "," + col[2] + ",0)");
+    grad.addColorStop(0.4, "rgba(255,255,255," + (brightness * 0.3) + ")");
+    grad.addColorStop(1, "rgba(255,255,255,0)");
     ctx.fillStyle = grad;
     ctx.fillRect(sx - glowR, sy - glowR, glowR * 2, glowR * 2);
     stars.push({ x: sx, y: sy, r: radius, brightness: brightness });
   }
 
-  // --- Layer 3: 2400 dim background stars (faint scattered dots) ---
-  for (var i = 0; i < 2400; i++) {
+  // --- Layer 3: 4000 faint background stars (tiny scattered dots) ---
+  for (var i = 0; i < 4000; i++) {
     var sx = Math.random() * W;
     var sy = Math.random() * H * 0.50;
     var mag = Math.random();
-    mag = mag * mag; // quadratic — many faint, few medium
-    var radius = 0.5 + mag * 1.4; // 0.5-1.9px
-    var brightness = 0.25 + mag * 0.6; // 0.25-0.85
+    mag = mag * mag;
+    var radius = 0.3 + mag * 0.6; // 0.3-0.9px (tiny!)
+    var brightness = 0.15 + mag * 0.55; // 0.15-0.7
     var rnd = Math.random(), cumul = 0, colorIdx = 6;
     for (var ci = 0; ci < typeWeights.length; ci++) {
       cumul += typeWeights[ci]; if (rnd < cumul) { colorIdx = ci; break; }
     }
     var col = spectralColors[colorIdx];
-    // Small stars: just a dot with tiny glow
-    var grad = ctx.createRadialGradient(sx, sy, 0, sx, sy, radius * 2);
-    grad.addColorStop(0, "rgba(" + col[0] + "," + col[1] + "," + col[2] + "," + brightness + ")");
-    grad.addColorStop(0.4, "rgba(" + col[0] + "," + col[1] + "," + col[2] + "," + (brightness * 0.3) + ")");
-    grad.addColorStop(1, "rgba(" + col[0] + "," + col[1] + "," + col[2] + ",0)");
+    // Tiny white dots — Tenkoku style
+    var glowR3 = radius * 1.3;
+    var grad = ctx.createRadialGradient(sx, sy, 0, sx, sy, glowR3);
+    grad.addColorStop(0, "rgba(255,255,255," + brightness + ")");
+    grad.addColorStop(0.5, "rgba(255,255,255," + (brightness * 0.15) + ")");
+    grad.addColorStop(1, "rgba(255,255,255,0)");
     ctx.fillStyle = grad;
-    ctx.fillRect(sx - radius * 2, sy - radius * 2, radius * 4, radius * 4);
+    ctx.fillRect(sx - glowR3, sy - glowR3, glowR3 * 2, glowR3 * 2);
     stars.push({ x: sx, y: sy, r: radius, brightness: brightness });
   }
 
@@ -1347,7 +1345,7 @@ StarField.prototype.init = function(scene) {
     transparent: true,
     opacity: 0,
     depthWrite: false,
-    depthTest: false,
+    depthTest: true, // Enable so terrain occludes stars (fixes bleed-through)
     fog: false,
     toneMapped: false,
     blending: THREE.AdditiveBlending,
