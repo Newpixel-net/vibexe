@@ -545,13 +545,20 @@ AtmosphereRenderer.prototype._computeSkyColor = function(viewDir) {
   gn += sunGlow * 0.35;
 
   // Dawn/Dusk pink-purple band — mid-altitude coloring (Tenkoku Clear-Altostratus ref)
-  if (Math.abs(sunDir[1]) < 0.15) {
+  if (Math.abs(sunDir[1]) < 0.20) {
     var pinkAlt = _clamp(viewDir[1], 0, 1);
-    var pinkBand = _smoothstep(0.0, 0.15, pinkAlt) * _smoothstep(0.5, 0.15, pinkAlt);
-    var pinkStr = pinkBand * (1.0 - Math.abs(sunDir[1]) / 0.15) * 0.12;
-    r += pinkStr * 0.9;
-    gn += pinkStr * 0.2;
-    b += pinkStr * 0.7;
+    var pinkBand = _smoothstep(0.0, 0.12, pinkAlt) * _smoothstep(0.6, 0.12, pinkAlt);
+    var pinkStr = pinkBand * (1.0 - Math.abs(sunDir[1]) / 0.20) * 0.18;
+    r += pinkStr * 1.0;
+    gn += pinkStr * 0.15;
+    b += pinkStr * 0.8;
+  }
+  // Upper sky purple tint at dawn/dusk — zenith becomes purple (Tenkoku ref)
+  if (Math.abs(sunDir[1]) < 0.15 && viewDir[1] > 0.3) {
+    var purpleZenith = _smoothstep(0.3, 0.8, viewDir[1]);
+    var purpleStr = purpleZenith * (1.0 - Math.abs(sunDir[1]) / 0.15) * 0.06;
+    r += purpleStr * 0.6;
+    b += purpleStr * 0.9;
   }
 
   // Boost saturation for vivid colors — stronger for richer sky
@@ -1074,7 +1081,7 @@ function WeatherParticles() {
   this._snowGeo = null;
   this._rainMat = null;
   this._snowMat = null;
-  this._particleCount = 2500;
+  this._particleCount = 2000;
   this._windDir = 0;
   this._windStrength = 0.3;
 }
@@ -1832,24 +1839,24 @@ CloudSystem.prototype.updateTexture = function(atmosphere) {
       var windX = t * 0.03;
       var windY = t * 0.008;
 
-      // Layer 1: Cumulus — large puffy formations
+      // Layer 1: Cumulus — large puffy formations with sharp edges
       // coverage=0 → nearly empty, 0.35 → scattered patches, 0.7 → mostly covered, 1.0 → full
       var n1 = this._fbm2(nx * 0.6 + windX, ny * 0.6 + windY);
       var c1 = _clamp(n1 + coverage * 2.0 - 1.0, 0, 1);
-      c1 = c1 * c1; // square for puffy edges — keeps thin areas transparent
-      var fade1 = _smoothstep(0.03, 0.15, v) * _smoothstep(0.92, 0.35, v);
+      c1 = c1 * c1 * c1; // cube for sharper puffy edges (Tenkoku-style distinct cumulus)
+      var fade1 = _smoothstep(0.05, 0.18, v) * _smoothstep(0.88, 0.35, v);
       c1 *= fade1;
 
-      // Layer 2: Altocumulus — medium patches, thinner
+      // Layer 2: Altocumulus — medium scattered patches
       var n2 = this._fbm2(nx * 1.3 + windX * 1.2 + 50, ny * 1.3 + windY * 0.8 + 50);
-      var c2 = _clamp(n2 + coverage * 1.5 - 0.8, 0, 1) * 0.4;
-      var fade2 = _smoothstep(0.05, 0.18, v) * _smoothstep(0.94, 0.4, v);
+      var c2 = _clamp(n2 + coverage * 1.5 - 0.8, 0, 1) * 0.35;
+      var fade2 = _smoothstep(0.08, 0.22, v) * _smoothstep(0.90, 0.4, v);
       c2 *= fade2;
 
-      // Layer 3: Cirrus — thin wispy horizontal streaks
-      var n3 = this._fbm2(nx * 4.5 + windX * 0.5 + 120, ny * 0.8 + windY * 0.3 + 120);
-      var c3 = _clamp(n3 + coverage * 1.0 - 0.6, 0, 1) * 0.2;
-      var fade3 = _smoothstep(0.0, 0.06, v) * _smoothstep(0.50, 0.15, v);
+      // Layer 3: Cirrus — thin wispy horizontal streaks (Tenkoku: very subtle, stretched)
+      var n3 = this._fbm2(nx * 6.0 + windX * 0.4 + 120, ny * 0.5 + windY * 0.2 + 120);
+      var c3 = _clamp(n3 + coverage * 0.8 - 0.55, 0, 1) * 0.15;
+      var fade3 = _smoothstep(0.0, 0.05, v) * _smoothstep(0.45, 0.12, v);
       c3 *= fade3;
 
       // Combined density — lower multiplier for more transparent clouds
@@ -1861,10 +1868,10 @@ CloudSystem.prototype.updateTexture = function(atmosphere) {
       // Sun-facing brightness gradient — stronger contrast for realistic look
       var pixAngle = u * TWO_PI;
       var sunDot = Math.cos(pixAngle - sunAngle) * 0.5 + 0.5;
-      // Higher contrast: dark backs (0.5x) vs bright sun-facing (1.6x)
-      var lightMul = _lerp(0.5, 1.6, sunDot) * brightness;
+      // Higher contrast: dark backs (0.4x) vs bright sun-facing (1.8x) — Tenkoku-style 3D look
+      var lightMul = _lerp(0.4, 1.8, sunDot) * brightness;
       // Altitude shading: cloud bottoms significantly darker (self-shadowing)
-      lightMul *= _lerp(0.5, 1.0, 1.0 - v);
+      lightMul *= _lerp(0.4, 1.0, 1.0 - v);
 
       var r = _clamp(baseR * lightMul / 255, 0, 1);
       var g = _clamp(baseG * lightMul / 255, 0, 1);
