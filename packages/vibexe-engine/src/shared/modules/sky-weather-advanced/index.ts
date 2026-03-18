@@ -16,7 +16,7 @@ import type { ModuleManifest } from "../module-types";
 export const SKY_WEATHER_ADVANCED_MANIFEST: ModuleManifest = {
 	id: "sky-weather-advanced",
 	name: "Sky & Weather Advanced",
-	version: "1.12.0",
+	version: "1.13.0",
 	category: "lighting",
 	description:
 		"Physically-based atmosphere with Rayleigh+Mie scattering, real orbital mechanics, volumetric clouds, 9K star catalog, and full weather system",
@@ -531,13 +531,26 @@ AtmosphereRenderer.prototype._computeSkyColor = function(viewDir) {
   gn = 1 - Math.exp(-gn * exposure);
   b = 1 - Math.exp(-b * exposure);
 
-  // Inscatter haze — subtle pale blue at horizon (atmospheric perspective)
-  // Reduced from 0.15 to 0.08 — was washing out the sky too much
-  var horizonFac = 1.0 - Math.abs(viewDir[1]);
-  var hazeFac = horizonFac * horizonFac * horizonFac * 0.08;
-  r = _lerp(r, 0.55, hazeFac);
-  gn = _lerp(gn, 0.62, hazeFac);
-  b = _lerp(b, 0.75, hazeFac); // keep blue bias in haze
+  // Multi-layer atmospheric perspective — 3 altitude bands (Tenkoku: 4-5 depth layers)
+  var altDeg = Math.abs(viewDir[1]) * 90; // approximate altitude in degrees
+  // Band 1: 0-5° — dense white-blue haze at horizon
+  var band1 = _clamp(1.0 - altDeg / 5.0, 0, 1);
+  band1 = band1 * band1 * 0.12;
+  r = _lerp(r, 0.60, band1);
+  gn = _lerp(gn, 0.66, band1);
+  b = _lerp(b, 0.78, band1);
+  // Band 2: 5-15° — moderate blue-shift
+  var band2 = _smoothstep(15, 5, altDeg) * _smoothstep(0, 5, altDeg);
+  band2 *= 0.06;
+  r = _lerp(r, 0.50, band2);
+  gn = _lerp(gn, 0.58, band2);
+  b = _lerp(b, 0.72, band2);
+  // Band 3: 15-30° — subtle aerial perspective
+  var band3 = _smoothstep(30, 15, altDeg) * _smoothstep(5, 15, altDeg);
+  band3 *= 0.025;
+  r = _lerp(r, 0.45, band3);
+  gn = _lerp(gn, 0.55, band3);
+  b = _lerp(b, 0.70, band3);
 
   // Horizon warmth — warm up near horizon when sun is low (Tenkoku golden glow)
   // Reduced from 0.50 to 0.35 — was adding too much orange even at noon
@@ -632,7 +645,7 @@ AtmosphereRenderer.prototype._computeSkyColor = function(viewDir) {
 AtmosphereRenderer.prototype.build = function(scene) {
   if (this.dome) return;
 
-  var segW = 96, segH = 48; // high resolution = ~4600 vertices, ~1600 star highlights at night
+  var segW = 128, segH = 64; // higher resolution = ~8300 vertices, reduces Mach banding in gradients
   // Dome radius must be < camera.far (typically 1000). Use 500 like working sky-weather module.
   this.geometry = new THREE.SphereGeometry(500, segW, segH);
   this.geometry.name = "__swa_sky_dome_geo__";
@@ -686,12 +699,13 @@ AtmosphereRenderer.prototype._updateVertexColors = function() {
     }
 
     var c = this._computeSkyColor(dir);
-    colors[i * 3] = c[0];
-    colors[i * 3 + 1] = c[1];
-    colors[i * 3 + 2] = c[2];
-
-    // Stars are now rendered on a separate textured dome (StarField class)
-    // instead of vertex highlights which caused visible triangle patterns.
+    // Bayer 2x2 ordered dithering to break Mach banding (Phase F.2)
+    var bayerIdx = ((i & 1) + ((i >> 3) & 1) * 2); // 0-3 from vertex index
+    var bayerVal = [0, 2, 3, 1][bayerIdx] / 4.0 - 0.375; // centered [-0.375, 0.125]
+    var dither = bayerVal * (1.0 / 128.0); // ~0.008 amplitude
+    colors[i * 3] = _clamp(c[0] + dither, 0, 1);
+    colors[i * 3 + 1] = _clamp(c[1] + dither, 0, 1);
+    colors[i * 3 + 2] = _clamp(c[2] + dither, 0, 1);
   }
   colorAttr.needsUpdate = true;
 };
@@ -923,7 +937,7 @@ SkyLightingController.prototype.init = function(scene) {
   }
 };
 
-SkyLightingController.prototype.update = function(sunDir, sunAltDeg, settings) {
+SkyLightingController.prototype.update = function(sunDir, sunAltDeg, settings, weatherState) {
   if (!this.sunLight) return;
 
   var autoSun = settings.autoSunLight !== false;
@@ -949,25 +963,40 @@ SkyLightingController.prototype.update = function(sunDir, sunAltDeg, settings) {
     }
 
     // Sun color temperature
+    var sunR = 1.0, sunG = 0.96, sunB = 0.92;
     if (altNorm > 0.15) {
-      // High sun (>13.5°): warm white
-      this.sunLight.color.setRGB(1.0, 0.96, 0.92);
+      sunR = 1.0; sunG = 0.96; sunB = 0.92;
     } else if (altNorm > 0) {
-      // Low sun (0°-13.5°): orange-gold
       var warmT = _smoothstep(0, 0.15, altNorm);
-      this.sunLight.color.setRGB(
-        _lerp(1.0, 1.0, warmT),
-        _lerp(0.65, 0.96, warmT),
-        _lerp(0.3, 0.92, warmT)
-      );
+      sunR = _lerp(1.0, 1.0, warmT);
+      sunG = _lerp(0.65, 0.96, warmT);
+      sunB = _lerp(0.3, 0.92, warmT);
     } else {
-      // Below horizon: cool blue moonlight
-      this.sunLight.color.setRGB(0.3, 0.35, 0.55);
+      sunR = 0.3; sunG = 0.35; sunB = 0.55;
     }
+    // Weather-state sun color blending (Phase E.1)
+    var ws = weatherState || "clear";
+    if (ws === "storm") {
+      sunR = _lerp(sunR, 0.45, 0.55); sunG = _lerp(sunG, 0.48, 0.55); sunB = _lerp(sunB, 0.55, 0.55);
+    } else if (ws === "rain") {
+      sunR = _lerp(sunR, 0.60, 0.35); sunG = _lerp(sunG, 0.62, 0.35); sunB = _lerp(sunB, 0.68, 0.35);
+    } else if (ws === "overcast") {
+      sunR = _lerp(sunR, 0.72, 0.25); sunG = _lerp(sunG, 0.74, 0.25); sunB = _lerp(sunB, 0.78, 0.25);
+    } else if (ws === "snow") {
+      sunR = _lerp(sunR, 0.82, 0.30); sunG = _lerp(sunG, 0.85, 0.30); sunB = _lerp(sunB, 0.92, 0.30);
+    }
+    this.sunLight.color.setRGB(sunR, sunG, sunB);
   }
 
   if (autoAmbient && this.ambientLight) {
     var ambIntensity = settings.ambientIntensity != null ? settings.ambientIntensity : 0.4;
+    // Weather-driven ambient intensity (Phase E.2)
+    var ws2 = weatherState || "clear";
+    if (ws2 === "storm") ambIntensity *= 0.38;       // very dim
+    else if (ws2 === "rain") ambIntensity *= 0.55;    // dim
+    else if (ws2 === "overcast") ambIntensity *= 0.70; // slightly dim
+    else if (ws2 === "snow") ambIntensity *= 0.80;    // slightly bright (reflective snow)
+    else ambIntensity *= 1.38;                        // clear: boost to 0.55
     var isHemi = this.ambientLight.isHemisphereLight;
     if (sunAltDeg > 10) {
       // Day ambient
@@ -1659,21 +1688,58 @@ StarField.prototype._generateStarTexture = function() {
     stars.push({ x: sx, y: sy, r: radius, brightness: brightness });
   }
 
-  // --- Layer 2: 10000 random faint background stars for density ---
-  // Cover FULL sphere (not just upper hemisphere) — latitude rotation handles visibility
+  // --- Layer 2: 10000 random stars with galactic plane clustering + magnitude tiers ---
+  // Cover FULL sphere — latitude rotation handles visibility
   var typeWeights = [0.02, 0.04, 0.08, 0.14, 0.22, 0.25, 0.25];
+
+  // Galactic plane: tilted ~62.9° from celestial equator, centered at ~y=0.45 on texture
+  var galacticCenterY = 0.45;
+  var galacticWidth = 20.0 / 180.0; // ~20° band mapped to 0-1 range
+
+  // Pre-compute cluster seeds along galactic plane (Phase G.3)
+  var clusterSeeds = [];
+  for (var cs = 0; cs < 18; cs++) {
+    clusterSeeds.push({
+      x: Math.random() * W,
+      y: (galacticCenterY + (Math.random() - 0.5) * galacticWidth * 0.8) * H,
+      count: 30 + Math.floor(Math.random() * 25),
+      spread: 8 + Math.random() * 12,
+    });
+  }
+
   for (var i = 0; i < 10000; i++) {
-    var sx = Math.random() * W;
-    var sy = Math.random() * H; // FULL sphere coverage (not * 0.52)
-    var mag = Math.random();
-    mag = mag * mag; // bias toward dimmer stars
-    var radius = 0.3 + mag * 0.8; // 0.3-1.1px (larger for visibility)
-    var brightness = 0.25 + mag * 0.65; // 0.25-0.90 (brighter for visibility)
+    var sx, sy;
+    // Galactic plane density bias: 3x density within galactic band (Phase G.1)
+    if (Math.random() < 0.35) {
+      // Place near galactic plane
+      sx = Math.random() * W;
+      sy = (galacticCenterY + (Math.random() - 0.5) * galacticWidth) * H;
+    } else {
+      sx = Math.random() * W;
+      sy = Math.random() * H;
+    }
+
+    // 3-tier magnitude bins (Phase G.2)
+    var magRoll = Math.random();
+    var radius, brightness;
+    if (magRoll < 0.05) {
+      // Bright 5%: r=1.2-1.8, bright
+      radius = 1.2 + Math.random() * 0.6;
+      brightness = 0.75 + Math.random() * 0.20;
+    } else if (magRoll < 0.25) {
+      // Medium 20%: r=0.6-1.0
+      radius = 0.6 + Math.random() * 0.4;
+      brightness = 0.45 + Math.random() * 0.35;
+    } else {
+      // Faint 75%: r=0.3-0.5
+      radius = 0.3 + Math.random() * 0.2;
+      brightness = 0.20 + Math.random() * 0.25;
+    }
+
     var rnd = Math.random(), cumul = 0, colorIdx = 6;
     for (var ci = 0; ci < typeWeights.length; ci++) {
       cumul += typeWeights[ci]; if (rnd < cumul) { colorIdx = ci; break; }
     }
-    // Tiny white dots
     var glowR3 = radius * 1.3;
     var grad = ctx.createRadialGradient(sx, sy, 0, sx, sy, glowR3);
     grad.addColorStop(0, "rgba(255,255,255," + brightness + ")");
@@ -1682,6 +1748,26 @@ StarField.prototype._generateStarTexture = function() {
     ctx.fillStyle = grad;
     ctx.fillRect(sx - glowR3, sy - glowR3, glowR3 * 2, glowR3 * 2);
     stars.push({ x: sx, y: sy, r: radius, brightness: brightness });
+  }
+
+  // Cluster extra stars at seed positions (Phase G.3)
+  for (var ci2 = 0; ci2 < clusterSeeds.length; ci2++) {
+    var seed = clusterSeeds[ci2];
+    for (var cj = 0; cj < seed.count; cj++) {
+      var csx = seed.x + (Math.random() - 0.5) * seed.spread * 2;
+      var csy = seed.y + (Math.random() - 0.5) * seed.spread * 2;
+      if (csx < 0) csx += W; if (csx >= W) csx -= W;
+      if (csy < 0 || csy >= H) continue;
+      var cr = 0.25 + Math.random() * 0.35;
+      var cb = 0.20 + Math.random() * 0.30;
+      var cgr = cr * 1.2;
+      var cgrad = ctx.createRadialGradient(csx, csy, 0, csx, csy, cgr);
+      cgrad.addColorStop(0, "rgba(255,255,255," + cb + ")");
+      cgrad.addColorStop(1, "rgba(255,255,255,0)");
+      ctx.fillStyle = cgrad;
+      ctx.fillRect(csx - cgr, csy - cgr, cgr * 2, cgr * 2);
+      stars.push({ x: csx, y: csy, r: cr, brightness: cb });
+    }
   }
 
   this._canvas = canvas;
@@ -1693,8 +1779,10 @@ StarField.prototype.init = function(scene) {
   if (this._dome) return;
 
   // Cache star texture globally so it survives SWA reinit (Scene↔Game mode switch)
-  if (!__swa_texCache.starCanvas) {
+  // Force regeneration for v2 star clustering + magnitude tiers (Phase G.4)
+  if (!__swa_texCache.starCanvas || !__swa_texCache._starV2) {
     __swa_texCache.starCanvas = this._generateStarTexture();
+    __swa_texCache._starV2 = true;
   }
   var canvas = __swa_texCache.starCanvas;
   this._canvas = canvas;
@@ -2075,6 +2163,8 @@ function CloudSystem() {
   this._CW = 512;
   this._CH = 256;
   this._blurBuf = null; // cached blur buffer to avoid GC pressure
+  this._moonDir = [0, -1, 0]; // moon direction for night cloud lighting
+  this._moonPhase = 0.5;      // 0=new, 0.5=full
 }
 
 // 2D hash — returns 0..1
@@ -2106,6 +2196,29 @@ CloudSystem.prototype._fbm2 = function(x, y) {
     amp *= 0.5;
   }
   return val;
+};
+
+// 2D Worley (cellular) noise — inverted creates rounded "puff" shapes
+CloudSystem.prototype._worley2 = function(x, y) {
+  var ix = Math.floor(x), iy = Math.floor(y);
+  var minDist = 999;
+  for (var dy = -1; dy <= 1; dy++) {
+    for (var dx = -1; dx <= 1; dx++) {
+      var cx = ix + dx + this._hash2(ix + dx, iy + dy);
+      var cy = iy + dy + this._hash2(iy + dy + 7, ix + dx + 13);
+      var ddx = x - cx, ddy = y - cy;
+      var d = ddx * ddx + ddy * ddy;
+      if (d < minDist) minDist = d;
+    }
+  }
+  return Math.sqrt(minDist);
+};
+
+// Domain warping — offset input coords by low-freq fBm to break tile regularity
+CloudSystem.prototype._domainWarp = function(x, y) {
+  var ox = this._fbm2(x * 0.3 + 100, y * 0.3 + 200) * 2.5;
+  var oy = this._fbm2(x * 0.3 + 300, y * 0.3 + 400) * 2.5;
+  return [x + ox, y + oy];
 };
 
 CloudSystem.prototype.build = function(scene) {
@@ -2186,9 +2299,13 @@ CloudSystem.prototype.updateTexture = function(atmosphere) {
     baseR = 35; baseG = 38; baseB = 52;
   }
 
-  // Sun-side lighting direction (horizontal angle for gradient overlay)
-  // sunX > 0 means sun is to the right of the dome texture
-  var sunAngle = Math.atan2(this._sunDir[2], sunX);
+  // Light direction — use moon at night for cloud edge lighting
+  var lightX = sunX, lightZ = this._sunDir[2];
+  var isNightCloud = sunY < -0.05;
+  if (isNightCloud) {
+    lightX = this._moonDir[0]; lightZ = this._moonDir[2];
+  }
+  var sunAngle = Math.atan2(lightZ, lightX);
 
   for (var py = 0; py < H; py++) {
     // v = 0 at top (zenith), 1 at bottom (horizon)
@@ -2209,11 +2326,13 @@ CloudSystem.prototype.updateTexture = function(atmosphere) {
       var windX = t * 0.03;
       var windY = t * 0.008;
 
-      // Layer 1: Cumulus — large puffy formations with sharp edges (Tenkoku: distinct puffs)
+      // Layer 1: Cumulus — billowy 3D puffs via domain-warped fBm minus Worley (Tenkoku: distinct puffs)
       // coverage=0 → nearly empty, 0.35 → scattered patches, 0.7 → mostly covered, 1.0 → full
-      var n1 = this._fbm2(nx * 0.5 + windX, ny * 0.5 + windY);
-      var c1 = _clamp(n1 + coverage * 2.2 - 1.0, 0, 1);
-      c1 = c1 * c1 * c1 * c1; // 4th power for very sharp puffy edges (Tenkoku-style)
+      var warpedCumulus = this._domainWarp(nx * 0.5 + windX, ny * 0.5 + windY);
+      var n1 = this._fbm2(warpedCumulus[0], warpedCumulus[1]);
+      var w1 = this._worley2(nx * 0.5 + windX, ny * 0.5 + windY);
+      var c1 = _clamp(n1 - w1 * 0.3 + coverage * 2.2 - 1.0, 0, 1);
+      c1 = Math.pow(c1, 2.5); // 2.5 power for billowy rounded puffs (was 4th power = too sharp)
       var fade1 = _smoothstep(0.04, 0.16, v) * _smoothstep(0.85, 0.30, v);
       c1 *= fade1;
 
@@ -2223,8 +2342,10 @@ CloudSystem.prototype.updateTexture = function(atmosphere) {
       var fade2 = _smoothstep(0.08, 0.22, v) * _smoothstep(0.90, 0.4, v);
       c2 *= fade2;
 
-      // Layer 3: Cirrus — thin wispy horizontal streaks (Tenkoku: subtle, very stretched)
-      var n3 = this._fbm2(nx * 8.0 + windX * 0.3 + 120, ny * 0.4 + windY * 0.15 + 120);
+      // Layer 3: Cirrus — thin wispy horizontal streaks (12x stretch + dual-frequency detail)
+      var n3a = this._fbm2(nx * 12.0 + windX * 0.3 + 120, ny * 0.4 + windY * 0.15 + 120);
+      var n3b = this._fbm2(nx * 6.0 + windX * 0.2 + 180, ny * 0.6 + windY * 0.1 + 180) * 0.4;
+      var n3 = n3a + n3b;
       var c3 = _clamp(n3 + coverage * 0.9 - 0.5, 0, 1) * 0.18;
       var fade3 = _smoothstep(0.0, 0.04, v) * _smoothstep(0.40, 0.10, v);
       c3 *= fade3;
@@ -2233,8 +2354,9 @@ CloudSystem.prototype.updateTexture = function(atmosphere) {
       var c4 = 0;
       if (coverage > 0.6) {
         var n4 = this._fbm2(nx * 2.0 + windX * 0.5 + 200, ny * 1.5 + windY * 0.3 + 200);
-        c4 = _clamp((coverage - 0.6) * 2.5 * (0.5 + n4 * 0.5), 0, 0.7);
-        // Overcast covers entire dome uniformly (no altitude fade)
+        // Reduce noise amplitude at high coverage for smoother overcast (Tenkoku: uniform layer)
+        var noiseAmp = _lerp(0.5, 0.15, _clamp((coverage - 0.6) * 2.5, 0, 1));
+        c4 = _clamp((coverage - 0.6) * 2.5 * (0.5 + n4 * noiseAmp), 0, 0.7);
       }
 
       // Front-to-back layer compositing with Beer transmission (Tenkoku cloud_sphere.shader)
@@ -2266,6 +2388,18 @@ CloudSystem.prototype.updateTexture = function(atmosphere) {
       var scatter = beerPowder * hgPhase * 3.2; // increased from 2.5
       var ambient = beer * 0.28; // reduced from 0.35 for more contrast
       var lightMul = (scatter + ambient) * brightness;
+      // Moon-lit clouds at night: scale by moonPhase (Phase C.2)
+      if (isNightCloud) {
+        lightMul *= this._moonPhase * 0.35; // moonPhase 0=dark, 1=full moonlight
+        lightMul = Math.max(lightMul, 0.08); // minimum visibility
+      }
+      // Overcast sun glow: diffuse bright spot at sun position when coverage > 0.7 (Phase C.3)
+      if (coverage > 0.7 && !isNightCloud) {
+        var glowStr = _clamp((coverage - 0.7) * 3.3, 0, 1);
+        var glowDot = _clamp(sunDot * 2 - 0.6, 0, 1);
+        glowDot = glowDot * glowDot; // gaussian-like falloff
+        lightMul += glowStr * glowDot * 0.4;
+      }
       // Altitude shading: darker cloud bottoms (Tenkoku: self-shadowing)
       lightMul *= _lerp(0.25, 1.0, 1.0 - v); // was 0.35
 
@@ -2273,11 +2407,12 @@ CloudSystem.prototype.updateTexture = function(atmosphere) {
       var g = _clamp(baseG * lightMul / 255, 0, 1);
       var b = _clamp(baseB * lightMul / 255, 0, 1);
 
-      // Horizon fog blend (Tenkoku: clouds fade into sky color near horizon)
-      var horizFogFade = _smoothstep(0.75, 0.55, v); // fade clouds near horizon edge
-      r = _lerp(r, r * 0.5, (1 - horizFogFade) * 0.6);
-      g = _lerp(g, g * 0.55, (1 - horizFogFade) * 0.6);
-      b = _lerp(b, b * 0.65, (1 - horizFogFade) * 0.6);
+      // Horizon fog blend — distant clouds blue-tint + alpha fade (Tenkoku: atmospheric perspective)
+      var horizFogFade = _smoothstep(0.75, 0.55, v);
+      var horizBlend = (1 - horizFogFade) * 0.6;
+      r = _lerp(r, 0.45, horizBlend); // shift toward blue-grey (not just darken)
+      g = _lerp(g, 0.52, horizBlend);
+      b = _lerp(b, 0.68, horizBlend);
 
       // Alpha: Tenkoku ref shows dense opaque cumulus cores with soft transparent edges
       var alpha = _clamp(d * 2.5, 0, 0.93) * altFade * horizFogFade;
@@ -2316,7 +2451,7 @@ CloudSystem.prototype.updateTexture = function(atmosphere) {
   if (this._dome) this._dome.visible = hasCloud;
 };
 
-CloudSystem.prototype.update = function(dt, camera, sunDir, settings) {
+CloudSystem.prototype.update = function(dt, camera, sunDir, settings, moonDir, moonPhase) {
   this._time += dt;
   this._sunDir = [sunDir.x, sunDir.y, sunDir.z];
   this._coverage = settings.coverage != null ? settings.coverage : 0.35;
@@ -2324,6 +2459,8 @@ CloudSystem.prototype.update = function(dt, camera, sunDir, settings) {
   this._brightness = settings.brightness != null ? settings.brightness : 1.0;
   this._density = settings.density != null ? settings.density : 0.85;
   this._scale = settings.scale != null ? settings.scale : 3.0;
+  if (moonDir) this._moonDir = [moonDir.x, moonDir.y, moonDir.z];
+  if (moonPhase != null) this._moonPhase = moonPhase;
 
   if (this._dome && camera) {
     this._dome.position.copy(camera.position);
@@ -2501,18 +2638,20 @@ MoonRenderer.prototype.build = function(scene) {
   this._mesh.frustumCulled = false;
   scene.add(this._mesh);
 
-  // Atmospheric glow halo — Tenkoku reference: large soft atmospheric halo around moon
+  // Primary atmospheric glow — widened gradient for slow falloff (Phase H.1)
   var glowCanvas = document.createElement("canvas");
   glowCanvas.width = glowCanvas.height = 256;
   var glowCtx = glowCanvas.getContext("2d");
   var glowGrad = glowCtx.createRadialGradient(128, 128, 0, 128, 128, 128);
-  glowGrad.addColorStop(0, "rgba(245,240,230,0.75)");
-  glowGrad.addColorStop(0.08, "rgba(240,237,228,0.55)");
-  glowGrad.addColorStop(0.18, "rgba(230,228,222,0.35)");
-  glowGrad.addColorStop(0.3, "rgba(215,215,220,0.18)");
-  glowGrad.addColorStop(0.5, "rgba(195,200,212,0.07)");
-  glowGrad.addColorStop(0.7, "rgba(180,185,200,0.02)");
-  glowGrad.addColorStop(1, "rgba(160,170,190,0)");
+  glowGrad.addColorStop(0, "rgba(245,240,230,0.70)");
+  glowGrad.addColorStop(0.05, "rgba(242,238,230,0.55)");
+  glowGrad.addColorStop(0.12, "rgba(238,235,228,0.40)");
+  glowGrad.addColorStop(0.22, "rgba(230,228,224,0.28)");
+  glowGrad.addColorStop(0.35, "rgba(220,220,222,0.16)");
+  glowGrad.addColorStop(0.50, "rgba(210,212,218,0.08)");
+  glowGrad.addColorStop(0.70, "rgba(195,200,212,0.03)");
+  glowGrad.addColorStop(0.85, "rgba(185,190,205,0.01)");
+  glowGrad.addColorStop(1, "rgba(170,178,195,0)");
   glowCtx.fillStyle = glowGrad;
   glowCtx.fillRect(0, 0, 256, 256);
   var glowTex = new THREE.CanvasTexture(glowCanvas);
@@ -2532,9 +2671,42 @@ MoonRenderer.prototype.build = function(scene) {
   });
   this._glowMesh = new THREE.Mesh(this._glowGeo, this._glowMat);
   this._glowMesh.name = "__swa_moon_glow__";
-  this._glowMesh.renderOrder = -998.5; // behind moon
+  this._glowMesh.renderOrder = -998.5;
   this._glowMesh.frustumCulled = false;
   scene.add(this._glowMesh);
+
+  // Secondary wide halo billboard — subtle outer atmospheric ring (Phase H.2)
+  var haloCanvas = document.createElement("canvas");
+  haloCanvas.width = haloCanvas.height = 256;
+  var haloCtx = haloCanvas.getContext("2d");
+  var haloGrad = haloCtx.createRadialGradient(128, 128, 0, 128, 128, 128);
+  haloGrad.addColorStop(0, "rgba(220,225,235,0.10)");
+  haloGrad.addColorStop(0.15, "rgba(210,215,228,0.07)");
+  haloGrad.addColorStop(0.35, "rgba(195,200,218,0.04)");
+  haloGrad.addColorStop(0.60, "rgba(180,188,210,0.015)");
+  haloGrad.addColorStop(1, "rgba(160,170,200,0)");
+  haloCtx.fillStyle = haloGrad;
+  haloCtx.fillRect(0, 0, 256, 256);
+  var haloTex = new THREE.CanvasTexture(haloCanvas);
+  haloTex.colorSpace = THREE.SRGBColorSpace;
+
+  this._haloGeo = new THREE.PlaneGeometry(1, 1);
+  this._haloMat = new THREE.MeshBasicMaterial({
+    map: haloTex,
+    transparent: true,
+    opacity: 0,
+    depthWrite: false,
+    depthTest: false,
+    side: THREE.DoubleSide,
+    fog: false,
+    toneMapped: false,
+    blending: THREE.AdditiveBlending,
+  });
+  this._haloMesh = new THREE.Mesh(this._haloGeo, this._haloMat);
+  this._haloMesh.name = "__swa_moon_halo__";
+  this._haloMesh.renderOrder = -998.6; // behind primary glow
+  this._haloMesh.frustumCulled = false;
+  scene.add(this._haloMesh);
 };
 
 MoonRenderer.prototype.update = function(camera, moonDir, sunDir, moonPhase, sunAltDeg, settings) {
@@ -2620,14 +2792,36 @@ MoonRenderer.prototype.update = function(camera, moonDir, sunDir, moonPhase, sun
   // Visibility: hide when fully below horizon (after fade completes)
   this._mesh.visible = moonDir.y > -0.05;
 
-  // Glow halo — follows moon position, scales 18x larger for Tenkoku-scale halo
+  // Primary glow halo — widened to 8x (Phase H.1)
   if (this._glowMesh) {
     this._glowMesh.visible = this._mesh.visible;
     if (this._glowMesh.visible && camera) {
       this._glowMesh.position.copy(this._mesh.position);
-      this._glowMesh.scale.setScalar(this._size * 4.0); // was 30 — way too large
+      this._glowMesh.scale.setScalar(this._size * 8.0); // widened from 4x to 8x
       this._glowMesh.lookAt(camera.position);
-      this._glowMesh.material.opacity = phaseBrightness * horizonFade * 0.72;
+      // Altitude-based halo color: warm at horizon, cool blue-white at zenith (Phase H.3)
+      var haloAlt = _clamp(moonDir.y, 0, 1);
+      var haloR = _lerp(1.0, 0.85, haloAlt);
+      var haloG = _lerp(0.88, 0.90, haloAlt);
+      var haloB = _lerp(0.75, 1.0, haloAlt);
+      this._glowMat.color.setRGB(haloR, haloG, haloB);
+      this._glowMat.opacity = phaseBrightness * horizonFade * 0.72;
+    }
+  }
+
+  // Secondary wide halo (Phase H.2)
+  if (this._haloMesh) {
+    this._haloMesh.visible = this._mesh.visible;
+    if (this._haloMesh.visible && camera) {
+      this._haloMesh.position.copy(this._mesh.position);
+      this._haloMesh.scale.setScalar(this._size * 16.0); // 16x for wide atmospheric halo
+      this._haloMesh.lookAt(camera.position);
+      var haloAlt2 = _clamp(moonDir.y, 0, 1);
+      var haloR2 = _lerp(1.0, 0.82, haloAlt2);
+      var haloG2 = _lerp(0.85, 0.88, haloAlt2);
+      var haloB2 = _lerp(0.70, 1.0, haloAlt2);
+      this._haloMat.color.setRGB(haloR2, haloG2, haloB2);
+      this._haloMat.opacity = phaseBrightness * horizonFade * 0.08; // very subtle
     }
   }
 };
@@ -2635,13 +2829,17 @@ MoonRenderer.prototype.update = function(camera, moonDir, sunDir, moonPhase, sun
 MoonRenderer.prototype.dispose = function(scene) {
   if (this._mesh && this._mesh.parent) this._mesh.parent.remove(this._mesh);
   if (this._glowMesh && this._glowMesh.parent) this._glowMesh.parent.remove(this._glowMesh);
+  if (this._haloMesh && this._haloMesh.parent) this._haloMesh.parent.remove(this._haloMesh);
   if (this._geo) this._geo.dispose();
   if (this._glowGeo) this._glowGeo.dispose();
+  if (this._haloGeo) this._haloGeo.dispose();
   if (this._moonTex) this._moonTex.dispose();
   if (this._mat) this._mat.dispose();
   if (this._glowMat) this._glowMat.dispose();
+  if (this._haloMat) this._haloMat.dispose();
   this._mesh = null;
   this._glowMesh = null;
+  this._haloMesh = null;
 };
 
 
@@ -2662,69 +2860,160 @@ function LightningEffect() {
 
 LightningEffect.prototype.init = function(scene) {
   this._scene = scene;
-  // Flash light for lightning illumination
-  this._flashLight = new THREE.PointLight(0xCCDDFF, 0, 500);
+  // Flash light for lightning illumination — increased range + intensity (Phase D.3)
+  this._flashLight = new THREE.PointLight(0xCCDDFF, 0, 800);
   this._flashLight.name = "__swa_lightning_flash__";
   scene.add(this._flashLight);
+
+  // Flash glow billboard at bolt base (Phase D.4)
+  var glowCanvas = document.createElement("canvas");
+  glowCanvas.width = glowCanvas.height = 128;
+  var gctx = glowCanvas.getContext("2d");
+  var grad = gctx.createRadialGradient(64, 64, 0, 64, 64, 64);
+  grad.addColorStop(0, "rgba(200,220,255,0.8)");
+  grad.addColorStop(0.3, "rgba(180,200,240,0.35)");
+  grad.addColorStop(0.6, "rgba(150,170,220,0.1)");
+  grad.addColorStop(1, "rgba(120,140,200,0)");
+  gctx.fillStyle = grad;
+  gctx.fillRect(0, 0, 128, 128);
+  this._glowTex = new THREE.CanvasTexture(glowCanvas);
+  this._glowTex.colorSpace = THREE.SRGBColorSpace;
+  this._glowGeo = new THREE.PlaneGeometry(1, 1);
+  this._glowMat = new THREE.MeshBasicMaterial({
+    map: this._glowTex, transparent: true, opacity: 0,
+    depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide, fog: false,
+  });
+  this._glowMesh = new THREE.Mesh(this._glowGeo, this._glowMat);
+  this._glowMesh.name = "__swa_bolt_glow__";
+  this._glowMesh.frustumCulled = false;
+  this._glowMesh.visible = false;
+  scene.add(this._glowMesh);
+};
+
+// Generate a path of 3D points for a lightning bolt
+LightningEffect.prototype._generatePath = function(startX, startY, startZ, endY, baseX, baseZ, segments, jitter) {
+  var path = [];
+  var x = startX, y = startY, z = startZ;
+  var stepY = (startY - endY) / segments;
+  for (var i = 0; i <= segments; i++) {
+    path.push([x, y, z]);
+    var t = i / segments;
+    x += (Math.random() - 0.5) * jitter * (1 - t * 0.5);
+    y -= stepY;
+    z += (Math.random() - 0.5) * jitter * (1 - t * 0.5);
+    x = _lerp(x, baseX, 0.1);
+    z = _lerp(z, baseZ, 0.1);
+  }
+  return path;
+};
+
+// Build camera-facing ribbon mesh from path vertices (Phase D.1)
+LightningEffect.prototype._buildRibbon = function(path, width, camera) {
+  var n = path.length;
+  if (n < 2) return null;
+  var positions = new Float32Array((n - 1) * 6 * 3); // 2 triangles per segment = 6 verts
+  var camPos = camera ? camera.position : new THREE.Vector3();
+  var idx = 0;
+  for (var i = 0; i < n - 1; i++) {
+    var p0 = path[i], p1 = path[i + 1];
+    // Taper: wide at top, narrow at bottom
+    var t = i / (n - 1);
+    var w = width * _lerp(1.0, 0.15, t);
+    // Tangent along bolt
+    var tx = p1[0] - p0[0], ty = p1[1] - p0[1], tz = p1[2] - p0[2];
+    // View direction (camera to midpoint)
+    var mx = (p0[0] + p1[0]) * 0.5 - camPos.x;
+    var my = (p0[1] + p1[1]) * 0.5 - camPos.y;
+    var mz = (p0[2] + p1[2]) * 0.5 - camPos.z;
+    // Cross product tangent × view = perpendicular (billboard direction)
+    var cx = ty * mz - tz * my;
+    var cy = tz * mx - tx * mz;
+    var cz = tx * my - ty * mx;
+    var cl = Math.sqrt(cx * cx + cy * cy + cz * cz) || 1;
+    cx = cx / cl * w; cy = cy / cl * w; cz = cz / cl * w;
+    // Quad: p0-w, p0+w, p1-w, p1+w → 2 triangles
+    // Tri 1: p0-w, p0+w, p1-w
+    positions[idx++] = p0[0] - cx; positions[idx++] = p0[1] - cy; positions[idx++] = p0[2] - cz;
+    positions[idx++] = p0[0] + cx; positions[idx++] = p0[1] + cy; positions[idx++] = p0[2] + cz;
+    positions[idx++] = p1[0] - cx; positions[idx++] = p1[1] - cy; positions[idx++] = p1[2] - cz;
+    // Tri 2: p0+w, p1+w, p1-w
+    positions[idx++] = p0[0] + cx; positions[idx++] = p0[1] + cy; positions[idx++] = p0[2] + cz;
+    positions[idx++] = p1[0] + cx; positions[idx++] = p1[1] + cy; positions[idx++] = p1[2] + cz;
+    positions[idx++] = p1[0] - cx; positions[idx++] = p1[1] - cy; positions[idx++] = p1[2] - cz;
+  }
+  var geo = new THREE.BufferGeometry();
+  geo.setAttribute("position", new THREE.BufferAttribute(positions.slice(0, idx), 3));
+  return geo;
 };
 
 LightningEffect.prototype._generateBolt = function(camera) {
   if (!camera) return null;
 
-  // Random direction from camera
   var angle = Math.random() * TWO_PI;
   var distance = 100 + Math.random() * 200;
   var baseX = camera.position.x + Math.sin(angle) * distance;
   var baseZ = camera.position.z + Math.cos(angle) * distance;
   var topY = camera.position.y + 80 + Math.random() * 40;
   var bottomY = camera.position.y - 5;
-
   var segments = 30 + Math.floor(Math.random() * 30);
-  var positions = new Float32Array(segments * 2 * 3); // line segments need pairs
-
-  var x = baseX, y = topY, z = baseZ;
-  var stepY = (topY - bottomY) / segments;
   var jitter = 8 + Math.random() * 12;
 
-  for (var i = 0; i < segments; i++) {
-    // Start point
-    positions[i*6]   = x;
-    positions[i*6+1] = y;
-    positions[i*6+2] = z;
+  // Main bolt path
+  var mainPath = this._generatePath(baseX, topY, baseZ, bottomY, baseX, baseZ, segments, jitter);
+  var mainGeo = this._buildRibbon(mainPath, 3.0, camera);
 
-    // Perlin-like jitter with convergence
-    var t = i / segments;
-    x += (Math.random() - 0.5) * jitter * (1 - t * 0.5);
-    y -= stepY;
-    z += (Math.random() - 0.5) * jitter * (1 - t * 0.5);
-
-    // Converge toward base
-    x = _lerp(x, baseX, 0.1);
-    z = _lerp(z, baseZ, 0.1);
-
-    // End point
-    positions[i*6+3] = x;
-    positions[i*6+4] = y;
-    positions[i*6+5] = z;
+  // Branch forks — 2-4 branches from random points (Phase D.2)
+  var branchCount = 2 + Math.floor(Math.random() * 3);
+  var branchGeos = [];
+  for (var bi = 0; bi < branchCount; bi++) {
+    var forkIdx = 3 + Math.floor(Math.random() * (mainPath.length * 0.6));
+    if (forkIdx >= mainPath.length) forkIdx = Math.floor(mainPath.length * 0.5);
+    var fp = mainPath[forkIdx];
+    var branchSegs = 8 + Math.floor(Math.random() * 12);
+    var branchEndY = fp[1] - 15 - Math.random() * 25;
+    var branchBaseX = fp[0] + (Math.random() - 0.5) * 30;
+    var branchBaseZ = fp[2] + (Math.random() - 0.5) * 30;
+    var branchPath = this._generatePath(fp[0], fp[1], fp[2], branchEndY, branchBaseX, branchBaseZ, branchSegs, jitter * 0.7);
+    var branchGeo = this._buildRibbon(branchPath, 1.2, camera);
+    if (branchGeo) branchGeos.push(branchGeo);
   }
 
+  // Merge all geometries
+  var allGeos = [mainGeo];
+  for (var gi = 0; gi < branchGeos.length; gi++) allGeos.push(branchGeos[gi]);
+  // Simple merge: combine position buffers
+  var totalVerts = 0;
+  for (var mi = 0; mi < allGeos.length; mi++) {
+    if (allGeos[mi]) totalVerts += allGeos[mi].getAttribute("position").count;
+  }
+  var merged = new Float32Array(totalVerts * 3);
+  var off = 0;
+  for (var mi2 = 0; mi2 < allGeos.length; mi2++) {
+    if (!allGeos[mi2]) continue;
+    var src = allGeos[mi2].getAttribute("position").array;
+    merged.set(src, off);
+    off += src.length;
+    allGeos[mi2].dispose();
+  }
   var geo = new THREE.BufferGeometry();
-  geo.setAttribute("position", new THREE.BufferAttribute(positions, 3));
+  geo.setAttribute("position", new THREE.BufferAttribute(merged, 3));
 
-  var mat = new THREE.LineBasicMaterial({
+  var mat = new THREE.MeshBasicMaterial({
     color: 0xCCDDFF,
     transparent: true,
     opacity: 1.0,
-    linewidth: 2,
+    side: THREE.DoubleSide,
+    depthWrite: false,
+    fog: false,
   });
 
-  var line = new THREE.LineSegments(geo, mat);
-  line.name = "__swa_bolt__";
-  line.frustumCulled = false;
-  this._scene.add(line);
+  var mesh = new THREE.Mesh(geo, mat);
+  mesh.name = "__swa_bolt__";
+  mesh.frustumCulled = false;
+  this._scene.add(mesh);
 
   return {
-    mesh: line,
+    mesh: mesh,
     geo: geo,
     mat: mat,
     life: 0,
@@ -2791,9 +3080,19 @@ LightningEffect.prototype.update = function(dt, camera, settings) {
       if (bolt) {
         this._bolts.push(bolt);
 
-        // Flash
+        // Flash — increased intensity (Phase D.3)
         this._flashLight.position.copy(bolt.position);
-        this._flashLight.intensity = bolt.intensity * 5;
+        this._flashLight.intensity = bolt.intensity * 15;
+
+        // Flash glow billboard (Phase D.4)
+        if (this._glowMesh) {
+          this._glowMesh.visible = true;
+          this._glowMesh.position.copy(bolt.position);
+          this._glowMesh.position.y -= 20; // near bolt base
+          this._glowMesh.scale.setScalar(60 + Math.random() * 40);
+          if (camera) this._glowMesh.lookAt(camera.position);
+          this._glowMat.opacity = 0.7;
+        }
 
         // Thunder
         this._playThunder(bolt.distance);
@@ -2819,10 +3118,17 @@ LightningEffect.prototype.update = function(dt, camera, settings) {
     }
   }
 
-  // Decay flash light
+  // Decay flash light + glow
   if (this._flashLight.intensity > 0) {
     this._flashLight.intensity *= 0.85;
     if (this._flashLight.intensity < 0.01) this._flashLight.intensity = 0;
+  }
+  if (this._glowMat && this._glowMat.opacity > 0) {
+    this._glowMat.opacity *= 0.82;
+    if (this._glowMat.opacity < 0.01) {
+      this._glowMat.opacity = 0;
+      if (this._glowMesh) this._glowMesh.visible = false;
+    }
   }
 };
 
@@ -2834,6 +3140,7 @@ LightningEffect.prototype.dispose = function(scene) {
   }
   this._bolts = [];
   if (this._flashLight) scene.remove(this._flashLight);
+  if (this._glowMesh) { scene.remove(this._glowMesh); this._glowGeo.dispose(); this._glowMat.dispose(); this._glowTex.dispose(); }
   if (this._audioCtx) {
     try { this._audioCtx.close(); } catch(e) {}
   }
@@ -3560,7 +3867,7 @@ function FogController() {
   this._active = false;
 }
 
-FogController.prototype.update = function(scene, sunAltDeg, settings, skyHorizonColor) {
+FogController.prototype.update = function(scene, sunAltDeg, settings, skyHorizonColor, weatherInfo) {
   if (settings.enabled === false) {
     if (this._active && this._originalFog !== undefined) {
       scene.fog = this._originalFog;
@@ -3590,6 +3897,16 @@ FogController.prototype.update = function(scene, sunAltDeg, settings, skyHorizon
       density = baseDensity * (1 + heightMult * 1.5); // was *3, caused extreme washout
     }
   }
+  // Weather-coupled fog density — rain/storm auto-bumps density (Phase B.2)
+  var wi = weatherInfo || {};
+  if (wi.precipType === "rain") {
+    density += wi.precipIntensity * 0.002; // rain haze
+  } else if (wi.precipType === "snow") {
+    density += wi.precipIntensity * 0.003; // snow reduces visibility more
+  }
+  if (wi.weatherState === "storm") {
+    density = Math.max(density, 0.005); // storm minimum fog
+  }
   // Hard cap: never exceed 0.012 (was uncapped — could reach 0.02+ with heightFalloff)
   density = Math.min(density, 0.012);
 
@@ -3601,26 +3918,31 @@ FogController.prototype.update = function(scene, sunAltDeg, settings, skyHorizon
 
   // Auto fog color: prefer sky horizon color from atmosphere, fall back to sun-altitude heuristic
   if (settings.autoColor !== false) {
+    var fogR, fogG, fogB;
     if (skyHorizonColor && skyHorizonColor.length >= 3) {
-      scene.fog.color.setRGB(skyHorizonColor[0], skyHorizonColor[1], skyHorizonColor[2]);
+      fogR = skyHorizonColor[0]; fogG = skyHorizonColor[1]; fogB = skyHorizonColor[2];
     } else {
       var altNorm = _clamp(sunAltDeg / 90, -1, 1);
       if (altNorm > 0.1) {
-        // Day: light blue-white
-        scene.fog.color.setRGB(0.7, 0.8, 0.9);
+        fogR = 0.7; fogG = 0.8; fogB = 0.9;
       } else if (altNorm > -0.05) {
-        // Sunset: warm orange-pink
         var t = _smoothstep(-0.05, 0.1, altNorm);
-        scene.fog.color.setRGB(
-          _lerp(0.4, 0.7, t),
-          _lerp(0.25, 0.8, t),
-          _lerp(0.15, 0.9, t)
-        );
+        fogR = _lerp(0.4, 0.7, t);
+        fogG = _lerp(0.25, 0.8, t);
+        fogB = _lerp(0.15, 0.9, t);
       } else {
-        // Night: dark blue
-        scene.fog.color.setRGB(0.05, 0.05, 0.12);
+        fogR = 0.05; fogG = 0.05; fogB = 0.12;
       }
     }
+    // Weather-tinted fog color (Phase E.3) — storms darker, snow brighter, dawn warm
+    if (wi.weatherState === "storm") {
+      fogR = _lerp(fogR, 0.18, 0.5); fogG = _lerp(fogG, 0.20, 0.5); fogB = _lerp(fogB, 0.28, 0.5);
+    } else if (wi.weatherState === "rain") {
+      fogR = _lerp(fogR, 0.35, 0.3); fogG = _lerp(fogG, 0.38, 0.3); fogB = _lerp(fogB, 0.42, 0.3);
+    } else if (wi.weatherState === "snow") {
+      fogR = _lerp(fogR, 0.72, 0.35); fogG = _lerp(fogG, 0.74, 0.35); fogB = _lerp(fogB, 0.78, 0.35);
+    }
+    scene.fog.color.setRGB(fogR, fogG, fogB);
   }
 };
 
@@ -3946,15 +4268,16 @@ SkyWeatherAdvancedSystem.prototype._tick = function(dt) {
   var camera = this._cachedCamera || null;
   if (camera) this.atmosphere.followCamera(camera);
 
-  // Lighting
+  // Lighting — pass weather state for color grading
   this.lighting.update(
     this.orbital.sunDirection,
     sunAltDeg,
-    this.settings.lighting || {}
+    this.settings.lighting || {},
+    this.weather._currentState
   );
 
   // Clouds
-  this.clouds.update(dt, camera, this.orbital.sunDirection, this.settings.clouds || {});
+  this.clouds.update(dt, camera, this.orbital.sunDirection, this.settings.clouds || {}, this.orbital.moonDirection, this.orbital.moonPhase);
   this._cloudUpdateTimer += dt;
   if (this._cloudUpdateTimer >= this._cloudUpdateInterval) {
     this._cloudUpdateTimer = 0;
@@ -4039,9 +4362,14 @@ SkyWeatherAdvancedSystem.prototype._tick = function(dt) {
     sunAltDeg
   );
 
-  // Fog — pass sky horizon color for accurate color matching
+  // Fog — pass sky horizon color + weather info for accurate color matching
   var horizonColor = this.atmosphere.getHorizonColor();
-  this.fog.update(this.scene, sunAltDeg, this.settings.fog || {}, horizonColor);
+  var _wi = {
+    weatherState: this.weather._currentState,
+    precipType: (this.settings.precipitation || {}).type || "none",
+    precipIntensity: (this.settings.precipitation || {}).intensity || 0,
+  };
+  this.fog.update(this.scene, sunAltDeg, this.settings.fog || {}, horizonColor, _wi);
 
   // Sun Shafts (god rays) — skip if disabled
   var _eff = this.settings.effects || {};
