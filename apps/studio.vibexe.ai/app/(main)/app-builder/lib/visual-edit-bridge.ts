@@ -3502,20 +3502,30 @@ export function getVisualEditBridgeScript(): string {
       // Get camera position (for "reset spawn/respawn to camera" feature)
       case "game-editor-get-camera-position":
         if (editor && editor.camera) {
-          var _cam = editor.camera;
-          // Raycast down from camera to find ground position
-          var _downRay = new _THREE.Raycaster(_cam.position.clone(), new _THREE.Vector3(0, -1, 0));
-          var _groundHits = _downRay.intersectObjects(editor.scene.children, true).filter(function(h) {
-            return h.object.name !== "__swa_sky_dome__" && h.object.name !== "__swa_cloud_dome__"
-              && h.object.name !== "__swa_star_dome__" && !h.object.name.startsWith("__swa_");
-          });
-          var _groundY = _groundHits.length > 0 ? _groundHits[0].point.y + 1 : _cam.position.y;
-          // Use camera X/Z but ground Y (so character lands on terrain, not floating)
-          window.parent.postMessage({
-            type: "game-editor-camera-position",
-            position: { x: +_cam.position.x.toFixed(1), y: +_groundY.toFixed(1), z: +_cam.position.z.toFixed(1) },
-            _purpose: d._purpose || "spawn"
-          }, "*");
+          try {
+            var _cam2 = editor.camera;
+            var _cx = _cam2.position.x;
+            var _cy = _cam2.position.y;
+            var _cz = _cam2.position.z;
+            // Raycast down from camera to find ground position
+            var _downDir = new _THREE.Vector3(0, -1, 0);
+            var _downRay2 = new _THREE.Raycaster(new _THREE.Vector3(_cx, _cy, _cz), _downDir);
+            var _allChildren = [];
+            editor.scene.traverse(function(obj) {
+              if (obj.isMesh && !obj.name.startsWith("__swa_") && obj.name !== "TransformControlsPlane") {
+                _allChildren.push(obj);
+              }
+            });
+            var _gHits = _downRay2.intersectObjects(_allChildren, false);
+            var _gy = _gHits.length > 0 ? _gHits[0].point.y + 1 : _cy;
+            window.parent.postMessage({
+              type: "game-editor-camera-position",
+              position: { x: Math.round(_cx * 10) / 10, y: Math.round(_gy * 10) / 10, z: Math.round(_cz * 10) / 10 },
+              _purpose: d._purpose || "spawn"
+            }, "*");
+          } catch(e) {
+            console.warn("[Bridge] get-camera-position error:", e);
+          }
         }
         break;
       // Select + Focus (hierarchy double-click)
