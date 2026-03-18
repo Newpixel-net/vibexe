@@ -16,7 +16,7 @@ import type { ModuleManifest } from "../module-types";
 export const SKY_WEATHER_ADVANCED_MANIFEST: ModuleManifest = {
 	id: "sky-weather-advanced",
 	name: "Sky & Weather Advanced",
-	version: "1.9.0",
+	version: "1.10.0",
 	category: "lighting",
 	description:
 		"Physically-based atmosphere with Rayleigh+Mie scattering, real orbital mechanics, volumetric clouds, 9K star catalog, and full weather system",
@@ -316,7 +316,8 @@ var MIE_COEFF = 2.0e-5;
 // Source: _IncomingLight = float4(3.6, 3.9, 6.0, 4) in Tenkoku_sky_elek.shader
 // Normalized to ratios: R=0.80, G=0.867, B=1.333 (B/R ratio = 1.67x)
 // This deepens the blue zenith and enriches sunset/sunrise colors
-var INCOMING_LIGHT_RATIO = [0.80, 0.867, 1.333];
+// Increased blue bias for richer Tenkoku-quality blue sky (was R=0.80 B=1.333)
+var INCOMING_LIGHT_RATIO = [0.72, 0.84, 1.45];
 
 function AtmosphereRenderer() {
   this.dome = null;
@@ -530,17 +531,19 @@ AtmosphereRenderer.prototype._computeSkyColor = function(viewDir) {
   gn = 1 - Math.exp(-gn * exposure);
   b = 1 - Math.exp(-b * exposure);
 
-  // Inscatter haze — subtle pale blue-white at horizon (atmospheric perspective)
+  // Inscatter haze — subtle pale blue at horizon (atmospheric perspective)
+  // Reduced from 0.15 to 0.08 — was washing out the sky too much
   var horizonFac = 1.0 - Math.abs(viewDir[1]);
-  var hazeFac = horizonFac * horizonFac * horizonFac * 0.15;
-  r = _lerp(r, 0.65, hazeFac);
-  gn = _lerp(gn, 0.70, hazeFac);
-  b = _lerp(b, 0.78, hazeFac);
+  var hazeFac = horizonFac * horizonFac * horizonFac * 0.08;
+  r = _lerp(r, 0.55, hazeFac);
+  gn = _lerp(gn, 0.62, hazeFac);
+  b = _lerp(b, 0.75, hazeFac); // keep blue bias in haze
 
   // Horizon warmth — warm up near horizon when sun is low (Tenkoku golden glow)
+  // Reduced from 0.50 to 0.35 — was adding too much orange even at noon
   horizonFac = horizonFac * horizonFac * horizonFac;
-  var sunHorizFac = Math.max(0, 1.0 - Math.abs(sunDir[1]) * 2.5);
-  var warmth = horizonFac * sunHorizFac * 0.50;
+  var sunHorizFac = Math.max(0, 1.0 - Math.abs(sunDir[1]) * 3.0);
+  var warmth = horizonFac * sunHorizFac * 0.35;
   r += warmth * 1.0;
   gn += warmth * 0.45;
   b += warmth * 0.08;
@@ -568,19 +571,19 @@ AtmosphereRenderer.prototype._computeSkyColor = function(viewDir) {
     b += purpleStr * 0.95;
   }
 
-  // Boost saturation for vivid colors — stronger for richer sky
+  // Boost saturation for vivid colors — Tenkoku has rich saturated skies
   var luma = r * 0.299 + gn * 0.587 + b * 0.114;
-  var satBoost = 1.35;
+  var satBoost = 1.50; // was 1.35 — stronger for richer blue
   r = luma + (r - luma) * satBoost;
   gn = luma + (gn - luma) * satBoost;
   b = luma + (b - luma) * satBoost;
 
-  // Deeper blue at zenith — stronger push for contrast between zenith and horizon
+  // Deeper blue at zenith — Tenkoku ref: strong contrast between deep blue zenith and light horizon
   var zenithFac = _clamp(viewDir[1], 0, 1);
   zenithFac = zenithFac * zenithFac;
-  b += zenithFac * 0.04;
-  r -= zenithFac * 0.02;
-  gn -= zenithFac * 0.005;
+  b += zenithFac * 0.08; // was 0.04 — doubled for richer blue zenith
+  r -= zenithFac * 0.04; // was 0.02 — remove more red from zenith
+  gn -= zenithFac * 0.015; // was 0.005
 
   // Overcast sky desaturation — Tenkoku reference: dimmed blue-grey sky, not fully grey
   var overcast = this._overcastAmount;
@@ -603,9 +606,9 @@ AtmosphereRenderer.prototype._computeSkyColor = function(viewDir) {
 
   // Night sky brightness — near-black with subtle blue tint (Tenkoku ref: deep black zenith)
   var nightBright = this._nightBrightness;
-  var nightR = 0.008 * nightBright;
-  var nightG = 0.010 * nightBright;
-  var nightB = 0.025 * nightBright; // subtle blue tint only
+  var nightR = 0.005 * nightBright; // was 0.008 — darker for more star contrast
+  var nightG = 0.006 * nightBright; // was 0.010
+  var nightB = 0.018 * nightBright; // was 0.025 — subtle blue tint
   r = Math.max(r, nightR);
   gn = Math.max(gn, nightG);
   b = Math.max(b, nightB);
@@ -2161,21 +2164,21 @@ CloudSystem.prototype.updateTexture = function(atmosphere) {
       var sunDot = Math.cos(pixAngle - sunAngle) * 0.5 + 0.5;
       // Beer-Powder + Henyey-Greenstein cloud lighting (ported from Tenkoku_cloud_sphere.shader)
       // Beer's law extinction: exp(-extinct * depth) — dark cloud interiors
-      var optDepth = d * 6.0; // scale density to optical depth
-      var extinctCoeff = 1.2;
+      var optDepth = d * 8.0; // increased from 6.0 for more contrast
+      var extinctCoeff = 1.5; // increased from 1.2 for deeper shadows
       var beer = Math.exp(-extinctCoeff * optDepth);
       // Beer-Powder: silver lining effect on thin cloud edges facing the sun
       var beerPowder = beer * (1 - Math.exp(-extinctCoeff * 0.75 * optDepth));
-      // Henyey-Greenstein phase function (Tenkoku: g=0.5)
+      // Henyey-Greenstein phase function (Tenkoku: g=0.55 for more forward scattering)
       var cosA = sunDot * 2 - 1; // remap 0..1 → -1..1
-      var hgG = 0.5, hgG2 = hgG * hgG;
+      var hgG = 0.55, hgG2 = hgG * hgG;
       var hgPhase = 0.5 * (1 - hgG2) / Math.pow(1 + hgG2 - hgG * cosA, 2.0);
-      // Combine: scattered light (bright toward sun) + transmitted ambient
-      var scatter = beerPowder * hgPhase * 2.5;
-      var ambient = beer * 0.35;
+      // Combine: brighter sun-lit edges + darker shadowed areas
+      var scatter = beerPowder * hgPhase * 3.2; // increased from 2.5
+      var ambient = beer * 0.28; // reduced from 0.35 for more contrast
       var lightMul = (scatter + ambient) * brightness;
-      // Altitude shading: cloud bottoms dark (Tenkoku: self-shadowing from light march)
-      lightMul *= _lerp(0.35, 1.0, 1.0 - v);
+      // Altitude shading: darker cloud bottoms (Tenkoku: self-shadowing)
+      lightMul *= _lerp(0.25, 1.0, 1.0 - v); // was 0.35
 
       var r = _clamp(baseR * lightMul / 255, 0, 1);
       var g = _clamp(baseG * lightMul / 255, 0, 1);
