@@ -16,7 +16,7 @@ import type { ModuleManifest } from "../module-types";
 export const SKY_WEATHER_ADVANCED_MANIFEST: ModuleManifest = {
 	id: "sky-weather-advanced",
 	name: "Sky & Weather Advanced",
-	version: "1.11.0",
+	version: "1.12.0",
 	category: "lighting",
 	description:
 		"Physically-based atmosphere with Rayleigh+Mie scattering, real orbital mechanics, volumetric clouds, 9K star catalog, and full weather system",
@@ -813,15 +813,15 @@ SunDiskRenderer.prototype.update = function(camera, sunDir, sunAltDeg, settings)
   // Billboard: always face camera
   this._group.lookAt(camera.position);
 
-  // Size — Tenkoku: sun disk grows 1.5x at horizon (atmospheric refraction illusion)
-  var diskSize = (settings.sunDiskSize != null ? settings.sunDiskSize : 0.028) * 5000;
+  // Size — realistic sun disk with subtle horizon inflation
+  var diskSize = (settings.sunDiskSize != null ? settings.sunDiskSize : 0.028) * 2500; // was 5000 — halved
   var diskScale = diskSize / 33;
-  // Horizon size inflation: 1.5x at horizon, 1.0x at 20°+ (Tenkoku: moonsetFac)
-  var horizInflation = sunAltDeg < 20 ? _lerp(1.5, 1.0, _clamp(sunAltDeg / 20, 0, 1)) : 1.0;
+  // Horizon size inflation: 1.15x at horizon (was 1.5x — way too large)
+  var horizInflation = sunAltDeg < 15 ? _lerp(1.15, 1.0, _clamp(sunAltDeg / 15, 0, 1)) : 1.0;
   diskScale *= horizInflation;
   if (this._diskMesh) this._diskMesh.scale.setScalar(diskScale);
-  // Glow halo: 10x disk scale (Tenkoku reference: very prominent wide sun bloom)
-  if (this._glowMesh) this._glowMesh.scale.setScalar(diskScale * 10.0);
+  // Glow halo: 3.5x disk scale (was 10x — way too large, covered 1/4 of screen)
+  if (this._glowMesh) this._glowMesh.scale.setScalar(diskScale * 3.5);
 
   // Hide when sun below horizon
   this._group.visible = sunAltDeg > -2;
@@ -2540,7 +2540,7 @@ MoonRenderer.prototype.build = function(scene) {
 MoonRenderer.prototype.update = function(camera, moonDir, sunDir, moonPhase, sunAltDeg, settings) {
   if (!this._mesh) return;
 
-  this._size = (settings.moonDiskSize != null ? settings.moonDiskSize : 0.022) * 2800;
+  this._size = (settings.moonDiskSize != null ? settings.moonDiskSize : 0.022) * 900; // was 2800 — way too large, moon covered half the screen
   this._brightness = settings.moonBrightness != null ? settings.moonBrightness : 1.0;
 
   // Position moon — clamp altitude so it's visible from default orbit camera
@@ -2557,8 +2557,8 @@ MoonRenderer.prototype.update = function(camera, moonDir, sunDir, moonPhase, sun
       camera.position.z + moonDir.z * moonXZScale * dist
     );
   }
-  // Horizon inflation: 1.5x at horizon (Tenkoku: moonsetFac = lerp(1.5, 1, moonFac))
-  var moonHorizInflation = moonDir.y < 0.15 ? _lerp(1.5, 1.0, _clamp(moonDir.y / 0.15, 0, 1)) : 1.0;
+  // Horizon inflation: 1.15x at horizon (was 1.5x — way too large)
+  var moonHorizInflation = moonDir.y < 0.15 ? _lerp(1.15, 1.0, _clamp(moonDir.y / 0.15, 0, 1)) : 1.0;
   this._mesh.scale.setScalar(this._size * moonHorizInflation);
   this._mesh.lookAt(camera ? camera.position : new THREE.Vector3(0, 0, 0));
 
@@ -2625,7 +2625,7 @@ MoonRenderer.prototype.update = function(camera, moonDir, sunDir, moonPhase, sun
     this._glowMesh.visible = this._mesh.visible;
     if (this._glowMesh.visible && camera) {
       this._glowMesh.position.copy(this._mesh.position);
-      this._glowMesh.scale.setScalar(this._size * 30);
+      this._glowMesh.scale.setScalar(this._size * 4.0); // was 30 — way too large
       this._glowMesh.lookAt(camera.position);
       this._glowMesh.material.opacity = phaseBrightness * horizonFade * 0.72;
     }
