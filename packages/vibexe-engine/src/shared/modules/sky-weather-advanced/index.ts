@@ -1209,7 +1209,7 @@ WeatherParticles.prototype.init = function(scene) {
     this._snowPos[i*3]   = Math.cos(sAngle) * sDist * 45;
     this._snowPos[i*3+1] = Math.random() * 35;
     this._snowPos[i*3+2] = Math.sin(sAngle) * sDist * 45;
-    this._snowVel[i] = 1.5 + Math.random() * 2.5;
+    this._snowVel[i] = 3.0 + Math.random() * 4.0; // faster fall so snow reaches ground quickly
   }
 
   // ---- Splash InstancedMesh ----
@@ -1251,24 +1251,27 @@ WeatherParticles.prototype.update = function(dt, camera, settings) {
   this._windDir = (settings.windDirection != null ? settings.windDirection : 0) * DEG2RAD;
   this._windStrength = settings.windStrength != null ? settings.windStrength : 0.3;
 
-  // Reposition all particles near camera on first real update
+  // Reposition all particles near player on first real update
   if (!this._cameraInitDone && camera) {
     this._cameraInitDone = true;
-    var cx = camera.position.x, cy = camera.position.y, cz = camera.position.z;
+    var pm = window.__vibexe_playerMesh__;
+    var cx = pm ? pm.position.x : camera.position.x;
+    var cy = pm ? pm.position.y : camera.position.y;
+    var cz = pm ? pm.position.z : camera.position.z;
     for (var ri = 0; ri < this._rainCount; ri++) {
-      this._rainPos[ri*3]   = cx + (Math.random() - 0.5) * 80;
-      this._rainPos[ri*3+1] = cy + Math.random() * 60;
-      this._rainPos[ri*3+2] = cz + (Math.random() - 0.5) * 80;
+      this._rainPos[ri*3]   = cx + (Math.random() - 0.5) * 50;
+      this._rainPos[ri*3+1] = cy + 3 + Math.random() * 25; // close to player
+      this._rainPos[ri*3+2] = cz + (Math.random() - 0.5) * 50;
     }
     for (var si = 0; si < this._snowCount; si++) {
-      this._snowPos[si*3]   = cx + (Math.random() - 0.5) * 60;
-      this._snowPos[si*3+1] = cy + Math.random() * 40;
-      this._snowPos[si*3+2] = cz + (Math.random() - 0.5) * 60;
+      this._snowPos[si*3]   = cx + (Math.random() - 0.5) * 40;
+      this._snowPos[si*3+1] = cy + 3 + Math.random() * 18; // close to player
+      this._snowPos[si*3+2] = cz + (Math.random() - 0.5) * 40;
     }
     for (var ski = 0; ski < this._splashCount; ski++) {
-      this._splashPos[ski*3]   = cx + (Math.random() - 0.5) * 50;
+      this._splashPos[ski*3]   = cx + (Math.random() - 0.5) * 30;
       this._splashPos[ski*3+1] = cy;
-      this._splashPos[ski*3+2] = cz + (Math.random() - 0.5) * 50;
+      this._splashPos[ski*3+2] = cz + (Math.random() - 0.5) * 30;
     }
   }
 
@@ -1302,9 +1305,12 @@ WeatherParticles.prototype._animateBillboards = function(mesh, posArr, velArr, d
   var activeCount = Math.floor(count * _clamp(intensity, 0, 1));
   var windX = Math.sin(this._windDir) * this._windStrength * (isRain ? 30 : 2);
   var windZ = Math.cos(this._windDir) * this._windStrength * (isRain ? 30 : 2);
-  var camPos = camera ? camera.position : {x:0, y:0, z:0};
-  var spread = isRain ? 80 : 60;
-  var ceiling = isRain ? 60 : 40;
+  // Use player position if available (particles should fall AROUND the player, not camera)
+  var playerMesh = window.__vibexe_playerMesh__;
+  var anchorPos = playerMesh ? playerMesh.position : (camera ? camera.position : {x:0, y:0, z:0});
+  var camPos = {x: anchorPos.x, y: anchorPos.y, z: anchorPos.z};
+  var spread = isRain ? 50 : 40; // tighter spread around player
+  var ceiling = isRain ? 25 : 18; // lower ceiling so particles reach ground quickly
   // Get camera world quaternion for billboard orientation
   var camQ = camera ? camera.quaternion : new THREE.Quaternion();
 
@@ -1346,10 +1352,22 @@ WeatherParticles.prototype._animateBillboards = function(mesh, posArr, velArr, d
       posArr[i*3+2] += Math.cos(posArr[i*3+1] * 0.2 + i * 1.3) * 0.5 * dt;
     }
 
-    // Recycle when below ground
-    if (posArr[i*3+1] < -2) {
+    // Recycle when below terrain surface (or player Y - 3 as fallback)
+    var groundY = camPos.y - 5;
+    if (window.__vibexe_getVisualTerrainHeight) {
+      var tH = window.__vibexe_getVisualTerrainHeight(posArr[i*3], posArr[i*3+2]);
+      if (tH != null) groundY = tH;
+    }
+    if (posArr[i*3+1] < groundY) {
       posArr[i*3]   = camPos.x + (Math.random() - 0.5) * spread;
-      posArr[i*3+1] = camPos.y + ceiling * (0.5 + Math.random() * 0.5);
+      posArr[i*3+1] = camPos.y + 3 + Math.random() * ceiling; // start just above player, up to ceiling
+      posArr[i*3+2] = camPos.z + (Math.random() - 0.5) * spread;
+    }
+    // Also recycle if too far from anchor (player wandered away)
+    var dx = posArr[i*3] - camPos.x, dz = posArr[i*3+2] - camPos.z;
+    if (dx*dx + dz*dz > spread * spread * 1.5) {
+      posArr[i*3]   = camPos.x + (Math.random() - 0.5) * spread;
+      posArr[i*3+1] = camPos.y + 3 + Math.random() * ceiling;
       posArr[i*3+2] = camPos.z + (Math.random() - 0.5) * spread;
     }
 
