@@ -5194,6 +5194,27 @@ export function getVisualEditBridgeScript(): string {
           } catch(e) { console.warn("[TerrainPainter] Boundary grid failed:", e); }
 
         window.parent.postMessage({ type: "terrain-painter-terrain-generated", vertexCount: _tpPos.count, minY: _tpMinY, maxY: _tpMaxY }, "*");
+
+        // Auto-export heightmap to parent for DB persistence — ensures terrain shape
+        // survives page reload without requiring Scene→Game transition.
+        // This runs 1s after generation so physics/normals are settled.
+        setTimeout(function() {
+          try {
+            var _aeData = window.__vibexe_terrainData;
+            if (_aeData && _aeData.heightData && _aeData.heightData.length > 0) {
+              var _aeBytes = new Uint8Array(_aeData.heightData.buffer);
+              var _aeStr = "";
+              for (var _aei = 0; _aei < _aeBytes.length; _aei++) _aeStr += String.fromCharCode(_aeBytes[_aei]);
+              var _aeB64 = btoa(_aeStr);
+              window.parent.postMessage({
+                type: "terrain-heightmap-data",
+                data: _aeB64,
+                vertexCount: _aeData.heightData.length
+              }, "*");
+              console.log("[TerrainPainter] Auto-exported heightmap:", _aeData.heightData.length, "vertices");
+            }
+          } catch(e) { console.warn("[TerrainPainter] Auto-export failed:", e); }
+        }, 1500);
         break;
       }
 
