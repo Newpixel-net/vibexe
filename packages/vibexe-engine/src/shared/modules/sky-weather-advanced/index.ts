@@ -646,7 +646,7 @@ AtmosphereRenderer.prototype._computeSkyColor = function(viewDir) {
 AtmosphereRenderer.prototype.build = function(scene) {
   if (this.dome) return;
 
-  var segW = 128, segH = 64; // higher resolution = ~8300 vertices, reduces Mach banding in gradients
+  var segW = 96, segH = 48; // keep original resolution — 128x64 caused FPS regression (2x vertex cost)
   // Dome radius must be < camera.far (typically 1000). Use 500 like working sky-weather module.
   this.geometry = new THREE.SphereGeometry(500, segW, segH);
   this.geometry.name = "__swa_sky_dome_geo__";
@@ -2199,26 +2199,29 @@ CloudSystem.prototype._fbm2 = function(x, y) {
   return val;
 };
 
-// 2D Worley (cellular) noise — inverted creates rounded "puff" shapes
+// 2D Worley (cellular) noise — cheap 2x2 check (4 cells, not 9) for rounded puff shapes
 CloudSystem.prototype._worley2 = function(x, y) {
   var ix = Math.floor(x), iy = Math.floor(y);
+  var fx = x - ix, fy = y - iy;
   var minDist = 999;
-  for (var dy = -1; dy <= 1; dy++) {
-    for (var dx = -1; dx <= 1; dx++) {
-      var cx = ix + dx + this._hash2(ix + dx, iy + dy);
-      var cy = iy + dy + this._hash2(iy + dy + 7, ix + dx + 13);
-      var ddx = x - cx, ddy = y - cy;
-      var d = ddx * ddx + ddy * ddy;
-      if (d < minDist) minDist = d;
-    }
-  }
+  // Check only 4 nearest cells (current + 3 neighbors based on fractional position)
+  var sx = fx > 0.5 ? 1 : -1, sy = fy > 0.5 ? 1 : -1;
+  var cx, cy, ddx, ddy, d;
+  cx = ix + this._hash2(ix, iy); cy = iy + this._hash2(iy + 7, ix + 13);
+  ddx = x - cx; ddy = y - cy; d = ddx*ddx + ddy*ddy; if (d < minDist) minDist = d;
+  cx = ix+sx + this._hash2(ix+sx, iy); cy = iy + this._hash2(iy + 7, ix+sx + 13);
+  ddx = x - cx; ddy = y - cy; d = ddx*ddx + ddy*ddy; if (d < minDist) minDist = d;
+  cx = ix + this._hash2(ix, iy+sy); cy = iy+sy + this._hash2(iy+sy + 7, ix + 13);
+  ddx = x - cx; ddy = y - cy; d = ddx*ddx + ddy*ddy; if (d < minDist) minDist = d;
+  cx = ix+sx + this._hash2(ix+sx, iy+sy); cy = iy+sy + this._hash2(iy+sy + 7, ix+sx + 13);
+  ddx = x - cx; ddy = y - cy; d = ddx*ddx + ddy*ddy; if (d < minDist) minDist = d;
   return Math.sqrt(minDist);
 };
 
-// Domain warping — offset input coords by low-freq fBm to break tile regularity
+// Cheap domain warping — single noise lookup to break tile regularity (full fbm was too expensive)
 CloudSystem.prototype._domainWarp = function(x, y) {
-  var ox = this._fbm2(x * 0.3 + 100, y * 0.3 + 200) * 1.5;
-  var oy = this._fbm2(x * 0.3 + 300, y * 0.3 + 400) * 1.5;
+  var ox = this._noise2(x * 0.3 + 100, y * 0.3 + 200) * 1.8;
+  var oy = this._noise2(x * 0.3 + 300, y * 0.3 + 400) * 1.8;
   return [x + ox, y + oy];
 };
 
@@ -2343,10 +2346,8 @@ CloudSystem.prototype.updateTexture = function(atmosphere) {
       var fade2 = _smoothstep(0.08, 0.22, v) * _smoothstep(0.90, 0.4, v);
       c2 *= fade2;
 
-      // Layer 3: Cirrus — thin wispy horizontal streaks (12x stretch + dual-frequency detail)
-      var n3a = this._fbm2(nx * 12.0 + windX * 0.3 + 120, ny * 0.4 + windY * 0.15 + 120);
-      var n3b = this._fbm2(nx * 6.0 + windX * 0.2 + 180, ny * 0.6 + windY * 0.1 + 180) * 0.4;
-      var n3 = n3a + n3b;
+      // Layer 3: Cirrus — thin wispy horizontal streaks (12x stretch for better wispy look)
+      var n3 = this._fbm2(nx * 12.0 + windX * 0.3 + 120, ny * 0.4 + windY * 0.15 + 120);
       var c3 = _clamp(n3 + coverage * 0.9 - 0.5, 0, 1) * 0.18;
       var fade3 = _smoothstep(0.0, 0.04, v) * _smoothstep(0.40, 0.10, v);
       c3 *= fade3;
