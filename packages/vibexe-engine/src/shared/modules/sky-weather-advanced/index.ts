@@ -1805,27 +1805,27 @@ CloudSystem.prototype.updateTexture = function(atmosphere) {
       var windX = t * 0.03;
       var windY = t * 0.008;
 
-      // Layer 1: Cumulus — large puffy formations with sharp edges
+      // Layer 1: Cumulus — large puffy formations
+      // coverage=0 → nearly empty, 0.35 → scattered patches, 0.7 → mostly covered, 1.0 → full
       var n1 = this._fbm2(nx * 0.6 + windX, ny * 0.6 + windY);
-      // pow(noise, 1.8) creates sharper puffy edges like real cumulus
-      n1 = n1 * n1 * 1.8;
-      var c1 = _clamp(n1 + coverage * 2.2 - 0.7, 0, 1);
-      var fade1 = _smoothstep(0.03, 0.12, v) * _smoothstep(0.92, 0.35, v);
+      var c1 = _clamp(n1 + coverage * 2.0 - 1.0, 0, 1);
+      c1 = c1 * c1; // square for puffy edges — keeps thin areas transparent
+      var fade1 = _smoothstep(0.03, 0.15, v) * _smoothstep(0.92, 0.35, v);
       c1 *= fade1;
 
-      // Layer 2: Altocumulus — medium patchy formations
+      // Layer 2: Altocumulus — medium patches, thinner
       var n2 = this._fbm2(nx * 1.3 + windX * 1.2 + 50, ny * 1.3 + windY * 0.8 + 50);
-      var c2 = _clamp(n2 + coverage * 1.6 - 0.6, 0, 1) * 0.55;
+      var c2 = _clamp(n2 + coverage * 1.5 - 0.8, 0, 1) * 0.4;
       var fade2 = _smoothstep(0.05, 0.18, v) * _smoothstep(0.94, 0.4, v);
       c2 *= fade2;
 
-      // Layer 3: Cirrus — thin wispy horizontal streaks (stretched X, compressed Y)
+      // Layer 3: Cirrus — thin wispy horizontal streaks
       var n3 = this._fbm2(nx * 4.5 + windX * 0.5 + 120, ny * 0.8 + windY * 0.3 + 120);
-      var c3 = _clamp(n3 + coverage * 1.1 - 0.45, 0, 1) * 0.3;
+      var c3 = _clamp(n3 + coverage * 1.0 - 0.6, 0, 1) * 0.2;
       var fade3 = _smoothstep(0.0, 0.06, v) * _smoothstep(0.50, 0.15, v);
       c3 *= fade3;
 
-      // Combined density
+      // Combined density — lower multiplier for more transparent clouds
       var d = _clamp((c1 + c2 + c3) * density, 0, 1);
       if (d < 0.01) continue;
 
@@ -1843,8 +1843,8 @@ CloudSystem.prototype.updateTexture = function(atmosphere) {
       var g = _clamp(baseG * lightMul / 255, 0, 1);
       var b = _clamp(baseB * lightMul / 255, 0, 1);
 
-      // Alpha: gradual opacity — thin clouds semi-transparent, dense cores opaque
-      var alpha = _clamp(d * 4.0, 0, 1.0) * altFade;
+      // Alpha: gradual opacity — most clouds semi-transparent, only dense cores nearly opaque
+      var alpha = _clamp(d * 2.0, 0, 0.85) * altFade;
 
       pix[idx]     = Math.round(r * 255);
       pix[idx + 1] = Math.round(g * 255);
