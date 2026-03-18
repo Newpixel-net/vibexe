@@ -131,7 +131,7 @@ const TIME_PRESETS = [
 
 const ADVANCED_DEFAULTS: SkyWeatherConfig = {
 	time: { solarTime: 0.65, cycleLengthMinutes: 10, autoAdvance: true, latitude: 35, longitude: 136, timezone: 9, year: 2024, month: 6, day: 21 },
-	sky: { sunDiskSize: 0.028, moonDiskSize: 0.022, mieCoefficient: 0.005, mieDirectionalG: 0.82, starIntensity: 1.0, exposure: 1.2, rayleighScale: 1.0, sunIntensity: 22.0, galaxyIntensity: 0, planetIntensity: 0, moonBrightness: 1.0 },
+	sky: { sunDiskSize: 0.028, moonDiskSize: 0.022, mieCoefficient: 0.005, mieDirectionalG: 0.65, starIntensity: 1.0, exposure: 1.2, rayleighScale: 1.0, sunIntensity: 22.0, galaxyIntensity: 1.0, planetIntensity: 1.0, moonBrightness: 1.0 },
 	lighting: { autoSunLight: true, autoAmbient: true, sunIntensity: 1.5, ambientIntensity: 0.4, shadowsEnabled: true },
 	fog: { enabled: true, autoColor: true, density: 0.0015, heightFalloff: 0.3 },
 	clouds: { coverage: 0.35, density: 0.85, speed: 1.0, scale: 3.0, brightness: 1.0 },
@@ -143,7 +143,7 @@ const ADVANCED_DEFAULTS: SkyWeatherConfig = {
 
 const BASIC_DEFAULTS: SkyWeatherConfig = {
 	time: { solarTime: 0.45, cycleLengthMinutes: 10, autoAdvance: false, latitude: 45 },
-	sky: { sunDiskSize: 0.028, moonDiskSize: 0.022, mieCoefficient: 0.005, mieDirectionalG: 0.80, starIntensity: 1.0, exposure: 1.2 },
+	sky: { sunDiskSize: 0.028, moonDiskSize: 0.022, mieCoefficient: 0.005, mieDirectionalG: 0.65, starIntensity: 1.0, exposure: 1.2 },
 	lighting: { autoSunLight: true, autoAmbient: true, sunIntensity: 1.5, ambientIntensity: 0.4, shadowsEnabled: true },
 	fog: { enabled: false, autoColor: true, density: 0.003 },
 	clouds: { coverage: 0, density: 0.85, speed: 1.0, scale: 3.0, brightness: 1.0 },

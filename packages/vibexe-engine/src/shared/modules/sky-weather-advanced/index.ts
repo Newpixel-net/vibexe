@@ -16,7 +16,7 @@ import type { ModuleManifest } from "../module-types";
 export const SKY_WEATHER_ADVANCED_MANIFEST: ModuleManifest = {
 	id: "sky-weather-advanced",
 	name: "Sky & Weather Advanced",
-	version: "1.3.0",
+	version: "1.4.0",
 	category: "lighting",
 	description:
 		"Physically-based atmosphere with Rayleigh+Mie scattering, real orbital mechanics, volumetric clouds, 9K star catalog, and full weather system",
@@ -929,8 +929,8 @@ SkyLightingController.prototype.update = function(sunDir, sunAltDeg, settings) {
       this.sunLight.intensity = dayIntensity * _smoothstep(-0.1, 0.05, altNorm) * 0.3;
       this.sunLight.position.set(sunDir.x * 100, sunDir.y * 100, sunDir.z * 100);
     } else {
-      // Night: very dim moonlight (Tenkoku ref: deep dark night, dramatic lighting)
-      this.sunLight.intensity = 0.04;
+      // Night: moonlight from above (Tenkoku: nightBright*1.2 + moonBright = 1.48 intensity)
+      this.sunLight.intensity = 0.12;
       this.sunLight.position.set(20, 80, 20);
     }
 
@@ -970,10 +970,10 @@ SkyLightingController.prototype.update = function(sunDir, sunAltDeg, settings) {
         _lerp(0.25, 0.92, tw)
       );
     } else {
-      // Night — very dark ambient (Tenkoku ref: deep black sky, dramatic contrast)
-      this.ambientLight.intensity = 0.035;
-      this.ambientLight.color.setRGB(0.06, 0.06, 0.14);
-      if (isHemi) this.ambientLight.groundColor.setRGB(0.015, 0.015, 0.03);
+      // Night — dim but visible ambient (Tenkoku: nightBrightness=0.4, ambient=0.08)
+      this.ambientLight.intensity = 0.08;
+      this.ambientLight.color.setRGB(0.10, 0.10, 0.20);
+      if (isHemi) this.ambientLight.groundColor.setRGB(0.03, 0.03, 0.05);
     }
   }
 
@@ -1104,11 +1104,11 @@ WeatherParticles.prototype.init = function(scene) {
 
   this._rainMat = new THREE.PointsMaterial({
     map: _getSwaRainTex(),
-    size: 3.5, // prominent rain streaks (Tenkoku ref: dense visible white streaks)
+    size: 3.5, // prominent rain streaks
     transparent: true,
-    opacity: 0.85,
+    opacity: 0.15, // Tenkoku: alpha 0.12 — translucent streaks, NOT opaque blobs
     depthWrite: false,
-    blending: THREE.AdditiveBlending,
+    blending: THREE.NormalBlending, // Tenkoku: standard alpha blend, NOT additive
     sizeAttenuation: true,
   });
 
@@ -1135,11 +1135,11 @@ WeatherParticles.prototype.init = function(scene) {
 
   this._snowMat = new THREE.PointsMaterial({
     map: _getSwaSnowTex(),
-    size: 4.5, // large visible snowflakes (Tenkoku ref: clearly visible white flakes)
+    size: 4.5, // large visible snowflakes
     transparent: true,
-    opacity: 0.9,
+    opacity: 0.5, // Tenkoku: alpha 0.45 — visible but NOT opaque white blobs
     depthWrite: false,
-    blending: THREE.AdditiveBlending,
+    blending: THREE.NormalBlending, // Tenkoku: standard alpha blend, NOT additive
     sizeAttenuation: true,
   });
 
@@ -1161,11 +1161,11 @@ WeatherParticles.prototype.update = function(dt, camera, settings) {
 
   if (this._rain.visible) {
     this._animateParticles(this._rainGeo, this._rainVelocities, dt, camera, intensity, true);
-    this._rainMat.opacity = _clamp(intensity * 0.8, 0.2, 0.95);
+    this._rainMat.opacity = _clamp(intensity * 0.2, 0.05, 0.25); // Tenkoku: translucent streaks
   }
   if (this._snow.visible) {
     this._animateParticles(this._snowGeo, this._snowVelocities, dt, camera, intensity, false);
-    this._snowMat.opacity = _clamp(intensity * 0.9, 0.3, 0.95);
+    this._snowMat.opacity = _clamp(intensity * 0.55, 0.15, 0.6); // Tenkoku: alpha ~0.45
   }
 };
 
@@ -1249,7 +1249,7 @@ StarField.prototype._generateStarTexture = function() {
     [255, 255, 245],  // F type — yellow-white
     [255, 240, 200],  // G type — yellow (like our Sun)
     [255, 215, 155],  // K type — orange
-    [255, 175, 125],  // M type — red-orange (coolest, most common)
+    [255, 80, 60],    // M type — deep red (Tenkoku: 1.0, 0.07, 0.07 — coolest, most common)
   ];
   var typeWeights = [0.02, 0.04, 0.08, 0.14, 0.22, 0.25, 0.25];
 
@@ -1857,8 +1857,12 @@ CloudSystem.prototype.updateTexture = function(atmosphere) {
       var fade3 = _smoothstep(0.0, 0.04, v) * _smoothstep(0.40, 0.10, v);
       c3 *= fade3;
 
-      // Combined density — lower multiplier for more transparent clouds
-      var d = _clamp((c1 + c2 + c3) * density, 0, 1);
+      // Front-to-back layer compositing with Beer transmission (Tenkoku cloud_sphere.shader)
+      // Cirrus (farthest) → Altocumulus → Cumulus (closest to camera)
+      var t3 = Math.exp(-c3 * 3.0); // cirrus transmission
+      var t2 = Math.exp(-c2 * 2.5); // altocumulus transmission
+      var t1 = Math.exp(-c1 * 2.0); // cumulus transmission
+      var d = _clamp((1 - t1 * t2 * t3) * density, 0, 1);
       if (d < 0.01) continue;
 
       hasCloud = true;
@@ -1866,10 +1870,23 @@ CloudSystem.prototype.updateTexture = function(atmosphere) {
       // Sun-facing brightness gradient — stronger contrast for realistic look
       var pixAngle = u * TWO_PI;
       var sunDot = Math.cos(pixAngle - sunAngle) * 0.5 + 0.5;
-      // Strong contrast: dark backs (0.3x) vs bright sun-facing (2.0x) — Tenkoku 3D volumetric look
-      var lightMul = _lerp(0.3, 2.0, sunDot) * brightness;
-      // Altitude shading: cloud bottoms very dark (Tenkoku: grey undersides, white tops)
-      lightMul *= _lerp(0.3, 1.0, 1.0 - v);
+      // Beer-Powder + Henyey-Greenstein cloud lighting (ported from Tenkoku_cloud_sphere.shader)
+      // Beer's law extinction: exp(-extinct * depth) — dark cloud interiors
+      var optDepth = d * 6.0; // scale density to optical depth
+      var extinctCoeff = 1.2;
+      var beer = Math.exp(-extinctCoeff * optDepth);
+      // Beer-Powder: silver lining effect on thin cloud edges facing the sun
+      var beerPowder = beer * (1 - Math.exp(-extinctCoeff * 0.75 * optDepth));
+      // Henyey-Greenstein phase function (Tenkoku: g=0.5)
+      var cosA = sunDot * 2 - 1; // remap 0..1 → -1..1
+      var hgG = 0.5, hgG2 = hgG * hgG;
+      var hgPhase = 0.5 * (1 - hgG2) / Math.pow(1 + hgG2 - hgG * cosA, 2.0);
+      // Combine: scattered light (bright toward sun) + transmitted ambient
+      var scatter = beerPowder * hgPhase * 2.5;
+      var ambient = beer * 0.35;
+      var lightMul = (scatter + ambient) * brightness;
+      // Altitude shading: cloud bottoms dark (Tenkoku: self-shadowing from light march)
+      lightMul *= _lerp(0.35, 1.0, 1.0 - v);
 
       var r = _clamp(baseR * lightMul / 255, 0, 1);
       var g = _clamp(baseG * lightMul / 255, 0, 1);
@@ -1998,6 +2015,13 @@ MoonRenderer.prototype.build = function(scene) {
   ctx.ellipse(texSize * 0.55, texSize * 0.55, texSize * 0.12, texSize * 0.1, -0.2, 0, TWO_PI);
   ctx.fill();
 
+  // Store base moon texture for phase shadow overlay
+  this._moonBaseImageData = ctx.getImageData(0, 0, texSize, texSize);
+  this._moonCanvas = canvas;
+  this._moonCtx = ctx;
+  this._moonTexSize = texSize;
+  this._lastRenderedPhase = -1;
+
   var moonTex = new THREE.CanvasTexture(canvas);
   moonTex.colorSpace = THREE.SRGBColorSpace;
 
@@ -2083,12 +2107,50 @@ MoonRenderer.prototype.update = function(camera, moonDir, sunDir, moonPhase, sun
   this._mesh.scale.setScalar(this._size);
   this._mesh.lookAt(camera ? camera.position : new THREE.Vector3(0, 0, 0));
 
-  // Phase rendering: brightness scales linearly with phase (quarter=0.5, full=1.0)
+  // Phase shadow rendering — Tenkoku computes dot(Normal, SunForward) for lit/dark terminator
+  // We approximate by painting a shadow arc on the canvas texture based on phase
   var phaseBrightness = _clamp(moonPhase, 0.05, 1.0) * this._brightness;
+  var phaseQuantized = Math.round(moonPhase * 20) / 20; // 20 discrete steps to avoid constant redraws
+  if (this._moonCanvas && this._moonCtx && this._lastRenderedPhase !== phaseQuantized) {
+    this._lastRenderedPhase = phaseQuantized;
+    var ts = this._moonTexSize;
+    var mctx = this._moonCtx;
+    // Restore base texture
+    mctx.putImageData(this._moonBaseImageData, 0, 0);
+    // Draw phase shadow — moonPhase: 0=new (all dark), 0.5=full (all lit), 1=new
+    // Shadow is an ellipse clipped to circle. The ellipse width varies with phase.
+    var phase01 = moonPhase; // 0=new, 0.5=first quarter, 1=full
+    if (phase01 < 0.98) { // don't shadow when nearly full
+      var cx = ts / 2, cy = ts / 2, cr = ts / 2 - 1;
+      mctx.save();
+      mctx.beginPath();
+      mctx.arc(cx, cy, cr, 0, TWO_PI);
+      mctx.clip();
+      // Shadow ellipse: narrow at full, covers half at quarter, covers all at new
+      var shadowAlpha = _clamp(1.0 - phase01 * 1.1, 0, 0.92);
+      // Terminator position: -1 (all dark) to +1 (all lit)
+      var termX = (phase01 * 2 - 1); // -1 at new, 0 at quarter, +1 at full
+      mctx.fillStyle = "rgba(5,5,10," + shadowAlpha + ")";
+      mctx.beginPath();
+      // Draw shadow as a half-circle + ellipse to simulate terminator
+      if (termX <= 0) {
+        // Waxing: shadow on the left, bright on the right
+        mctx.ellipse(cx, cy, cr * (1 + termX), cr, 0, -PI / 2, PI / 2, true);
+        mctx.arc(cx, cy, cr, PI / 2, -PI / 2, true);
+      } else {
+        // Waning: shadow on the right
+        mctx.ellipse(cx, cy, cr * (1 - termX), cr, 0, PI / 2, -PI / 2, true);
+        mctx.arc(cx, cy, cr, -PI / 2, PI / 2, true);
+      }
+      mctx.fill();
+      mctx.restore();
+    }
+    if (this._moonTex) this._moonTex.needsUpdate = true;
+  }
 
-  // Horizon tint: orange when moon is low (reduce green and blue channels)
+  // Horizon tint: orange when moon is low (Tenkoku: moonHorizColor = 1, 0.27, 0)
   var moonAlt = moonDir.y;
-  var r = phaseBrightness, g = phaseBrightness, b = phaseBrightness;
+  var r = 1.0, g = 1.0, b = 1.0;
   if (moonAlt < 0.15 && moonAlt > -0.05) {
     var warmT = 1 - _smoothstep(-0.05, 0.15, moonAlt);
     g *= _lerp(1.0, 0.7, warmT);
@@ -2096,9 +2158,9 @@ MoonRenderer.prototype.update = function(camera, moonDir, sunDir, moonPhase, sun
   }
   this._mat.color.setRGB(r, g, b);
 
-  // Opacity: phase-based + smooth horizon fade (no pop in/out)
+  // Opacity: smooth horizon fade — keep full opacity (phase shadow handles visual phase)
   var horizonFade = _smoothstep(-0.05, 0.05, moonDir.y);
-  this._mat.opacity = _clamp(phaseBrightness + 0.1, 0.1, 0.95) * horizonFade;
+  this._mat.opacity = _clamp(0.85 * this._brightness, 0.1, 0.95) * horizonFade;
 
   // Visibility: hide when fully below horizon (after fade completes)
   this._mesh.visible = moonDir.y > -0.05;
@@ -3068,10 +3130,10 @@ function SkyWeatherAdvancedSystem(scene, settings) {
   // Sanitize settings — fix known-bad values from old DB saves
   // All checks use != null guard to avoid treating null/undefined as numeric
   var sky = this.settings.sky;
-  if (sky.mieDirectionalG == null || sky.mieDirectionalG < 0.5) sky.mieDirectionalG = 0.76;
+  if (sky.mieDirectionalG == null || sky.mieDirectionalG < 0.3) sky.mieDirectionalG = 0.65;
   if (sky.exposure == null || sky.exposure < 0.2 || sky.exposure > 4) sky.exposure = 1.2;
   if (sky.sunIntensity == null || sky.sunIntensity < 3) sky.sunIntensity = 22.0;
-  if (sky.nightBrightness == null) sky.nightBrightness = 0.12;
+  if (sky.nightBrightness == null) sky.nightBrightness = 0.25;
   var fog = this.settings.fog;
   if (fog.density != null && fog.density > 0.05) fog.density = 0.015;
   var clouds = this.settings.clouds;
@@ -3158,7 +3220,7 @@ function SkyWeatherAdvancedSystem(scene, settings) {
   this.atmosphere._exposure = initSky.exposure != null ? initSky.exposure : 1.2;
   this.atmosphere._mieG = initSky.mieDirectionalG != null ? initSky.mieDirectionalG : 0.76;
   this.atmosphere._starIntensity = initSky.starIntensity != null ? initSky.starIntensity : 1.0;
-  this.atmosphere._nightBrightness = initSky.nightBrightness != null ? initSky.nightBrightness : 0.12;
+  this.atmosphere._nightBrightness = initSky.nightBrightness != null ? initSky.nightBrightness : 0.25;
   this.atmosphere._solarTime = ts.solarTime != null ? ts.solarTime : 0.45;
   this.atmosphere._moonDir = [this.orbital.moonDirection.x, this.orbital.moonDirection.y, this.orbital.moonDirection.z];
   this.atmosphere.setSunDirection(this.orbital.sunDirection);
@@ -3201,9 +3263,9 @@ SkyWeatherAdvancedSystem.DEFAULTS = {
     sunDiskSize: 0.028,
     moonDiskSize: 0.022,
     mieCoefficient: 0.005,
-    mieDirectionalG: 0.82,
+    mieDirectionalG: 0.65,
     starIntensity: 1.0,
-    nightBrightness: 0.12,
+    nightBrightness: 0.25,
     exposure: 1.2,
     rayleighScale: 1.0,
     sunIntensity: 22.0,
@@ -3490,10 +3552,10 @@ SkyWeatherAdvancedSystem.prototype.updateSettings = function(patch) {
   // Re-sanitize after every settings update — panel sends full DB config
   // which may contain bad saved values that override our init sanitization
   var sky = this.settings.sky;
-  if (sky.mieDirectionalG == null || sky.mieDirectionalG < 0.5) sky.mieDirectionalG = 0.76;
+  if (sky.mieDirectionalG == null || sky.mieDirectionalG < 0.3) sky.mieDirectionalG = 0.65;
   if (sky.exposure == null || sky.exposure < 0.2 || sky.exposure > 4) sky.exposure = 1.2;
   if (sky.sunIntensity == null || sky.sunIntensity < 2) sky.sunIntensity = 22.0;
-  if (sky.nightBrightness == null) sky.nightBrightness = 0.12;
+  if (sky.nightBrightness == null) sky.nightBrightness = 0.25;
   var fog = this.settings.fog;
   if (fog.density != null && fog.density > 0.05) fog.density = 0.015;
   if (!fog.enabled) { fog.enabled = true; fog.density = fog.density != null ? fog.density : 0.002; }
