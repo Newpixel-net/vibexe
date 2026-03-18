@@ -1016,19 +1016,19 @@ function _getSwaSnowTex() {
 
 function _getSwaRainTex() {
   if (__swa_texCache.rain) return __swa_texCache.rain;
-  var w = 32, ht = 64;
+  var w = 16, ht = 128; // very elongated streak (1:8 ratio)
   var c = document.createElement("canvas"); c.width = w; c.height = ht;
   var x = c.getContext("2d");
   var g = x.createLinearGradient(0, 0, 0, ht);
-  g.addColorStop(0.0, "rgba(180,210,255,0.0)");
-  g.addColorStop(0.15, "rgba(190,215,255,0.3)");
-  g.addColorStop(0.4, "rgba(210,230,255,0.8)");
-  g.addColorStop(0.6, "rgba(210,230,255,0.8)");
-  g.addColorStop(0.85, "rgba(190,215,255,0.3)");
-  g.addColorStop(1.0, "rgba(180,210,255,0.0)");
+  g.addColorStop(0.0, "rgba(200,220,255,0.0)");
+  g.addColorStop(0.1, "rgba(210,225,255,0.4)");
+  g.addColorStop(0.3, "rgba(220,235,255,0.9)");
+  g.addColorStop(0.7, "rgba(220,235,255,0.9)");
+  g.addColorStop(0.9, "rgba(210,225,255,0.4)");
+  g.addColorStop(1.0, "rgba(200,220,255,0.0)");
   x.fillStyle = g;
   x.beginPath();
-  x.ellipse(w / 2, ht / 2, w / 2 - 2, ht / 2, 0, 0, Math.PI * 2);
+  x.ellipse(w / 2, ht / 2, w / 2 - 1, ht / 2, 0, 0, Math.PI * 2);
   x.fill();
   var t = new THREE.CanvasTexture(c);
   t.colorSpace = THREE.SRGBColorSpace;
@@ -1057,21 +1057,24 @@ WeatherParticles.prototype.init = function(scene) {
   // Rain
   this._rainGeo = new THREE.BufferGeometry();
   var rPos = new Float32Array(this._particleCount * 3);
-  var rVel = new Float32Array(this._particleCount); // fall speed
+  var rVel = new Float32Array(this._particleCount);
   for (var i = 0; i < this._particleCount; i++) {
-    rPos[i*3]   = (Math.random() - 0.5) * 80;
-    rPos[i*3+1] = Math.random() * 60;
-    rPos[i*3+2] = (Math.random() - 0.5) * 80;
-    rVel[i] = 15 + Math.random() * 10;
+    // Cluster more particles near center for denser visual feel
+    var rDist = Math.pow(Math.random(), 0.6); // bias toward center
+    var rAngle = Math.random() * TWO_PI;
+    rPos[i*3]   = Math.cos(rAngle) * rDist * 50;
+    rPos[i*3+1] = Math.random() * 50;
+    rPos[i*3+2] = Math.sin(rAngle) * rDist * 50;
+    rVel[i] = 18 + Math.random() * 12; // faster rain
   }
   this._rainGeo.setAttribute("position", new THREE.BufferAttribute(rPos, 3));
   this._rainVelocities = rVel;
 
   this._rainMat = new THREE.PointsMaterial({
     map: _getSwaRainTex(),
-    size: 0.8,
+    size: 1.5, // larger rain streaks (was 0.8)
     transparent: true,
-    opacity: 0.6,
+    opacity: 0.7,
     depthWrite: false,
     blending: THREE.AdditiveBlending,
     sizeAttenuation: true,
@@ -1088,19 +1091,21 @@ WeatherParticles.prototype.init = function(scene) {
   var sPos = new Float32Array(this._particleCount * 3);
   var sVel = new Float32Array(this._particleCount);
   for (var j = 0; j < this._particleCount; j++) {
-    sPos[j*3]   = (Math.random() - 0.5) * 80;
-    sPos[j*3+1] = Math.random() * 40;
-    sPos[j*3+2] = (Math.random() - 0.5) * 80;
-    sVel[j] = 1 + Math.random() * 2;
+    var sDist = Math.pow(Math.random(), 0.6);
+    var sAngle = Math.random() * TWO_PI;
+    sPos[j*3]   = Math.cos(sAngle) * sDist * 45;
+    sPos[j*3+1] = Math.random() * 35;
+    sPos[j*3+2] = Math.sin(sAngle) * sDist * 45;
+    sVel[j] = 1.5 + Math.random() * 2.5; // slightly faster
   }
   this._snowGeo.setAttribute("position", new THREE.BufferAttribute(sPos, 3));
   this._snowVelocities = sVel;
 
   this._snowMat = new THREE.PointsMaterial({
     map: _getSwaSnowTex(),
-    size: 1.2,
+    size: 1.8, // larger snowflakes (was 1.2)
     transparent: true,
-    opacity: 0.8,
+    opacity: 0.85,
     depthWrite: false,
     blending: THREE.AdditiveBlending,
     sizeAttenuation: true,
@@ -1124,11 +1129,11 @@ WeatherParticles.prototype.update = function(dt, camera, settings) {
 
   if (this._rain.visible) {
     this._animateParticles(this._rainGeo, this._rainVelocities, dt, camera, intensity, true);
-    this._rainMat.opacity = _clamp(intensity * 0.6, 0.1, 0.8);
+    this._rainMat.opacity = _clamp(intensity * 0.8, 0.2, 0.95);
   }
   if (this._snow.visible) {
     this._animateParticles(this._snowGeo, this._snowVelocities, dt, camera, intensity, false);
-    this._snowMat.opacity = _clamp(intensity * 0.8, 0.2, 0.9);
+    this._snowMat.opacity = _clamp(intensity * 0.9, 0.3, 0.95);
   }
 };
 
