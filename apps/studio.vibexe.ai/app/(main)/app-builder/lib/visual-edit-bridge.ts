@@ -3502,30 +3502,19 @@ export function getVisualEditBridgeScript(): string {
       // Get camera position (for "reset spawn/respawn to camera" feature)
       case "game-editor-get-camera-position":
         if (editor && editor.camera) {
-          try {
-            var _cam2 = editor.camera;
-            var _cx = _cam2.position.x;
-            var _cy = _cam2.position.y;
-            var _cz = _cam2.position.z;
-            // Raycast down from camera to find ground position
-            var _downDir = new _THREE.Vector3(0, -1, 0);
-            var _downRay2 = new _THREE.Raycaster(new _THREE.Vector3(_cx, _cy, _cz), _downDir);
-            var _allChildren = [];
-            editor.scene.traverse(function(obj) {
-              if (obj.isMesh && !obj.name.startsWith("__swa_") && obj.name !== "TransformControlsPlane") {
-                _allChildren.push(obj);
-              }
-            });
-            var _gHits = _downRay2.intersectObjects(_allChildren, false);
-            var _gy = _gHits.length > 0 ? _gHits[0].point.y + 1 : _cy;
-            window.parent.postMessage({
-              type: "game-editor-camera-position",
-              position: { x: Math.round(_cx * 10) / 10, y: Math.round(_gy * 10) / 10, z: Math.round(_cz * 10) / 10 },
-              _purpose: d._purpose || "spawn"
-            }, "*");
-          } catch(e) {
-            console.warn("[Bridge] get-camera-position error:", e);
-          }
+          var _cam2 = editor.camera;
+          var _cx2 = _cam2.position.x;
+          var _cy2 = _cam2.position.y;
+          var _cz2 = _cam2.position.z;
+          // Try terrain height at camera XZ for ground-aware Y
+          var _terrainH = window.__vibexe_getVisualTerrainHeight
+            ? window.__vibexe_getVisualTerrainHeight(_cx2, _cz2) : null;
+          var _spawnY = (_terrainH != null && _terrainH > -100) ? _terrainH + 1 : _cy2;
+          window.parent.postMessage({
+            type: "game-editor-camera-position",
+            position: { x: Math.round(_cx2 * 10) / 10, y: Math.round(_spawnY * 10) / 10, z: Math.round(_cz2 * 10) / 10 },
+            _purpose: d._purpose || "spawn"
+          }, "*");
         }
         break;
       // Select + Focus (hierarchy double-click)
