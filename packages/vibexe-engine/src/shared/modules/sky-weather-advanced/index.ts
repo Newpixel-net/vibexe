@@ -2867,7 +2867,7 @@ SunShafts.prototype._createRayTexture = function() {
 SunShafts.prototype.update = function(camera, sunDir, sunAltDeg, settings) {
   if (!this._group) return;
 
-  this._intensity = settings.godRays || 0;
+  this._intensity = settings.godRays != null ? settings.godRays : 0.5;
 
   // Only visible when sun is above horizon and intensity > 0
   var visible = this._intensity > 0.01 && sunAltDeg > -2;
@@ -3029,11 +3029,8 @@ function SkyWeatherAdvancedSystem(scene, settings) {
       ts.timezone = 9;
     }
   }
-  // Force fog enabled — saved DB value may be false but SWA needs fog for atmosphere
-  if (!fog.enabled) {
-    fog.enabled = true;
-    fog.density = fog.density != null ? fog.density : 0.002;
-  }
+  // Set fog defaults if not configured (don't force — respect user preference)
+  if (fog.density == null) fog.density = 0.002;
 
   this.orbital = new OrbitalCalculator();
   this.atmosphere = new AtmosphereRenderer();
@@ -3409,7 +3406,7 @@ SkyWeatherAdvancedSystem.prototype._tick = function(dt) {
 
   // Sun Shafts (god rays) — skip if disabled
   var _eff = this.settings.effects || {};
-  if (_eff.sunShafts) {
+  if (_eff.godRays) {
     this.sunShafts.update(camera, this.orbital.sunDirection, sunAltDeg, _eff);
   }
 
