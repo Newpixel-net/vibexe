@@ -542,12 +542,12 @@ AtmosphereRenderer.prototype._computeSkyColor = function(viewDir) {
   r -= zenithFac * 0.02;
   gn -= zenithFac * 0.005;
 
-  // Overcast sky desaturation (Task 6)
-  // Tenkoku: lerp to greyscale*0.1 based on overcast amount
+  // Overcast sky desaturation — only at high coverage (70%+), gradual
+  // Previous bug: overcast*3 caused FULL desaturation at just 35% coverage
   var overcast = this._overcastAmount;
-  if (overcast > 0) {
-    var grey = Math.max(r, Math.max(gn, b)) * 0.1;
-    var overcastT = _clamp(overcast * 3, 0, 1);
+  if (overcast > 0.5) {
+    var grey = Math.max(r, Math.max(gn, b)) * 0.15;
+    var overcastT = _clamp((overcast - 0.5) * 2, 0, 0.8); // 0 at 50%, 0.8 at 100%
     r = _lerp(r, grey, overcastT);
     gn = _lerp(gn, grey, overcastT);
     b = _lerp(b, grey, overcastT);
