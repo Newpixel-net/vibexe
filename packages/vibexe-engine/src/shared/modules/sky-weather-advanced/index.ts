@@ -16,7 +16,7 @@ import type { ModuleManifest } from "../module-types";
 export const SKY_WEATHER_ADVANCED_MANIFEST: ModuleManifest = {
 	id: "sky-weather-advanced",
 	name: "Sky & Weather Advanced",
-	version: "1.7.0",
+	version: "1.8.0",
 	category: "lighting",
 	description:
 		"Physically-based atmosphere with Rayleigh+Mie scattering, real orbital mechanics, volumetric clouds, 9K star catalog, and full weather system",
@@ -482,21 +482,28 @@ AtmosphereRenderer.prototype._computeSkyColor = function(viewDir) {
     gn += scatterM[1] * sunAdd;
     b += scatterM[2] * sunAdd;
   }
-  // Sun corona — wide warm bloom around sun (Tenkoku: prominent sun glow)
-  if (cosAngle > 0.98 && sunDir[1] > -0.05) {
-    var coronaT = _smoothstep(0.98, 0.999, cosAngle);
-    var coronaI = coronaT * 0.38 * _clamp(sunDir[1] + 0.1, 0, 1);
-    r += coronaI * 1.0;
-    gn += coronaI * 0.9;
-    b += coronaI * 0.55;
-  }
-  // Outer sun haze — very wide warm glow (Tenkoku reference: large visible halo around sun)
-  if (cosAngle > 0.93 && sunDir[1] > 0) {
-    var hazeT = _smoothstep(0.93, 0.99, cosAngle);
-    var hazeI = hazeT * 0.15 * _clamp(sunDir[1], 0, 0.5) * 2;
-    r += hazeI * 1.0;
-    gn += hazeI * 0.85;
-    b += hazeI * 0.5;
+  // Sun corona — 6-ring concentric glow (ported from Tenkoku_sun.shader lines 89-94)
+  // Each ring has a different dot-product threshold and weight
+  if (sunDir[1] > -0.05) {
+    var sunVis = _clamp(sunDir[1] + 0.1, 0, 1);
+    var coronaAlpha = 0;
+    // Ring 1: tight inner corona (cosAngle > 0.9995)
+    coronaAlpha += Math.max(0, cosAngle - 0.9995) * 0.05 * 2000;
+    // Ring 2: inner glow (cosAngle > 0.999)
+    coronaAlpha += Math.max(0, cosAngle - 0.999) * 0.05 * 500;
+    // Ring 3: warm corona (cosAngle > 0.997)
+    coronaAlpha += Math.max(0, cosAngle - 0.997) * 0.1 * 100;
+    // Ring 4: wide corona (cosAngle > 0.99)
+    coronaAlpha += Math.max(0, cosAngle - 0.99) * 0.1 * 30;
+    // Ring 5: atmospheric haze (cosAngle > 0.97)
+    coronaAlpha += Math.max(0, cosAngle - 0.97) * 0.1 * 8;
+    // Ring 6: wide sky haze (cosAngle > 0.93)
+    coronaAlpha += Math.max(0, cosAngle - 0.93) * 1.0 * 1.5;
+    coronaAlpha = _clamp(coronaAlpha, 0, 2.0) * sunVis;
+    // Warm corona color (Tenkoku: lerp between corona and sun tint)
+    r += coronaAlpha * 0.45;
+    gn += coronaAlpha * 0.38;
+    b += coronaAlpha * 0.22;
   }
 
   // Moon Mie scattering — multi-ring atmospheric glow around moon (Task 5)
@@ -801,10 +808,12 @@ SunDiskRenderer.prototype.update = function(camera, sunDir, sunAltDeg, settings)
   // Billboard: always face camera
   this._group.lookAt(camera.position);
 
-  // Size — Tenkoku reference shows prominent sun disk with wide glow
-  // sunDiskSize 0.028 → scale 4.2 (84 world-unit disk at 450 dist ≈ 10.7° apparent)
+  // Size — Tenkoku: sun disk grows 1.5x at horizon (atmospheric refraction illusion)
   var diskSize = (settings.sunDiskSize != null ? settings.sunDiskSize : 0.028) * 5000;
-  var diskScale = diskSize / 33; // large enough to be Tenkoku-like
+  var diskScale = diskSize / 33;
+  // Horizon size inflation: 1.5x at horizon, 1.0x at 20°+ (Tenkoku: moonsetFac)
+  var horizInflation = sunAltDeg < 20 ? _lerp(1.5, 1.0, _clamp(sunAltDeg / 20, 0, 1)) : 1.0;
+  diskScale *= horizInflation;
   if (this._diskMesh) this._diskMesh.scale.setScalar(diskScale);
   // Glow halo: 10x disk scale (Tenkoku reference: very prominent wide sun bloom)
   if (this._glowMesh) this._glowMesh.scale.setScalar(diskScale * 10.0);
@@ -2104,12 +2113,21 @@ CloudSystem.prototype.updateTexture = function(atmosphere) {
       var fade3 = _smoothstep(0.0, 0.04, v) * _smoothstep(0.40, 0.10, v);
       c3 *= fade3;
 
+      // Layer 4: Overcast — uniform flat layer at high coverage (Tenkoku: 4th pass)
+      var c4 = 0;
+      if (coverage > 0.6) {
+        var n4 = this._fbm2(nx * 2.0 + windX * 0.5 + 200, ny * 1.5 + windY * 0.3 + 200);
+        c4 = _clamp((coverage - 0.6) * 2.5 * (0.5 + n4 * 0.5), 0, 0.7);
+        // Overcast covers entire dome uniformly (no altitude fade)
+      }
+
       // Front-to-back layer compositing with Beer transmission (Tenkoku cloud_sphere.shader)
-      // Cirrus (farthest) → Altocumulus → Cumulus (closest to camera)
+      // Overcast (farthest) → Cirrus → Altocumulus → Cumulus (closest to camera)
+      var t4 = Math.exp(-c4 * 2.0); // overcast transmission
       var t3 = Math.exp(-c3 * 3.0); // cirrus transmission
       var t2 = Math.exp(-c2 * 2.5); // altocumulus transmission
       var t1 = Math.exp(-c1 * 2.0); // cumulus transmission
-      var d = _clamp((1 - t1 * t2 * t3) * density, 0, 1);
+      var d = _clamp((1 - t1 * t2 * t3 * t4) * density, 0, 1);
       if (d < 0.01) continue;
 
       hasCloud = true;
@@ -2416,7 +2434,9 @@ MoonRenderer.prototype.update = function(camera, moonDir, sunDir, moonPhase, sun
       camera.position.z + moonDir.z * moonXZScale * dist
     );
   }
-  this._mesh.scale.setScalar(this._size);
+  // Horizon inflation: 1.5x at horizon (Tenkoku: moonsetFac = lerp(1.5, 1, moonFac))
+  var moonHorizInflation = moonDir.y < 0.15 ? _lerp(1.5, 1.0, _clamp(moonDir.y / 0.15, 0, 1)) : 1.0;
+  this._mesh.scale.setScalar(this._size * moonHorizInflation);
   this._mesh.lookAt(camera ? camera.position : new THREE.Vector3(0, 0, 0));
 
   // Phase shadow rendering — Tenkoku computes dot(Normal, SunForward) for lit/dark terminator
@@ -2779,7 +2799,7 @@ AuroraRenderer.prototype.update = function(dt, camera, latitude, sunAltDeg, sett
     this._mat.opacity = auroraIntensity * nightFac * latFac * 0.6;
     // Curtain wave animation: slowly scroll texture UV for aurora motion
     if (this._auroraTex) {
-      this._auroraTex.offset.x = this._time * 0.02;
+      this._auroraTex.offset.x = this._time * 0.15; // Tenkoku: aurSpd = 0.15
       this._auroraTex.offset.y = Math.sin(this._time * 0.3) * 0.05;
     }
     if (camera) {
