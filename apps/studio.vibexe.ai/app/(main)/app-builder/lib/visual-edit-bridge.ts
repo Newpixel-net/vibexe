@@ -4748,6 +4748,36 @@ export function getVisualEditBridgeScript(): string {
           // Module may cap segments differently than bridge's initial _tpSeg
           _tpSegX = Math.round(Math.sqrt(_tpPos.count));
           _tpSegZ = _tpSegX;
+
+          // CRITICAL: Restore sculpt heightmap AFTER module terrain replacement.
+          // The earlier restore at line ~4571 applies to the bridge's inline geometry
+          // which gets discarded when the module creates its own __terrain__ mesh.
+          // This second restore applies to the FINAL geometry that actually renders.
+          var _tpSculptSrc2 = _tpS.sculptHeightData;
+          if (!_tpSculptSrc2 && window.__VIBEXE_GAME_SETTINGS__ && window.__VIBEXE_GAME_SETTINGS__.terrain) {
+            _tpSculptSrc2 = window.__VIBEXE_GAME_SETTINGS__.terrain.sculptHeightData;
+          }
+          if (_tpSculptSrc2 && typeof _tpSculptSrc2 === "string" && _tpSculptSrc2.length > 0) {
+            try {
+              var _s2Data = atob(_tpSculptSrc2);
+              var _s2Bytes = new Uint8Array(_s2Data.length);
+              for (var _s2i = 0; _s2i < _s2Data.length; _s2i++) _s2Bytes[_s2i] = _s2Data.charCodeAt(_s2i);
+              var _s2Floats = new Float32Array(_s2Bytes.buffer);
+              if (_s2Floats.length === _tpPos.count) {
+                _tpMinY = Infinity; _tpMaxY = -Infinity;
+                for (var _s2v = 0; _s2v < _s2Floats.length; _s2v++) {
+                  _tpPos.setY(_s2v, _s2Floats[_s2v]);
+                  _tpHeightData[_s2v] = _s2Floats[_s2v];
+                  if (_s2Floats[_s2v] < _tpMinY) _tpMinY = _s2Floats[_s2v];
+                  if (_s2Floats[_s2v] > _tpMaxY) _tpMaxY = _s2Floats[_s2v];
+                }
+                _tpPos.needsUpdate = true;
+                _tpGeo.computeVertexNormals();
+                _tpSculptRestored = true;
+                console.log("[TerrainPainter] Restored sculpt heightmap on module terrain (" + _s2Floats.length + " vertices)");
+              }
+            } catch(e) { console.warn("[TerrainPainter] Module terrain sculpt restore failed:", e); }
+          }
         }
 
         // Store heightmap data for CPU-side getHeightAt() queries
