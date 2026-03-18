@@ -16,7 +16,7 @@ import type { ModuleManifest } from "../module-types";
 export const SKY_WEATHER_ADVANCED_MANIFEST: ModuleManifest = {
 	id: "sky-weather-advanced",
 	name: "Sky & Weather Advanced",
-	version: "1.5.0",
+	version: "1.6.0",
 	category: "lighting",
 	description:
 		"Physically-based atmosphere with Rayleigh+Mie scattering, real orbital mechanics, volumetric clouds, 9K star catalog, and full weather system",
@@ -1211,8 +1211,8 @@ WeatherParticles.prototype._animateParticles = function(geo, vel, dt, camera, in
   var pos = geo.getAttribute("position");
   var arr = pos.array;
   var count = Math.floor(this._particleCount * _clamp(intensity, 0, 1));
-  var windX = Math.sin(this._windDir) * this._windStrength * (isRain ? 8 : 2);
-  var windZ = Math.cos(this._windDir) * this._windStrength * (isRain ? 8 : 2);
+  var windX = Math.sin(this._windDir) * this._windStrength * (isRain ? 30 : 2);
+  var windZ = Math.cos(this._windDir) * this._windStrength * (isRain ? 30 : 2);
   var camPos = camera ? camera.position : {x:0, y:0, z:0};
   var spread = isRain ? 80 : 60;
   var ceiling = isRain ? 60 : 40;
@@ -2225,43 +2225,102 @@ function MoonRenderer() {
 MoonRenderer.prototype.build = function(scene) {
   if (this._mesh) return;
 
-  // Generate procedural moon texture via Canvas
-  var texSize = 128;
+  // Generate high-detail procedural moon texture (256px — doubled from 128)
+  var texSize = 256;
   var canvas = document.createElement("canvas");
   canvas.width = canvas.height = texSize;
   var ctx = canvas.getContext("2d");
 
-  // Base: light grey lunar surface
-  ctx.fillStyle = "#b8b0a8";
+  // Base: light grey lunar surface with subtle radial gradient (brighter center)
+  var baseGrad = ctx.createRadialGradient(texSize*0.48, texSize*0.45, 0, texSize*0.5, texSize*0.5, texSize*0.5);
+  baseGrad.addColorStop(0, "#c0b8b0"); // brighter center (highlands)
+  baseGrad.addColorStop(0.6, "#b0a8a0");
+  baseGrad.addColorStop(1, "#988f88"); // darker edges (limb darkening)
+  ctx.fillStyle = baseGrad;
   ctx.fillRect(0, 0, texSize, texSize);
 
-  // Add procedural "craters" (darker circles)
+  // Surface noise texture (subtle elevation variation)
+  var moonHash = function(x,y) { var n = Math.sin(x*127.1+y*311.7)*43758.5; return n-Math.floor(n); };
+  var moonNoise = function(x,y) {
+    var ix=Math.floor(x),iy=Math.floor(y),fx=x-ix,fy=y-iy;
+    var ux=fx*fx*(3-2*fx),uy=fy*fy*(3-2*fy);
+    return moonHash(ix,iy)*(1-ux)*(1-uy)+moonHash(ix+1,iy)*ux*(1-uy)+moonHash(ix,iy+1)*(1-ux)*uy+moonHash(ix+1,iy+1)*ux*uy;
+  };
+  var imgD = ctx.getImageData(0,0,texSize,texSize);
+  for (var py=0; py<texSize; py++) {
+    for (var px=0; px<texSize; px++) {
+      var nv = moonNoise(px*0.08,py*0.08)*0.5 + moonNoise(px*0.16,py*0.16)*0.25 + moonNoise(px*0.32,py*0.32)*0.125;
+      var variation = (nv - 0.4) * 30; // subtle brightness variation
+      var idx = (py*texSize+px)*4;
+      imgD.data[idx] = _clamp(imgD.data[idx] + variation, 0, 255);
+      imgD.data[idx+1] = _clamp(imgD.data[idx+1] + variation, 0, 255);
+      imgD.data[idx+2] = _clamp(imgD.data[idx+2] + variation, 0, 255);
+    }
+  }
+  ctx.putImageData(imgD, 0, 0);
+
+  // Maria (dark basaltic plains — major lunar features)
+  // Mare Imbrium (upper left)
+  ctx.fillStyle = "rgba(60,55,50,0.35)";
+  ctx.beginPath(); ctx.ellipse(texSize*0.38, texSize*0.32, texSize*0.18, texSize*0.16, 0.2, 0, TWO_PI); ctx.fill();
+  // Mare Serenitatis (upper center-right)
+  ctx.fillStyle = "rgba(65,58,52,0.3)";
+  ctx.beginPath(); ctx.ellipse(texSize*0.55, texSize*0.35, texSize*0.10, texSize*0.09, -0.1, 0, TWO_PI); ctx.fill();
+  // Mare Tranquillitatis (center-right)
+  ctx.fillStyle = "rgba(58,52,48,0.32)";
+  ctx.beginPath(); ctx.ellipse(texSize*0.60, texSize*0.48, texSize*0.12, texSize*0.10, 0.3, 0, TWO_PI); ctx.fill();
+  // Oceanus Procellarum (left side, large)
+  ctx.fillStyle = "rgba(62,56,50,0.28)";
+  ctx.beginPath(); ctx.ellipse(texSize*0.30, texSize*0.50, texSize*0.15, texSize*0.22, 0.1, 0, TWO_PI); ctx.fill();
+  // Mare Nubium (lower left)
+  ctx.fillStyle = "rgba(68,60,55,0.25)";
+  ctx.beginPath(); ctx.ellipse(texSize*0.40, texSize*0.68, texSize*0.10, texSize*0.08, -0.15, 0, TWO_PI); ctx.fill();
+
+  // Craters (24 hand-placed, matching approximate real positions)
   var craters = [
-    [0.3, 0.4, 0.12], [0.55, 0.3, 0.08], [0.7, 0.6, 0.15],
-    [0.4, 0.7, 0.1], [0.25, 0.6, 0.06], [0.6, 0.45, 0.05],
-    [0.5, 0.55, 0.18], [0.35, 0.25, 0.04], [0.75, 0.35, 0.07],
-    [0.2, 0.5, 0.09], [0.65, 0.75, 0.06], [0.45, 0.15, 0.05],
+    // Major craters
+    [0.22, 0.20, 0.08], [0.70, 0.25, 0.06], [0.80, 0.45, 0.05],
+    [0.35, 0.78, 0.07], [0.55, 0.75, 0.04], [0.75, 0.70, 0.06],
+    [0.15, 0.45, 0.05], [0.65, 0.15, 0.04], [0.42, 0.12, 0.03],
+    [0.88, 0.55, 0.04], [0.28, 0.62, 0.05], [0.50, 0.60, 0.03],
+    // Smaller craters
+    [0.18, 0.30, 0.025], [0.32, 0.45, 0.02], [0.72, 0.38, 0.025],
+    [0.45, 0.28, 0.02], [0.60, 0.62, 0.025], [0.25, 0.55, 0.02],
+    [0.82, 0.30, 0.02], [0.38, 0.85, 0.025], [0.55, 0.18, 0.02],
+    [0.68, 0.82, 0.02], [0.12, 0.65, 0.025], [0.48, 0.42, 0.02],
   ];
   for (var i = 0; i < craters.length; i++) {
-    var cx = craters[i][0] * texSize, cy = craters[i][1] * texSize, cr = craters[i][2] * texSize;
-    var grad = ctx.createRadialGradient(cx, cy, 0, cx, cy, cr);
-    grad.addColorStop(0, "rgba(80,75,70,0.5)");
-    grad.addColorStop(0.7, "rgba(100,95,90,0.3)");
+    var cx = craters[i][0]*texSize, cy = craters[i][1]*texSize, cr = craters[i][2]*texSize;
+    // Crater shadow (dark inner)
+    var grad = ctx.createRadialGradient(cx-cr*0.15, cy-cr*0.15, 0, cx, cy, cr);
+    grad.addColorStop(0, "rgba(60,55,50,0.55)");
+    grad.addColorStop(0.5, "rgba(80,75,70,0.35)");
+    grad.addColorStop(0.8, "rgba(100,95,90,0.15)");
     grad.addColorStop(1, "rgba(184,176,168,0)");
     ctx.fillStyle = grad;
-    ctx.beginPath();
-    ctx.arc(cx, cy, cr, 0, TWO_PI);
-    ctx.fill();
+    ctx.beginPath(); ctx.arc(cx, cy, cr, 0, TWO_PI); ctx.fill();
+    // Bright rim (sunlit edge)
+    if (cr > texSize*0.03) {
+      ctx.strokeStyle = "rgba(200,195,190,0.2)";
+      ctx.lineWidth = 1;
+      ctx.beginPath(); ctx.arc(cx+cr*0.1, cy+cr*0.1, cr*0.85, 0, TWO_PI); ctx.stroke();
+    }
   }
 
-  // Maria (dark areas)
-  ctx.fillStyle = "rgba(70,65,60,0.3)";
-  ctx.beginPath();
-  ctx.ellipse(texSize * 0.45, texSize * 0.4, texSize * 0.2, texSize * 0.15, 0.3, 0, TWO_PI);
-  ctx.fill();
-  ctx.beginPath();
-  ctx.ellipse(texSize * 0.55, texSize * 0.55, texSize * 0.12, texSize * 0.1, -0.2, 0, TWO_PI);
-  ctx.fill();
+  // Ray craters (bright ejecta rays from young impacts — Tycho, Copernicus)
+  ctx.globalCompositeOperation = "lighter";
+  // Tycho (southern hemisphere)
+  for (var ri = 0; ri < 8; ri++) {
+    var rayAngle = ri * PI / 4 + 0.2;
+    var rayLen = texSize * (0.15 + Math.random() * 0.1);
+    ctx.strokeStyle = "rgba(200,195,190,0.08)";
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.moveTo(texSize*0.45, texSize*0.78);
+    ctx.lineTo(texSize*0.45 + Math.cos(rayAngle)*rayLen, texSize*0.78 + Math.sin(rayAngle)*rayLen);
+    ctx.stroke();
+  }
+  ctx.globalCompositeOperation = "source-over";
 
   // Store base moon texture for phase shadow overlay
   this._moonBaseImageData = ctx.getImageData(0, 0, texSize, texSize);
@@ -2745,9 +2804,9 @@ function WeatherStateMachine() {
   this._currentState = "clear";
   this._targetState = "clear";
   this._transition = 0; // 0=at target, 0-1=transitioning
-  this._transitionSpeed = 0.05; // per second
+  this._transitionSpeed = 0.017; // per second (~60s full transition, Tenkoku default)
   this._forecastTimer = 0;
-  this._forecastInterval = 60; // seconds between auto-forecast
+  this._forecastInterval = 300; // seconds between auto-forecast (Tenkoku: 5 min default)
   this._autoForecast = false;
   // Derived weather values (interpolated during transitions)
   this.cloudCoverage = 0;
@@ -2811,16 +2870,23 @@ WeatherStateMachine.prototype.update = function(dt, settings) {
     }
   }
 
-  // Interpolate values
+  // Interpolate values using SmoothStep (Tenkoku: Mathf.SmoothStep)
   var from = this._stateValues(this._currentState);
   var to = this._stateValues(this._targetState);
   var t = this._transition;
+  var st = t * t * (3 - 2 * t); // smoothstep for natural transitions
 
-  this.cloudCoverage = _lerp(from.cloud, to.cloud, t);
-  this.precipIntensity = _lerp(from.intensity, to.intensity, t);
-  this.windStrength = _lerp(from.wind, to.wind, t);
-  this.precipType = t > 0.5 ? to.precip : from.precip;
-  this.lightningEnabled = t > 0.5 ? to.lightning : from.lightning;
+  this.cloudCoverage = _lerp(from.cloud, to.cloud, st);
+  // Rain 2x faster transition (Tenkoku: patternTime * 2.0 for rain)
+  var rainT = _clamp(t * 2, 0, 1); rainT = rainT * rainT * (3 - 2 * rainT);
+  this.precipIntensity = _lerp(from.intensity, to.intensity, rainT);
+  this.windStrength = _lerp(from.wind, to.wind, st);
+  this.precipType = rainT > 0.5 ? to.precip : from.precip;
+  // Lightning 2x faster (Tenkoku: patternTime * 2.0)
+  this.lightningEnabled = rainT > 0.5 ? to.lightning : from.lightning;
+  // Couple rain to overcast (Tenkoku: rain *= lerp(-1, 1, overcastAmt))
+  // Rain only possible when cloud coverage > 50%
+  this.precipIntensity *= _clamp(_lerp(-1, 1, this.cloudCoverage), 0, 1);
 
   // Wind gust randomization (Tenkoku-style turbulence)
   this._gustTimer = (this._gustTimer || 0) + dt;
@@ -2854,62 +2920,102 @@ function MilkyWayAndPlanets() {
 }
 
 MilkyWayAndPlanets.prototype.init = function(scene) {
-  // Milky Way: band of faint points across the sky
-  var mwCount = 3000;
-  this._milkyGeo = new THREE.BufferGeometry();
-  var mwPos = new Float32Array(mwCount * 3);
-  var mwCol = new Float32Array(mwCount * 3);
-  var mwSize = new Float32Array(mwCount);
+  // Milky Way: Canvas-textured dome with procedural nebula band
+  // (Tenkoku uses tex_starmapTycho.psd texture; we approximate with procedural canvas)
+  var mwW = 1024, mwH = 512;
+  var mwCanvas = document.createElement("canvas");
+  mwCanvas.width = mwW; mwCanvas.height = mwH;
+  var mwCtx = mwCanvas.getContext("2d");
+  mwCtx.fillStyle = "rgba(0,0,0,0)";
+  mwCtx.clearRect(0, 0, mwW, mwH);
 
-  for (var i = 0; i < mwCount; i++) {
-    // Milky Way band: concentrated along galactic plane
-    // Galactic plane tilted ~63° from celestial equator
-    var galLon = Math.random() * TWO_PI;
-    var galLat = (Math.random() - 0.5) * 0.4; // narrow band ±0.2 rad
-    var r = 4750;
+  // Galactic plane band: tilted ~63° from celestial equator
+  // On equirectangular canvas, the galactic plane is a sinusoidal curve
+  var tilt = 63 * DEG2RAD;
+  var galCenter = 266.4 * DEG2RAD; // galactic center RA ~17h46m = 266.4°
+  var hashMW = function(x, y) { var n = Math.sin(x*127.1+y*311.7)*43758.5453; return n-Math.floor(n); };
+  var noiseMW = function(x, y) {
+    var ix = Math.floor(x), iy = Math.floor(y), fx = x-ix, fy = y-iy;
+    var ux = fx*fx*(3-2*fx), uy = fy*fy*(3-2*fy);
+    return hashMW(ix,iy)*(1-ux)*(1-uy) + hashMW(ix+1,iy)*ux*(1-uy) + hashMW(ix,iy+1)*(1-ux)*uy + hashMW(ix+1,iy+1)*ux*uy;
+  };
+  var fbmMW = function(x, y) {
+    return noiseMW(x,y)*0.5 + noiseMW(x*2,y*2)*0.25 + noiseMW(x*4,y*4)*0.125 + noiseMW(x*8,y*8)*0.0625;
+  };
 
-    // Rotate galactic coords to equatorial (simplified tilt)
-    var tilt = 63 * DEG2RAD;
-    var x = r * Math.cos(galLat) * Math.cos(galLon);
-    var y = r * Math.cos(galLat) * Math.sin(galLon);
-    var z = r * Math.sin(galLat);
-
-    // Apply tilt rotation around X axis
-    var y2 = y * Math.cos(tilt) - z * Math.sin(tilt);
-    var z2 = y * Math.sin(tilt) + z * Math.cos(tilt);
-
-    mwPos[i*3]   = x;
-    mwPos[i*3+1] = y2;
-    mwPos[i*3+2] = z2;
-
-    // Milky Way color: faint blue-white with occasional warm tones
-    var warmth = Math.random();
-    mwCol[i*3]   = 0.7 + warmth * 0.3;
-    mwCol[i*3+1] = 0.75 + warmth * 0.15;
-    mwCol[i*3+2] = 0.85 + (1 - warmth) * 0.15;
-
-    mwSize[i] = 0.8 + Math.random() * 1.5;
+  var imgD = mwCtx.createImageData(mwW, mwH);
+  var pxD = imgD.data;
+  for (var py = 0; py < mwH; py++) {
+    var dec = (0.5 - py / mwH) * PI; // -90° to +90°
+    for (var px = 0; px < mwW; px++) {
+      var ra = (px / mwW) * TWO_PI;
+      // Convert equatorial (RA,Dec) to galactic latitude approximation
+      // Galactic lat ≈ sin(dec)*cos(tilt) - cos(dec)*sin(ra - galCenter)*sin(tilt)
+      var sinB = Math.sin(dec)*Math.cos(tilt) - Math.cos(dec)*Math.sin(ra - galCenter)*Math.sin(tilt);
+      var galLat = Math.asin(_clamp(sinB, -1, 1));
+      // Band intensity: Gaussian falloff from galactic equator
+      var bandWidth = 0.18; // radians (~10°)
+      var bandIntensity = Math.exp(-galLat*galLat / (2*bandWidth*bandWidth));
+      if (bandIntensity < 0.02) continue;
+      // Add noise for nebula-like structure
+      var nx = px * 0.015 + 50, ny = py * 0.02 + 30;
+      var noiseVal = fbmMW(nx, ny);
+      var density = bandIntensity * (0.4 + noiseVal * 0.8);
+      // Brighter near galactic center (RA ~266°)
+      var centerDist = Math.abs(ra - galCenter);
+      if (centerDist > PI) centerDist = TWO_PI - centerDist;
+      var centerBoost = Math.exp(-centerDist * centerDist / (1.2 * 1.2)) * 0.5;
+      density += centerBoost * bandIntensity;
+      density = _clamp(density, 0, 1);
+      // Color: blue-white with warm center
+      var warmth = centerBoost / 0.5;
+      var idx = (py * mwW + px) * 4;
+      pxD[idx]   = Math.round(_lerp(160, 200, warmth) * density);
+      pxD[idx+1] = Math.round(_lerp(170, 185, warmth) * density);
+      pxD[idx+2] = Math.round(_lerp(210, 195, warmth) * density);
+      pxD[idx+3] = Math.round(density * 120); // semi-transparent
+    }
+  }
+  mwCtx.putImageData(imgD, 0, 0);
+  // Add scattered bright star clusters in the band
+  for (var s = 0; s < 800; s++) {
+    var sx = Math.random() * mwW;
+    var sy = Math.random() * mwH;
+    var ra2 = (sx / mwW) * TWO_PI;
+    var dec2 = (0.5 - sy / mwH) * PI;
+    var sinB2 = Math.sin(dec2)*Math.cos(tilt) - Math.cos(dec2)*Math.sin(ra2 - galCenter)*Math.sin(tilt);
+    if (Math.abs(sinB2) > 0.25) continue; // only in the band
+    var br = 0.3 + Math.random() * 0.5;
+    var sr = 0.5 + Math.random() * 1.0;
+    var g2 = mwCtx.createRadialGradient(sx, sy, 0, sx, sy, sr);
+    g2.addColorStop(0, "rgba(200,210,240," + br + ")");
+    g2.addColorStop(1, "rgba(200,210,240,0)");
+    mwCtx.fillStyle = g2;
+    mwCtx.fillRect(sx - sr, sy - sr, sr*2, sr*2);
   }
 
-  this._milkyGeo.setAttribute("position", new THREE.BufferAttribute(mwPos, 3));
-  this._milkyGeo.setAttribute("color", new THREE.BufferAttribute(mwCol, 3));
-
-  this._milkyMat = new THREE.PointsMaterial({
-    vertexColors: true,
-    size: 1.2,
+  var mwTex = new THREE.CanvasTexture(mwCanvas);
+  mwTex.colorSpace = THREE.SRGBColorSpace;
+  this._milkyGeo = new THREE.SphereGeometry(493, 64, 32);
+  _invertWinding(this._milkyGeo);
+  this._milkyMat = new THREE.MeshBasicMaterial({
+    map: mwTex,
+    side: THREE.FrontSide,
     transparent: true,
-    opacity: 0.3,
+    opacity: 0,
     depthWrite: false,
-    depthTest: false,
-    sizeAttenuation: false,
+    depthTest: true,
+    fog: false,
+    toneMapped: false,
     blending: THREE.AdditiveBlending,
   });
-
-  this._milkyWay = new THREE.Points(this._milkyGeo, this._milkyMat);
+  this._milkyWay = new THREE.Mesh(this._milkyGeo, this._milkyMat);
   this._milkyWay.name = "__swa_milky_way__";
-  this._milkyWay.renderOrder = -998;
+  this._milkyWay.renderOrder = -999.3; // between star dome (-999.5) and clouds (-999)
   this._milkyWay.frustumCulled = false;
   this._milkyWay.visible = false;
+  // Tilt 63° to match galactic plane orientation
+  this._milkyWay.rotation.x = tilt;
   scene.add(this._milkyWay);
 
   // Planets: 5 bright planets as Sprites (WebGPU renders Sprites properly, not Points)
@@ -2969,7 +3075,7 @@ MilkyWayAndPlanets.prototype.update = function(sunAltDeg, camera, time, dayNumbe
   if (this._milkyWay) {
     this._milkyWay.visible = nightFac > 0.01 && galaxyIntensity > 0.01;
     if (this._milkyWay.visible) {
-      this._milkyMat.opacity = nightFac * 0.25 * galaxyIntensity;
+      this._milkyMat.opacity = nightFac * 0.45 * galaxyIntensity;
       if (camera) this._milkyWay.position.copy(camera.position);
     }
   }
