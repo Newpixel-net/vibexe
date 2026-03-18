@@ -1986,6 +1986,39 @@ MoonRenderer.prototype.build = function(scene) {
   this._mesh.renderOrder = -998;
   this._mesh.frustumCulled = false;
   scene.add(this._mesh);
+
+  // Atmospheric glow halo behind moon (like Tenkoku reference)
+  var glowCanvas = document.createElement("canvas");
+  glowCanvas.width = glowCanvas.height = 128;
+  var glowCtx = glowCanvas.getContext("2d");
+  var glowGrad = glowCtx.createRadialGradient(64, 64, 0, 64, 64, 64);
+  glowGrad.addColorStop(0, "rgba(240,235,220,0.6)");
+  glowGrad.addColorStop(0.15, "rgba(230,225,215,0.35)");
+  glowGrad.addColorStop(0.4, "rgba(200,200,210,0.1)");
+  glowGrad.addColorStop(0.7, "rgba(180,185,200,0.03)");
+  glowGrad.addColorStop(1, "rgba(160,170,190,0)");
+  glowCtx.fillStyle = glowGrad;
+  glowCtx.fillRect(0, 0, 128, 128);
+  var glowTex = new THREE.CanvasTexture(glowCanvas);
+  glowTex.colorSpace = THREE.SRGBColorSpace;
+
+  this._glowGeo = new THREE.PlaneGeometry(1, 1);
+  this._glowMat = new THREE.MeshBasicMaterial({
+    map: glowTex,
+    transparent: true,
+    opacity: 0,
+    depthWrite: false,
+    depthTest: false,
+    side: THREE.DoubleSide,
+    fog: false,
+    toneMapped: false,
+    blending: THREE.AdditiveBlending,
+  });
+  this._glowMesh = new THREE.Mesh(this._glowGeo, this._glowMat);
+  this._glowMesh.name = "__swa_moon_glow__";
+  this._glowMesh.renderOrder = -998.5; // behind moon
+  this._glowMesh.frustumCulled = false;
+  scene.add(this._glowMesh);
 };
 
 MoonRenderer.prototype.update = function(camera, moonDir, sunDir, moonPhase, sunAltDeg, settings) {
@@ -2030,14 +2063,29 @@ MoonRenderer.prototype.update = function(camera, moonDir, sunDir, moonPhase, sun
 
   // Visibility: hide when fully below horizon (after fade completes)
   this._mesh.visible = moonDir.y > -0.05;
+
+  // Glow halo — follows moon position, scales 8x larger, fades with phase
+  if (this._glowMesh) {
+    this._glowMesh.visible = this._mesh.visible;
+    if (this._glowMesh.visible && camera) {
+      this._glowMesh.position.copy(this._mesh.position);
+      this._glowMesh.scale.setScalar(this._size * 8);
+      this._glowMesh.lookAt(camera.position);
+      this._glowMesh.material.opacity = phaseBrightness * horizonFade * 0.35;
+    }
+  }
 };
 
 MoonRenderer.prototype.dispose = function(scene) {
   if (this._mesh && this._mesh.parent) this._mesh.parent.remove(this._mesh);
+  if (this._glowMesh && this._glowMesh.parent) this._glowMesh.parent.remove(this._glowMesh);
   if (this._geo) this._geo.dispose();
+  if (this._glowGeo) this._glowGeo.dispose();
   if (this._moonTex) this._moonTex.dispose();
   if (this._mat) this._mat.dispose();
+  if (this._glowMat) this._glowMat.dispose();
   this._mesh = null;
+  this._glowMesh = null;
 };
 
 
