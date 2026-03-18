@@ -3307,7 +3307,8 @@ SkyWeatherAdvancedSystem.prototype._tick = function(dt) {
       }.bind(this));
     }
   }
-  if (this._cachedCamera) this.atmosphere.followCamera(this._cachedCamera);
+  var camera = this._cachedCamera || null;
+  if (camera) this.atmosphere.followCamera(camera);
 
   // Lighting
   this.lighting.update(
