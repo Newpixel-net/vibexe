@@ -16,7 +16,7 @@ import type { ModuleManifest } from "../module-types";
 export const SKY_WEATHER_ADVANCED_MANIFEST: ModuleManifest = {
 	id: "sky-weather-advanced",
 	name: "Sky & Weather Advanced",
-	version: "1.10.1",
+	version: "1.11.0",
 	category: "lighting",
 	description:
 		"Physically-based atmosphere with Rayleigh+Mie scattering, real orbital mechanics, volumetric clouds, 9K star catalog, and full weather system",
@@ -1101,120 +1101,141 @@ function _getSwaRainTex() {
 
 
 // ============================================================
-// Weather Particles (rain/snow)
+// Weather Particles (rain/snow) — InstancedMesh billboard implementation
+// WebGPU note: THREE.Points renders as 1px in r183 WebGPU renderer.
+// Solution: InstancedMesh with PlaneGeometry + MeshBasicMaterial.
+// Each particle is a tiny camera-facing quad (billboard).
+// MeshBasicMaterial + CanvasTexture is fully WebGPU-compatible.
+// COMPILER_VERSION: 17
 // ============================================================
 
 function WeatherParticles() {
-  this._rain = null;
-  this._snow = null;
-  this._rainGeo = null;
-  this._snowGeo = null;
+  this._rain = null;       // THREE.InstancedMesh
+  this._snow = null;       // THREE.InstancedMesh
+  this._splash = null;     // THREE.InstancedMesh
   this._rainMat = null;
   this._snowMat = null;
-  this._particleCount = 3000;
+  this._splashMat = null;
+  // Particle state arrays (JS arrays — not BufferGeometry)
+  this._rainPos = null;    // Float32Array [x,y,z, x,y,z, ...]
+  this._rainVel = null;    // Float32Array [speed, ...]
+  this._snowPos = null;
+  this._snowVel = null;
+  this._splashPos = null;
+  this._splashVel = null;
+  this._rainCount = 2000;
+  this._snowCount = 1500;
+  this._splashCount = 500;
   this._windDir = 0;
   this._windStrength = 0.3;
-  this._warmupFrames = 0; // WebGPU shader pre-warm counter
-  this._cameraInitDone = false; // repositioned to camera?
+  this._cameraInitDone = false;
+  // Reusable matrix helpers for per-instance billboard updates
+  this._mtx = new THREE.Matrix4();
+  this._pos3 = new THREE.Vector3();
+  this._scl3 = new THREE.Vector3();
+  this._quat = new THREE.Quaternion();
 }
 
 WeatherParticles.prototype.init = function(scene) {
-  // Rain
-  this._rainGeo = new THREE.BufferGeometry();
-  var rPos = new Float32Array(this._particleCount * 3);
-  var rVel = new Float32Array(this._particleCount);
-  for (var i = 0; i < this._particleCount; i++) {
-    // Cluster more particles near center for denser visual feel
-    var rDist = Math.pow(Math.random(), 0.6); // bias toward center
-    var rAngle = Math.random() * TWO_PI;
-    rPos[i*3]   = Math.cos(rAngle) * rDist * 50;
-    rPos[i*3+1] = Math.random() * 50;
-    rPos[i*3+2] = Math.sin(rAngle) * rDist * 50;
-    rVel[i] = 18 + Math.random() * 12; // faster rain
-  }
-  this._rainGeo.setAttribute("position", new THREE.BufferAttribute(rPos, 3));
-  this._rainVelocities = rVel;
+  var i, rDist, rAngle;
 
-  this._rainMat = new THREE.PointsMaterial({
+  // ---- Rain InstancedMesh ----
+  // PlaneGeometry(width, height): 0.3 wide × 2.0 tall → elongated rain streak
+  var rainGeo = new THREE.PlaneGeometry(0.3, 2.0);
+  this._rainMat = new THREE.MeshBasicMaterial({
     map: _getSwaRainTex(),
-    size: 3.5, // prominent rain streaks
     transparent: true,
-    opacity: 0.15, // Tenkoku: alpha 0.12 — translucent streaks, NOT opaque blobs
-    depthWrite: false,
-    blending: THREE.NormalBlending, // Tenkoku: standard alpha blend, NOT additive
-    sizeAttenuation: true,
-  });
-
-  this._rain = new THREE.Points(this._rainGeo, this._rainMat);
-  this._rain.name = "__swa_rain__";
-  // WebGPU shader pre-warm: start visible so shader compiles immediately
-  // Hidden after 2 frames in update() — prevents freeze on first precipitation activation
-  this._rain.visible = true;
-  this._rain.frustumCulled = false;
-  scene.add(this._rain);
-
-  // Snow
-  this._snowGeo = new THREE.BufferGeometry();
-  var sPos = new Float32Array(this._particleCount * 3);
-  var sVel = new Float32Array(this._particleCount);
-  for (var j = 0; j < this._particleCount; j++) {
-    var sDist = Math.pow(Math.random(), 0.6);
-    var sAngle = Math.random() * TWO_PI;
-    sPos[j*3]   = Math.cos(sAngle) * sDist * 45;
-    sPos[j*3+1] = Math.random() * 35;
-    sPos[j*3+2] = Math.sin(sAngle) * sDist * 45;
-    sVel[j] = 1.5 + Math.random() * 2.5; // slightly faster
-  }
-  this._snowGeo.setAttribute("position", new THREE.BufferAttribute(sPos, 3));
-  this._snowVelocities = sVel;
-
-  this._snowMat = new THREE.PointsMaterial({
-    map: _getSwaSnowTex(),
-    size: 4.5, // large visible snowflakes
-    transparent: true,
-    opacity: 0.5, // Tenkoku: alpha 0.45 — visible but NOT opaque white blobs
-    depthWrite: false,
-    blending: THREE.NormalBlending, // Tenkoku: standard alpha blend, NOT additive
-    sizeAttenuation: true,
-  });
-
-  this._snow = new THREE.Points(this._snowGeo, this._snowMat);
-  this._snow.name = "__swa_snow__";
-  // WebGPU shader pre-warm: start visible so shader compiles immediately
-  this._snow.visible = true;
-  this._snow.frustumCulled = false;
-  scene.add(this._snow);
-
-  // Rain splash particles (Tenkoku: fxRainSplash — ground-level impact splashes)
-  var splashCount = 800;
-  this._splashGeo = new THREE.BufferGeometry();
-  var spPos = new Float32Array(splashCount * 3);
-  var spVel = new Float32Array(splashCount);
-  for (var k = 0; k < splashCount; k++) {
-    var spDist = Math.pow(Math.random(), 0.5);
-    var spAngle = Math.random() * TWO_PI;
-    spPos[k*3]   = Math.cos(spAngle) * spDist * 40;
-    spPos[k*3+1] = Math.random() * 3; // near ground level
-    spPos[k*3+2] = Math.sin(spAngle) * spDist * 40;
-    spVel[k] = 3 + Math.random() * 5; // upward burst then fall
-  }
-  this._splashGeo.setAttribute("position", new THREE.BufferAttribute(spPos, 3));
-  this._splashVelocities = spVel;
-  this._splashMat = new THREE.PointsMaterial({
-    map: _getSwaSnowTex(), // reuse round texture for splash drops
-    size: 1.5,
-    transparent: true,
-    opacity: 0.35, // Tenkoku: alpha 0.65
+    opacity: 0.15,       // Tenkoku: translucent streaks
     depthWrite: false,
     blending: THREE.NormalBlending,
-    sizeAttenuation: true,
+    side: THREE.DoubleSide,
+    alphaTest: 0.01,
   });
-  this._splash = new THREE.Points(this._splashGeo, this._splashMat);
+  this._rain = new THREE.InstancedMesh(rainGeo, this._rainMat, this._rainCount);
+  this._rain.name = "__swa_rain__";
+  this._rain.frustumCulled = false;
+  this._rain.visible = false;
+  // Initialise all instances off-screen
+  var zeroMtx = new THREE.Matrix4().makeScale(0, 0, 0);
+  for (i = 0; i < this._rainCount; i++) this._rain.setMatrixAt(i, zeroMtx);
+  this._rain.instanceMatrix.needsUpdate = true;
+  scene.add(this._rain);
+
+  // Rain particle state
+  this._rainPos = new Float32Array(this._rainCount * 3);
+  this._rainVel = new Float32Array(this._rainCount);
+  for (i = 0; i < this._rainCount; i++) {
+    rDist = Math.pow(Math.random(), 0.6);
+    rAngle = Math.random() * TWO_PI;
+    this._rainPos[i*3]   = Math.cos(rAngle) * rDist * 50;
+    this._rainPos[i*3+1] = Math.random() * 50;
+    this._rainPos[i*3+2] = Math.sin(rAngle) * rDist * 50;
+    this._rainVel[i] = 18 + Math.random() * 12;
+  }
+
+  // ---- Snow InstancedMesh ----
+  // PlaneGeometry(1.0, 1.0) → square snowflake quad
+  var snowGeo = new THREE.PlaneGeometry(1.0, 1.0);
+  this._snowMat = new THREE.MeshBasicMaterial({
+    map: _getSwaSnowTex(),
+    transparent: true,
+    opacity: 0.5,        // Tenkoku: alpha ~0.45
+    depthWrite: false,
+    blending: THREE.NormalBlending,
+    side: THREE.DoubleSide,
+    alphaTest: 0.01,
+  });
+  this._snow = new THREE.InstancedMesh(snowGeo, this._snowMat, this._snowCount);
+  this._snow.name = "__swa_snow__";
+  this._snow.frustumCulled = false;
+  this._snow.visible = false;
+  for (i = 0; i < this._snowCount; i++) this._snow.setMatrixAt(i, zeroMtx);
+  this._snow.instanceMatrix.needsUpdate = true;
+  scene.add(this._snow);
+
+  // Snow particle state
+  this._snowPos = new Float32Array(this._snowCount * 3);
+  this._snowVel = new Float32Array(this._snowCount);
+  for (i = 0; i < this._snowCount; i++) {
+    var sDist = Math.pow(Math.random(), 0.6);
+    var sAngle = Math.random() * TWO_PI;
+    this._snowPos[i*3]   = Math.cos(sAngle) * sDist * 45;
+    this._snowPos[i*3+1] = Math.random() * 35;
+    this._snowPos[i*3+2] = Math.sin(sAngle) * sDist * 45;
+    this._snowVel[i] = 1.5 + Math.random() * 2.5;
+  }
+
+  // ---- Splash InstancedMesh ----
+  // PlaneGeometry(0.4, 0.4) → small round splash drop
+  var splashGeo = new THREE.PlaneGeometry(0.4, 0.4);
+  this._splashMat = new THREE.MeshBasicMaterial({
+    map: _getSwaSnowTex(), // reuse round texture for splash drops
+    transparent: true,
+    opacity: 0.35,
+    depthWrite: false,
+    blending: THREE.NormalBlending,
+    side: THREE.DoubleSide,
+    alphaTest: 0.01,
+  });
+  this._splash = new THREE.InstancedMesh(splashGeo, this._splashMat, this._splashCount);
   this._splash.name = "__swa_rain_splash__";
-  this._splash.visible = true; // WebGPU shader pre-warm
   this._splash.frustumCulled = false;
-  this._splashCount = splashCount;
+  this._splash.visible = false;
+  for (i = 0; i < this._splashCount; i++) this._splash.setMatrixAt(i, zeroMtx);
+  this._splash.instanceMatrix.needsUpdate = true;
   scene.add(this._splash);
+
+  // Splash particle state
+  this._splashPos = new Float32Array(this._splashCount * 3);
+  this._splashVel = new Float32Array(this._splashCount);
+  for (i = 0; i < this._splashCount; i++) {
+    var spDist = Math.pow(Math.random(), 0.5);
+    var spAngle = Math.random() * TWO_PI;
+    this._splashPos[i*3]   = Math.cos(spAngle) * spDist * 40;
+    this._splashPos[i*3+1] = Math.random() * 3;
+    this._splashPos[i*3+2] = Math.sin(spAngle) * spDist * 40;
+    this._splashVel[i] = 3 + Math.random() * 5;
+  }
 };
 
 WeatherParticles.prototype.update = function(dt, camera, settings) {
@@ -1223,136 +1244,154 @@ WeatherParticles.prototype.update = function(dt, camera, settings) {
   this._windDir = (settings.windDirection != null ? settings.windDirection : 0) * DEG2RAD;
   this._windStrength = settings.windStrength != null ? settings.windStrength : 0.3;
 
-  // WebGPU shader pre-warm: keep visible for 3 frames, then hide
-  // This forces WebGPU to compile the PointsMaterial+map shaders on init
-  // instead of stalling when precipitation first activates
-  if (this._warmupFrames < 3) {
-    this._warmupFrames++;
-    if (this._warmupFrames >= 3) {
-      // Warmup done — hide particles (will be shown by precipitation logic below)
-      this._rain.visible = false;
-      this._snow.visible = false;
-      this._splash.visible = false;
-    }
-    // During warmup, don't animate — just let the renderer compile shaders
-    return;
-  }
-
-  // Reposition all particles near camera on first real update (they start at world origin)
+  // Reposition all particles near camera on first real update
   if (!this._cameraInitDone && camera) {
     this._cameraInitDone = true;
     var cx = camera.position.x, cy = camera.position.y, cz = camera.position.z;
-    // Rain
-    var rp = this._rainGeo.getAttribute("position").array;
-    for (var ri = 0; ri < this._particleCount; ri++) {
-      rp[ri*3]   = cx + (Math.random() - 0.5) * 80;
-      rp[ri*3+1] = cy + Math.random() * 60;
-      rp[ri*3+2] = cz + (Math.random() - 0.5) * 80;
+    for (var ri = 0; ri < this._rainCount; ri++) {
+      this._rainPos[ri*3]   = cx + (Math.random() - 0.5) * 80;
+      this._rainPos[ri*3+1] = cy + Math.random() * 60;
+      this._rainPos[ri*3+2] = cz + (Math.random() - 0.5) * 80;
     }
-    this._rainGeo.getAttribute("position").needsUpdate = true;
-    // Snow
-    var sp = this._snowGeo.getAttribute("position").array;
-    for (var si = 0; si < this._particleCount; si++) {
-      sp[si*3]   = cx + (Math.random() - 0.5) * 60;
-      sp[si*3+1] = cy + Math.random() * 40;
-      sp[si*3+2] = cz + (Math.random() - 0.5) * 60;
+    for (var si = 0; si < this._snowCount; si++) {
+      this._snowPos[si*3]   = cx + (Math.random() - 0.5) * 60;
+      this._snowPos[si*3+1] = cy + Math.random() * 40;
+      this._snowPos[si*3+2] = cz + (Math.random() - 0.5) * 60;
     }
-    this._snowGeo.getAttribute("position").needsUpdate = true;
-    // Splash
-    var spp = this._splashGeo.getAttribute("position").array;
     for (var ski = 0; ski < this._splashCount; ski++) {
-      spp[ski*3]   = cx + (Math.random() - 0.5) * 50;
-      spp[ski*3+1] = cy;
-      spp[ski*3+2] = cz + (Math.random() - 0.5) * 50;
+      this._splashPos[ski*3]   = cx + (Math.random() - 0.5) * 50;
+      this._splashPos[ski*3+1] = cy;
+      this._splashPos[ski*3+2] = cz + (Math.random() - 0.5) * 50;
     }
-    this._splashGeo.getAttribute("position").needsUpdate = true;
   }
 
-  this._rain.visible = precipType === "rain" && intensity > 0;
-  this._snow.visible = precipType === "snow" && intensity > 0;
-  // Rain splash visible when raining (Tenkoku: fxRainSplash)
-  this._splash.visible = precipType === "rain" && intensity > 0.3;
+  var showRain = precipType === "rain" && intensity > 0;
+  var showSnow = precipType === "snow" && intensity > 0;
+  var showSplash = precipType === "rain" && intensity > 0.3;
 
-  if (this._rain.visible) {
-    this._animateParticles(this._rainGeo, this._rainVelocities, dt, camera, intensity, true);
-    this._rainMat.opacity = _clamp(intensity * 0.2, 0.05, 0.25); // Tenkoku: translucent streaks
+  this._rain.visible = showRain;
+  this._snow.visible = showSnow;
+  this._splash.visible = showSplash;
+
+  if (showRain) {
+    this._rainMat.opacity = _clamp(intensity * 0.2, 0.05, 0.25);
+    this._animateBillboards(this._rain, this._rainPos, this._rainVel, dt, camera, intensity, true);
   }
-  if (this._snow.visible) {
-    this._animateParticles(this._snowGeo, this._snowVelocities, dt, camera, intensity, false);
-    this._snowMat.opacity = _clamp(intensity * 0.55, 0.15, 0.6); // Tenkoku: alpha ~0.45
+  if (showSnow) {
+    this._snowMat.opacity = _clamp(intensity * 0.55, 0.15, 0.6);
+    this._animateBillboards(this._snow, this._snowPos, this._snowVel, dt, camera, intensity, false);
   }
-  // Animate rain splash (ground-level burst)
-  if (this._splash.visible) {
-    this._animateSplash(dt, camera, intensity);
+  if (showSplash) {
     this._splashMat.opacity = _clamp(intensity * 0.5, 0.1, 0.45);
+    this._animateSplash(dt, camera, intensity);
   }
 };
 
-WeatherParticles.prototype._animateParticles = function(geo, vel, dt, camera, intensity, isRain) {
-  var pos = geo.getAttribute("position");
-  var arr = pos.array;
-  var count = Math.floor(this._particleCount * _clamp(intensity, 0, 1));
+// Animate particle positions and write InstancedMesh matrices each frame.
+// Billboard: apply camera quaternion so each quad faces the camera.
+// Rain: also tilted along wind direction for streak appearance.
+WeatherParticles.prototype._animateBillboards = function(mesh, posArr, velArr, dt, camera, intensity, isRain) {
+  var count = mesh.count;
+  var activeCount = Math.floor(count * _clamp(intensity, 0, 1));
   var windX = Math.sin(this._windDir) * this._windStrength * (isRain ? 30 : 2);
   var windZ = Math.cos(this._windDir) * this._windStrength * (isRain ? 30 : 2);
   var camPos = camera ? camera.position : {x:0, y:0, z:0};
   var spread = isRain ? 80 : 60;
   var ceiling = isRain ? 60 : 40;
+  // Get camera world quaternion for billboard orientation
+  var camQ = camera ? camera.quaternion : new THREE.Quaternion();
 
-  for (var i = 0; i < this._particleCount; i++) {
-    if (i >= count) {
-      arr[i*3+1] = -1000; // hide unused
+  // Compute billboard quaternion once per frame (same for all instances)
+  // Rain: tilt the streak quad to align with fall+wind direction (pitch around X).
+  var billboardQ;
+  if (isRain) {
+    var tiltAngle = Math.atan2(
+      this._windStrength * Math.sin(this._windDir) * 30,
+      18 + this._windStrength * Math.cos(this._windDir) * 30
+    );
+    var rainTiltQ = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1, 0, 0), tiltAngle);
+    billboardQ = camQ.clone().multiply(rainTiltQ);
+  } else {
+    billboardQ = camQ;
+  }
+
+  var mtx = this._mtx;
+  var pos3 = this._pos3;
+  var scl3 = this._scl3;
+  scl3.set(1, 1, 1);
+
+  for (var i = 0; i < count; i++) {
+    if (i >= activeCount) {
+      // Hide unused instances by scaling to zero
+      mtx.makeScale(0, 0, 0);
+      mesh.setMatrixAt(i, mtx);
       continue;
     }
-    arr[i*3]   += windX * dt;
-    arr[i*3+1] -= vel[i] * dt;
-    arr[i*3+2] += windZ * dt;
 
-    // Snow: add gentle horizontal drift
+    // Advance particle position
+    posArr[i*3]   += windX * dt;
+    posArr[i*3+1] -= velArr[i] * dt;
+    posArr[i*3+2] += windZ * dt;
+
+    // Snow: gentle horizontal drift
     if (!isRain) {
-      arr[i*3]   += Math.sin(arr[i*3+1] * 0.3 + i) * 0.5 * dt;
-      arr[i*3+2] += Math.cos(arr[i*3+1] * 0.2 + i * 1.3) * 0.5 * dt;
+      posArr[i*3]   += Math.sin(posArr[i*3+1] * 0.3 + i) * 0.5 * dt;
+      posArr[i*3+2] += Math.cos(posArr[i*3+1] * 0.2 + i * 1.3) * 0.5 * dt;
     }
 
-    // Recycle when below ground or too far
-    if (arr[i*3+1] < -2) {
-      arr[i*3]   = camPos.x + (Math.random() - 0.5) * spread;
-      arr[i*3+1] = camPos.y + ceiling * (0.5 + Math.random() * 0.5);
-      arr[i*3+2] = camPos.z + (Math.random() - 0.5) * spread;
+    // Recycle when below ground
+    if (posArr[i*3+1] < -2) {
+      posArr[i*3]   = camPos.x + (Math.random() - 0.5) * spread;
+      posArr[i*3+1] = camPos.y + ceiling * (0.5 + Math.random() * 0.5);
+      posArr[i*3+2] = camPos.z + (Math.random() - 0.5) * spread;
     }
+
+    // Build instance matrix: position + billboard quaternion (same for all)
+    pos3.set(posArr[i*3], posArr[i*3+1], posArr[i*3+2]);
+    mtx.compose(pos3, billboardQ, scl3);
+    mesh.setMatrixAt(i, mtx);
   }
-  pos.needsUpdate = true;
+  mesh.instanceMatrix.needsUpdate = true;
 };
 
-// Rain splash animation — ground-level particles that burst up and fall back
+// Rain splash animation — ground-level particles that burst upward then fall back
 WeatherParticles.prototype._animateSplash = function(dt, camera, intensity) {
-  var pos = this._splashGeo.getAttribute("position");
-  var arr = pos.array;
-  var vel = this._splashVelocities;
-  var count = Math.floor(this._splashCount * _clamp(intensity, 0, 1));
+  var count = this._splashCount;
+  var activeCount = Math.floor(count * _clamp(intensity, 0, 1));
   var camPos = camera ? camera.position : {x:0, y:0, z:0};
-  for (var i = 0; i < this._splashCount; i++) {
-    if (i >= count) { arr[i*3+1] = -1000; continue; }
-    // Splash rises then falls
-    arr[i*3+1] += vel[i] * dt;
-    vel[i] -= 15 * dt; // gravity pulls back down
-    // Recycle when below ground or too old
-    if (arr[i*3+1] < -0.5 || vel[i] < -8) {
-      arr[i*3]   = camPos.x + (Math.random() - 0.5) * 50;
-      arr[i*3+1] = 0; // ground level
-      arr[i*3+2] = camPos.z + (Math.random() - 0.5) * 50;
-      vel[i] = 3 + Math.random() * 5; // reset upward burst
+  var camQ = camera ? camera.quaternion : new THREE.Quaternion();
+  var mtx = this._mtx;
+  var pos3 = this._pos3;
+  var scl3 = this._scl3;
+  scl3.set(1, 1, 1);
+
+  for (var i = 0; i < count; i++) {
+    if (i >= activeCount) {
+      mtx.makeScale(0, 0, 0);
+      this._splash.setMatrixAt(i, mtx);
+      continue;
     }
+    // Splash rises then falls
+    this._splashPos[i*3+1] += this._splashVel[i] * dt;
+    this._splashVel[i] -= 15 * dt; // gravity
+    // Recycle
+    if (this._splashPos[i*3+1] < -0.5 || this._splashVel[i] < -8) {
+      this._splashPos[i*3]   = camPos.x + (Math.random() - 0.5) * 50;
+      this._splashPos[i*3+1] = 0;
+      this._splashPos[i*3+2] = camPos.z + (Math.random() - 0.5) * 50;
+      this._splashVel[i] = 3 + Math.random() * 5;
+    }
+    pos3.set(this._splashPos[i*3], this._splashPos[i*3+1], this._splashPos[i*3+2]);
+    mtx.compose(pos3, camQ, scl3);
+    this._splash.setMatrixAt(i, mtx);
   }
-  pos.needsUpdate = true;
+  this._splash.instanceMatrix.needsUpdate = true;
 };
 
 WeatherParticles.prototype.dispose = function(scene) {
-  if (this._rain) { scene.remove(this._rain); }
-  if (this._snow) { scene.remove(this._snow); }
-  if (this._splash) { scene.remove(this._splash); }
-  if (this._rainGeo) this._rainGeo.dispose();
-  if (this._snowGeo) this._snowGeo.dispose();
-  if (this._splashGeo) this._splashGeo.dispose();
+  if (this._rain) { scene.remove(this._rain); this._rain.geometry.dispose(); }
+  if (this._snow) { scene.remove(this._snow); this._snow.geometry.dispose(); }
+  if (this._splash) { scene.remove(this._splash); this._splash.geometry.dispose(); }
   if (this._rainMat) this._rainMat.dispose();
   if (this._snowMat) this._snowMat.dispose();
   if (this._splashMat) this._splashMat.dispose();
