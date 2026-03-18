@@ -472,15 +472,23 @@ AtmosphereRenderer.prototype._computeSkyColor = function(viewDir) {
   var gn = (scatterR[1] * RAYLEIGH_COEFF[1] * phaseR + scatterM[1] * MIE_COEFF * phaseM) * intensity * INCOMING_LIGHT_RATIO[1];
   var b = (scatterR[2] * RAYLEIGH_COEFF[2] * phaseR + scatterM[2] * MIE_COEFF * phaseM) * intensity * INCOMING_LIGHT_RATIO[2];
 
-  // Sun disk (Mie peak for very narrow angle)
+  // Sun disk (Mie peak for very narrow angle) — bright core
   if (cosAngle > this._sunDiskSize) {
     var sunG = 0.9995;
     var sunG2 = sunG * sunG;
     var sunPhase = (1 - sunG2) / (4 * PI * Math.pow(1 + sunG2 - 2 * sunG * cosAngle, 1.5));
-    var sunAdd = sunPhase * 0.003 * intensity;
+    var sunAdd = sunPhase * 0.008 * intensity;
     r += scatterM[0] * sunAdd;
     gn += scatterM[1] * sunAdd;
     b += scatterM[2] * sunAdd;
+  }
+  // Sun corona — wider warm glow around sun (Tenkoku sun haze)
+  if (cosAngle > 0.990 && sunDir[1] > -0.05) {
+    var coronaT = _smoothstep(0.990, 0.999, cosAngle);
+    var coronaI = coronaT * 0.12 * _clamp(sunDir[1] + 0.1, 0, 1);
+    r += coronaI * 1.0;
+    gn += coronaI * 0.85;
+    b += coronaI * 0.5;
   }
 
   // Moon Mie scattering — multi-ring atmospheric glow around moon (Task 5)
@@ -517,16 +525,26 @@ AtmosphereRenderer.prototype._computeSkyColor = function(viewDir) {
   // Horizon warmth — warm up near horizon when sun is low (Tenkoku golden glow)
   horizonFac = horizonFac * horizonFac * horizonFac;
   var sunHorizFac = Math.max(0, 1.0 - Math.abs(sunDir[1]) * 2.5);
-  var warmth = horizonFac * sunHorizFac * 0.35;
+  var warmth = horizonFac * sunHorizFac * 0.50;
   r += warmth * 1.0;
-  gn += warmth * 0.4;
-  b += warmth * 0.05;
+  gn += warmth * 0.45;
+  b += warmth * 0.08;
 
   // Sun-facing horizon glow — extra warmth toward the sun
   var viewSunDot = rd[0]*sunDir[0] + rd[2]*sunDir[2];
-  var sunGlow = _clamp(viewSunDot, 0, 1) * horizonFac * sunHorizFac * 0.15;
+  var sunGlow = _clamp(viewSunDot, 0, 1) * horizonFac * sunHorizFac * 0.25;
   r += sunGlow * 1.0;
-  gn += sunGlow * 0.3;
+  gn += sunGlow * 0.35;
+
+  // Dawn/Dusk pink-purple band — mid-altitude coloring (Tenkoku Clear-Altostratus ref)
+  if (Math.abs(sunDir[1]) < 0.15) {
+    var pinkAlt = _clamp(viewDir[1], 0, 1);
+    var pinkBand = _smoothstep(0.0, 0.15, pinkAlt) * _smoothstep(0.5, 0.15, pinkAlt);
+    var pinkStr = pinkBand * (1.0 - Math.abs(sunDir[1]) / 0.15) * 0.12;
+    r += pinkStr * 0.9;
+    gn += pinkStr * 0.2;
+    b += pinkStr * 0.7;
+  }
 
   // Boost saturation for vivid colors — stronger for richer sky
   var luma = r * 0.299 + gn * 0.587 + b * 0.114;
@@ -897,8 +915,8 @@ SkyLightingController.prototype.update = function(sunDir, sunAltDeg, settings) {
       this.sunLight.intensity = dayIntensity * _smoothstep(-0.1, 0.05, altNorm) * 0.3;
       this.sunLight.position.set(sunDir.x * 100, sunDir.y * 100, sunDir.z * 100);
     } else {
-      // Night: moonlight from above (Tenkoku: moonLightIntensity=0.25, compromise: 0.15)
-      this.sunLight.intensity = 0.15;
+      // Night: dim moonlight from above (Tenkoku: moonLightIntensity=0.25, reduced for dark nights)
+      this.sunLight.intensity = 0.06;
       this.sunLight.position.set(20, 80, 20);
     }
 
@@ -938,10 +956,10 @@ SkyLightingController.prototype.update = function(sunDir, sunAltDeg, settings) {
         _lerp(0.25, 0.92, tw)
       );
     } else {
-      // Night — slightly brighter ambient for visibility (Tenkoku: ambientNightAmt configurable)
-      this.ambientLight.intensity = 0.12;
-      this.ambientLight.color.setRGB(0.10, 0.10, 0.20);
-      if (isHemi) this.ambientLight.groundColor.setRGB(0.03, 0.03, 0.05);
+      // Night — dark ambient for dramatic nights (moonlight + stars provide visibility)
+      this.ambientLight.intensity = 0.05;
+      this.ambientLight.color.setRGB(0.08, 0.08, 0.18);
+      if (isHemi) this.ambientLight.groundColor.setRGB(0.02, 0.02, 0.04);
     }
   }
 
@@ -1223,13 +1241,13 @@ StarField.prototype._generateStarTexture = function() {
 
   var stars = [];
 
-  // --- Layer 1: 40 bright "landmark" stars with large glow halos ---
-  for (var i = 0; i < 40; i++) {
+  // --- Layer 1: 60 bright "landmark" stars with large glow halos ---
+  for (var i = 0; i < 60; i++) {
     var sx = Math.random() * W;
     var sy = Math.random() * H * 0.48;
-    var radius = 2 + Math.random() * 2; // 2-4px core
-    var glowR = radius * 4; // 8-16px glow halo
-    var brightness = 0.9 + Math.random() * 0.1; // 0.9-1.0
+    var radius = 2.5 + Math.random() * 2.5; // 2.5-5px core
+    var glowR = radius * 5; // 12-25px glow halo
+    var brightness = 0.92 + Math.random() * 0.08; // 0.92-1.0
     var colorIdx = Math.floor(Math.random() * 4); // hotter stars
     var col = spectralColors[colorIdx];
 
@@ -1245,12 +1263,12 @@ StarField.prototype._generateStarTexture = function() {
     stars.push({ x: sx, y: sy, r: radius, brightness: brightness });
   }
 
-  // --- Layer 2: 200 medium-bright stars ---
-  for (var i = 0; i < 200; i++) {
+  // --- Layer 2: 350 medium-bright stars ---
+  for (var i = 0; i < 350; i++) {
     var sx = Math.random() * W;
     var sy = Math.random() * H * 0.50;
-    var radius = 1.2 + Math.random() * 1.5; // 1.2-2.7px
-    var brightness = 0.6 + Math.random() * 0.35; // 0.6-0.95
+    var radius = 1.4 + Math.random() * 1.8; // 1.4-3.2px
+    var brightness = 0.65 + Math.random() * 0.35; // 0.65-1.0
     var rnd = Math.random(), cumul = 0, colorIdx = 6;
     for (var ci = 0; ci < typeWeights.length; ci++) {
       cumul += typeWeights[ci]; if (rnd < cumul) { colorIdx = ci; break; }
@@ -1267,14 +1285,14 @@ StarField.prototype._generateStarTexture = function() {
     stars.push({ x: sx, y: sy, r: radius, brightness: brightness });
   }
 
-  // --- Layer 3: 1800 dim background stars (faint scattered dots) ---
-  for (var i = 0; i < 1800; i++) {
+  // --- Layer 3: 2400 dim background stars (faint scattered dots) ---
+  for (var i = 0; i < 2400; i++) {
     var sx = Math.random() * W;
     var sy = Math.random() * H * 0.50;
     var mag = Math.random();
     mag = mag * mag; // quadratic — many faint, few medium
-    var radius = 0.4 + mag * 1.2; // 0.4-1.6px
-    var brightness = 0.2 + mag * 0.55; // 0.2-0.75
+    var radius = 0.5 + mag * 1.4; // 0.5-1.9px
+    var brightness = 0.25 + mag * 0.6; // 0.25-0.85
     var rnd = Math.random(), cumul = 0, colorIdx = 6;
     for (var ci = 0; ci < typeWeights.length; ci++) {
       cumul += typeWeights[ci]; if (rnd < cumul) { colorIdx = ci; break; }

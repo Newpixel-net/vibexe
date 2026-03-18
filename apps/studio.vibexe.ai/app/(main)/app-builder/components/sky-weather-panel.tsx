@@ -109,24 +109,24 @@ interface SkyWeatherPanelProps {
 type SkyTab = "time" | "celestial" | "atmos" | "weather" | "fog" | "fx";
 
 const WEATHER_PRESETS = [
-	{ label: "Clear", icon: "☀️", clouds: { coverage: 0.05, brightness: 1.1 }, fog: { enabled: true, density: 0.001, autoColor: true }, precipitation: { type: "none", intensity: 0 }, lightning: { enabled: false } },
-	{ label: "Fair", icon: "🌤", clouds: { coverage: 0.2, brightness: 1.0 }, fog: { enabled: true, density: 0.0015, autoColor: true }, precipitation: { type: "none", intensity: 0 }, lightning: { enabled: false } },
-	{ label: "Partly Cloudy", icon: "⛅", clouds: { coverage: 0.45, brightness: 1.0 }, fog: { enabled: true, density: 0.002, autoColor: true }, precipitation: { type: "none", intensity: 0 }, lightning: { enabled: false } },
-	{ label: "Cloudy", icon: "☁️", clouds: { coverage: 0.75, brightness: 0.85 }, fog: { enabled: true, density: 0.003, autoColor: true }, precipitation: { type: "none", intensity: 0 }, lightning: { enabled: false } },
-	{ label: "Overcast", icon: "🌥", clouds: { coverage: 0.95, brightness: 0.6 }, fog: { enabled: true, density: 0.005, autoColor: true }, precipitation: { type: "none", intensity: 0 }, lightning: { enabled: false } },
-	{ label: "Rainy", icon: "🌧", clouds: { coverage: 0.85, brightness: 0.5 }, fog: { enabled: true, density: 0.005, autoColor: true }, precipitation: { type: "rain", intensity: 0.6, windStrength: 0.4 }, lightning: { enabled: false } },
-	{ label: "Snowy", icon: "🌨", clouds: { coverage: 0.9, brightness: 0.7 }, fog: { enabled: true, density: 0.006, autoColor: true }, precipitation: { type: "snow", intensity: 0.7, windStrength: 0.3 }, lightning: { enabled: false } },
-	{ label: "Foggy", icon: "🌫", clouds: { coverage: 0.6, brightness: 0.6 }, fog: { enabled: true, density: 0.015, autoColor: true }, precipitation: { type: "none", intensity: 0 }, lightning: { enabled: false } },
-	{ label: "Stormy", icon: "⛈", clouds: { coverage: 0.95, brightness: 0.35, density: 1.0 }, fog: { enabled: true, density: 0.008, autoColor: true }, precipitation: { type: "rain", intensity: 0.9, windStrength: 0.7 }, lightning: { enabled: true, frequency: 0.15 } },
+	{ label: "Clear", icon: "☀️", clouds: { coverage: 0.05, brightness: 1.1 }, fog: { enabled: true, density: 0.001, autoColor: true }, precipitation: { type: "none", intensity: 0 }, lightning: { enabled: false }, sky: { exposure: 1.3, sunIntensity: 24 } },
+	{ label: "Fair", icon: "🌤", clouds: { coverage: 0.2, brightness: 1.0 }, fog: { enabled: true, density: 0.0015, autoColor: true }, precipitation: { type: "none", intensity: 0 }, lightning: { enabled: false }, sky: { exposure: 1.2, sunIntensity: 22 } },
+	{ label: "Partly Cloudy", icon: "⛅", clouds: { coverage: 0.45, brightness: 1.0 }, fog: { enabled: true, density: 0.002, autoColor: true }, precipitation: { type: "none", intensity: 0 }, lightning: { enabled: false }, sky: { exposure: 1.15, sunIntensity: 20 } },
+	{ label: "Cloudy", icon: "☁️", clouds: { coverage: 0.75, brightness: 0.85 }, fog: { enabled: true, density: 0.003, autoColor: true }, precipitation: { type: "none", intensity: 0 }, lightning: { enabled: false }, sky: { exposure: 1.0, sunIntensity: 18 } },
+	{ label: "Overcast", icon: "🌥", clouds: { coverage: 0.95, brightness: 0.6 }, fog: { enabled: true, density: 0.005, autoColor: true }, precipitation: { type: "none", intensity: 0 }, lightning: { enabled: false }, sky: { exposure: 0.8, sunIntensity: 14 } },
+	{ label: "Rainy", icon: "🌧", clouds: { coverage: 0.85, brightness: 0.5 }, fog: { enabled: true, density: 0.005, autoColor: true }, precipitation: { type: "rain", intensity: 0.6, windStrength: 0.4 }, lightning: { enabled: false }, sky: { exposure: 0.7, sunIntensity: 12 } },
+	{ label: "Snowy", icon: "🌨", clouds: { coverage: 0.9, brightness: 0.7 }, fog: { enabled: true, density: 0.006, autoColor: true }, precipitation: { type: "snow", intensity: 0.7, windStrength: 0.3 }, lightning: { enabled: false }, sky: { exposure: 0.85, sunIntensity: 16 } },
+	{ label: "Foggy", icon: "🌫", clouds: { coverage: 0.6, brightness: 0.6 }, fog: { enabled: true, density: 0.015, autoColor: true }, precipitation: { type: "none", intensity: 0 }, lightning: { enabled: false }, sky: { exposure: 0.9, sunIntensity: 18 } },
+	{ label: "Stormy", icon: "⛈", clouds: { coverage: 0.95, brightness: 0.35, density: 1.0 }, fog: { enabled: true, density: 0.008, autoColor: true }, precipitation: { type: "rain", intensity: 0.9, windStrength: 0.7 }, lightning: { enabled: true, frequency: 0.15 }, sky: { exposure: 0.6, sunIntensity: 10 } },
 ] as const;
 
 const TIME_PRESETS = [
-	{ label: "Dawn", time: 0.25, icon: "🌅" },
-	{ label: "Morning", time: 0.35, icon: "🌤" },
-	{ label: "Noon", time: 0.5, icon: "☀️" },
-	{ label: "Afternoon", time: 0.65, icon: "🌤" },
-	{ label: "Dusk", time: 0.75, icon: "🌇" },
-	{ label: "Night", time: 0.0, icon: "🌙" },
+	{ label: "Dawn", time: 0.25, icon: "🌅", sky: { exposure: 1.0, rayleighScale: 1.2 } },
+	{ label: "Morning", time: 0.35, icon: "🌤", sky: { exposure: 1.15, rayleighScale: 1.1 } },
+	{ label: "Noon", time: 0.5, icon: "☀️", sky: { exposure: 1.2, rayleighScale: 1.0 } },
+	{ label: "Afternoon", time: 0.65, icon: "🌤", sky: { exposure: 1.15, rayleighScale: 1.0 } },
+	{ label: "Dusk", time: 0.75, icon: "🌇", sky: { exposure: 0.95, rayleighScale: 1.3 } },
+	{ label: "Night", time: 0.0, icon: "🌙", sky: { exposure: 0.8, rayleighScale: 1.0 } },
 ];
 
 const ADVANCED_DEFAULTS: SkyWeatherConfig = {
@@ -218,10 +218,12 @@ export function SkyWeatherPanel({ sendToIframe, onClose, settings, onChange, onS
 		}, 100);
 	}, [sendToIframe, onChange]);
 
-	const setTime = useCallback((t: number) => {
+	const setTime = useCallback((t: number, skyParams?: Record<string, number>) => {
 		sendToIframe({ type: "sky-weather-set-time", solarTime: t });
-		sendConfig({ time: { solarTime: t } });
-	}, [sendToIframe, sendConfig]);
+		const update: Partial<SkyWeatherConfig> = { time: { solarTime: t } };
+		if (skyParams) update.sky = { ...config.sky, ...skyParams };
+		sendConfig(update);
+	}, [sendToIframe, sendConfig, config.sky]);
 
 	const tabs: { id: SkyTab; label: string; icon: typeof Sun }[] = isAdvanced
 		? [
@@ -312,7 +314,7 @@ export function SkyWeatherPanel({ sendToIframe, onClose, settings, onChange, onS
 								{TIME_PRESETS.map((preset) => (
 									<button
 										key={preset.label} type="button"
-										onClick={() => setTime(preset.time)}
+										onClick={() => setTime(preset.time, preset.sky)}
 										className={`px-2 py-1.5 text-[10px] rounded-lg transition-all ${
 											Math.abs((config.time?.solarTime ?? 0) - preset.time) < 0.02
 												? "bg-amber-500/[0.15] text-amber-300 border border-amber-500/[0.25]"
@@ -523,6 +525,7 @@ export function SkyWeatherPanel({ sendToIframe, onClose, settings, onChange, onS
 											fog: { ...config.fog, ...preset.fog },
 											precipitation: { ...config.precipitation, ...preset.precipitation },
 											lightning: { ...config.lightning, ...preset.lightning },
+											sky: { ...config.sky, ...preset.sky },
 										})}
 										className="px-2 py-1.5 text-[10px] rounded-lg bg-white/[0.04] text-white/50 hover:bg-white/[0.08] hover:text-white/70 transition-all text-left"
 									>
