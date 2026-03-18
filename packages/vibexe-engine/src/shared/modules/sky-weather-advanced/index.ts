@@ -1676,8 +1676,8 @@ function CloudSystem() {
   this._density = 0.85;
   this._scale = 3.0;
   this._time = 0;
-  this._CW = 1024;
-  this._CH = 512;
+  this._CW = 512;
+  this._CH = 256;
   this._blurBuf = null; // cached blur buffer to avoid GC pressure
 }
 
