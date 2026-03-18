@@ -1065,45 +1065,22 @@ SkyLightingController.prototype.dispose = function(scene) {
 var __swa_texCache = {};
 
 function _getSwaSnowTex() {
-  if (__swa_texCache.snow) return __swa_texCache.snow;
-  var s = 64, h = s / 2;
+  if (__swa_texCache.snow && __swa_texCache._snowV3) return __swa_texCache.snow;
+  var s = 32, h = s / 2;
   var c = document.createElement("canvas"); c.width = c.height = s;
   var x = c.getContext("2d");
-  // Soft round snowflake — large bright center with gentle falloff (Tenkoku: round alpha sprites)
-  var g = x.createRadialGradient(h, h, 0, h, h, h * 0.85);
-  g.addColorStop(0.0, "rgba(255,255,255,1.0)");
-  g.addColorStop(0.15, "rgba(248,250,255,0.95)");
-  g.addColorStop(0.35, "rgba(235,242,255,0.65)");
-  g.addColorStop(0.55, "rgba(220,232,255,0.30)");
-  g.addColorStop(0.75, "rgba(210,225,255,0.08)");
-  g.addColorStop(1.0, "rgba(200,220,255,0.0)");
+  // Tiny soft round dot — NO crystal arms (Tenkoku Ref 6: nearly invisible tiny dots)
+  var g = x.createRadialGradient(h, h, 0, h, h, h * 0.7);
+  g.addColorStop(0.0, "rgba(255,255,255,0.9)");
+  g.addColorStop(0.3, "rgba(240,245,255,0.5)");
+  g.addColorStop(0.6, "rgba(225,235,255,0.15)");
+  g.addColorStop(1.0, "rgba(210,225,255,0.0)");
   x.fillStyle = g;
-  x.beginPath(); x.arc(h, h, h * 0.85, 0, TWO_PI); x.fill();
-  // 6 crystal arms with branching (thicker, visible at small sizes)
-  for (var i = 0; i < 6; i++) {
-    var a = (i / 6) * TWO_PI;
-    var armLen = h * 0.72;
-    var ex = h + Math.cos(a) * armLen;
-    var ey = h + Math.sin(a) * armLen;
-    // Main arm — thicker
-    x.strokeStyle = "rgba(255,255,255,0.75)";
-    x.lineWidth = s * 0.055;
-    x.lineCap = "round";
-    x.beginPath(); x.moveTo(h, h); x.lineTo(ex, ey); x.stroke();
-    // Small branch near tip
-    var bx = h + Math.cos(a) * armLen * 0.55;
-    var by = h + Math.sin(a) * armLen * 0.55;
-    var brAngle1 = a + 0.52;
-    var brAngle2 = a - 0.52;
-    var brLen = armLen * 0.3;
-    x.lineWidth = s * 0.035;
-    x.strokeStyle = "rgba(245,248,255,0.55)";
-    x.beginPath(); x.moveTo(bx, by); x.lineTo(bx + Math.cos(brAngle1) * brLen, by + Math.sin(brAngle1) * brLen); x.stroke();
-    x.beginPath(); x.moveTo(bx, by); x.lineTo(bx + Math.cos(brAngle2) * brLen, by + Math.sin(brAngle2) * brLen); x.stroke();
-  }
+  x.beginPath(); x.arc(h, h, h * 0.7, 0, TWO_PI); x.fill();
   var t = new THREE.CanvasTexture(c);
   t.colorSpace = THREE.SRGBColorSpace;
   __swa_texCache.snow = t;
+  __swa_texCache._snowV3 = true;
   return t;
 }
 
@@ -1170,8 +1147,8 @@ WeatherParticles.prototype.init = function(scene) {
   var i, rDist, rAngle;
 
   // ---- Rain InstancedMesh ----
-  // PlaneGeometry(width, height): 0.3 wide × 2.0 tall → elongated rain streak
-  var rainGeo = new THREE.PlaneGeometry(0.3, 2.0);
+  // PlaneGeometry(width, height): 0.08 wide × 1.5 tall → thin diagonal streak (Tenkoku Ref 2)
+  var rainGeo = new THREE.PlaneGeometry(0.08, 1.5);
   this._rainMat = new THREE.MeshBasicMaterial({
     map: _getSwaRainTex(),
     transparent: true,
@@ -1204,8 +1181,8 @@ WeatherParticles.prototype.init = function(scene) {
   }
 
   // ---- Snow InstancedMesh ----
-  // PlaneGeometry(1.0, 1.0) → square snowflake quad
-  var snowGeo = new THREE.PlaneGeometry(1.0, 1.0);
+  // PlaneGeometry(0.25, 0.25) → tiny round dot (was 1.0 = huge star shapes)
+  var snowGeo = new THREE.PlaneGeometry(0.25, 0.25);
   this._snowMat = new THREE.MeshBasicMaterial({
     map: _getSwaSnowTex(),
     transparent: true,
@@ -1308,7 +1285,7 @@ WeatherParticles.prototype.update = function(dt, camera, settings) {
     this._animateBillboards(this._rain, this._rainPos, this._rainVel, dt, camera, intensity, true);
   }
   if (showSnow) {
-    this._snowMat.opacity = _clamp(intensity * 0.55, 0.15, 0.6);
+    this._snowMat.opacity = _clamp(intensity * 0.35, 0.08, 0.35);
     this._animateBillboards(this._snow, this._snowPos, this._snowVel, dt, camera, intensity, false);
   }
   if (showSplash) {
@@ -1737,15 +1714,31 @@ StarField.prototype._generateStarTexture = function() {
       brightness = 0.20 + Math.random() * 0.25;
     }
 
+    // Spectral color tints (Tenkoku Ref 1: blue, white, orange stars visible)
+    var starColors = [
+      [155,175,255], // O — hot blue
+      [170,190,255], // B — blue-white
+      [210,220,255], // A — white
+      [255,245,230], // F — warm white
+      [255,230,180], // G — yellow (Sun-like)
+      [255,190,130], // K — orange
+      [255,120,80],  // M — red
+    ];
     var rnd = Math.random(), cumul = 0, colorIdx = 6;
     for (var ci = 0; ci < typeWeights.length; ci++) {
       cumul += typeWeights[ci]; if (rnd < cumul) { colorIdx = ci; break; }
     }
+    var sc = starColors[colorIdx];
+    // Only apply strong tint to bright stars; faint stars stay near-white
+    var tintStr = magRoll < 0.25 ? 1.0 : 0.3; // bright/medium get full tint, faint get subtle
+    var sR = Math.round(_lerp(255, sc[0], tintStr));
+    var sG = Math.round(_lerp(255, sc[1], tintStr));
+    var sB = Math.round(_lerp(255, sc[2], tintStr));
     var glowR3 = radius * 1.3;
     var grad = ctx.createRadialGradient(sx, sy, 0, sx, sy, glowR3);
-    grad.addColorStop(0, "rgba(255,255,255," + brightness + ")");
-    grad.addColorStop(0.5, "rgba(255,255,255," + (brightness * 0.12) + ")");
-    grad.addColorStop(1, "rgba(255,255,255,0)");
+    grad.addColorStop(0, "rgba(" + sR + "," + sG + "," + sB + "," + brightness + ")");
+    grad.addColorStop(0.5, "rgba(" + sR + "," + sG + "," + sB + "," + (brightness * 0.12) + ")");
+    grad.addColorStop(1, "rgba(" + sR + "," + sG + "," + sB + ",0)");
     ctx.fillStyle = grad;
     ctx.fillRect(sx - glowR3, sy - glowR3, glowR3 * 2, glowR3 * 2);
     stars.push({ x: sx, y: sy, r: radius, brightness: brightness });
@@ -1781,9 +1774,9 @@ StarField.prototype.init = function(scene) {
 
   // Cache star texture globally so it survives SWA reinit (Scene↔Game mode switch)
   // Force regeneration for v2 star clustering + magnitude tiers (Phase G.4)
-  if (!__swa_texCache.starCanvas || !__swa_texCache._starV2) {
+  if (!__swa_texCache.starCanvas || !__swa_texCache._starV3) {
     __swa_texCache.starCanvas = this._generateStarTexture();
-    __swa_texCache._starV2 = true;
+    __swa_texCache._starV3 = true;
   }
   var canvas = __swa_texCache.starCanvas;
   this._canvas = canvas;
@@ -2336,8 +2329,10 @@ CloudSystem.prototype.updateTexture = function(atmosphere) {
       var n1 = this._fbm2(warpedCumulus[0], warpedCumulus[1]);
       var w1 = this._worley2(nx * 0.5 + windX, ny * 0.5 + windY);
       var c1 = _clamp(n1 - w1 * 0.45 + coverage * 2.2 - 1.0, 0, 1);
-      c1 = Math.pow(c1, 3.5); // 3.5 power for distinct separated puffs (2.5 was too diffuse = ribbon)
-      var fade1 = _smoothstep(0.04, 0.16, v) * _smoothstep(0.75, 0.30, v);
+      c1 = Math.pow(c1, 3.5); // 3.5 power for distinct separated puffs
+      // Altitude scatter: offset the fade band per-column so clouds appear at varying heights
+      var altOffset = this._noise2(u * 3.0 + 77, 0.5) * 0.12; // ±0.12 altitude variation
+      var fade1 = _smoothstep(0.04 + altOffset, 0.16 + altOffset, v) * _smoothstep(0.75, 0.30, v);
       c1 *= fade1;
 
       // Layer 2: Altocumulus — medium scattered patches
@@ -2356,9 +2351,12 @@ CloudSystem.prototype.updateTexture = function(atmosphere) {
       var c4 = 0;
       if (coverage > 0.6) {
         var n4 = this._fbm2(nx * 2.0 + windX * 0.5 + 200, ny * 1.5 + windY * 0.3 + 200);
-        // Reduce noise amplitude at high coverage for smoother overcast (Tenkoku: uniform layer)
-        var noiseAmp = _lerp(0.5, 0.15, _clamp((coverage - 0.6) * 2.5, 0, 1));
+        // Smoother overcast but with subtle wispy detail (Tenkoku Ref 2/6: not totally flat)
+        var noiseAmp = _lerp(0.45, 0.20, _clamp((coverage - 0.6) * 2.5, 0, 1));
         c4 = _clamp((coverage - 0.6) * 2.5 * (0.5 + n4 * noiseAmp), 0, 0.7);
+        // Add wispy cirrus-like detail on top of overcast layer
+        var wipsy = this._noise2(nx * 5.0 + windX * 0.2 + 500, ny * 2.0 + windY * 0.1 + 500);
+        c4 += wipsy * 0.08 * _clamp((coverage - 0.7) * 3.3, 0, 1);
       }
 
       // Front-to-back layer compositing with Beer transmission (Tenkoku cloud_sphere.shader)
@@ -2426,24 +2424,41 @@ CloudSystem.prototype.updateTexture = function(atmosphere) {
     }
   }
 
-  // Edge softening: simple 3x3 box blur on alpha channel for softer cloud edges
+  // Edge softening: 2-pass 5x1 separable blur on alpha for softer cloud edges (Tenkoku: fluffy)
   if (hasCloud) {
     if (!this._blurBuf || this._blurBuf.length !== W * H) this._blurBuf = new Uint8ClampedArray(W * H);
     var blurAlpha = this._blurBuf;
-    for (var by = 1; by < H - 1; by++) {
-      for (var bx = 1; bx < W - 1; bx++) {
-        var sum = 0;
-        for (var ky = -1; ky <= 1; ky++) {
-          for (var kx = -1; kx <= 1; kx++) {
-            sum += pix[((by + ky) * W + (bx + kx)) * 4 + 3];
-          }
-        }
+    // Horizontal pass (5-wide)
+    for (var by = 0; by < H; by++) {
+      for (var bx = 2; bx < W - 2; bx++) {
+        var sum = pix[((by) * W + bx - 2) * 4 + 3]
+                + pix[((by) * W + bx - 1) * 4 + 3] * 2
+                + pix[((by) * W + bx) * 4 + 3] * 3
+                + pix[((by) * W + bx + 1) * 4 + 3] * 2
+                + pix[((by) * W + bx + 2) * 4 + 3];
         blurAlpha[by * W + bx] = Math.round(sum / 9);
       }
     }
-    for (var by2 = 1; by2 < H - 1; by2++) {
-      for (var bx2 = 1; bx2 < W - 1; bx2++) {
-        pix[(by2 * W + bx2) * 4 + 3] = blurAlpha[by2 * W + bx2];
+    // Write horizontal result back
+    for (var by1 = 0; by1 < H; by1++) {
+      for (var bx1 = 2; bx1 < W - 2; bx1++) {
+        pix[(by1 * W + bx1) * 4 + 3] = blurAlpha[by1 * W + bx1];
+      }
+    }
+    // Vertical pass (5-tall)
+    for (var by2 = 2; by2 < H - 2; by2++) {
+      for (var bx2 = 0; bx2 < W; bx2++) {
+        var sum2 = pix[((by2 - 2) * W + bx2) * 4 + 3]
+                 + pix[((by2 - 1) * W + bx2) * 4 + 3] * 2
+                 + pix[((by2) * W + bx2) * 4 + 3] * 3
+                 + pix[((by2 + 1) * W + bx2) * 4 + 3] * 2
+                 + pix[((by2 + 2) * W + bx2) * 4 + 3];
+        blurAlpha[by2 * W + bx2] = Math.round(sum2 / 9);
+      }
+    }
+    for (var by3 = 2; by3 < H - 2; by3++) {
+      for (var bx3 = 0; bx3 < W; bx3++) {
+        pix[(by3 * W + bx3) * 4 + 3] = blurAlpha[by3 * W + bx3];
       }
     }
   }
