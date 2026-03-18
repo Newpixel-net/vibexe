@@ -16,7 +16,7 @@ import type { ModuleManifest } from "../module-types";
 export const SKY_WEATHER_ADVANCED_MANIFEST: ModuleManifest = {
 	id: "sky-weather-advanced",
 	name: "Sky & Weather Advanced",
-	version: "1.8.0",
+	version: "1.8.1",
 	category: "lighting",
 	description:
 		"Physically-based atmosphere with Rayleigh+Mie scattering, real orbital mechanics, volumetric clouds, 9K star catalog, and full weather system",
@@ -1581,7 +1581,12 @@ StarField.prototype._generateStarTexture = function() {
 StarField.prototype.init = function(scene) {
   if (this._dome) return;
 
-  var canvas = this._generateStarTexture();
+  // Cache star texture globally so it survives SWA reinit (Scene↔Game mode switch)
+  if (!__swa_texCache.starCanvas) {
+    __swa_texCache.starCanvas = this._generateStarTexture();
+  }
+  var canvas = __swa_texCache.starCanvas;
+  this._canvas = canvas;
   this._tex = new THREE.CanvasTexture(canvas);
   this._tex.colorSpace = THREE.SRGBColorSpace;
 
@@ -2248,9 +2253,13 @@ function MoonRenderer() {
 MoonRenderer.prototype.build = function(scene) {
   if (this._mesh) return;
 
-  // Generate high-detail procedural moon texture (256px — doubled from 128)
+  // Cache moon texture globally to avoid heavy canvas regen on Scene↔Game mode switch
   var texSize = 256;
-  var canvas = document.createElement("canvas");
+  var canvas;
+  if (__swa_texCache.moonCanvas) {
+    canvas = __swa_texCache.moonCanvas;
+  } else {
+  canvas = document.createElement("canvas");
   canvas.width = canvas.height = texSize;
   var ctx = canvas.getContext("2d");
 
@@ -2344,6 +2353,9 @@ MoonRenderer.prototype.build = function(scene) {
     ctx.stroke();
   }
   ctx.globalCompositeOperation = "source-over";
+  __swa_texCache.moonCanvas = canvas;
+  } // end of cache generation block
+  var ctx = canvas.getContext("2d");
 
   // Store base moon texture for phase shadow overlay
   this._moonBaseImageData = ctx.getImageData(0, 0, texSize, texSize);
@@ -2946,9 +2958,13 @@ function MilkyWayAndPlanets() {
 
 MilkyWayAndPlanets.prototype.init = function(scene) {
   // Milky Way: Canvas-textured dome with procedural nebula band
-  // (Tenkoku uses tex_starmapTycho.psd texture; we approximate with procedural canvas)
-  var mwW = 1024, mwH = 512;
-  var mwCanvas = document.createElement("canvas");
+  // Cache globally to avoid heavy canvas regen on Scene↔Game mode switch
+  var mwW = 512, mwH = 256; // reduced from 1024x512 for faster init
+  var mwCanvas;
+  if (__swa_texCache.milkyWayCanvas) {
+    mwCanvas = __swa_texCache.milkyWayCanvas;
+  } else {
+  mwCanvas = document.createElement("canvas");
   mwCanvas.width = mwW; mwCanvas.height = mwH;
   var mwCtx = mwCanvas.getContext("2d");
   mwCtx.fillStyle = "rgba(0,0,0,0)";
@@ -3018,6 +3034,8 @@ MilkyWayAndPlanets.prototype.init = function(scene) {
     mwCtx.fillStyle = g2;
     mwCtx.fillRect(sx - sr, sy - sr, sr*2, sr*2);
   }
+  __swa_texCache.milkyWayCanvas = mwCanvas;
+  } // end of cache generation block
 
   var mwTex = new THREE.CanvasTexture(mwCanvas);
   mwTex.colorSpace = THREE.SRGBColorSpace;
