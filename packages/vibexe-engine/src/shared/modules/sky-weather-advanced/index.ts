@@ -333,7 +333,7 @@ function AtmosphereRenderer() {
   this._solarTime = 0.45;     // for sidereal rotation of star highlights
   this._time = 0;             // elapsed time for star twinkle animation
   this._moonDir = [0, -1, 0]; // moon direction for atmosphere moon Mie glow
-  this._nightBrightness = 0.4; // Tenkoku default: 0.4 — controls night sky floor brightness
+  this._nightBrightness = 0.2; // Reduced for darker nights matching Tenkoku reference
   this._overcastAmount = 0;   // 0-1 overcast weather dimming (from weather system)
   this._skyTintColor = [1, 1, 1]; // RGB tint multiplier (Tenkoku globalSkyColor)
   this._skyTintAlpha = 0;     // tint blend amount (0 = no tint)
@@ -482,13 +482,21 @@ AtmosphereRenderer.prototype._computeSkyColor = function(viewDir) {
     gn += scatterM[1] * sunAdd;
     b += scatterM[2] * sunAdd;
   }
-  // Sun corona — wider warm glow around sun (Tenkoku sun haze)
-  if (cosAngle > 0.990 && sunDir[1] > -0.05) {
-    var coronaT = _smoothstep(0.990, 0.999, cosAngle);
-    var coronaI = coronaT * 0.12 * _clamp(sunDir[1] + 0.1, 0, 1);
+  // Sun corona — wide warm bloom around sun (Tenkoku sun haze)
+  if (cosAngle > 0.985 && sunDir[1] > -0.05) {
+    var coronaT = _smoothstep(0.985, 0.999, cosAngle);
+    var coronaI = coronaT * 0.25 * _clamp(sunDir[1] + 0.1, 0, 1);
     r += coronaI * 1.0;
-    gn += coronaI * 0.85;
-    b += coronaI * 0.5;
+    gn += coronaI * 0.9;
+    b += coronaI * 0.55;
+  }
+  // Outer sun haze — very wide subtle warm glow (Tenkoku reference shows large halo)
+  if (cosAngle > 0.96 && sunDir[1] > 0) {
+    var hazeT = _smoothstep(0.96, 0.99, cosAngle);
+    var hazeI = hazeT * 0.08 * _clamp(sunDir[1], 0, 0.5) * 2;
+    r += hazeI * 1.0;
+    gn += hazeI * 0.85;
+    b += hazeI * 0.5;
   }
 
   // Moon Mie scattering — multi-ring atmospheric glow around moon (Task 5)
@@ -1066,7 +1074,7 @@ function WeatherParticles() {
   this._snowGeo = null;
   this._rainMat = null;
   this._snowMat = null;
-  this._particleCount = 1500;
+  this._particleCount = 2500;
   this._windDir = 0;
   this._windStrength = 0.3;
 }
@@ -1090,9 +1098,9 @@ WeatherParticles.prototype.init = function(scene) {
 
   this._rainMat = new THREE.PointsMaterial({
     map: _getSwaRainTex(),
-    size: 1.5, // larger rain streaks (was 0.8)
+    size: 2.0, // prominent rain streaks (Tenkoku shows dense visible streaks)
     transparent: true,
-    opacity: 0.7,
+    opacity: 0.85,
     depthWrite: false,
     blending: THREE.AdditiveBlending,
     sizeAttenuation: true,
@@ -1121,9 +1129,9 @@ WeatherParticles.prototype.init = function(scene) {
 
   this._snowMat = new THREE.PointsMaterial({
     map: _getSwaSnowTex(),
-    size: 1.8, // larger snowflakes (was 1.2)
+    size: 2.5, // large visible snowflakes (Tenkoku reference)
     transparent: true,
-    opacity: 0.85,
+    opacity: 0.9,
     depthWrite: false,
     blending: THREE.AdditiveBlending,
     sizeAttenuation: true,
@@ -1241,44 +1249,45 @@ StarField.prototype._generateStarTexture = function() {
 
   var stars = [];
 
-  // --- Layer 1: 60 bright "landmark" stars with large glow halos ---
-  for (var i = 0; i < 60; i++) {
+  // --- Layer 1: 80 bright "landmark" stars — sharp white dots with tight glow ---
+  for (var i = 0; i < 80; i++) {
     var sx = Math.random() * W;
     var sy = Math.random() * H * 0.48;
-    var radius = 2.5 + Math.random() * 2.5; // 2.5-5px core
-    var glowR = radius * 5; // 12-25px glow halo
-    var brightness = 0.92 + Math.random() * 0.08; // 0.92-1.0
+    var radius = 1.5 + Math.random() * 1.5; // 1.5-3px core (sharper)
+    var glowR = radius * 3; // 4.5-9px glow (tighter, brighter)
+    var brightness = 0.95 + Math.random() * 0.05; // 0.95-1.0
     var colorIdx = Math.floor(Math.random() * 4); // hotter stars
     var col = spectralColors[colorIdx];
 
     // Outer glow halo
     var grad = ctx.createRadialGradient(sx, sy, 0, sx, sy, glowR);
-    grad.addColorStop(0, "rgba(" + col[0] + "," + col[1] + "," + col[2] + "," + brightness + ")");
-    grad.addColorStop(0.08, "rgba(" + col[0] + "," + col[1] + "," + col[2] + "," + (brightness * 0.85) + ")");
-    grad.addColorStop(0.2, "rgba(" + col[0] + "," + col[1] + "," + col[2] + "," + (brightness * 0.4) + ")");
-    grad.addColorStop(0.5, "rgba(" + col[0] + "," + col[1] + "," + col[2] + "," + (brightness * 0.08) + ")");
+    // Sharp bright core + tight glow (Tenkoku-style crisp stars)
+    grad.addColorStop(0, "rgba(255,255,255," + brightness + ")");
+    grad.addColorStop(0.12, "rgba(" + col[0] + "," + col[1] + "," + col[2] + "," + (brightness * 0.9) + ")");
+    grad.addColorStop(0.3, "rgba(" + col[0] + "," + col[1] + "," + col[2] + "," + (brightness * 0.3) + ")");
+    grad.addColorStop(0.6, "rgba(" + col[0] + "," + col[1] + "," + col[2] + "," + (brightness * 0.05) + ")");
     grad.addColorStop(1, "rgba(" + col[0] + "," + col[1] + "," + col[2] + ",0)");
     ctx.fillStyle = grad;
     ctx.fillRect(sx - glowR, sy - glowR, glowR * 2, glowR * 2);
     stars.push({ x: sx, y: sy, r: radius, brightness: brightness });
   }
 
-  // --- Layer 2: 350 medium-bright stars ---
-  for (var i = 0; i < 350; i++) {
+  // --- Layer 2: 400 medium-bright stars ---
+  for (var i = 0; i < 400; i++) {
     var sx = Math.random() * W;
     var sy = Math.random() * H * 0.50;
-    var radius = 1.4 + Math.random() * 1.8; // 1.4-3.2px
-    var brightness = 0.65 + Math.random() * 0.35; // 0.65-1.0
+    var radius = 1.0 + Math.random() * 1.2; // 1.0-2.2px (sharper)
+    var brightness = 0.7 + Math.random() * 0.3; // 0.7-1.0
     var rnd = Math.random(), cumul = 0, colorIdx = 6;
     for (var ci = 0; ci < typeWeights.length; ci++) {
       cumul += typeWeights[ci]; if (rnd < cumul) { colorIdx = ci; break; }
     }
     var col = spectralColors[colorIdx];
-    var glowR = radius * 2.5;
+    var glowR = radius * 2;
     var grad = ctx.createRadialGradient(sx, sy, 0, sx, sy, glowR);
-    grad.addColorStop(0, "rgba(" + col[0] + "," + col[1] + "," + col[2] + "," + brightness + ")");
-    grad.addColorStop(0.15, "rgba(" + col[0] + "," + col[1] + "," + col[2] + "," + (brightness * 0.7) + ")");
-    grad.addColorStop(0.5, "rgba(" + col[0] + "," + col[1] + "," + col[2] + "," + (brightness * 0.15) + ")");
+    grad.addColorStop(0, "rgba(255,255,255," + brightness + ")");
+    grad.addColorStop(0.2, "rgba(" + col[0] + "," + col[1] + "," + col[2] + "," + (brightness * 0.6) + ")");
+    grad.addColorStop(0.5, "rgba(" + col[0] + "," + col[1] + "," + col[2] + "," + (brightness * 0.1) + ")");
     grad.addColorStop(1, "rgba(" + col[0] + "," + col[1] + "," + col[2] + ",0)");
     ctx.fillStyle = grad;
     ctx.fillRect(sx - glowR, sy - glowR, glowR * 2, glowR * 2);
@@ -2087,14 +2096,14 @@ MoonRenderer.prototype.update = function(camera, moonDir, sunDir, moonPhase, sun
   // Visibility: hide when fully below horizon (after fade completes)
   this._mesh.visible = moonDir.y > -0.05;
 
-  // Glow halo — follows moon position, scales 8x larger, fades with phase
+  // Glow halo — follows moon position, scales 18x larger for Tenkoku-scale halo
   if (this._glowMesh) {
     this._glowMesh.visible = this._mesh.visible;
     if (this._glowMesh.visible && camera) {
       this._glowMesh.position.copy(this._mesh.position);
-      this._glowMesh.scale.setScalar(this._size * 8);
+      this._glowMesh.scale.setScalar(this._size * 18);
       this._glowMesh.lookAt(camera.position);
-      this._glowMesh.material.opacity = phaseBrightness * horizonFade * 0.35;
+      this._glowMesh.material.opacity = phaseBrightness * horizonFade * 0.55;
     }
   }
 };
@@ -3055,7 +3064,7 @@ function SkyWeatherAdvancedSystem(scene, settings) {
   if (sky.mieDirectionalG == null || sky.mieDirectionalG < 0.5) sky.mieDirectionalG = 0.76;
   if (sky.exposure == null || sky.exposure < 0.5 || sky.exposure > 4) sky.exposure = 1.2;
   if (sky.sunIntensity == null || sky.sunIntensity < 10) sky.sunIntensity = 22.0;
-  if (sky.nightBrightness == null) sky.nightBrightness = 0.4;
+  if (sky.nightBrightness == null) sky.nightBrightness = 0.2;
   var fog = this.settings.fog;
   if (fog.density != null && fog.density > 0.01) fog.density = 0.002;
   var clouds = this.settings.clouds;
@@ -3145,7 +3154,7 @@ function SkyWeatherAdvancedSystem(scene, settings) {
   this.atmosphere._exposure = initSky.exposure != null ? initSky.exposure : 1.2;
   this.atmosphere._mieG = initSky.mieDirectionalG != null ? initSky.mieDirectionalG : 0.76;
   this.atmosphere._starIntensity = initSky.starIntensity != null ? initSky.starIntensity : 1.0;
-  this.atmosphere._nightBrightness = initSky.nightBrightness != null ? initSky.nightBrightness : 0.4;
+  this.atmosphere._nightBrightness = initSky.nightBrightness != null ? initSky.nightBrightness : 0.2;
   this.atmosphere._solarTime = ts.solarTime != null ? ts.solarTime : 0.45;
   this.atmosphere._moonDir = [this.orbital.moonDirection.x, this.orbital.moonDirection.y, this.orbital.moonDirection.z];
   this.atmosphere.setSunDirection(this.orbital.sunDirection);
@@ -3190,7 +3199,7 @@ SkyWeatherAdvancedSystem.DEFAULTS = {
     mieCoefficient: 0.005,
     mieDirectionalG: 0.82,
     starIntensity: 1.0,
-    nightBrightness: 0.4,
+    nightBrightness: 0.2,
     exposure: 1.2,
     rayleighScale: 1.0,
     sunIntensity: 22.0,
@@ -3320,7 +3329,7 @@ SkyWeatherAdvancedSystem.prototype._tick = function(dt) {
     this.atmosphere._rayleighScale = _clamp(skySettings.rayleighScale != null ? skySettings.rayleighScale : 1.0, 0.5, 3.0);
     this.atmosphere._sunIntensity = _clamp(skySettings.sunIntensity != null ? skySettings.sunIntensity : 22.0, 5.0, 50.0);
     this.atmosphere._starIntensity = _clamp(skySettings.starIntensity != null ? skySettings.starIntensity : 1.0, 0, 3.0);
-    this.atmosphere._nightBrightness = _clamp(skySettings.nightBrightness != null ? skySettings.nightBrightness : 0.4, 0, 1.0);
+    this.atmosphere._nightBrightness = _clamp(skySettings.nightBrightness != null ? skySettings.nightBrightness : 0.2, 0, 1.0);
     this.atmosphere._solarTime = ts.solarTime != null ? ts.solarTime : 0.45;
     this.atmosphere._time = this._time;
     this.atmosphere._moonDir = [this.orbital.moonDirection.x, this.orbital.moonDirection.y, this.orbital.moonDirection.z];
@@ -3480,7 +3489,7 @@ SkyWeatherAdvancedSystem.prototype.updateSettings = function(patch) {
   if (sky.mieDirectionalG == null || sky.mieDirectionalG < 0.5) sky.mieDirectionalG = 0.76;
   if (sky.exposure == null || sky.exposure < 0.5 || sky.exposure > 4) sky.exposure = 1.2;
   if (sky.sunIntensity == null || sky.sunIntensity < 10) sky.sunIntensity = 22.0;
-  if (sky.nightBrightness == null) sky.nightBrightness = 0.4;
+  if (sky.nightBrightness == null) sky.nightBrightness = 0.2;
   var fog = this.settings.fog;
   if (fog.density != null && fog.density > 0.01) fog.density = 0.002;
   if (!fog.enabled) { fog.enabled = true; fog.density = fog.density != null ? fog.density : 0.002; }
