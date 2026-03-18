@@ -1130,9 +1130,9 @@ function WeatherParticles() {
   this._snowVel = null;
   this._splashPos = null;
   this._splashVel = null;
-  this._rainCount = 2000;
-  this._snowCount = 1500;
-  this._splashCount = 500;
+  this._rainCount = 1000;
+  this._snowCount = 800;
+  this._splashCount = 200;
   this._windDir = 0;
   this._windStrength = 0.3;
   this._cameraInitDone = false;
@@ -1141,6 +1141,11 @@ function WeatherParticles() {
   this._pos3 = new THREE.Vector3();
   this._scl3 = new THREE.Vector3();
   this._quat = new THREE.Quaternion();
+  // Pre-allocated objects to avoid per-frame GC pressure
+  this._rainTiltQ = new THREE.Quaternion();
+  this._tiltAxis = new THREE.Vector3(1, 0, 0);
+  this._anchorPos = new THREE.Vector3();
+  this._zeroMtx = new THREE.Matrix4().makeScale(0, 0, 0);
 }
 
 WeatherParticles.prototype.init = function(scene) {
@@ -1308,22 +1313,22 @@ WeatherParticles.prototype._animateBillboards = function(mesh, posArr, velArr, d
   // Use player position if available (particles should fall AROUND the player, not camera)
   var playerMesh = window.__vibexe_playerMesh__;
   var anchorPos = playerMesh ? playerMesh.position : (camera ? camera.position : {x:0, y:0, z:0});
-  var camPos = {x: anchorPos.x, y: anchorPos.y, z: anchorPos.z};
-  var spread = isRain ? 50 : 40; // tighter spread around player
-  var ceiling = isRain ? 25 : 18; // lower ceiling so particles reach ground quickly
-  // Get camera world quaternion for billboard orientation
-  var camQ = camera ? camera.quaternion : new THREE.Quaternion();
+  // Reuse pre-allocated Vector3 instead of creating new object every frame
+  var camPos = this._anchorPos;
+  camPos.set(anchorPos.x, anchorPos.y, anchorPos.z);
+  var spread = isRain ? 50 : 40;
+  var ceiling = isRain ? 25 : 18;
+  var camQ = camera ? camera.quaternion : this._quat;
 
-  // Compute billboard quaternion once per frame (same for all instances)
-  // Rain: tilt the streak quad to align with fall+wind direction (pitch around X).
+  // Compute billboard quaternion once per frame using pre-allocated objects (no new Quaternion/Vector3)
   var billboardQ;
   if (isRain) {
     var tiltAngle = Math.atan2(
       this._windStrength * Math.sin(this._windDir) * 30,
       18 + this._windStrength * Math.cos(this._windDir) * 30
     );
-    var rainTiltQ = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1, 0, 0), tiltAngle);
-    billboardQ = camQ.clone().multiply(rainTiltQ);
+    this._rainTiltQ.setFromAxisAngle(this._tiltAxis, tiltAngle);
+    billboardQ = this._quat.copy(camQ).multiply(this._rainTiltQ);
   } else {
     billboardQ = camQ;
   }
@@ -1331,13 +1336,15 @@ WeatherParticles.prototype._animateBillboards = function(mesh, posArr, velArr, d
   var mtx = this._mtx;
   var pos3 = this._pos3;
   var scl3 = this._scl3;
+  var zeroMtx = this._zeroMtx;
   scl3.set(1, 1, 1);
+
+  // Ground level: use player Y - 5 as fallback (skip expensive terrain height lookups)
+  var groundY = camPos.y - 5;
 
   for (var i = 0; i < count; i++) {
     if (i >= activeCount) {
-      // Hide unused instances by scaling to zero
-      mtx.makeScale(0, 0, 0);
-      mesh.setMatrixAt(i, mtx);
+      mesh.setMatrixAt(i, zeroMtx);
       continue;
     }
 
@@ -1352,23 +1359,18 @@ WeatherParticles.prototype._animateBillboards = function(mesh, posArr, velArr, d
       posArr[i*3+2] += Math.cos(posArr[i*3+1] * 0.2 + i * 1.3) * 0.5 * dt;
     }
 
-    // Recycle when below terrain surface (or player Y - 3 as fallback)
-    var groundY = camPos.y - 5;
-    if (window.__vibexe_getVisualTerrainHeight) {
-      var tH = window.__vibexe_getVisualTerrainHeight(posArr[i*3], posArr[i*3+2]);
-      if (tH != null) groundY = tH;
-    }
+    // Recycle when below ground or too far from anchor
     if (posArr[i*3+1] < groundY) {
-      posArr[i*3]   = camPos.x + (Math.random() - 0.5) * spread;
-      posArr[i*3+1] = camPos.y + 3 + Math.random() * ceiling; // start just above player, up to ceiling
-      posArr[i*3+2] = camPos.z + (Math.random() - 0.5) * spread;
-    }
-    // Also recycle if too far from anchor (player wandered away)
-    var dx = posArr[i*3] - camPos.x, dz = posArr[i*3+2] - camPos.z;
-    if (dx*dx + dz*dz > spread * spread * 1.5) {
       posArr[i*3]   = camPos.x + (Math.random() - 0.5) * spread;
       posArr[i*3+1] = camPos.y + 3 + Math.random() * ceiling;
       posArr[i*3+2] = camPos.z + (Math.random() - 0.5) * spread;
+    } else {
+      var dx = posArr[i*3] - camPos.x, dz = posArr[i*3+2] - camPos.z;
+      if (dx*dx + dz*dz > spread * spread * 1.5) {
+        posArr[i*3]   = camPos.x + (Math.random() - 0.5) * spread;
+        posArr[i*3+1] = camPos.y + 3 + Math.random() * ceiling;
+        posArr[i*3+2] = camPos.z + (Math.random() - 0.5) * spread;
+      }
     }
 
     // Build instance matrix: position + billboard quaternion (same for all)
@@ -1383,17 +1385,17 @@ WeatherParticles.prototype._animateBillboards = function(mesh, posArr, velArr, d
 WeatherParticles.prototype._animateSplash = function(dt, camera, intensity) {
   var count = this._splashCount;
   var activeCount = Math.floor(count * _clamp(intensity, 0, 1));
-  var camPos = camera ? camera.position : {x:0, y:0, z:0};
-  var camQ = camera ? camera.quaternion : new THREE.Quaternion();
+  var camPos = camera ? camera.position : this._anchorPos;
+  var camQ = camera ? camera.quaternion : this._quat;
   var mtx = this._mtx;
   var pos3 = this._pos3;
   var scl3 = this._scl3;
+  var zeroMtx = this._zeroMtx;
   scl3.set(1, 1, 1);
 
   for (var i = 0; i < count; i++) {
     if (i >= activeCount) {
-      mtx.makeScale(0, 0, 0);
-      this._splash.setMatrixAt(i, mtx);
+      this._splash.setMatrixAt(i, zeroMtx);
       continue;
     }
     // Splash rises then falls
@@ -2172,9 +2174,10 @@ function CloudSystem() {
   this._density = 0.85;
   this._scale = 3.0;
   this._time = 0;
-  this._CW = 768;
-  this._CH = 384;
+  this._CW = 512;
+  this._CH = 256;
   this._blurBuf = null; // cached blur buffer to avoid GC pressure
+  this._imgData = null; // cached ImageData to avoid allocation per update
   this._moonDir = [0, -1, 0]; // moon direction for night cloud lighting
   this._moonPhase = 0.5;      // 0=new, 0.5=full
 }
@@ -2199,10 +2202,10 @@ CloudSystem.prototype._noise2 = function(x, y) {
   return nx0 + (nx1 - nx0) * uy;
 };
 
-// 2D fBm — 5 octaves for better cloud detail (Tenkoku: multi-layer volumetric)
+// 2D fBm — 4 octaves (was 5, octave 5 adds sub-pixel detail invisible on dome)
 CloudSystem.prototype._fbm2 = function(x, y) {
   var val = 0, amp = 0.5, freq = 1.0;
-  for (var i = 0; i < 5; i++) {
+  for (var i = 0; i < 4; i++) {
     val += amp * this._noise2(x * freq, y * freq);
     freq *= 2.0;
     amp *= 0.5;
@@ -2230,10 +2233,14 @@ CloudSystem.prototype._worley2 = function(x, y) {
 };
 
 // Cheap domain warping — single noise lookup to break tile regularity (full fbm was too expensive)
+// Reusable 2-element array to avoid ~295k allocations per cloud texture update
+CloudSystem.prototype._warpResult = [0, 0];
 CloudSystem.prototype._domainWarp = function(x, y) {
   var ox = this._noise2(x * 0.3 + 100, y * 0.3 + 200) * 1.8;
   var oy = this._noise2(x * 0.3 + 300, y * 0.3 + 400) * 1.8;
-  return [x + ox, y + oy];
+  this._warpResult[0] = x + ox;
+  this._warpResult[1] = y + oy;
+  return this._warpResult;
 };
 
 CloudSystem.prototype.build = function(scene) {
@@ -2294,8 +2301,13 @@ CloudSystem.prototype.updateTexture = function(atmosphere) {
     return;
   }
 
-  var imgData = ctx.createImageData(W, H);
+  if (!this._imgData || this._imgData.width !== W || this._imgData.height !== H) {
+    this._imgData = ctx.createImageData(W, H);
+  }
+  var imgData = this._imgData;
   var pix = imgData.data;
+  // Clear previous cloud data (faster than createImageData each time)
+  for (var ci = 0; ci < pix.length; ci++) pix[ci] = 0;
   var hasCloud = false;
 
   // Cloud base color from sun altitude
