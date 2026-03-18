@@ -16,7 +16,7 @@ import type { ModuleManifest } from "../module-types";
 export const SKY_WEATHER_ADVANCED_MANIFEST: ModuleManifest = {
 	id: "sky-weather-advanced",
 	name: "Sky & Weather Advanced",
-	version: "1.13.0",
+	version: "1.14.0",
 	category: "lighting",
 	description:
 		"Physically-based atmosphere with Rayleigh+Mie scattering, real orbital mechanics, volumetric clouds, 9K star catalog, and full weather system",
@@ -2154,8 +2154,8 @@ function CloudSystem() {
   this._density = 0.85;
   this._scale = 3.0;
   this._time = 0;
-  this._CW = 512;
-  this._CH = 256;
+  this._CW = 768;
+  this._CH = 384;
   this._blurBuf = null; // cached blur buffer to avoid GC pressure
   this._moonDir = [0, -1, 0]; // moon direction for night cloud lighting
   this._moonPhase = 0.5;      // 0=new, 0.5=full
@@ -3832,7 +3832,7 @@ SunShafts.prototype._createRayTexture = function() {
   return tex;
 };
 
-SunShafts.prototype.update = function(camera, sunDir, sunAltDeg, settings) {
+SunShafts.prototype.update = function(camera, sunDir, sunAltDeg, settings, cloudCoverage) {
   if (!this._group) return;
 
   this._intensity = settings.godRays != null ? settings.godRays : 0.5;
@@ -3856,6 +3856,27 @@ SunShafts.prototype.update = function(camera, sunDir, sunAltDeg, settings) {
   // Fade based on sun altitude (strongest near horizon)
   var horizonFade = _smoothstep(40, 5, sunAltDeg); // strongest at low sun
   var opacity = this._intensity * horizonFade * 0.3;
+
+  // Terrain occlusion — fade god rays when sun is behind terrain
+  if (camera && typeof window !== "undefined" && window.__vibexe_getVisualTerrainHeight) {
+    var sampleX = camera.position.x + sunDir.x * 50;
+    var sampleZ = camera.position.z + sunDir.z * 50;
+    var terrainH = window.__vibexe_getVisualTerrainHeight(sampleX, sampleZ);
+    if (terrainH != null) {
+      var sunRefY = camera.position.y + sunDir.y * 50;
+      if (terrainH > sunRefY) {
+        // Sun is behind terrain — fade to near zero
+        var occlude = _clamp((terrainH - sunRefY) / 10, 0, 1);
+        opacity *= (1 - occlude * 0.95);
+      }
+    }
+  }
+
+  // Cloud coverage fade — overcast blocks god rays
+  var cc = cloudCoverage != null ? cloudCoverage : 0;
+  if (cc > 0.5) {
+    opacity *= _lerp(1, 0.05, _smoothstep(0.5, 0.9, cc));
+  }
 
   for (var i = 0; i < this._rays.length; i++) {
     this._rays[i].mat.opacity = opacity * (0.5 + Math.random() * 0.5);
@@ -3971,6 +3992,100 @@ FogController.prototype.dispose = function(scene) {
 
 
 // ============================================================
+// Valley / Ground Fog — semi-transparent plane at ground level
+// ============================================================
+
+function ValleyFog() {
+  this._mesh = null;
+  this._mat = null;
+}
+
+ValleyFog.prototype.build = function(scene) {
+  var geo = new THREE.PlaneGeometry(800, 800);
+  geo.rotateX(-Math.PI / 2); // lay flat
+  this._mat = new THREE.MeshBasicMaterial({
+    color: 0xcccccc,
+    transparent: true,
+    opacity: 0,
+    depthWrite: false,
+    fog: false,
+    toneMapped: false,
+    side: THREE.DoubleSide,
+  });
+  this._mesh = new THREE.Mesh(geo, this._mat);
+  this._mesh.renderOrder = 900; // above terrain, below clouds
+  this._mesh.frustumCulled = false;
+  this._mesh.visible = false;
+  scene.add(this._mesh);
+};
+
+ValleyFog.prototype.update = function(camera, sunAltDeg, fogSettings, weatherState) {
+  if (!this._mesh) return;
+
+  // Only visible when fog is enabled and valleyFog not explicitly disabled
+  var fogEnabled = fogSettings && fogSettings.enabled !== false;
+  var valleyEnabled = fogSettings && fogSettings.valleyFog !== false;
+  if (!fogEnabled || !valleyEnabled) {
+    this._mesh.visible = false;
+    return;
+  }
+
+  this._mesh.visible = true;
+
+  // Position: follow camera XZ, fixed Y at terrain base
+  var baseY = (typeof window !== "undefined" && window.__vibexe_terrainBaseY__) || -2;
+  if (camera) {
+    this._mesh.position.set(camera.position.x, baseY, camera.position.z);
+  }
+
+  // Opacity based on weather state and time of day
+  var opacity = 0.08; // clear default
+  if (weatherState === "storm") {
+    opacity = 0.35;
+  } else if (weatherState === "rain") {
+    opacity = 0.28;
+  } else if (weatherState === "snow") {
+    opacity = 0.32;
+  } else if (weatherState === "overcast") {
+    opacity = 0.15;
+  }
+
+  // Dawn/dusk boost (sun 0-15 degrees)
+  if (sunAltDeg > -2 && sunAltDeg < 15) {
+    var dawnBoost = _smoothstep(15, 3, sunAltDeg) * 0.18;
+    opacity += dawnBoost;
+  }
+  // Night reduction
+  if (sunAltDeg < -5) {
+    opacity *= 0.5;
+  }
+
+  this._mat.opacity = _clamp(opacity, 0, 0.45);
+
+  // Color: match scene fog color if available, slightly lighter
+  var scene = this._mesh.parent;
+  if (scene && scene.fog && scene.fog.color) {
+    var fc = scene.fog.color;
+    this._mat.color.setRGB(
+      Math.min(1, fc.r + 0.12),
+      Math.min(1, fc.g + 0.12),
+      Math.min(1, fc.b + 0.10)
+    );
+  }
+};
+
+ValleyFog.prototype.dispose = function(scene) {
+  if (this._mesh) {
+    if (this._mesh.geometry) this._mesh.geometry.dispose();
+    if (this._mat) this._mat.dispose();
+    scene.remove(this._mesh);
+    this._mesh = null;
+    this._mat = null;
+  }
+};
+
+
+// ============================================================
 // SkyWeatherAdvancedSystem — Master controller
 // ============================================================
 
@@ -4027,6 +4142,7 @@ function SkyWeatherAdvancedSystem(scene, settings) {
   this.shootingStars = new ShootingStarsRenderer();
   this.rainbow = new RainbowRenderer();
   this.fog = new FogController();
+  this.valleyFog = new ValleyFog();
 
   this._time = 0;
   this._lastUpdate = Date.now();
@@ -4049,6 +4165,7 @@ function SkyWeatherAdvancedSystem(scene, settings) {
   this.stars.init(scene);
   this.shootingStars.init(scene);
   this.rainbow.build(scene);
+  this.valleyFog.build(scene);
 
   // Initial solar calculation
   var ts = this.settings.time || {};
@@ -4388,10 +4505,14 @@ SkyWeatherAdvancedSystem.prototype._tick = function(dt) {
   };
   this.fog.update(this.scene, sunAltDeg, this.settings.fog || {}, horizonColor, _wi);
 
+  // Valley fog — ground-level mist plane
+  this.valleyFog.update(camera, sunAltDeg, this.settings.fog || {}, this.weather._currentState);
+
   // Sun Shafts (god rays) — skip if disabled
   var _eff = this.settings.effects || {};
+  var _cloudCov = (this.settings.clouds || {}).coverage || 0;
   if (_eff.godRays) {
-    this.sunShafts.update(camera, this.orbital.sunDirection, sunAltDeg, _eff);
+    this.sunShafts.update(camera, this.orbital.sunDirection, sunAltDeg, _eff, _cloudCov);
   }
 
   // Sun disk billboard
@@ -4454,6 +4575,7 @@ SkyWeatherAdvancedSystem.prototype.destroy = function() {
   this.shootingStars.dispose(this.scene);
   this.rainbow.dispose(this.scene);
   this.fog.dispose(this.scene);
+  this.valleyFog.dispose(this.scene);
   console.log("[SkyWeatherAdvanced] Destroyed");
 };
 
