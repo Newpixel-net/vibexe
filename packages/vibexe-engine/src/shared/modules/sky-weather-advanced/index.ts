@@ -3073,17 +3073,14 @@ function SkyWeatherAdvancedSystem(scene, settings) {
   if (sky.sunIntensity == null || sky.sunIntensity < 10) sky.sunIntensity = 22.0;
   if (sky.nightBrightness == null) sky.nightBrightness = 0.2;
   var fog = this.settings.fog;
-  if (fog.density != null && fog.density > 0.01) fog.density = 0.002;
+  if (fog.density != null && fog.density > 0.05) fog.density = 0.015;
   var clouds = this.settings.clouds;
-  // Don't let saved overcast or zero-coverage override default
-  if (clouds.coverage != null && clouds.coverage > 0.8 && !(this.settings.weather || {}).autoForecast) {
+  // If coverage was saved as exactly 0 or null, restore to default partly-cloudy
+  if (clouds.coverage == null) {
     clouds.coverage = 0.35;
   }
-  // If coverage was saved as exactly 0, restore to default partly-cloudy
-  if (clouds.coverage === 0 || clouds.coverage == null) {
-    clouds.coverage = 0.35;
-  }
-  if (clouds.brightness == null || clouds.brightness < 0.5) clouds.brightness = 1.0;
+  // Allow full 0-1 range — weather presets need high values
+  if (clouds.brightness == null || clouds.brightness < 0.1) clouds.brightness = 1.0;
   // Clear rain/snow if auto-forecast is off
   var precip = this.settings.precipitation;
   if (precip && precip.type !== "none" && !(this.settings.weather || {}).autoForecast) {
@@ -3494,17 +3491,17 @@ SkyWeatherAdvancedSystem.prototype.updateSettings = function(patch) {
   // which may contain bad saved values that override our init sanitization
   var sky = this.settings.sky;
   if (sky.mieDirectionalG == null || sky.mieDirectionalG < 0.5) sky.mieDirectionalG = 0.76;
-  if (sky.exposure == null || sky.exposure < 0.5 || sky.exposure > 4) sky.exposure = 1.2;
-  if (sky.sunIntensity == null || sky.sunIntensity < 10) sky.sunIntensity = 22.0;
+  if (sky.exposure == null || sky.exposure < 0.3 || sky.exposure > 4) sky.exposure = 1.2;
+  if (sky.sunIntensity == null || sky.sunIntensity < 3) sky.sunIntensity = 22.0;
   if (sky.nightBrightness == null) sky.nightBrightness = 0.2;
   var fog = this.settings.fog;
-  if (fog.density != null && fog.density > 0.01) fog.density = 0.002;
+  if (fog.density != null && fog.density > 0.05) fog.density = 0.015;
   if (!fog.enabled) { fog.enabled = true; fog.density = fog.density != null ? fog.density : 0.002; }
   // Cloud coverage: DB saves 0 which means no clouds — restore default
   var clouds = this.settings.clouds;
-  if (clouds.coverage === 0 || clouds.coverage == null) clouds.coverage = 0.35;
-  if (clouds.coverage != null && clouds.coverage > 0.8 && !(this.settings.weather || {}).autoForecast) clouds.coverage = 0.35;
-  if (clouds.brightness == null || clouds.brightness < 0.5) clouds.brightness = 1.0;
+  if (clouds.coverage == null) clouds.coverage = 0.35;
+  // Allow full 0-1 range — weather presets need high coverage (Overcast=0.95, Stormy=0.95)
+  if (clouds.brightness == null || clouds.brightness < 0.1) clouds.brightness = 1.0;
   var ts = this.settings.time;
   if (ts.longitude != null && ts.timezone != null) {
     var expectedTz = Math.round(ts.longitude / 15);
