@@ -4567,10 +4567,15 @@ export function getVisualEditBridgeScript(): string {
 
         // If sculpt heightmap data was saved, overlay it on the generated terrain
         // T5 fix: validate Base64 sculpt data — check length, NaN, and reasonable range
+        // Also check window.__VIBEXE_GAME_SETTINGS__.terrain as fallback (IIFE may not pass it)
         var _tpSculptRestored = false;
-        if (_tpS.sculptHeightData && typeof _tpS.sculptHeightData === "string" && _tpS.sculptHeightData.length > 0) {
+        var _tpSculptSrc = _tpS.sculptHeightData;
+        if (!_tpSculptSrc && window.__VIBEXE_GAME_SETTINGS__ && window.__VIBEXE_GAME_SETTINGS__.terrain) {
+          _tpSculptSrc = window.__VIBEXE_GAME_SETTINGS__.terrain.sculptHeightData;
+        }
+        if (_tpSculptSrc && typeof _tpSculptSrc === "string" && _tpSculptSrc.length > 0) {
           try {
-            var _sData = atob(_tpS.sculptHeightData);
+            var _sData = atob(_tpSculptSrc);
             if (_sData.length % 4 !== 0) throw new Error("Invalid heightmap byte length: " + _sData.length + " (not multiple of 4)");
             var _sBytes = new Uint8Array(_sData.length);
             for (var si = 0; si < _sData.length; si++) _sBytes[si] = _sData.charCodeAt(si);
