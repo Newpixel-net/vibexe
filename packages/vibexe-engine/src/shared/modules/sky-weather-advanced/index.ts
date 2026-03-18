@@ -16,7 +16,7 @@ import type { ModuleManifest } from "../module-types";
 export const SKY_WEATHER_ADVANCED_MANIFEST: ModuleManifest = {
 	id: "sky-weather-advanced",
 	name: "Sky & Weather Advanced",
-	version: "1.8.1",
+	version: "1.9.0",
 	category: "lighting",
 	description:
 		"Physically-based atmosphere with Rayleigh+Mie scattering, real orbital mechanics, volumetric clouds, 9K star catalog, and full weather system",
@@ -582,14 +582,16 @@ AtmosphereRenderer.prototype._computeSkyColor = function(viewDir) {
   r -= zenithFac * 0.02;
   gn -= zenithFac * 0.005;
 
-  // Overcast sky desaturation — Tenkoku reference: very dark grey sky when overcast
+  // Overcast sky desaturation — Tenkoku reference: dimmed blue-grey sky, not fully grey
   var overcast = this._overcastAmount;
   if (overcast > 0.4) {
-    var grey = Math.max(r, Math.max(gn, b)) * 0.10; // darker grey (Tenkoku: very dark overcast)
-    var overcastT = _clamp((overcast - 0.4) * 1.67, 0, 0.92); // 0 at 40%, 0.92 at 100%
-    r = _lerp(r, grey, overcastT);
-    gn = _lerp(gn, grey, overcastT);
-    b = _lerp(b, grey, overcastT);
+    // Keep a cool blue-grey tint, not pure dark grey — Tenkoku clouds still show sky color
+    var lum = r * 0.299 + gn * 0.587 + b * 0.114;
+    var grey = lum * 0.45; // preserve more luminance (was 0.10 — way too dark)
+    var overcastT = _clamp((overcast - 0.4) * 1.67, 0, 0.75); // 0 at 40%, 0.75 at 100% (was 0.92)
+    r = _lerp(r, grey * 0.90, overcastT); // slightly warm/cool bias
+    gn = _lerp(gn, grey * 0.95, overcastT);
+    b = _lerp(b, grey * 1.10, overcastT); // keep slight blue tint
   }
 
   // Sky tinting (Task 12 — Tenkoku globalSkyColor)
@@ -1034,20 +1036,37 @@ function _getSwaSnowTex() {
   var s = 64, h = s / 2;
   var c = document.createElement("canvas"); c.width = c.height = s;
   var x = c.getContext("2d");
-  var g = x.createRadialGradient(h, h, 0, h, h, h);
+  // Soft round snowflake — large bright center with gentle falloff (Tenkoku: round alpha sprites)
+  var g = x.createRadialGradient(h, h, 0, h, h, h * 0.85);
   g.addColorStop(0.0, "rgba(255,255,255,1.0)");
-  g.addColorStop(0.25, "rgba(230,240,255,0.7)");
-  g.addColorStop(0.6, "rgba(210,225,255,0.2)");
+  g.addColorStop(0.15, "rgba(248,250,255,0.95)");
+  g.addColorStop(0.35, "rgba(235,242,255,0.65)");
+  g.addColorStop(0.55, "rgba(220,232,255,0.30)");
+  g.addColorStop(0.75, "rgba(210,225,255,0.08)");
   g.addColorStop(1.0, "rgba(200,220,255,0.0)");
-  x.fillStyle = g; x.fillRect(0, 0, s, s);
+  x.fillStyle = g;
+  x.beginPath(); x.arc(h, h, h * 0.85, 0, TWO_PI); x.fill();
+  // 6 crystal arms with branching (thicker, visible at small sizes)
   for (var i = 0; i < 6; i++) {
-    var a = (i / 6) * Math.PI * 2;
-    var ex = h + Math.cos(a) * h * 0.75;
-    var ey = h + Math.sin(a) * h * 0.75;
-    x.strokeStyle = "rgba(255,255,255,0.85)";
-    x.lineWidth = s * 0.025;
+    var a = (i / 6) * TWO_PI;
+    var armLen = h * 0.72;
+    var ex = h + Math.cos(a) * armLen;
+    var ey = h + Math.sin(a) * armLen;
+    // Main arm — thicker
+    x.strokeStyle = "rgba(255,255,255,0.75)";
+    x.lineWidth = s * 0.055;
     x.lineCap = "round";
     x.beginPath(); x.moveTo(h, h); x.lineTo(ex, ey); x.stroke();
+    // Small branch near tip
+    var bx = h + Math.cos(a) * armLen * 0.55;
+    var by = h + Math.sin(a) * armLen * 0.55;
+    var brAngle1 = a + 0.52;
+    var brAngle2 = a - 0.52;
+    var brLen = armLen * 0.3;
+    x.lineWidth = s * 0.035;
+    x.strokeStyle = "rgba(245,248,255,0.55)";
+    x.beginPath(); x.moveTo(bx, by); x.lineTo(bx + Math.cos(brAngle1) * brLen, by + Math.sin(brAngle1) * brLen); x.stroke();
+    x.beginPath(); x.moveTo(bx, by); x.lineTo(bx + Math.cos(brAngle2) * brLen, by + Math.sin(brAngle2) * brLen); x.stroke();
   }
   var t = new THREE.CanvasTexture(c);
   t.colorSpace = THREE.SRGBColorSpace;
@@ -3464,7 +3483,7 @@ FogController.prototype.update = function(scene, sunAltDeg, settings, skyHorizon
   }
 
   // Clamp fog density to sane range — saved settings from DB may have bad values
-  var baseDensity = _clamp(settings.density != null ? settings.density : 0.002, 0.0005, 0.01);
+  var baseDensity = _clamp(settings.density != null ? settings.density : 0.002, 0.0005, 0.008);
   var heightFalloff = settings.heightFalloff != null ? settings.heightFalloff : 0;
 
   // Height-based fog: increase density at lower camera heights
@@ -3474,11 +3493,13 @@ FogController.prototype.update = function(scene, sunAltDeg, settings, skyHorizon
     if (!camera) { scene.traverse(function(obj) { if (obj.isCamera && !camera) camera = obj; }); }
     if (camera) {
       var camY = Math.max(0, camera.position.y);
-      // Exponential height falloff: denser at ground level
+      // Exponential height falloff: denser at ground level (reduced multiplier)
       var heightMult = Math.exp(-camY * heightFalloff * 0.01);
-      density = baseDensity * (1 + heightMult * 3);
+      density = baseDensity * (1 + heightMult * 1.5); // was *3, caused extreme washout
     }
   }
+  // Hard cap: never exceed 0.012 (was uncapped — could reach 0.02+ with heightFalloff)
+  density = Math.min(density, 0.012);
 
   if (!scene.fog || !scene.fog.isFogExp2) {
     scene.fog = new THREE.FogExp2(0x87CEEB, density);
@@ -3534,7 +3555,7 @@ function SkyWeatherAdvancedSystem(scene, settings) {
   if (sky.sunIntensity == null || sky.sunIntensity < 3) sky.sunIntensity = 22.0;
   if (sky.nightBrightness == null) sky.nightBrightness = 0.25;
   var fog = this.settings.fog;
-  if (fog.density != null && fog.density > 0.05) fog.density = 0.015;
+  if (fog.density != null && fog.density > 0.05) fog.density = 0.008;
   var clouds = this.settings.clouds;
   // If coverage was saved as exactly 0 or null, restore to default partly-cloudy
   if (clouds.coverage == null) {
@@ -3542,12 +3563,8 @@ function SkyWeatherAdvancedSystem(scene, settings) {
   }
   // Allow full 0-1 range — weather presets need high values
   if (clouds.brightness == null || clouds.brightness < 0.1) clouds.brightness = 1.0;
-  // Clear rain/snow if auto-forecast is off
-  var precip = this.settings.precipitation;
-  if (precip && precip.type !== "none" && !(this.settings.weather || {}).autoForecast) {
-    precip.type = "none";
-    precip.intensity = 0;
-  }
+  // Precipitation is preserved from saved settings — weather presets set it explicitly
+  // (Previously cleared precipitation when auto-forecast was off, breaking presets)
   // Fix timezone/longitude mismatch — timezone should roughly match longitude/15
   var ts = this.settings.time;
   if (ts.longitude != null && ts.timezone != null) {
@@ -3789,10 +3806,10 @@ SkyWeatherAdvancedSystem.prototype._tick = function(dt) {
 
     var skySettings = this.settings.sky || {};
     this.atmosphere._exposure = _clamp(skySettings.exposure != null ? skySettings.exposure : 1.2, 0.3, 5.0);
-    // mieG must be 0.6-0.99 for directional sun scattering (saved settings may have bad values)
-    this.atmosphere._mieG = _clamp(skySettings.mieDirectionalG != null ? skySettings.mieDirectionalG : 0.76, 0.6, 0.99);
+    // mieG: 0.3-0.99 (Tenkoku default 0.5, our default 0.65)
+    this.atmosphere._mieG = _clamp(skySettings.mieDirectionalG != null ? skySettings.mieDirectionalG : 0.65, 0.3, 0.99);
     this.atmosphere._rayleighScale = _clamp(skySettings.rayleighScale != null ? skySettings.rayleighScale : 1.0, 0.5, 3.0);
-    this.atmosphere._sunIntensity = _clamp(skySettings.sunIntensity != null ? skySettings.sunIntensity : 22.0, 5.0, 50.0);
+    this.atmosphere._sunIntensity = _clamp(skySettings.sunIntensity != null ? skySettings.sunIntensity : 22.0, 2.0, 50.0);
     this.atmosphere._starIntensity = _clamp(skySettings.starIntensity != null ? skySettings.starIntensity : 1.0, 0, 3.0);
     this.atmosphere._nightBrightness = _clamp(skySettings.nightBrightness != null ? skySettings.nightBrightness : 0.2, 0, 1.0);
     this.atmosphere._solarTime = ts.solarTime != null ? ts.solarTime : 0.45;
@@ -3818,9 +3835,9 @@ SkyWeatherAdvancedSystem.prototype._tick = function(dt) {
       this.scene.background.setRGB(zenithColor[0], zenithColor[1], zenithColor[2]);
     }
 
-    // Overcast reduces exposure (in addition to atmosphere desaturation)
-    if (overcastAmt > 0.5) {
-      this.atmosphere._exposure *= _lerp(1.0, 0.6, (overcastAmt - 0.5) * 2);
+    // Overcast reduces exposure mildly (desaturation handles most of the dimming)
+    if (overcastAmt > 0.6) {
+      this.atmosphere._exposure *= _lerp(1.0, 0.82, (overcastAmt - 0.6) * 2.5); // was 0.6 at 50%, now 0.82 at 60%
     }
   }
 
@@ -3956,8 +3973,8 @@ SkyWeatherAdvancedSystem.prototype.updateSettings = function(patch) {
   if (sky.sunIntensity == null || sky.sunIntensity < 2) sky.sunIntensity = 22.0;
   if (sky.nightBrightness == null) sky.nightBrightness = 0.25;
   var fog = this.settings.fog;
-  if (fog.density != null && fog.density > 0.05) fog.density = 0.015;
-  if (!fog.enabled) { fog.enabled = true; fog.density = fog.density != null ? fog.density : 0.002; }
+  if (fog.density != null && fog.density > 0.05) fog.density = 0.008;
+  // Respect user's fog preference — don't force enable
   // Cloud coverage: DB saves 0 which means no clouds — restore default
   var clouds = this.settings.clouds;
   if (clouds.coverage == null) clouds.coverage = 0.35;
