@@ -528,19 +528,19 @@ AtmosphereRenderer.prototype._computeSkyColor = function(viewDir) {
   r += sunGlow * 1.0;
   gn += sunGlow * 0.3;
 
-  // Boost saturation for vivid colors (reduced from 1.4→1.25 since
-  // INCOMING_LIGHT_RATIO already provides blue bias naturally)
+  // Boost saturation for vivid colors — stronger for richer sky
   var luma = r * 0.299 + gn * 0.587 + b * 0.114;
-  var satBoost = 1.25;
+  var satBoost = 1.35;
   r = luma + (r - luma) * satBoost;
   gn = luma + (gn - luma) * satBoost;
   b = luma + (b - luma) * satBoost;
 
-  // Deeper blue at zenith (reduced from 0.04→0.02 — spectral ratio now handles this)
+  // Deeper blue at zenith — stronger push for contrast between zenith and horizon
   var zenithFac = _clamp(viewDir[1], 0, 1);
   zenithFac = zenithFac * zenithFac;
-  b += zenithFac * 0.02;
-  r -= zenithFac * 0.01;
+  b += zenithFac * 0.04;
+  r -= zenithFac * 0.02;
+  gn -= zenithFac * 0.005;
 
   // Overcast sky desaturation (Task 6)
   // Tenkoku: lerp to greyscale*0.1 based on overcast amount
@@ -560,27 +560,25 @@ AtmosphereRenderer.prototype._computeSkyColor = function(viewDir) {
     b = _lerp(b, b * this._skyTintColor[2], this._skyTintAlpha);
   }
 
-  // Night sky brightness (Task 3)
-  // Tenkoku: _NightColor * nightBrightness * nBright where nBright=float3(0.027,0.02,0.025)
+  // Night sky brightness — dark blue-black gradient (not pure black)
   var nightBright = this._nightBrightness;
-  var nightR = 0.027 * nightBright;
-  var nightG = 0.020 * nightBright;
-  var nightB = 0.030 * nightBright;
+  var nightR = 0.018 * nightBright;
+  var nightG = 0.022 * nightBright;
+  var nightB = 0.045 * nightBright; // bluer night sky
   r = Math.max(r, nightR);
   gn = Math.max(gn, nightG);
   b = Math.max(b, nightB);
 
-  // Night horizon brightening (Task 4)
-  // Tenkoku: subtle warm glow near horizon at night (light pollution / atmospheric glow)
+  // Night horizon brightening — atmospheric glow visible near horizon
   var sunAlt01 = _clamp(sunDir[1], -1, 1);
   var isNight = _clamp(-sunAlt01 * 5, 0, 1);
   if (isNight > 0.01) {
-    var nhFac = _clamp(1.0 - viewDir[1] * 3, 0, 1);
-    nhFac = nhFac * nhFac;
-    var nightHorizon = nhFac * isNight * nightBright * 0.15;
-    r += nightHorizon * 0.07;
-    gn += nightHorizon * 0.06;
-    b += nightHorizon * 0.06;
+    var nhFac = _clamp(1.0 - viewDir[1] * 2.5, 0, 1);
+    nhFac = nhFac * nhFac * nhFac; // cubic falloff for softer glow
+    var nightHorizon = nhFac * isNight * nightBright * 0.2;
+    r += nightHorizon * 0.06;
+    gn += nightHorizon * 0.065;
+    b += nightHorizon * 0.09; // blue-ish horizon glow
   }
 
   return [_clamp(r, 0, 1), _clamp(gn, 0, 1), _clamp(b, 0, 1)];
@@ -3119,7 +3117,7 @@ SkyWeatherAdvancedSystem.DEFAULTS = {
     sunDiskSize: 0.028,
     moonDiskSize: 0.022,
     mieCoefficient: 0.005,
-    mieDirectionalG: 0.76,
+    mieDirectionalG: 0.82,
     starIntensity: 1.0,
     nightBrightness: 0.4,
     exposure: 1.2,
@@ -3139,8 +3137,8 @@ SkyWeatherAdvancedSystem.DEFAULTS = {
   fog: {
     enabled: true,
     autoColor: true,
-    density: 0.002,
-    heightFalloff: 0,
+    density: 0.0015,
+    heightFalloff: 0.3,
   },
   clouds: {
     coverage: 0.35,
