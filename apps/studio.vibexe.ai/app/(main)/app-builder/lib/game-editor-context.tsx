@@ -351,6 +351,8 @@ interface GameEditorContextValue {
 	pickRespawnActive: boolean;
 	togglePickSpawn: () => void;
 	togglePickRespawn: () => void;
+	resetSpawnToCamera: () => void;
+	resetRespawnToCamera: () => void;
 	// Dynamic character half-height (from bridge, defaults to 0.75)
 	characterHalfHeight: number;
 	setCharacterHalfHeight: (v: number) => void;
@@ -837,6 +839,14 @@ export function GameEditorProvider({ children }: { children: ReactNode }) {
 		});
 	}, []);
 
+	const resetSpawnToCamera = useCallback(() => {
+		sendToIframe({ type: "game-editor-get-camera-position", _purpose: "spawn" });
+	}, [sendToIframe]);
+
+	const resetRespawnToCamera = useCallback(() => {
+		sendToIframe({ type: "game-editor-get-camera-position", _purpose: "respawn" });
+	}, [sendToIframe]);
+
 	const updateGameSettings = useCallback((patch: Partial<GameSettings>) => {
 		setGameSettingsState((prev) => {
 			const next = { ...prev };
@@ -1198,6 +1208,8 @@ export function GameEditorProvider({ children }: { children: ReactNode }) {
 		pickRespawnActive,
 		togglePickSpawn,
 		togglePickRespawn,
+		resetSpawnToCamera,
+		resetRespawnToCamera,
 		characterHalfHeight,
 		setCharacterHalfHeight,
 		gizmoSpace,
@@ -1288,7 +1300,7 @@ export function GameEditorProvider({ children }: { children: ReactNode }) {
 		animClipDurations, animPlaybackState, animCurrentTime, animClipDuration,
 		animClipOverrides, animModelId, activePrefab, gameSettings,
 		updateGameSettings, setGameSettings, updateCameraProperty,
-		pickSpawnActive, pickRespawnActive, togglePickSpawn, togglePickRespawn,
+		pickSpawnActive, pickRespawnActive, togglePickSpawn, togglePickRespawn, resetSpawnToCamera, resetRespawnToCamera,
 		characterHalfHeight, setCharacterHalfHeight, gizmoSpace, hierarchySearch,
 		canUndo, canRedo, toggleEditor, setEnabled, setGizmoMode,
 		selectObjectByUuid, toggleMultiSelect, clearMultiSelect, deleteSelected,

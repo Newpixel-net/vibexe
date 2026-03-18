@@ -1890,10 +1890,31 @@ export function SandpackPreview({
 				} else if (gameEditor.pickRespawnActive && data.position) {
 					gameEditor.updateGameSettings({
 						player: {
-							respawnY: data.position.y,
+							respawnX: data.position.x,
+							respawnY: data.position.y + 1,
+							respawnZ: data.position.z,
 						},
 					});
 					gameEditor.togglePickRespawn();
+				}
+			} else if (data.type === "game-editor-camera-position") {
+				// Camera position response for "reset to camera" feature
+				if (data.position && data._purpose === "spawn") {
+					gameEditor.updateGameSettings({
+						player: {
+							spawnX: Math.round(data.position.x * 10) / 10,
+							spawnY: Math.round(data.position.y * 10) / 10,
+							spawnZ: Math.round(data.position.z * 10) / 10,
+						},
+					});
+				} else if (data.position && data._purpose === "respawn") {
+					gameEditor.updateGameSettings({
+						player: {
+							respawnX: Math.round(data.position.x * 10) / 10,
+							respawnY: Math.round(data.position.y * 10) / 10,
+							respawnZ: Math.round(data.position.z * 10) / 10,
+						},
+					});
 				}
 			}
 			} catch (err) {

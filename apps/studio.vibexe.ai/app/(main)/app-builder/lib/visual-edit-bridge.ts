@@ -3499,6 +3499,25 @@ export function getVisualEditBridgeScript(): string {
           });
         }
         break;
+      // Get camera position (for "reset spawn/respawn to camera" feature)
+      case "game-editor-get-camera-position":
+        if (editor && editor.camera) {
+          var _cam = editor.camera;
+          // Raycast down from camera to find ground position
+          var _downRay = new _THREE.Raycaster(_cam.position.clone(), new _THREE.Vector3(0, -1, 0));
+          var _groundHits = _downRay.intersectObjects(editor.scene.children, true).filter(function(h) {
+            return h.object.name !== "__swa_sky_dome__" && h.object.name !== "__swa_cloud_dome__"
+              && h.object.name !== "__swa_star_dome__" && !h.object.name.startsWith("__swa_");
+          });
+          var _groundY = _groundHits.length > 0 ? _groundHits[0].point.y + 1 : _cam.position.y;
+          // Use camera X/Z but ground Y (so character lands on terrain, not floating)
+          window.parent.postMessage({
+            type: "game-editor-camera-position",
+            position: { x: +_cam.position.x.toFixed(1), y: +_groundY.toFixed(1), z: +_cam.position.z.toFixed(1) },
+            _purpose: d._purpose || "spawn"
+          }, "*");
+        }
+        break;
       // Select + Focus (hierarchy double-click)
       case "game-editor-select-and-focus":
         if (editor && d.uuid) {

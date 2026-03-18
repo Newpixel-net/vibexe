@@ -65,6 +65,8 @@ export function GameEditorPanel({ settingsProps }: GameEditorPanelProps) {
 		pickRespawnActive,
 		togglePickSpawn,
 		togglePickRespawn,
+		resetSpawnToCamera,
+		resetRespawnToCamera,
 		characterHalfHeight,
 		applyTexture,
 		removeTexture,
@@ -1261,6 +1263,8 @@ export function GameEditorPanel({ settingsProps }: GameEditorPanelProps) {
 					pickRespawnActive={pickRespawnActive}
 					onTogglePickSpawn={togglePickSpawn}
 					onTogglePickRespawn={togglePickRespawn}
+					onResetSpawnToCamera={resetSpawnToCamera}
+					onResetRespawnToCamera={resetRespawnToCamera}
 					characterHalfHeight={characterHalfHeight}
 				/>
 			)}

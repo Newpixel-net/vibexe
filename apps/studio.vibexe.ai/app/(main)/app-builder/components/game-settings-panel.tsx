@@ -245,10 +245,12 @@ export interface GameSettingsContentProps {
 	pickRespawnActive?: boolean;
 	onTogglePickSpawn?: () => void;
 	onTogglePickRespawn?: () => void;
+	onResetSpawnToCamera?: () => void;
+	onResetRespawnToCamera?: () => void;
 	characterHalfHeight?: number;
 }
 
-export function GameSettingsContent({ settings, onChange, onSave, pickSpawnActive, pickRespawnActive, onTogglePickSpawn, onTogglePickRespawn, characterHalfHeight }: GameSettingsContentProps) {
+export function GameSettingsContent({ settings, onChange, onSave, pickSpawnActive, pickRespawnActive, onTogglePickSpawn, onTogglePickRespawn, onResetSpawnToCamera, onResetRespawnToCamera, characterHalfHeight }: GameSettingsContentProps) {
 	const [activeTab, setActiveTab] = useState<SettingsTab>("player");
 	const [saveStatus, setSaveStatus] = useState<"idle" | "saving" | "saved">("idle");
 	const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -339,43 +341,63 @@ export function GameSettingsContent({ settings, onChange, onSave, pickSpawnActiv
 							}}
 						/>
 
-						<SectionLabel tooltip="Starting position coordinates for the player character">Spawn Position</SectionLabel>
+						<SectionLabel tooltip="Where the player character starts when the game begins">Spawn Position</SectionLabel>
 						<DragNumberInput label="X" value={settings.player?.spawnX ?? 0} step={0.5} precision={1} onChange={(v) => update("player", "spawnX", v)} color="#e74c4c" />
 						<DragNumberInput label="Y" value={settings.player?.spawnY ?? 3} step={0.5} precision={1} onChange={(v) => update("player", "spawnY", v)} color="#4ce74c" />
 						<DragNumberInput label="Z" value={settings.player?.spawnZ ?? 0} step={0.5} precision={1} onChange={(v) => update("player", "spawnZ", v)} color="#4c7ce7" />
-						{onTogglePickSpawn && (
-							<button
-								type="button"
-								onClick={onTogglePickSpawn}
-								className={`w-full text-[10px] py-1 rounded transition-colors ${
-									pickSpawnActive
-										? "bg-emerald-500/20 text-emerald-400 border border-emerald-500/40"
-										: "text-white/40 bg-white/[0.04] hover:bg-white/[0.08]"
-								}`}
-							>
-								{pickSpawnActive ? "Click in viewport to set spawn..." : "Pick spawn in viewport"}
-							</button>
-						)}
+						<div className="flex gap-1">
+							{onTogglePickSpawn && (
+								<button
+									type="button"
+									onClick={onTogglePickSpawn}
+									className={`flex-1 text-[10px] py-1 rounded transition-colors ${
+										pickSpawnActive
+											? "bg-emerald-500/20 text-emerald-400 border border-emerald-500/40"
+											: "text-white/40 bg-white/[0.04] hover:bg-white/[0.08]"
+									}`}
+								>
+									{pickSpawnActive ? "Click terrain to place..." : "Pick in viewport"}
+								</button>
+							)}
+							{onResetSpawnToCamera && (
+								<button
+									type="button"
+									onClick={onResetSpawnToCamera}
+									className="flex-1 text-[10px] py-1 rounded text-white/40 bg-white/[0.04] hover:bg-white/[0.08] transition-colors"
+								>
+									Set to camera pos
+								</button>
+							)}
+						</div>
 
-						<SectionLabel tooltip="Where the player reappears after falling off the map">Respawn Position</SectionLabel>
+						<SectionLabel tooltip="Where the player reappears after falling off the map (below Y = -10)">Respawn Position</SectionLabel>
 						<DragNumberInput label="X" value={settings.player?.respawnX ?? 0} step={0.5} precision={1} onChange={(v) => update("player", "respawnX", v)} color="#e74c4c" />
-						<SettingRow tooltip="Y position threshold — falling below this triggers respawn">
-							<DragNumberInput label="Y" value={settings.player?.respawnY ?? 5} step={0.5} precision={1} onChange={(v) => update("player", "respawnY", v)} color="#4ce74c" />
-						</SettingRow>
+						<DragNumberInput label="Y" value={settings.player?.respawnY ?? 5} step={0.5} precision={1} onChange={(v) => update("player", "respawnY", v)} color="#4ce74c" />
 						<DragNumberInput label="Z" value={settings.player?.respawnZ ?? 0} step={0.5} precision={1} onChange={(v) => update("player", "respawnZ", v)} color="#4c7ce7" />
-						{onTogglePickRespawn && (
-							<button
-								type="button"
-								onClick={onTogglePickRespawn}
-								className={`w-full text-[10px] py-1 rounded transition-colors ${
-									pickRespawnActive
-										? "bg-amber-500/20 text-amber-400 border border-amber-500/40"
-										: "text-white/40 bg-white/[0.04] hover:bg-white/[0.08]"
-								}`}
-							>
-								{pickRespawnActive ? "Click in viewport to set respawn..." : "Pick respawn in viewport"}
-							</button>
-						)}
+						<div className="flex gap-1">
+							{onTogglePickRespawn && (
+								<button
+									type="button"
+									onClick={onTogglePickRespawn}
+									className={`flex-1 text-[10px] py-1 rounded transition-colors ${
+										pickRespawnActive
+											? "bg-amber-500/20 text-amber-400 border border-amber-500/40"
+											: "text-white/40 bg-white/[0.04] hover:bg-white/[0.08]"
+									}`}
+								>
+									{pickRespawnActive ? "Click terrain to place..." : "Pick in viewport"}
+								</button>
+							)}
+							{onResetRespawnToCamera && (
+								<button
+									type="button"
+									onClick={onResetRespawnToCamera}
+									className="flex-1 text-[10px] py-1 rounded text-white/40 bg-white/[0.04] hover:bg-white/[0.08] transition-colors"
+								>
+									Set to camera pos
+								</button>
+							)}
+						</div>
 
 						<SectionLabel tooltip="Number of lives before game over (1-99)">Lives</SectionLabel>
 						<SettingRow
