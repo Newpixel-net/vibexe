@@ -16,7 +16,7 @@ import type { ModuleManifest } from "../module-types";
 export const SKY_WEATHER_ADVANCED_MANIFEST: ModuleManifest = {
 	id: "sky-weather-advanced",
 	name: "Sky & Weather Advanced",
-	version: "1.10.0",
+	version: "1.10.1",
 	category: "lighting",
 	description:
 		"Physically-based atmosphere with Rayleigh+Mie scattering, real orbital mechanics, volumetric clouds, 9K star catalog, and full weather system",
@@ -1114,6 +1114,8 @@ function WeatherParticles() {
   this._particleCount = 3000;
   this._windDir = 0;
   this._windStrength = 0.3;
+  this._warmupFrames = 0; // WebGPU shader pre-warm counter
+  this._cameraInitDone = false; // repositioned to camera?
 }
 
 WeatherParticles.prototype.init = function(scene) {
@@ -1145,7 +1147,9 @@ WeatherParticles.prototype.init = function(scene) {
 
   this._rain = new THREE.Points(this._rainGeo, this._rainMat);
   this._rain.name = "__swa_rain__";
-  this._rain.visible = false;
+  // WebGPU shader pre-warm: start visible so shader compiles immediately
+  // Hidden after 2 frames in update() — prevents freeze on first precipitation activation
+  this._rain.visible = true;
   this._rain.frustumCulled = false;
   scene.add(this._rain);
 
@@ -1176,7 +1180,8 @@ WeatherParticles.prototype.init = function(scene) {
 
   this._snow = new THREE.Points(this._snowGeo, this._snowMat);
   this._snow.name = "__swa_snow__";
-  this._snow.visible = false;
+  // WebGPU shader pre-warm: start visible so shader compiles immediately
+  this._snow.visible = true;
   this._snow.frustumCulled = false;
   scene.add(this._snow);
 
@@ -1206,7 +1211,7 @@ WeatherParticles.prototype.init = function(scene) {
   });
   this._splash = new THREE.Points(this._splashGeo, this._splashMat);
   this._splash.name = "__swa_rain_splash__";
-  this._splash.visible = false;
+  this._splash.visible = true; // WebGPU shader pre-warm
   this._splash.frustumCulled = false;
   this._splashCount = splashCount;
   scene.add(this._splash);
@@ -1217,6 +1222,51 @@ WeatherParticles.prototype.update = function(dt, camera, settings) {
   var intensity = settings.intensity || 0;
   this._windDir = (settings.windDirection != null ? settings.windDirection : 0) * DEG2RAD;
   this._windStrength = settings.windStrength != null ? settings.windStrength : 0.3;
+
+  // WebGPU shader pre-warm: keep visible for 3 frames, then hide
+  // This forces WebGPU to compile the PointsMaterial+map shaders on init
+  // instead of stalling when precipitation first activates
+  if (this._warmupFrames < 3) {
+    this._warmupFrames++;
+    if (this._warmupFrames >= 3) {
+      // Warmup done — hide particles (will be shown by precipitation logic below)
+      this._rain.visible = false;
+      this._snow.visible = false;
+      this._splash.visible = false;
+    }
+    // During warmup, don't animate — just let the renderer compile shaders
+    return;
+  }
+
+  // Reposition all particles near camera on first real update (they start at world origin)
+  if (!this._cameraInitDone && camera) {
+    this._cameraInitDone = true;
+    var cx = camera.position.x, cy = camera.position.y, cz = camera.position.z;
+    // Rain
+    var rp = this._rainGeo.getAttribute("position").array;
+    for (var ri = 0; ri < this._particleCount; ri++) {
+      rp[ri*3]   = cx + (Math.random() - 0.5) * 80;
+      rp[ri*3+1] = cy + Math.random() * 60;
+      rp[ri*3+2] = cz + (Math.random() - 0.5) * 80;
+    }
+    this._rainGeo.getAttribute("position").needsUpdate = true;
+    // Snow
+    var sp = this._snowGeo.getAttribute("position").array;
+    for (var si = 0; si < this._particleCount; si++) {
+      sp[si*3]   = cx + (Math.random() - 0.5) * 60;
+      sp[si*3+1] = cy + Math.random() * 40;
+      sp[si*3+2] = cz + (Math.random() - 0.5) * 60;
+    }
+    this._snowGeo.getAttribute("position").needsUpdate = true;
+    // Splash
+    var spp = this._splashGeo.getAttribute("position").array;
+    for (var ski = 0; ski < this._splashCount; ski++) {
+      spp[ski*3]   = cx + (Math.random() - 0.5) * 50;
+      spp[ski*3+1] = cy;
+      spp[ski*3+2] = cz + (Math.random() - 0.5) * 50;
+    }
+    this._splashGeo.getAttribute("position").needsUpdate = true;
+  }
 
   this._rain.visible = precipType === "rain" && intensity > 0;
   this._snow.visible = precipType === "snow" && intensity > 0;
