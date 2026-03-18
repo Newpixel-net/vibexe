@@ -533,9 +533,9 @@ AtmosphereRenderer.prototype._computeSkyColor = function(viewDir) {
 
   // Multi-layer atmospheric perspective — 3 altitude bands (Tenkoku: 4-5 depth layers)
   var altDeg = Math.abs(viewDir[1]) * 90; // approximate altitude in degrees
-  // Band 1: 0-5° — dense white-blue haze at horizon
+  // Band 1: 0-5° — subtle white-blue haze at horizon
   var band1 = _clamp(1.0 - altDeg / 5.0, 0, 1);
-  band1 = band1 * band1 * 0.12;
+  band1 = band1 * band1 * 0.08;
   r = _lerp(r, 0.60, band1);
   gn = _lerp(gn, 0.66, band1);
   b = _lerp(b, 0.78, band1);
@@ -978,13 +978,13 @@ SkyLightingController.prototype.update = function(sunDir, sunAltDeg, settings, w
     // Weather-state sun color blending (Phase E.1)
     var ws = weatherState || "clear";
     if (ws === "storm") {
-      sunR = _lerp(sunR, 0.45, 0.55); sunG = _lerp(sunG, 0.48, 0.55); sunB = _lerp(sunB, 0.55, 0.55);
+      sunR = _lerp(sunR, 0.55, 0.35); sunG = _lerp(sunG, 0.58, 0.35); sunB = _lerp(sunB, 0.65, 0.35);
     } else if (ws === "rain") {
-      sunR = _lerp(sunR, 0.60, 0.35); sunG = _lerp(sunG, 0.62, 0.35); sunB = _lerp(sunB, 0.68, 0.35);
+      sunR = _lerp(sunR, 0.65, 0.25); sunG = _lerp(sunG, 0.68, 0.25); sunB = _lerp(sunB, 0.75, 0.25);
     } else if (ws === "overcast") {
-      sunR = _lerp(sunR, 0.72, 0.25); sunG = _lerp(sunG, 0.74, 0.25); sunB = _lerp(sunB, 0.78, 0.25);
+      sunR = _lerp(sunR, 0.75, 0.18); sunG = _lerp(sunG, 0.77, 0.18); sunB = _lerp(sunB, 0.82, 0.18);
     } else if (ws === "snow") {
-      sunR = _lerp(sunR, 0.82, 0.30); sunG = _lerp(sunG, 0.85, 0.30); sunB = _lerp(sunB, 0.92, 0.30);
+      sunR = _lerp(sunR, 0.85, 0.20); sunG = _lerp(sunG, 0.88, 0.20); sunB = _lerp(sunB, 0.94, 0.20);
     }
     this.sunLight.color.setRGB(sunR, sunG, sunB);
   }
@@ -993,11 +993,11 @@ SkyLightingController.prototype.update = function(sunDir, sunAltDeg, settings, w
     var ambIntensity = settings.ambientIntensity != null ? settings.ambientIntensity : 0.4;
     // Weather-driven ambient intensity (Phase E.2)
     var ws2 = weatherState || "clear";
-    if (ws2 === "storm") ambIntensity *= 0.38;       // very dim
-    else if (ws2 === "rain") ambIntensity *= 0.55;    // dim
-    else if (ws2 === "overcast") ambIntensity *= 0.70; // slightly dim
-    else if (ws2 === "snow") ambIntensity *= 0.80;    // slightly bright (reflective snow)
-    else ambIntensity *= 1.38;                        // clear: boost to 0.55
+    if (ws2 === "storm") ambIntensity *= 0.55;       // dimmed
+    else if (ws2 === "rain") ambIntensity *= 0.65;    // slightly dim
+    else if (ws2 === "overcast") ambIntensity *= 0.78; // subtle dim
+    else if (ws2 === "snow") ambIntensity *= 0.85;    // slightly bright (reflective snow)
+    else ambIntensity *= 1.15;                        // clear: mild boost
     var isHemi = this.ambientLight.isHemisphereLight;
     if (sunAltDeg > 10) {
       // Day ambient
@@ -2217,8 +2217,8 @@ CloudSystem.prototype._worley2 = function(x, y) {
 
 // Domain warping — offset input coords by low-freq fBm to break tile regularity
 CloudSystem.prototype._domainWarp = function(x, y) {
-  var ox = this._fbm2(x * 0.3 + 100, y * 0.3 + 200) * 2.5;
-  var oy = this._fbm2(x * 0.3 + 300, y * 0.3 + 400) * 2.5;
+  var ox = this._fbm2(x * 0.3 + 100, y * 0.3 + 200) * 1.5;
+  var oy = this._fbm2(x * 0.3 + 300, y * 0.3 + 400) * 1.5;
   return [x + ox, y + oy];
 };
 
@@ -2332,9 +2332,9 @@ CloudSystem.prototype.updateTexture = function(atmosphere) {
       var warpedCumulus = this._domainWarp(nx * 0.5 + windX, ny * 0.5 + windY);
       var n1 = this._fbm2(warpedCumulus[0], warpedCumulus[1]);
       var w1 = this._worley2(nx * 0.5 + windX, ny * 0.5 + windY);
-      var c1 = _clamp(n1 - w1 * 0.3 + coverage * 2.2 - 1.0, 0, 1);
-      c1 = Math.pow(c1, 2.5); // 2.5 power for billowy rounded puffs (was 4th power = too sharp)
-      var fade1 = _smoothstep(0.04, 0.16, v) * _smoothstep(0.85, 0.30, v);
+      var c1 = _clamp(n1 - w1 * 0.45 + coverage * 2.2 - 1.0, 0, 1);
+      c1 = Math.pow(c1, 3.5); // 3.5 power for distinct separated puffs (2.5 was too diffuse = ribbon)
+      var fade1 = _smoothstep(0.04, 0.16, v) * _smoothstep(0.75, 0.30, v);
       c1 *= fade1;
 
       // Layer 2: Altocumulus — medium scattered patches
@@ -3937,11 +3937,11 @@ FogController.prototype.update = function(scene, sunAltDeg, settings, skyHorizon
     }
     // Weather-tinted fog color (Phase E.3) — storms darker, snow brighter, dawn warm
     if (wi.weatherState === "storm") {
-      fogR = _lerp(fogR, 0.18, 0.5); fogG = _lerp(fogG, 0.20, 0.5); fogB = _lerp(fogB, 0.28, 0.5);
+      fogR = _lerp(fogR, 0.30, 0.35); fogG = _lerp(fogG, 0.33, 0.35); fogB = _lerp(fogB, 0.40, 0.35);
     } else if (wi.weatherState === "rain") {
-      fogR = _lerp(fogR, 0.35, 0.3); fogG = _lerp(fogG, 0.38, 0.3); fogB = _lerp(fogB, 0.42, 0.3);
+      fogR = _lerp(fogR, 0.40, 0.22); fogG = _lerp(fogG, 0.44, 0.22); fogB = _lerp(fogB, 0.50, 0.22);
     } else if (wi.weatherState === "snow") {
-      fogR = _lerp(fogR, 0.72, 0.35); fogG = _lerp(fogG, 0.74, 0.35); fogB = _lerp(fogB, 0.78, 0.35);
+      fogR = _lerp(fogR, 0.72, 0.25); fogG = _lerp(fogG, 0.74, 0.25); fogB = _lerp(fogB, 0.78, 0.25);
     }
     scene.fog.color.setRGB(fogR, fogG, fogB);
   }
