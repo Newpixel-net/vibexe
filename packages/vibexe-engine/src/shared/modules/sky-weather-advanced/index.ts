@@ -554,6 +554,7 @@ AtmosphereRenderer.prototype._computeSkyColor = function(viewDir) {
 
   // Horizon warmth — warm up near horizon when sun is low (Tenkoku golden glow)
   // Reduced from 0.50 to 0.35 — was adding too much orange even at noon
+  var horizonFac = 1.0 - Math.abs(viewDir[1]);
   horizonFac = horizonFac * horizonFac * horizonFac;
   var sunHorizFac = Math.max(0, 1.0 - Math.abs(sunDir[1]) * 3.0);
   var warmth = horizonFac * sunHorizFac * 0.35;
