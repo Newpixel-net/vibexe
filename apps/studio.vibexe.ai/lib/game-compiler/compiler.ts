@@ -12,6 +12,10 @@ import { ALL_MODULE_MANIFESTS } from "@vibexe-ai/vibexe-engine";
 import { patchGameFiles } from "./code-patcher";
 import { generateRuntimeBootstrap } from "./runtime-bootstrap";
 
+// Bump this when generateGameEntry() or the compiler wrapper changes
+// so esbuild cache busts without waiting for CACHE_TTL expiry
+const COMPILER_VERSION = "2";
+
 // In-memory LRU cache for compiled bundles
 const bundleCache = new Map<string, { bundle: string; timestamp: number }>();
 const CACHE_MAX = 50;
@@ -214,6 +218,7 @@ export async function compileGameBundle(input: CompileInput): Promise<CompileOut
 		.map((m) => `${m.id}@${m.version}`)
 		.join(",");
 	const cacheKey = hashContent(
+		COMPILER_VERSION +
 		JSON.stringify(input.files.map((f) => f.content)) +
 		JSON.stringify(settings) +
 		JSON.stringify(input.enabledModuleIds || []) +
