@@ -1050,7 +1050,7 @@ function WeatherParticles() {
   this._snowGeo = null;
   this._rainMat = null;
   this._snowMat = null;
-  this._particleCount = 3000;
+  this._particleCount = 1500;
   this._windDir = 0;
   this._windStrength = 0.3;
 }
@@ -1701,10 +1701,10 @@ CloudSystem.prototype._noise2 = function(x, y) {
   return nx0 + (nx1 - nx0) * uy;
 };
 
-// 2D fBm — 6 octaves for detailed cloud shapes
+// 2D fBm — 4 octaves (octaves 5-6 are sub-pixel on dome)
 CloudSystem.prototype._fbm2 = function(x, y) {
   var val = 0, amp = 0.5, freq = 1.0;
-  for (var i = 0; i < 6; i++) {
+  for (var i = 0; i < 4; i++) {
     val += amp * this._noise2(x * freq, y * freq);
     freq *= 2.0;
     amp *= 0.5;
@@ -2937,8 +2937,8 @@ FogController.prototype.update = function(scene, sunAltDeg, settings, skyHorizon
   // Height-based fog: increase density at lower camera heights
   var density = baseDensity;
   if (heightFalloff > 0) {
-    var camera = null;
-    scene.traverse(function(obj) { if (obj.isCamera && !camera) camera = obj; });
+    var camera = window.__vibexe_camera__ || null;
+    if (!camera) { scene.traverse(function(obj) { if (obj.isCamera && !camera) camera = obj; }); }
     if (camera) {
       var camY = Math.max(0, camera.position.y);
       // Exponential height falloff: denser at ground level
@@ -3058,7 +3058,7 @@ function SkyWeatherAdvancedSystem(scene, settings) {
   this._skyUpdateTimer = 0;
   this._skyUpdateInterval = 2.0; // Recompute sky colors every 2 seconds (expensive)
   this._cloudUpdateTimer = 0;
-  this._cloudUpdateInterval = 1.0; // Recompute cloud colors every 1 second
+  this._cloudUpdateInterval = 3.0; // Recompute cloud noise every 3 seconds (wind UV offset still per-frame)
 
   // Initialize all subsystems
   this.atmosphere.build(scene);
@@ -3238,16 +3238,20 @@ SkyWeatherAdvancedSystem.prototype._tick = function(dt) {
     if (ts.solarTime >= 1) ts.solarTime -= 1;
   }
 
-  // Update orbital calculator (use != null to allow 0 values like midnight)
-  this.orbital.update(
-    ts.solarTime != null ? ts.solarTime : 0.45,
-    ts.latitude != null ? ts.latitude : 45,
-    ts.longitude != null ? ts.longitude : 0,
-    ts.year || 2024,
-    ts.month || 6,
-    ts.day || 21,
-    ts.timezone != null ? ts.timezone : 0
-  );
+  // Update orbital calculator — skip if inputs unchanged (32 trig + Kepler = expensive)
+  var _st = ts.solarTime != null ? ts.solarTime : 0.45;
+  if (this._lastSolarTime === undefined || Math.abs(_st - this._lastSolarTime) > 0.001) {
+    this._lastSolarTime = _st;
+    this.orbital.update(
+      _st,
+      ts.latitude != null ? ts.latitude : 45,
+      ts.longitude != null ? ts.longitude : 0,
+      ts.year || 2024,
+      ts.month || 6,
+      ts.day || 21,
+      ts.timezone != null ? ts.timezone : 0
+    );
+  }
 
   var sunAltDeg = this.orbital.sunAltitude * RAD2DEG;
 
@@ -3293,13 +3297,17 @@ SkyWeatherAdvancedSystem.prototype._tick = function(dt) {
     }
   }
 
-  // Camera follow
-  var camera = null;
-  this.scene.traverse(function(obj) {
-    if (obj.isCamera && !camera) camera = obj;
-  });
-  if (!camera && window.__vibexe_camera__) camera = window.__vibexe_camera__;
-  this.atmosphere.followCamera(camera);
+  // Camera follow — use cached ref, global first (O(1)), traverse only as fallback once
+  if (!this._cachedCamera) {
+    if (window.__vibexe_camera__) {
+      this._cachedCamera = window.__vibexe_camera__;
+    } else {
+      this.scene.traverse(function(obj) {
+        if (obj.isCamera && !this._cachedCamera) this._cachedCamera = obj;
+      }.bind(this));
+    }
+  }
+  if (this._cachedCamera) this.atmosphere.followCamera(this._cachedCamera);
 
   // Lighting
   this.lighting.update(
@@ -3329,16 +3337,23 @@ SkyWeatherAdvancedSystem.prototype._tick = function(dt) {
   // Stars (with sidereal rotation)
   this.stars.update(sunAltDeg, camera, this._time, this.settings.sky || {}, ts.solarTime != null ? ts.solarTime : 0.45);
 
-  // Shooting stars (meteors) — after stars update
-  this.shootingStars.update(dt, camera, sunAltDeg, this.settings.effects || {});
+  // Shooting stars (meteors) — skip during daytime (sun > 5°)
+  if (sunAltDeg < 5) {
+    this.shootingStars.update(dt, camera, sunAltDeg, this.settings.effects || {});
+  }
 
-  // Lightning
-  this.lightning.update(dt, camera, this.settings.lightning || {});
+  // Lightning — skip if disabled
+  var _ltn = this.settings.lightning || {};
+  if (_ltn.enabled) {
+    this.lightning.update(dt, camera, _ltn);
+  }
 
-  // Aurora
+  // Aurora — skip if latitude < 50 (aurora invisible at low latitudes)
   var _lat = (this.settings.time || {}).latitude;
   _lat = _lat != null ? _lat : 45;
-  this.aurora.update(dt, camera, _lat, sunAltDeg, this.settings.effects || {});
+  if (_lat >= 50) {
+    this.aurora.update(dt, camera, _lat, sunAltDeg, this.settings.effects || {});
+  }
 
   // Weather state machine (auto-forecast drives clouds, precipitation, lightning)
   var weatherSettings = this.settings.weather || {};
@@ -3373,8 +3388,10 @@ SkyWeatherAdvancedSystem.prototype._tick = function(dt) {
     this.settings.effects || {}
   );
 
-  // Milky Way + Planets
-  this.milkyWay.update(sunAltDeg, camera, this._time, this.orbital._dayNumber, this.settings.sky || {});
+  // Milky Way + Planets — skip during daytime (sun > 5°)
+  if (sunAltDeg < 5) {
+    this.milkyWay.update(sunAltDeg, camera, this._time, this.orbital._dayNumber, this.settings.sky || {});
+  }
 
   // Weather Audio
   this.audio.update(
@@ -3389,8 +3406,11 @@ SkyWeatherAdvancedSystem.prototype._tick = function(dt) {
   var horizonColor = this.atmosphere.getHorizonColor();
   this.fog.update(this.scene, sunAltDeg, this.settings.fog || {}, horizonColor);
 
-  // Sun Shafts (god rays)
-  this.sunShafts.update(camera, this.orbital.sunDirection, sunAltDeg, this.settings.effects || {});
+  // Sun Shafts (god rays) — skip if disabled
+  var _eff = this.settings.effects || {};
+  if (_eff.sunShafts) {
+    this.sunShafts.update(camera, this.orbital.sunDirection, sunAltDeg, _eff);
+  }
 
   // Sun disk billboard
   this.sunDisk.update(camera, this.orbital.sunDirection, sunAltDeg, this.settings.sky || {});
