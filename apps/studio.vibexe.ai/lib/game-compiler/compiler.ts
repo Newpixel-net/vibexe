@@ -449,7 +449,7 @@ if (!gameScene || typeof gameScene.init !== 'function') {
   // HiDPI: use devicePixelRatio (capped at 2) for sharp rendering.
   // Only respect saved pixelRatio if it's > 1 (legacy setting of 1 on 2x displays looks bad).
   const __initPR = (__perf.pixelRatio && __perf.pixelRatio > 1) ? __perf.pixelRatio : window.devicePixelRatio;
-  renderer.setPixelRatio(Math.min(__initPR, 2.0));
+  renderer.setPixelRatio(Math.min(__initPR, 1.5));
   renderer.shadowMap.enabled = true;
   renderer.shadowMap.type = THREE.PCFSoftShadowMap;
   renderer.shadowMap.autoUpdate = false;
@@ -936,7 +936,7 @@ if (!gameScene || typeof gameScene.init !== 'function') {
             __perfDowngraded = false;
             W.__vibexe_perfguard_degraded__ = false;
             console.log('[PerfGuard] FPS=' + Math.round(__avgFps) + ' — restoring quality');
-            renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2.0));
+            renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5));
             renderer.shadowMap.enabled = true;
             renderer.shadowMap.needsUpdate = true;
             W.__vibexe_cullDistance__ = 150;
