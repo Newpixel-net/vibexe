@@ -16,7 +16,7 @@ import type { ModuleManifest } from "../module-types";
 export const SKY_WEATHER_ADVANCED_MANIFEST: ModuleManifest = {
 	id: "sky-weather-advanced",
 	name: "Sky & Weather Advanced",
-	version: "1.0.0",
+	version: "1.1.0",
 	category: "lighting",
 	description:
 		"Physically-based atmosphere with Rayleigh+Mie scattering, real orbital mechanics, volumetric clouds, 9K star catalog, and full weather system",
