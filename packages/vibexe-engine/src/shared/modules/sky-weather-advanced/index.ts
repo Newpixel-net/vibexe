@@ -16,7 +16,7 @@ import type { ModuleManifest } from "../module-types";
 export const SKY_WEATHER_ADVANCED_MANIFEST: ModuleManifest = {
 	id: "sky-weather-advanced",
 	name: "Sky & Weather Advanced",
-	version: "1.4.0",
+	version: "1.5.0",
 	category: "lighting",
 	description:
 		"Physically-based atmosphere with Rayleigh+Mie scattering, real orbital mechanics, volumetric clouds, 9K star catalog, and full weather system",
@@ -1148,6 +1148,37 @@ WeatherParticles.prototype.init = function(scene) {
   this._snow.visible = false;
   this._snow.frustumCulled = false;
   scene.add(this._snow);
+
+  // Rain splash particles (Tenkoku: fxRainSplash — ground-level impact splashes)
+  var splashCount = 800;
+  this._splashGeo = new THREE.BufferGeometry();
+  var spPos = new Float32Array(splashCount * 3);
+  var spVel = new Float32Array(splashCount);
+  for (var k = 0; k < splashCount; k++) {
+    var spDist = Math.pow(Math.random(), 0.5);
+    var spAngle = Math.random() * TWO_PI;
+    spPos[k*3]   = Math.cos(spAngle) * spDist * 40;
+    spPos[k*3+1] = Math.random() * 3; // near ground level
+    spPos[k*3+2] = Math.sin(spAngle) * spDist * 40;
+    spVel[k] = 3 + Math.random() * 5; // upward burst then fall
+  }
+  this._splashGeo.setAttribute("position", new THREE.BufferAttribute(spPos, 3));
+  this._splashVelocities = spVel;
+  this._splashMat = new THREE.PointsMaterial({
+    map: _getSwaSnowTex(), // reuse round texture for splash drops
+    size: 1.5,
+    transparent: true,
+    opacity: 0.35, // Tenkoku: alpha 0.65
+    depthWrite: false,
+    blending: THREE.NormalBlending,
+    sizeAttenuation: true,
+  });
+  this._splash = new THREE.Points(this._splashGeo, this._splashMat);
+  this._splash.name = "__swa_rain_splash__";
+  this._splash.visible = false;
+  this._splash.frustumCulled = false;
+  this._splashCount = splashCount;
+  scene.add(this._splash);
 };
 
 WeatherParticles.prototype.update = function(dt, camera, settings) {
@@ -1158,6 +1189,8 @@ WeatherParticles.prototype.update = function(dt, camera, settings) {
 
   this._rain.visible = precipType === "rain" && intensity > 0;
   this._snow.visible = precipType === "snow" && intensity > 0;
+  // Rain splash visible when raining (Tenkoku: fxRainSplash)
+  this._splash.visible = precipType === "rain" && intensity > 0.3;
 
   if (this._rain.visible) {
     this._animateParticles(this._rainGeo, this._rainVelocities, dt, camera, intensity, true);
@@ -1166,6 +1199,11 @@ WeatherParticles.prototype.update = function(dt, camera, settings) {
   if (this._snow.visible) {
     this._animateParticles(this._snowGeo, this._snowVelocities, dt, camera, intensity, false);
     this._snowMat.opacity = _clamp(intensity * 0.55, 0.15, 0.6); // Tenkoku: alpha ~0.45
+  }
+  // Animate rain splash (ground-level burst)
+  if (this._splash.visible) {
+    this._animateSplash(dt, camera, intensity);
+    this._splashMat.opacity = _clamp(intensity * 0.5, 0.1, 0.45);
   }
 };
 
@@ -1204,13 +1242,39 @@ WeatherParticles.prototype._animateParticles = function(geo, vel, dt, camera, in
   pos.needsUpdate = true;
 };
 
+// Rain splash animation — ground-level particles that burst up and fall back
+WeatherParticles.prototype._animateSplash = function(dt, camera, intensity) {
+  var pos = this._splashGeo.getAttribute("position");
+  var arr = pos.array;
+  var vel = this._splashVelocities;
+  var count = Math.floor(this._splashCount * _clamp(intensity, 0, 1));
+  var camPos = camera ? camera.position : {x:0, y:0, z:0};
+  for (var i = 0; i < this._splashCount; i++) {
+    if (i >= count) { arr[i*3+1] = -1000; continue; }
+    // Splash rises then falls
+    arr[i*3+1] += vel[i] * dt;
+    vel[i] -= 15 * dt; // gravity pulls back down
+    // Recycle when below ground or too old
+    if (arr[i*3+1] < -0.5 || vel[i] < -8) {
+      arr[i*3]   = camPos.x + (Math.random() - 0.5) * 50;
+      arr[i*3+1] = 0; // ground level
+      arr[i*3+2] = camPos.z + (Math.random() - 0.5) * 50;
+      vel[i] = 3 + Math.random() * 5; // reset upward burst
+    }
+  }
+  pos.needsUpdate = true;
+};
+
 WeatherParticles.prototype.dispose = function(scene) {
   if (this._rain) { scene.remove(this._rain); }
   if (this._snow) { scene.remove(this._snow); }
+  if (this._splash) { scene.remove(this._splash); }
   if (this._rainGeo) this._rainGeo.dispose();
   if (this._snowGeo) this._snowGeo.dispose();
+  if (this._splashGeo) this._splashGeo.dispose();
   if (this._rainMat) this._rainMat.dispose();
   if (this._snowMat) this._snowMat.dispose();
+  if (this._splashMat) this._splashMat.dispose();
 };
 
 
@@ -1221,6 +1285,159 @@ WeatherParticles.prototype.dispose = function(scene) {
 // dedicated sphere dome. This avoids vertex color triangle interpolation
 // artifacts that made vertex highlights look like geometric starbursts.
 // WebGPU-safe: MeshBasicMaterial + CanvasTexture, no Points/Sprites.
+
+// Tenkoku Star Catalog — 400 brightest stars extracted from _stardata.txt
+// Format: [ra_hours, dec_degrees, magnitude, spectralType, spectralSub, lumClass]
+// RA in decimal hours (0-24), Dec in decimal degrees (-90 to +90)
+// Spectral: 0=O 1=B 2=A 3=F 4=G 5=K 6=M | LumClass: 1=I 2=II 3=III 4=IV 5=V
+var STAR_CATALOG_400 = [
+[14.6600,-60.8353,0.01,4,2,5],[18.6156,38.7836,0.03,2,0,5],[14.2610,19.1825,0.04,5,1,1],
+[5.2782,45.9978,0.08,4,5,3],[5.2423,-8.2017,0.12,1,8,1],[7.6553,5.2250,0.38,3,5,4],
+[1.6288,-57.2367,0.46,1,3,5],[5.9194,7.4069,0.50,6,1,1],[14.0637,-60.3731,0.61,1,1,3],
+[6.3992,-52.6958,0.72,3,0,2],[19.8461,8.8683,0.77,2,7,5],[4.5986,16.5092,0.85,5,5,2],
+[16.4900,-26.4319,0.96,6,1,1],[13.4198,-11.1614,0.98,1,1,3],[7.7553,28.0261,1.14,5,0,3],
+[22.9608,-29.6222,1.16,2,3,5],[12.7954,-59.6886,1.25,1,0,1],[20.6905,45.2806,1.25,2,2,1],
+[12.4432,-63.0992,1.33,1,0,1],[14.6601,-60.8353,1.33,5,1,5],[10.1395,11.9672,1.35,1,7,5],
+[6.7525,-16.7161,1.46,2,1,5],[6.9771,-28.9722,1.50,1,2,2],[12.5193,-57.1128,1.63,6,3,1],
+[17.5603,-37.1036,1.63,1,2,4],[5.4186,6.3497,1.64,1,2,3],[5.4384,28.6078,1.65,1,7,3],
+[9.2199,-69.7172,1.68,2,2,4],[5.5860,-1.2019,1.70,1,0,1],[12.4435,-63.0997,1.73,1,1,5],
+[22.1372,-46.9608,1.74,1,7,4],[12.9001,55.9597,1.77,2,0,5],[8.1587,-47.3367,1.78,0,0,5],
+[3.4054,49.8614,1.79,3,5,1],[11.0621,61.7508,1.79,5,0,3],[7.1394,-26.3931,1.84,3,8,1],
+[18.3496,-34.3842,1.85,1,9,1],[8.3752,-59.5097,1.86,5,3,3],[13.7923,49.3133,1.86,1,3,5],
+[17.6219,-42.9978,1.87,3,1,2],[5.9927,44.9472,1.90,2,2,4],[16.8115,-69.0275,1.92,5,2,2],
+[6.6286,16.3992,1.93,2,0,4],[20.4274,-56.7350,1.94,1,2,4],[8.7454,-54.7083,1.96,2,1,5],
+[6.3782,-17.9558,1.98,1,1,2],[7.5766,31.8886,1.98,2,1,5],[9.4597,-8.6594,1.98,5,3,2],
+[2.1197,23.4628,2.00,5,2,2],[15.9782,25.9339,2.00,1,0,5],[2.5303,89.2642,2.02,3,7,1],
+[18.9210,-26.2967,2.02,1,2,5],[0.7262,-17.9864,2.04,4,9,1],[5.6794,-1.9428,2.05,0,9,1],
+[0.1398,29.0906,2.06,1,8,4],[1.1621,35.6206,2.06,6,0,2],[5.7956,-9.6694,2.06,1,0,1],
+[14.1116,-36.3697,2.06,5,0,2],[14.8453,74.1556,2.08,5,4,2],[17.5824,12.5603,2.08,2,5,3],
+[22.7114,-46.8847,2.10,6,5,3],[3.0862,40.9556,2.12,1,8,5],[11.8178,14.5719,2.14,2,3,5],
+[12.6942,-48.9597,2.17,2,1,4],[20.3701,40.2567,2.20,3,8,1],[9.1857,-43.4328,2.21,5,4,1],
+[0.6771,56.5372,2.23,5,0,3],[5.5334,-0.2992,2.23,0,9,1],[15.5783,26.7147,2.23,2,0,5],
+[17.9434,51.4886,2.23,5,5,3],[8.0597,-40.0033,2.25,0,5,5],[9.2846,-59.2753,2.25,2,8,1],
+[2.1195,42.3297,2.26,5,3,2],[0.1529,59.1497,2.27,3,2,3],[13.3988,54.9253,2.27,2,1,5],
+[16.8360,-34.2928,2.29,5,2,1],[13.6649,-53.4664,2.30,1,1,3],[14.6986,-47.3881,2.30,1,1,1],
+[14.5914,-42.1578,2.31,1,1,5],[15.9809,-22.6217,2.32,1,0,1],[11.0306,56.3825,2.37,2,1,5],
+[0.4381,-42.3061,2.39,5,0,3],[21.7360,9.8750,2.39,5,2,1],[17.7081,-39.0297,2.41,1,1,1],
+[23.0627,28.0828,2.42,6,2,1],[17.1637,-15.7250,2.43,2,2,5],[11.8972,53.6947,2.44,2,0,5],
+[21.3098,62.5856,2.44,2,7,5],[7.4015,-29.3031,2.45,1,5,1],[20.7543,33.9703,2.46,5,0,2],
+[0.9452,60.7167,2.47,1,0,4],[23.0790,15.2050,2.49,1,9,5],[9.3683,-55.0100,2.50,1,2,4],
+[3.0379,4.0897,2.53,6,1,1],[13.9112,-47.2886,2.55,1,2,1],[11.2353,20.5236,2.56,2,4,5],
+[16.6190,-10.5672,2.56,0,9,5],[5.5439,-17.8222,2.58,3,0,1],[12.2936,-17.5419,2.59,1,8,3],
+[12.1385,-50.7217,2.60,1,2,4],[19.0431,-29.8803,2.60,2,2,3],[10.3326,19.8417,2.61,5,1,2],
+[15.2551,-9.3828,2.61,1,8,5],[5.9927,37.2125,2.62,2,0,5],[16.0520,-19.8050,2.62,1,1,5],
+[1.9066,20.8081,2.64,2,5,5],[5.6600,-34.0742,2.64,1,7,4],[12.5569,-23.3964,2.65,4,5,2],
+[15.7377,6.4256,2.65,5,2,3],[1.4304,60.2353,2.68,2,5,3],[13.9114,18.3978,2.68,4,0,4],
+[14.9749,-43.1339,2.68,1,2,3],[4.9500,33.1661,2.69,5,3,2],[10.7827,-49.4203,2.69,4,5,3],
+[12.5191,-69.1353,2.69,1,2,4],[17.5072,-37.2956,2.69,1,2,4],[7.2865,-37.0972,2.70,5,3,1],
+[14.7494,27.0742,2.70,5,0,2],[18.3502,-29.8281,2.70,5,3,2],[19.7713,10.6133,2.72,5,3,2],
+[16.2349,-3.6944,2.74,6,0,1],[16.3997,61.5142,2.74,4,8,2],[13.3156,-36.7139,2.75,2,2,5],
+[14.8473,-16.0422,2.75,2,3,4],[10.7160,-64.3944,2.76,1,0,5],[5.5862,-5.9097,2.77,0,9,3],
+[16.5037,21.4897,2.77,4,7,3],[17.7183,4.5672,2.77,5,2,3],[15.5269,-41.1739,2.78,1,2,4],
+[5.1339,-5.0864,2.79,2,3,3],[17.5067,52.3014,2.79,4,2,1],[0.4363,-77.2542,2.80,4,2,4],
+[12.1943,-58.7489,2.80,1,2,4],[8.1266,-24.3042,2.81,3,6,2],[16.6886,31.6028,2.81,4,0,4],
+[18.4665,-25.4214,2.81,5,1,2],[16.5999,-28.2158,2.82,1,0,5],[0.2205,15.1836,2.83,1,2,4],
+[13.0366,10.9592,2.83,4,8,3],[5.4181,-20.7594,2.84,4,5,2],[3.9642,31.8836,2.85,1,1,1],
+[15.9189,-63.4306,2.85,3,2,3],[17.4218,-55.5289,2.85,5,3,1],[1.9794,-61.5697,2.86,3,0,5],
+[22.3112,-60.2603,2.86,5,3,3],[3.7915,24.1133,2.87,1,7,3],[19.8123,45.1314,2.87,1,9,1],
+[21.7496,-16.1278,2.87,2,0,5],[6.3829,22.5139,2.88,6,3,3],[7.5766,31.8903,2.88,2,2,5],
+[3.9674,40.0103,2.89,1,0,5],[15.3454,-68.6797,2.89,2,1,5],[15.9809,-26.1142,2.89,1,1,5],
+[16.3535,-25.5928,2.89,1,1,3],[19.1621,-21.0236,2.89,3,2,2],[7.4520,8.2894,2.90,1,8,5],
+[12.9335,38.3183,2.90,2,0,5],[21.5260,-5.5711,2.91,4,0,1],[3.0775,53.5064,2.93,4,8,3],
+[6.8338,-50.6147,2.93,5,1,3],[22.6912,30.2214,2.94,4,2,2],[3.9671,-13.5083,2.95,6,0,1],
+[12.4949,-16.5156,2.95,1,9,5],[17.5296,-49.8761,2.95,1,2,5],[22.0962,-0.3197,2.96,4,2,1],
+[6.7327,25.1311,2.98,4,8,1],[9.7642,23.7742,2.98,4,1,2],[5.0323,43.8231,2.99,3,0,1],
+[18.1098,-30.4242,2.99,5,0,3],[19.1026,13.8636,2.99,2,0,5],[2.1697,35.0506,3.00,2,5,3],
+[5.6276,21.1425,3.00,1,4,3],[12.1394,-22.6197,3.00,5,2,1],[13.3464,-23.1717,3.00,4,8,2],
+[3.7582,47.7878,3.01,1,5,3],[9.7859,-65.0711,3.01,2,6,1],[11.1827,44.4986,3.01,5,1,3],
+[21.8988,-37.3644,3.01,1,8,3],[6.3387,-30.0633,3.02,1,2,5],[7.0289,-23.8333,3.02,1,3,1],
+[14.5344,38.3083,3.03,2,7,3],[17.7931,-40.1272,3.03,3,2,1],[2.3220,-2.9778,3.04,6,7,3],
+[13.8259,-42.4728,3.04,1,2,4],[10.3325,41.4994,3.05,6,0,3],[12.7522,-68.1081,3.05,1,2,5],
+[15.3455,71.8339,3.05,2,3,2],[19.2379,67.6611,3.07,4,9,3],[16.8992,-38.0472,3.08,1,1,5],
+[19.5120,27.9597,3.08,5,3,2],[20.2945,-14.7814,3.08,3,8,5],[8.9219,5.9456,3.11,4,9,2],
+[10.8265,-16.1947,3.11,5,2,3],[18.2935,-36.7617,3.11,6,3,1],[20.5983,-47.2914,3.11,5,0,3],
+[5.9282,-35.7686,3.12,5,2,3],[9.3138,34.3950,3.13,5,7,3],[9.5233,-56.9944,3.13,5,5,3],
+[11.5954,-63.0189,3.13,1,9,3],[14.9751,-42.1047,3.13,1,2,4],[16.9933,-55.9900,3.13,5,3,3],
+[8.9783,48.0444,3.14,2,7,4],[17.2507,24.8392,3.14,2,3,4],[17.2437,36.8092,3.16,5,3,2],
+[5.1001,41.2347,3.17,1,3,5],[6.6107,-43.1961,3.17,1,8,3],[9.5469,51.6772,3.17,3,6,4],
+[17.1674,65.7147,3.17,1,6,3],[18.7617,-26.9906,3.17,1,8,3],[4.8302,6.9611,3.19,3,6,5],
+[5.0799,-22.3711,3.19,5,5,3],[14.6912,-64.9756,3.19,2,0,5],[16.9606,9.3750,3.20,5,2,3],
+[21.2168,30.2269,3.20,4,8,2],[17.8465,-37.0433,3.21,5,2,3],[23.6557,77.6325,3.21,5,1,3],
+[15.3548,-40.6472,3.22,1,1,1],[20.1881,-0.8214,3.23,1,9,1],[21.4766,70.5608,3.23,1,1,4],
+[2.9708,-40.3047,3.24,2,4,3],[3.7870,-74.2389,3.24,6,2,3],[16.3050,-4.6925,3.24,4,9,1],
+[19.0249,32.6894,3.24,1,9,3],[7.4864,-43.3017,3.25,5,5,3],[18.3527,-2.8986,3.26,5,0,3],
+[0.6555,30.8614,3.27,5,3,3],[4.5669,-55.0450,3.27,2,0,3],[6.7703,-61.9414,3.27,2,7,4],
+[14.1063,-26.6817,3.27,5,2,2],[17.3360,-24.9994,3.27,1,2,4],[22.8767,-15.8208,3.27,2,3,5],
+[6.2482,22.5067,3.28,6,3,3],[15.0432,-25.2817,3.29,6,3,2],[15.4620,59.0381,3.29,5,2,3],
+[1.0576,-46.7186,3.31,4,8,3],[5.2325,-16.2056,3.31,1,9,3],[12.2560,57.0325,3.31,2,3,5],
+[10.2862,-70.0389,3.32,1,8,3],[10.4828,-61.6853,3.32,1,4,5],[19.1629,-27.6700,3.32,5,1,2],
+[17.1932,-43.2392,3.33,3,3,3],[7.8210,-24.8597,3.34,4,6,1],[11.2349,15.4292,3.34,2,2,5],
+[17.4232,-56.3769,3.34,1,1,1],[17.9337,-9.7736,3.34,5,0,3],[4.2448,-62.4739,3.35,4,8,2],
+[22.1804,58.2014,3.35,5,1,1],[5.4189,-2.3972,3.36,1,1,5],[6.7316,12.8953,3.36,3,5,3],
+[8.5041,60.7181,3.36,4,5,3],[19.4222,3.1147,3.36,3,3,4],[13.5781,-0.5958,3.37,2,3,5],
+[15.3964,-44.6892,3.37,1,2,4],[1.9065,63.6706,3.38,1,3,3],[8.8120,6.4189,3.38,4,5,3],
+[12.9268,3.3975,3.38,6,3,2],[3.0796,38.8406,3.39,6,4,2],[4.4769,15.8708,3.40,2,7,3],
+[10.2497,-61.3322,3.40,5,3,2],[22.6909,10.8308,3.40,1,8,5],[1.4569,-43.3178,3.41,6,0,2],
+[1.8574,29.5789,3.41,3,6,4],[13.8259,-41.6878,3.41,1,2,4],[15.2045,-52.0989,3.41,4,8,3],
+[15.9814,-38.3972,3.41,1,2,1],[17.7741,27.7206,3.42,4,5,4],[20.7497,-66.2031,3.42,2,7,3],
+[20.7360,61.8389,3.43,5,0,4],[0.8149,57.8153,3.44,3,9,5],[9.2255,-58.9669,3.44,1,2,4],
+[10.2880,23.4172,3.44,3,0,3],[19.1049,-4.8822,3.44,1,9,5],[1.1432,-10.1822,3.45,5,1,1],
+[10.2855,42.9147,3.45,2,2,4],[18.7934,33.3628,3.45,1,8,2],[2.7210,3.2364,3.47,2,3,5],
+[4.0112,12.4903,3.47,1,3,5],[7.0501,-27.9342,3.47,5,7,1],[7.9505,-53.0011,3.47,1,3,4],
+[15.2586,33.3147,3.47,4,8,3],[19.9987,19.4925,3.47,6,0,2],[11.3071,33.0961,3.48,5,3,2],
+[17.2505,14.3903,3.48,6,5,1],[22.7160,24.6011,3.48,4,8,2],[22.8268,-51.3167,3.49,2,3,5],
+[1.7343,-15.9375,3.50,4,8,5],[15.0321,40.3906,3.50,4,8,3],[18.4860,-45.9686,3.51,1,3,4],
+[18.9804,-21.1064,3.51,5,1,3],[8.2793,9.1858,3.52,5,4,3],[9.6319,9.8922,3.52,3,6,2],
+[10.1271,16.7628,3.52,2,0,1],[22.8275,66.2003,3.52,5,0,2],[4.4763,19.1806,3.53,4,9,1],
+[7.3351,21.9822,3.53,3,2,4],[15.8694,-3.4303,3.53,2,0,5],[16.7148,38.9222,3.53,4,7,1],
+[22.1407,6.1978,3.53,2,2,5],[3.7140,-9.7639,3.54,5,0,4],[5.5334,9.9344,3.54,0,8,3],
+[9.9949,-54.5697,3.54,1,5,1],[11.5061,-31.8567,3.54,4,7,3],[17.6218,-15.3986,3.54,3,0,4],
+[5.7952,-14.8219,3.55,2,3,5],[14.3073,-46.0578,3.55,1,2,1],[0.3262,-8.8239,3.56,5,1,1],
+[2.2939,-51.5119,3.56,1,8,5],[4.3266,-33.7983,3.56,1,9,5],[11.3078,-14.7814,3.56,4,8,3],
+[15.3972,-36.2614,3.56,5,5,3],[20.1427,-66.1817,3.56,4,6,1],[1.7137,48.6283,3.57,5,3,2],
+[7.7517,24.3981,3.57,4,8,3],[16.8640,-37.9486,3.57,1,2,4],[18.3313,72.7328,3.57,3,7,5],
+[20.2459,-12.5447,3.57,4,8,3],[7.2896,16.5403,3.58,2,3,5],[14.5347,30.3714,3.58,5,3,2],
+[15.5853,-28.1353,3.58,5,3,3],[12.3521,-60.4011,3.59,5,3,1],[1.3571,-8.1831,3.60,5,0,3],
+[3.4529,9.0286,3.60,4,6,3],[5.2796,-6.8444,3.60,1,5,3],[5.7320,-22.4478,3.60,3,6,5],
+[6.8680,33.9608,3.60,2,3,3],[9.0626,47.1567,3.60,2,1,5],[9.5397,-40.4667,3.60,3,3,4],
+[7.7490,-37.9722,3.61,5,2,1],[10.1688,-12.3542,3.61,5,0,3],[11.8445,1.7647,3.61,3,9,5],
+[1.5247,15.3456,3.62,4,7,3],[8.6462,-52.9219,3.62,1,3,4],[13.0636,-71.5489,3.62,5,2,3],
+[16.8647,-42.3603,3.62,5,4,3],[17.4604,-60.6836,3.62,1,8,5],[17.7744,-64.7239,3.62,5,2,2],
+[23.0383,42.3283,3.62,1,6,3],[2.8322,27.2606,3.63,1,8,5],[3.7916,24.0533,3.63,1,8,3],
+[20.5896,14.5953,3.63,3,5,4],[11.7604,-66.7289,3.64,2,7,3],[4.3822,15.6272,3.65,5,0,2],
+[12.6942,-1.4494,3.65,3,0,5],[14.0726,64.3758,3.65,2,0,3],[20.9155,-58.4542,3.65,5,1,2],
+[0.6553,53.8969,3.66,1,2,4],[15.6153,-29.7778,3.66,1,2,5],[18.1096,-50.0911,3.66,1,2,1],
+[23.1575,-21.1725,3.66,5,1,3],[9.5446,63.0619,3.67,3,0,4],[15.7388,15.4219,3.67,2,2,4],
+[8.7260,-33.1864,3.68,1,1,1],[12.6942,-1.4494,3.68,3,0,5],[15.4648,29.1058,3.68,3,0,5],
+[21.6183,-16.6622,3.68,3,0,5],[3.3284,-21.7578,3.69,6,3,1],[4.8009,5.6047,3.69,1,2,3],
+[9.7664,-62.5072,3.69,4,5,1],[23.2866,3.2822,3.69,4,9,2],[1.9790,-51.6089,3.70,4,8,3],
+[3.7914,24.1133,3.70,1,6,3],[17.9897,29.2500,3.70,4,8,2],[5.9361,-14.1681,3.71,3,1,3],
+[11.7654,47.7797,3.71,5,0,1],[15.8597,4.4781,3.71,2,2,5],[19.8749,6.4078,3.71,4,8,4],
+[4.8517,2.4406,3.72,1,3,3],[5.9862,54.2847,3.72,5,0,2],[14.7171,1.8928,3.72,2,0,5],
+[21.0779,43.9275,3.72,5,4,1],[21.2483,38.0497,3.72,3,2,4],[1.8571,-10.3350,3.73,5,0,3],
+[3.5828,-9.4583,3.73,5,2,5],[7.8858,-40.5822,3.73,5,1,1],[18.1249,9.5639,3.73,2,4,4],
+[3.4134,9.7328,3.74,1,9,5],[21.4396,-22.4114,3.74,4,4,1],[22.8766,-7.5792,3.74,6,2,1],
+[5.0268,41.0753,3.75,5,4,2],[9.0603,-47.0978,3.75,5,2,3],[16.3652,19.1531,3.75,2,9,3],
+[17.8432,2.7072,3.75,2,0,5],[17.8975,56.8722,3.75,5,2,2],[22.4669,58.4222,3.75,3,5,1],
+[2.8533,55.8956,3.76,5,3,1],[4.3822,17.5425,3.76,5,0,2],[5.5604,-62.4897,3.76,3,6,1],
+[16.8298,-59.0414,3.76,5,5,3],[21.6913,-77.3900,3.76,5,0,3],[22.1169,25.3450,3.76,3,5,5],
+[3.7532,42.5786,3.77,3,5,2],[8.4289,-66.1369,3.77,5,1,3],[19.0781,-21.7417,3.77,4,9,3],
+[19.2851,53.3686,3.77,4,9,3],[20.6606,15.9119,3.77,1,9,4],[20.7946,-9.4958,3.77,2,1,5],
+[22.5215,50.2825,3.77,2,1,5],[7.1458,-70.4989,3.78,5,0,3],[10.8916,-58.8533,3.78,5,1,3],
+[7.0685,20.5703,3.79,3,7,5]
+];
+
+// Tenkoku spectral colors (0-255 sRGB for canvas) — derived from ParticleStarfieldHandler.cs
+// Then blended 50% toward [128,153,255] (Tenkoku baseLerpColor)
+var SPECTRAL_COLORS_255 = [
+  [155, 185, 255],  // 0=O  Blue
+  [195, 210, 255],  // 1=B  Blue-white
+  [225, 235, 255],  // 2=A  White
+  [253, 255, 245],  // 3=F  Yellow-white
+  [255, 250, 200],  // 4=G  Yellow
+  [255, 215, 155],  // 5=K  Orange
+  [255, 80, 60]     // 6=M  Red
+];
 
 function StarField() {
   this._dome = null;
@@ -1241,81 +1458,106 @@ StarField.prototype._generateStarTexture = function() {
   ctx.fillStyle = "black";
   ctx.fillRect(0, 0, W, H);
 
-  // Spectral colors — Tenkoku uses 7 spectral types
-  var spectralColors = [
-    [155, 185, 255],  // O/B type — hot blue-white
-    [195, 210, 255],  // B type — blue-white
-    [225, 235, 255],  // A type — white
-    [255, 255, 245],  // F type — yellow-white
-    [255, 240, 200],  // G type — yellow (like our Sun)
-    [255, 215, 155],  // K type — orange
-    [255, 80, 60],    // M type — deep red (Tenkoku: 1.0, 0.07, 0.07 — coolest, most common)
-  ];
-  var typeWeights = [0.02, 0.04, 0.08, 0.14, 0.22, 0.25, 0.25];
-
   var stars = [];
 
-  // Tenkoku reference: hundreds of TINY white dots scattered across deep black sky
-  // Stars extend down to near the horizon (v=0.52 of sphere = ~4° above equator)
-  // --- Layer 1: 25 brightest stars — small dots with very tight glow ---
-  for (var i = 0; i < 25; i++) {
-    var sx = Math.random() * W;
-    var sy = Math.random() * H * 0.52;
-    var radius = 1.3 + Math.random() * 0.9; // 1.3-2.2px
-    var glowR = radius * 2.2; // 2.9-4.8px (tight glow)
-    var brightness = 0.95 + Math.random() * 0.05;
-    var colorIdx = Math.floor(Math.random() * 4);
-    var col = spectralColors[colorIdx];
+  // --- Layer 1: 400 real catalog stars at correct RA/Dec positions ---
+  // RA/Dec -> equirectangular UV:
+  //   u = ra / 24  (0-1)
+  //   v = 0.5 - dec / 180  (0=north pole, 0.5=equator, 1=south pole)
+  // Only render stars above ~-5 deg declination equivalent on sphere
+  // (v < 0.53 = upper hemisphere + slight below equator for horizon stars)
+  for (var i = 0; i < STAR_CATALOG_400.length; i++) {
+    var entry = STAR_CATALOG_400[i];
+    var ra = entry[0], dec = entry[1], mag = entry[2];
+    var specType = entry[3], specSub = entry[4], lumClass = entry[5];
 
-    var grad = ctx.createRadialGradient(sx, sy, 0, sx, sy, glowR);
-    grad.addColorStop(0, "rgba(255,255,255," + brightness + ")");
-    grad.addColorStop(0.3, "rgba(255,255,255," + (brightness * 0.5) + ")");
-    grad.addColorStop(0.6, "rgba(" + col[0] + "," + col[1] + "," + col[2] + "," + (brightness * 0.1) + ")");
-    grad.addColorStop(1, "rgba(" + col[0] + "," + col[1] + "," + col[2] + ",0)");
-    ctx.fillStyle = grad;
-    ctx.fillRect(sx - glowR, sy - glowR, glowR * 2, glowR * 2);
-    stars.push({ x: sx, y: sy, r: radius, brightness: brightness });
-  }
+    // RA/Dec to equirectangular pixel coordinates
+    var u = ra / 24.0;
+    var v = 0.5 - (dec / 180.0);
 
-  // --- Layer 2: 250 medium stars — tiny white dots ---
-  for (var i = 0; i < 250; i++) {
-    var sx = Math.random() * W;
-    var sy = Math.random() * H * 0.52;
-    var radius = 0.7 + Math.random() * 0.6; // 0.7-1.3px
-    var brightness = 0.7 + Math.random() * 0.3;
-    var rnd = Math.random(), cumul = 0, colorIdx = 6;
-    for (var ci = 0; ci < typeWeights.length; ci++) {
-      cumul += typeWeights[ci]; if (rnd < cumul) { colorIdx = ci; break; }
+    // Skip stars too far below equator (won't be visible on upper hemisphere dome)
+    if (v > 0.53) continue;
+    // Skip stars too close to south pole
+    if (v < 0.0) v += 1.0;
+
+    var sx = u * W;
+    var sy = v * H;
+
+    // Magnitude to visual size (Tenkoku formula adapted)
+    // mag range 0-4: bigger = brighter
+    var magNorm = _clamp(mag / 4.0, 0, 1);
+    var radius = _lerp(2.0, 0.6, magNorm);
+    var brightness = _lerp(1.0, 0.4, magNorm);
+
+    // Luminosity class modifiers (from Tenkoku ParticleStarfieldHandler.cs)
+    if (lumClass === 1) { radius *= 1.2; brightness = Math.min(brightness * 1.5, 1.0); }
+    else if (lumClass === 2) { radius *= 1.1; brightness = Math.min(brightness * 1.3, 1.0); }
+    else if (lumClass === 3) { brightness = Math.min(brightness * 1.15, 1.0); }
+
+    // Get spectral color with sub-type interpolation
+    var col = SPECTRAL_COLORS_255[specType];
+    if (specType < 6 && specSub > 0) {
+      var nextCol = SPECTRAL_COLORS_255[specType + 1];
+      var t = specSub / 9.0;
+      col = [
+        Math.round(col[0] + (nextCol[0] - col[0]) * t),
+        Math.round(col[1] + (nextCol[1] - col[1]) * t),
+        Math.round(col[2] + (nextCol[2] - col[2]) * t)
+      ];
     }
-    var col = spectralColors[colorIdx];
-    var glowR = radius * 1.5;
-    var grad = ctx.createRadialGradient(sx, sy, 0, sx, sy, glowR);
-    grad.addColorStop(0, "rgba(255,255,255," + brightness + ")");
-    grad.addColorStop(0.4, "rgba(255,255,255," + (brightness * 0.3) + ")");
-    grad.addColorStop(1, "rgba(255,255,255,0)");
-    ctx.fillStyle = grad;
-    ctx.fillRect(sx - glowR, sy - glowR, glowR * 2, glowR * 2);
+
+    // Draw star with glow
+    var glowR = radius * 2.5;
+    if (mag < 1.5) {
+      // Very bright stars get larger glow
+      glowR = radius * 3.5;
+      var grad = ctx.createRadialGradient(sx, sy, 0, sx, sy, glowR);
+      grad.addColorStop(0, "rgba(255,255,255," + brightness + ")");
+      grad.addColorStop(0.2, "rgba(255,255,255," + (brightness * 0.6) + ")");
+      grad.addColorStop(0.5, "rgba(" + col[0] + "," + col[1] + "," + col[2] + "," + (brightness * 0.15) + ")");
+      grad.addColorStop(1, "rgba(" + col[0] + "," + col[1] + "," + col[2] + ",0)");
+      ctx.fillStyle = grad;
+      ctx.fillRect(sx - glowR, sy - glowR, glowR * 2, glowR * 2);
+    } else if (mag < 2.5) {
+      // Medium-bright stars
+      var grad = ctx.createRadialGradient(sx, sy, 0, sx, sy, glowR);
+      grad.addColorStop(0, "rgba(255,255,255," + brightness + ")");
+      grad.addColorStop(0.3, "rgba(255,255,255," + (brightness * 0.4) + ")");
+      grad.addColorStop(0.7, "rgba(" + col[0] + "," + col[1] + "," + col[2] + "," + (brightness * 0.08) + ")");
+      grad.addColorStop(1, "rgba(" + col[0] + "," + col[1] + "," + col[2] + ",0)");
+      ctx.fillStyle = grad;
+      ctx.fillRect(sx - glowR, sy - glowR, glowR * 2, glowR * 2);
+    } else {
+      // Fainter catalog stars — small tight dot
+      var grad = ctx.createRadialGradient(sx, sy, 0, sx, sy, glowR);
+      grad.addColorStop(0, "rgba(255,255,255," + brightness + ")");
+      grad.addColorStop(0.4, "rgba(255,255,255," + (brightness * 0.25) + ")");
+      grad.addColorStop(1, "rgba(255,255,255,0)");
+      ctx.fillStyle = grad;
+      ctx.fillRect(sx - glowR, sy - glowR, glowR * 2, glowR * 2);
+    }
     stars.push({ x: sx, y: sy, r: radius, brightness: brightness });
   }
 
-  // --- Layer 3: 7000 faint background stars (tiny scattered dots — Tenkoku density) ---
-  for (var i = 0; i < 7000; i++) {
+  // --- Layer 2: 6000 random faint background stars for density ---
+  // These fill in the dimmer stars (mag 4-8) that aren't in our top-400 catalog
+  var typeWeights = [0.02, 0.04, 0.08, 0.14, 0.22, 0.25, 0.25];
+  for (var i = 0; i < 6000; i++) {
     var sx = Math.random() * W;
     var sy = Math.random() * H * 0.52;
     var mag = Math.random();
-    mag = mag * mag;
-    var radius = 0.3 + mag * 0.7; // 0.3-1.0px
-    var brightness = 0.20 + mag * 0.65; // 0.20-0.85 (brighter for visibility)
+    mag = mag * mag; // bias toward dimmer stars
+    var radius = 0.3 + mag * 0.6; // 0.3-0.9px
+    var brightness = 0.15 + mag * 0.55; // 0.15-0.70
     var rnd = Math.random(), cumul = 0, colorIdx = 6;
     for (var ci = 0; ci < typeWeights.length; ci++) {
       cumul += typeWeights[ci]; if (rnd < cumul) { colorIdx = ci; break; }
     }
-    var col = spectralColors[colorIdx];
-    // Tiny white dots — Tenkoku style
+    // Tiny white dots
     var glowR3 = radius * 1.3;
     var grad = ctx.createRadialGradient(sx, sy, 0, sx, sy, glowR3);
     grad.addColorStop(0, "rgba(255,255,255," + brightness + ")");
-    grad.addColorStop(0.5, "rgba(255,255,255," + (brightness * 0.15) + ")");
+    grad.addColorStop(0.5, "rgba(255,255,255," + (brightness * 0.12) + ")");
     grad.addColorStop(1, "rgba(255,255,255,0)");
     ctx.fillStyle = grad;
     ctx.fillRect(sx - glowR3, sy - glowR3, glowR3 * 2, glowR3 * 2);
@@ -1892,8 +2134,14 @@ CloudSystem.prototype.updateTexture = function(atmosphere) {
       var g = _clamp(baseG * lightMul / 255, 0, 1);
       var b = _clamp(baseB * lightMul / 255, 0, 1);
 
+      // Horizon fog blend (Tenkoku: clouds fade into sky color near horizon)
+      var horizFogFade = _smoothstep(0.75, 0.55, v); // fade clouds near horizon edge
+      r = _lerp(r, r * 0.5, (1 - horizFogFade) * 0.6);
+      g = _lerp(g, g * 0.55, (1 - horizFogFade) * 0.6);
+      b = _lerp(b, b * 0.65, (1 - horizFogFade) * 0.6);
+
       // Alpha: Tenkoku ref shows dense opaque cumulus cores with soft transparent edges
-      var alpha = _clamp(d * 2.5, 0, 0.93) * altFade;
+      var alpha = _clamp(d * 2.5, 0, 0.93) * altFade * horizFogFade;
 
       pix[idx]     = Math.round(r * 255);
       pix[idx + 1] = Math.round(g * 255);
