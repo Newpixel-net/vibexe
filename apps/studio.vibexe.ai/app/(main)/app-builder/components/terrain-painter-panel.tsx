@@ -245,6 +245,7 @@ export interface TerrainPainterPanelProps {
 		segments: number;
 		biome?: string;
 		seed?: number;
+		resolvedBiomeParams?: Record<string, number>;
 		layers: Array<{ textureUrl: string; normalUrl: string; enabled: boolean; tileSize: number; opacity?: number; roughness?: number; normalIntensity?: number; metallic?: boolean; modifiers?: any[]; materialId?: string; emissionUrl?: string; emissionIntensity?: number }>;
 	}) => void;
 	initialConfig?: {
@@ -534,6 +535,7 @@ export function TerrainPainterPanel({
 		});
 
 		// Persist terrain config so it survives iframe reloads
+		// CRITICAL: save resolvedBiomeParams so reload reproduces EXACT same terrain
 		if (onTerrainConfigChanged) {
 			onTerrainConfigChanged({
 				enabled: true,
@@ -543,6 +545,7 @@ export function TerrainPainterPanel({
 				segments: preset.terrain.segments,
 				biome: preset.biomeId,
 				seed: biomeSeed,
+				resolvedBiomeParams: resolved,
 				layers: newLayers.map((l) => ({
 					textureUrl: l.diffuseUrl,
 					normalUrl: l.diffuseUrl.replace(/\.[^.]+$/, "_Normal$&"),

@@ -721,8 +721,10 @@ if (typeof window !== 'undefined') {
         console.log("[AutoTerrain] Terrain already exists, skipping");
         return;
       }
-      console.log("[AutoTerrain] Regenerating terrain from saved config:", tc.width, "x", (tc.depth||tc.width), "h=", tc.heightScale, "biome=", tc.biome||"default");
+      console.log("[AutoTerrain] Regenerating terrain from saved config:", tc.width, "x", (tc.depth||tc.width), "h=", tc.heightScale, "biome=", tc.biome||"default", "hasResolvedParams=", !!tc.resolvedBiomeParams);
       // Send generate message — bridge handler picks this up
+      // CRITICAL: pass resolvedBiomeParams so the EXACT same terrain is reproduced
+      // Without this, getBiomeParams() re-calculates and may produce different heightScale/noise params
       window.postMessage({
         type: "terrain-painter-generate-terrain",
         settings: {
@@ -734,6 +736,7 @@ if (typeof window !== 'undefined') {
         },
         biome: tc.biome || null,
         seed: tc.seed || 0,
+        resolvedBiomeParams: tc.resolvedBiomeParams || null,
       }, "*");
       // After terrain generates, auto-repaint with saved layers (with retry if terrain not ready)
       if (tc.layers && tc.layers.length > 0) {
@@ -1514,6 +1517,7 @@ export function SandpackPreview({
 								},
 								biome: terrainCfg.biome || null,
 								seed: terrainCfg.seed || 0,
+								resolvedBiomeParams: (terrainCfg as any).resolvedBiomeParams || null,
 							}, "*");
 							if (terrainCfg.layers && terrainCfg.layers.length > 0) {
 								const _defMods = [
@@ -1988,6 +1992,7 @@ export function SandpackPreview({
 						},
 						biome: terrainCfg.biome || null,
 						seed: terrainCfg.seed || 0,
+						resolvedBiomeParams: (terrainCfg as any).resolvedBiomeParams || null,
 					}, "*");
 					if (terrainCfg.layers && terrainCfg.layers.length > 0) {
 						const _defMods = [
