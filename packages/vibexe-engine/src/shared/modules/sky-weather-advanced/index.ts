@@ -1775,8 +1775,8 @@ CloudSystem.prototype.updateTexture = function(atmosphere) {
     baseG = Math.round(_lerp(160, 245, st));
     baseB = Math.round(_lerp(120, 250, st));
   } else {
-    // Night: dark blue-grey
-    baseR = 40; baseG = 42; baseB = 55;
+    // Night: visible grey-blue (clouds should be seen against starfield)
+    baseR = 55; baseG = 58; baseB = 72;
   }
 
   // Sun-side lighting direction (horizontal angle for gradient overlay)
@@ -1802,41 +1802,39 @@ CloudSystem.prototype.updateTexture = function(atmosphere) {
       var windX = t * 0.03;
       var windY = t * 0.008;
 
-      // Layer 1: Cumulus — large puffy formations
-      // Offset -0.8 ensures coverage=0 produces very few clouds
-      // coverage slider range: 0=nearly clear, 0.35=partly cloudy, 0.7=overcast, 1=full
-      var n1 = this._fbm2(nx * 0.7 + windX, ny * 0.7 + windY);
-      var c1 = _clamp(n1 + coverage * 2.5 - 0.8, 0, 1);
-      // Cumulus lives in the mid-altitude band — wide range for max visibility
-      var fade1 = _smoothstep(0.03, 0.15, v) * _smoothstep(0.92, 0.4, v);
+      // Layer 1: Cumulus — large puffy formations with sharp edges
+      var n1 = this._fbm2(nx * 0.6 + windX, ny * 0.6 + windY);
+      // pow(noise, 1.8) creates sharper puffy edges like real cumulus
+      n1 = n1 * n1 * 1.8;
+      var c1 = _clamp(n1 + coverage * 2.2 - 0.7, 0, 1);
+      var fade1 = _smoothstep(0.03, 0.12, v) * _smoothstep(0.92, 0.35, v);
       c1 *= fade1;
 
-      // Layer 2: Altocumulus — medium patches
-      var n2 = this._fbm2(nx * 1.4 + windX * 1.3 + 50, ny * 1.4 + windY * 0.7 + 50);
-      var c2 = _clamp(n2 + coverage * 1.8 - 0.65, 0, 1) * 0.6;
-      var fade2 = _smoothstep(0.06, 0.2, v) * _smoothstep(0.94, 0.45, v);
+      // Layer 2: Altocumulus — medium patchy formations
+      var n2 = this._fbm2(nx * 1.3 + windX * 1.2 + 50, ny * 1.3 + windY * 0.8 + 50);
+      var c2 = _clamp(n2 + coverage * 1.6 - 0.6, 0, 1) * 0.55;
+      var fade2 = _smoothstep(0.05, 0.18, v) * _smoothstep(0.94, 0.4, v);
       c2 *= fade2;
 
-      // Layer 3: Cirrus — wispy high-altitude streaks
-      var n3 = this._fbm2(nx * 3.5 + windX * 0.6 + 120, ny * 1.0 + windY * 0.4 + 120);
-      var c3 = _clamp(n3 + coverage * 1.3 - 0.5, 0, 1) * 0.35;
-      var fade3 = _smoothstep(0.0, 0.08, v) * _smoothstep(0.55, 0.2, v);
+      // Layer 3: Cirrus — thin wispy horizontal streaks (stretched X, compressed Y)
+      var n3 = this._fbm2(nx * 4.5 + windX * 0.5 + 120, ny * 0.8 + windY * 0.3 + 120);
+      var c3 = _clamp(n3 + coverage * 1.1 - 0.45, 0, 1) * 0.3;
+      var fade3 = _smoothstep(0.0, 0.06, v) * _smoothstep(0.50, 0.15, v);
       c3 *= fade3;
 
-      // Combined density — coverage controls cloud amount, density controls thickness
+      // Combined density
       var d = _clamp((c1 + c2 + c3) * density, 0, 1);
       if (d < 0.01) continue;
 
       hasCloud = true;
 
-      // Sun-facing brightness gradient (simple dot product approximation)
-      // Pixels on the sun-facing side of the dome get extra light
+      // Sun-facing brightness gradient — stronger contrast for realistic look
       var pixAngle = u * TWO_PI;
       var sunDot = Math.cos(pixAngle - sunAngle) * 0.5 + 0.5;
-      // Boost brightness on sun side, darken opposite side
-      var lightMul = _lerp(0.7, 1.4, sunDot) * brightness;
-      // Altitude shading: cloud bottoms darker
-      lightMul *= _lerp(0.65, 1.0, 1.0 - v);
+      // Higher contrast: dark backs (0.5x) vs bright sun-facing (1.6x)
+      var lightMul = _lerp(0.5, 1.6, sunDot) * brightness;
+      // Altitude shading: cloud bottoms significantly darker (self-shadowing)
+      lightMul *= _lerp(0.5, 1.0, 1.0 - v);
 
       var r = _clamp(baseR * lightMul / 255, 0, 1);
       var g = _clamp(baseG * lightMul / 255, 0, 1);
