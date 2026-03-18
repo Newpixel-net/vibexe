@@ -6538,7 +6538,7 @@ export function getVisualEditBridgeScript(): string {
 
   function getMaxPixelRatio() {
     var dpr = (typeof devicePixelRatio !== "undefined") ? devicePixelRatio : 1;
-    return Math.min(dpr, 2.0);
+    return Math.min(dpr, 1.5);
   }
 
   function init() {
