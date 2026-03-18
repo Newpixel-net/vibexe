@@ -111,22 +111,22 @@ type SkyTab = "time" | "celestial" | "atmos" | "weather" | "fog" | "fx";
 const WEATHER_PRESETS = [
 	{ label: "Clear", icon: "☀️", clouds: { coverage: 0.05, brightness: 1.1 }, fog: { enabled: true, density: 0.001, autoColor: true }, precipitation: { type: "none", intensity: 0 }, lightning: { enabled: false }, sky: { exposure: 1.3, sunIntensity: 24 } },
 	{ label: "Fair", icon: "🌤", clouds: { coverage: 0.2, brightness: 1.0 }, fog: { enabled: true, density: 0.0015, autoColor: true }, precipitation: { type: "none", intensity: 0 }, lightning: { enabled: false }, sky: { exposure: 1.2, sunIntensity: 22 } },
-	{ label: "Partly Cloudy", icon: "⛅", clouds: { coverage: 0.45, brightness: 1.0 }, fog: { enabled: true, density: 0.002, autoColor: true }, precipitation: { type: "none", intensity: 0 }, lightning: { enabled: false }, sky: { exposure: 1.15, sunIntensity: 20 } },
-	{ label: "Cloudy", icon: "☁️", clouds: { coverage: 0.75, brightness: 0.85 }, fog: { enabled: true, density: 0.003, autoColor: true }, precipitation: { type: "none", intensity: 0 }, lightning: { enabled: false }, sky: { exposure: 1.0, sunIntensity: 18 } },
-	{ label: "Overcast", icon: "🌥", clouds: { coverage: 0.95, brightness: 0.6 }, fog: { enabled: true, density: 0.005, autoColor: true }, precipitation: { type: "none", intensity: 0 }, lightning: { enabled: false }, sky: { exposure: 0.8, sunIntensity: 14 } },
-	{ label: "Rainy", icon: "🌧", clouds: { coverage: 0.85, brightness: 0.5 }, fog: { enabled: true, density: 0.005, autoColor: true }, precipitation: { type: "rain", intensity: 0.6, windStrength: 0.4 }, lightning: { enabled: false }, sky: { exposure: 0.7, sunIntensity: 12 } },
-	{ label: "Snowy", icon: "🌨", clouds: { coverage: 0.9, brightness: 0.7 }, fog: { enabled: true, density: 0.006, autoColor: true }, precipitation: { type: "snow", intensity: 0.7, windStrength: 0.3 }, lightning: { enabled: false }, sky: { exposure: 0.85, sunIntensity: 16 } },
-	{ label: "Foggy", icon: "🌫", clouds: { coverage: 0.6, brightness: 0.6 }, fog: { enabled: true, density: 0.015, autoColor: true }, precipitation: { type: "none", intensity: 0 }, lightning: { enabled: false }, sky: { exposure: 0.9, sunIntensity: 18 } },
-	{ label: "Stormy", icon: "⛈", clouds: { coverage: 0.95, brightness: 0.35, density: 1.0 }, fog: { enabled: true, density: 0.008, autoColor: true }, precipitation: { type: "rain", intensity: 0.9, windStrength: 0.7 }, lightning: { enabled: true, frequency: 0.15 }, sky: { exposure: 0.6, sunIntensity: 10 } },
+	{ label: "Partly Cloudy", icon: "⛅", clouds: { coverage: 0.45, brightness: 0.95 }, fog: { enabled: true, density: 0.002, autoColor: true }, precipitation: { type: "none", intensity: 0 }, lightning: { enabled: false }, sky: { exposure: 1.15, sunIntensity: 20 } },
+	{ label: "Cloudy", icon: "☁️", clouds: { coverage: 0.8, brightness: 0.7 }, fog: { enabled: true, density: 0.004, autoColor: true }, precipitation: { type: "none", intensity: 0 }, lightning: { enabled: false }, sky: { exposure: 0.9, sunIntensity: 16 } },
+	{ label: "Overcast", icon: "🌥", clouds: { coverage: 0.95, brightness: 0.35 }, fog: { enabled: true, density: 0.006, autoColor: true }, precipitation: { type: "none", intensity: 0 }, lightning: { enabled: false }, sky: { exposure: 0.55, sunIntensity: 8 } },
+	{ label: "Rainy", icon: "🌧", clouds: { coverage: 0.92, brightness: 0.3 }, fog: { enabled: true, density: 0.007, autoColor: true }, precipitation: { type: "rain", intensity: 0.85, windStrength: 0.5 }, lightning: { enabled: false }, sky: { exposure: 0.5, sunIntensity: 6 } },
+	{ label: "Snowy", icon: "🌨", clouds: { coverage: 0.88, brightness: 0.45 }, fog: { enabled: true, density: 0.006, autoColor: true }, precipitation: { type: "snow", intensity: 0.85, windStrength: 0.25 }, lightning: { enabled: false }, sky: { exposure: 0.65, sunIntensity: 10 } },
+	{ label: "Foggy", icon: "🌫", clouds: { coverage: 0.6, brightness: 0.5 }, fog: { enabled: true, density: 0.02, autoColor: true }, precipitation: { type: "none", intensity: 0 }, lightning: { enabled: false }, sky: { exposure: 0.75, sunIntensity: 14 } },
+	{ label: "Stormy", icon: "⛈", clouds: { coverage: 0.98, brightness: 0.2, density: 1.0 }, fog: { enabled: true, density: 0.01, autoColor: true }, precipitation: { type: "rain", intensity: 0.95, windStrength: 0.8 }, lightning: { enabled: true, frequency: 0.2 }, sky: { exposure: 0.4, sunIntensity: 4 } },
 ] as const;
 
 const TIME_PRESETS = [
-	{ label: "Dawn", time: 0.22, icon: "🌅", sky: { exposure: 1.0, rayleighScale: 1.2 } },
-	{ label: "Morning", time: 0.35, icon: "🌤", sky: { exposure: 1.15, rayleighScale: 1.1 } },
-	{ label: "Noon", time: 0.5, icon: "☀️", sky: { exposure: 1.2, rayleighScale: 1.0 } },
+	{ label: "Dawn", time: 0.22, icon: "🌅", sky: { exposure: 0.9, rayleighScale: 1.4 } },
+	{ label: "Morning", time: 0.35, icon: "🌤", sky: { exposure: 1.15, rayleighScale: 1.15 } },
+	{ label: "Noon", time: 0.5, icon: "☀️", sky: { exposure: 1.25, rayleighScale: 1.0 } },
 	{ label: "Afternoon", time: 0.65, icon: "🌤", sky: { exposure: 1.15, rayleighScale: 1.0 } },
-	{ label: "Dusk", time: 0.78, icon: "🌇", sky: { exposure: 0.95, rayleighScale: 1.3 } },
-	{ label: "Night", time: 0.0, icon: "🌙", sky: { exposure: 0.8, rayleighScale: 1.0 } },
+	{ label: "Dusk", time: 0.78, icon: "🌇", sky: { exposure: 0.85, rayleighScale: 1.4 } },
+	{ label: "Night", time: 0.0, icon: "🌙", sky: { exposure: 0.5, rayleighScale: 1.0 } },
 ];
 
 const ADVANCED_DEFAULTS: SkyWeatherConfig = {

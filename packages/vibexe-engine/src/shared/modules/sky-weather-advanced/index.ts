@@ -16,7 +16,7 @@ import type { ModuleManifest } from "../module-types";
 export const SKY_WEATHER_ADVANCED_MANIFEST: ModuleManifest = {
 	id: "sky-weather-advanced",
 	name: "Sky & Weather Advanced",
-	version: "1.2.0",
+	version: "1.3.0",
 	category: "lighting",
 	description:
 		"Physically-based atmosphere with Rayleigh+Mie scattering, real orbital mechanics, volumetric clouds, 9K star catalog, and full weather system",
@@ -482,18 +482,18 @@ AtmosphereRenderer.prototype._computeSkyColor = function(viewDir) {
     gn += scatterM[1] * sunAdd;
     b += scatterM[2] * sunAdd;
   }
-  // Sun corona — wide warm bloom around sun (Tenkoku sun haze)
-  if (cosAngle > 0.985 && sunDir[1] > -0.05) {
-    var coronaT = _smoothstep(0.985, 0.999, cosAngle);
-    var coronaI = coronaT * 0.25 * _clamp(sunDir[1] + 0.1, 0, 1);
+  // Sun corona — wide warm bloom around sun (Tenkoku: prominent sun glow)
+  if (cosAngle > 0.98 && sunDir[1] > -0.05) {
+    var coronaT = _smoothstep(0.98, 0.999, cosAngle);
+    var coronaI = coronaT * 0.38 * _clamp(sunDir[1] + 0.1, 0, 1);
     r += coronaI * 1.0;
     gn += coronaI * 0.9;
     b += coronaI * 0.55;
   }
-  // Outer sun haze — very wide subtle warm glow (Tenkoku reference shows large halo)
-  if (cosAngle > 0.96 && sunDir[1] > 0) {
-    var hazeT = _smoothstep(0.96, 0.99, cosAngle);
-    var hazeI = hazeT * 0.08 * _clamp(sunDir[1], 0, 0.5) * 2;
+  // Outer sun haze — very wide warm glow (Tenkoku reference: large visible halo around sun)
+  if (cosAngle > 0.93 && sunDir[1] > 0) {
+    var hazeT = _smoothstep(0.93, 0.99, cosAngle);
+    var hazeI = hazeT * 0.15 * _clamp(sunDir[1], 0, 0.5) * 2;
     r += hazeI * 1.0;
     gn += hazeI * 0.85;
     b += hazeI * 0.5;
@@ -544,21 +544,21 @@ AtmosphereRenderer.prototype._computeSkyColor = function(viewDir) {
   r += sunGlow * 1.0;
   gn += sunGlow * 0.35;
 
-  // Dawn/Dusk pink-purple band — mid-altitude coloring (Tenkoku Clear-Altostratus ref)
-  if (Math.abs(sunDir[1]) < 0.20) {
+  // Dawn/Dusk pink-purple band — Tenkoku Clear-Altostratus reference: prominent pink-rose band
+  if (Math.abs(sunDir[1]) < 0.22) {
     var pinkAlt = _clamp(viewDir[1], 0, 1);
-    var pinkBand = _smoothstep(0.0, 0.12, pinkAlt) * _smoothstep(0.6, 0.12, pinkAlt);
-    var pinkStr = pinkBand * (1.0 - Math.abs(sunDir[1]) / 0.20) * 0.18;
+    var pinkBand = _smoothstep(0.0, 0.15, pinkAlt) * _smoothstep(0.65, 0.15, pinkAlt);
+    var pinkStr = pinkBand * (1.0 - Math.abs(sunDir[1]) / 0.22) * 0.30;
     r += pinkStr * 1.0;
-    gn += pinkStr * 0.15;
-    b += pinkStr * 0.8;
+    gn += pinkStr * 0.12;
+    b += pinkStr * 0.75;
   }
-  // Upper sky purple tint at dawn/dusk — zenith becomes purple (Tenkoku ref)
-  if (Math.abs(sunDir[1]) < 0.15 && viewDir[1] > 0.3) {
-    var purpleZenith = _smoothstep(0.3, 0.8, viewDir[1]);
-    var purpleStr = purpleZenith * (1.0 - Math.abs(sunDir[1]) / 0.15) * 0.06;
-    r += purpleStr * 0.6;
-    b += purpleStr * 0.9;
+  // Upper sky purple tint at dawn/dusk — Tenkoku ref: purple zenith during golden hour
+  if (Math.abs(sunDir[1]) < 0.18 && viewDir[1] > 0.25) {
+    var purpleZenith = _smoothstep(0.25, 0.75, viewDir[1]);
+    var purpleStr = purpleZenith * (1.0 - Math.abs(sunDir[1]) / 0.18) * 0.12;
+    r += purpleStr * 0.65;
+    b += purpleStr * 0.95;
   }
 
   // Boost saturation for vivid colors — stronger for richer sky
@@ -575,12 +575,11 @@ AtmosphereRenderer.prototype._computeSkyColor = function(viewDir) {
   r -= zenithFac * 0.02;
   gn -= zenithFac * 0.005;
 
-  // Overcast sky desaturation — only at high coverage (70%+), gradual
-  // Previous bug: overcast*3 caused FULL desaturation at just 35% coverage
+  // Overcast sky desaturation — Tenkoku reference: very dark grey sky when overcast
   var overcast = this._overcastAmount;
-  if (overcast > 0.5) {
-    var grey = Math.max(r, Math.max(gn, b)) * 0.15;
-    var overcastT = _clamp((overcast - 0.5) * 2, 0, 0.8); // 0 at 50%, 0.8 at 100%
+  if (overcast > 0.4) {
+    var grey = Math.max(r, Math.max(gn, b)) * 0.10; // darker grey (Tenkoku: very dark overcast)
+    var overcastT = _clamp((overcast - 0.4) * 1.67, 0, 0.92); // 0 at 40%, 0.92 at 100%
     r = _lerp(r, grey, overcastT);
     gn = _lerp(gn, grey, overcastT);
     b = _lerp(b, grey, overcastT);
@@ -807,8 +806,8 @@ SunDiskRenderer.prototype.update = function(camera, sunDir, sunAltDeg, settings)
   var diskSize = (settings.sunDiskSize != null ? settings.sunDiskSize : 0.028) * 5000;
   var diskScale = diskSize / 33; // large enough to be Tenkoku-like
   if (this._diskMesh) this._diskMesh.scale.setScalar(diskScale);
-  // Glow halo: 6x disk scale (geometry is 4x larger → 24x total = ~50° visible bloom)
-  if (this._glowMesh) this._glowMesh.scale.setScalar(diskScale * 6.0);
+  // Glow halo: 10x disk scale (Tenkoku reference: very prominent wide sun bloom)
+  if (this._glowMesh) this._glowMesh.scale.setScalar(diskScale * 10.0);
 
   // Hide when sun below horizon
   this._group.visible = sunAltDeg > -2;
@@ -816,8 +815,8 @@ SunDiskRenderer.prototype.update = function(camera, sunDir, sunAltDeg, settings)
   // Fade near horizon
   var horizFade = _clamp((sunAltDeg + 2) / 10, 0, 1);
   if (this._diskMesh && this._diskMesh.material) this._diskMesh.material.opacity = horizFade;
-  // Glow always visible when sun is up — stronger opacity for visibility from wider angles
-  var glowOpacity = sunAltDeg < 20 ? horizFade * 0.95 : horizFade * 0.7;
+  // Glow always visible when sun is up — strong opacity for Tenkoku-level prominence
+  var glowOpacity = sunAltDeg < 20 ? horizFade * 1.0 : horizFade * 0.85;
   if (this._glowMesh && this._glowMesh.material) this._glowMesh.material.opacity = glowOpacity;
 
   // Warm sun color at low angles (orange-gold sunrise/sunset)
@@ -930,8 +929,8 @@ SkyLightingController.prototype.update = function(sunDir, sunAltDeg, settings) {
       this.sunLight.intensity = dayIntensity * _smoothstep(-0.1, 0.05, altNorm) * 0.3;
       this.sunLight.position.set(sunDir.x * 100, sunDir.y * 100, sunDir.z * 100);
     } else {
-      // Night: dim moonlight from above (Tenkoku: moonLightIntensity=0.25, reduced for dark nights)
-      this.sunLight.intensity = 0.06;
+      // Night: very dim moonlight (Tenkoku ref: deep dark night, dramatic lighting)
+      this.sunLight.intensity = 0.04;
       this.sunLight.position.set(20, 80, 20);
     }
 
@@ -971,10 +970,10 @@ SkyLightingController.prototype.update = function(sunDir, sunAltDeg, settings) {
         _lerp(0.25, 0.92, tw)
       );
     } else {
-      // Night — dark ambient for dramatic nights (moonlight + stars provide visibility)
-      this.ambientLight.intensity = 0.05;
-      this.ambientLight.color.setRGB(0.08, 0.08, 0.18);
-      if (isHemi) this.ambientLight.groundColor.setRGB(0.02, 0.02, 0.04);
+      // Night — very dark ambient (Tenkoku ref: deep black sky, dramatic contrast)
+      this.ambientLight.intensity = 0.035;
+      this.ambientLight.color.setRGB(0.06, 0.06, 0.14);
+      if (isHemi) this.ambientLight.groundColor.setRGB(0.015, 0.015, 0.03);
     }
   }
 
@@ -1081,7 +1080,7 @@ function WeatherParticles() {
   this._snowGeo = null;
   this._rainMat = null;
   this._snowMat = null;
-  this._particleCount = 2000;
+  this._particleCount = 3000;
   this._windDir = 0;
   this._windStrength = 0.3;
 }
@@ -1105,7 +1104,7 @@ WeatherParticles.prototype.init = function(scene) {
 
   this._rainMat = new THREE.PointsMaterial({
     map: _getSwaRainTex(),
-    size: 2.0, // prominent rain streaks (Tenkoku shows dense visible streaks)
+    size: 3.5, // prominent rain streaks (Tenkoku ref: dense visible white streaks)
     transparent: true,
     opacity: 0.85,
     depthWrite: false,
@@ -1136,7 +1135,7 @@ WeatherParticles.prototype.init = function(scene) {
 
   this._snowMat = new THREE.PointsMaterial({
     map: _getSwaSnowTex(),
-    size: 2.5, // large visible snowflakes (Tenkoku reference)
+    size: 4.5, // large visible snowflakes (Tenkoku ref: clearly visible white flakes)
     transparent: true,
     opacity: 0.9,
     depthWrite: false,
@@ -1256,13 +1255,14 @@ StarField.prototype._generateStarTexture = function() {
 
   var stars = [];
 
-  // Tenkoku reference: hundreds of TINY white dots, not glowing orbs
-  // --- Layer 1: 15 brightest stars — small dots with very tight glow ---
-  for (var i = 0; i < 15; i++) {
+  // Tenkoku reference: hundreds of TINY white dots scattered across deep black sky
+  // Stars extend down to near the horizon (v=0.52 of sphere = ~4° above equator)
+  // --- Layer 1: 25 brightest stars — small dots with very tight glow ---
+  for (var i = 0; i < 25; i++) {
     var sx = Math.random() * W;
-    var sy = Math.random() * H * 0.45;
-    var radius = 1.2 + Math.random() * 0.8; // 1.2-2px
-    var glowR = radius * 2; // 2.4-4px (very tight)
+    var sy = Math.random() * H * 0.52;
+    var radius = 1.3 + Math.random() * 0.9; // 1.3-2.2px
+    var glowR = radius * 2.2; // 2.9-4.8px (tight glow)
     var brightness = 0.95 + Math.random() * 0.05;
     var colorIdx = Math.floor(Math.random() * 4);
     var col = spectralColors[colorIdx];
@@ -1277,10 +1277,10 @@ StarField.prototype._generateStarTexture = function() {
     stars.push({ x: sx, y: sy, r: radius, brightness: brightness });
   }
 
-  // --- Layer 2: 120 medium stars — tiny white dots ---
-  for (var i = 0; i < 120; i++) {
+  // --- Layer 2: 250 medium stars — tiny white dots ---
+  for (var i = 0; i < 250; i++) {
     var sx = Math.random() * W;
-    var sy = Math.random() * H * 0.48;
+    var sy = Math.random() * H * 0.52;
     var radius = 0.7 + Math.random() * 0.6; // 0.7-1.3px
     var brightness = 0.7 + Math.random() * 0.3;
     var rnd = Math.random(), cumul = 0, colorIdx = 6;
@@ -1298,14 +1298,14 @@ StarField.prototype._generateStarTexture = function() {
     stars.push({ x: sx, y: sy, r: radius, brightness: brightness });
   }
 
-  // --- Layer 3: 4000 faint background stars (tiny scattered dots) ---
-  for (var i = 0; i < 4000; i++) {
+  // --- Layer 3: 7000 faint background stars (tiny scattered dots — Tenkoku density) ---
+  for (var i = 0; i < 7000; i++) {
     var sx = Math.random() * W;
-    var sy = Math.random() * H * 0.50;
+    var sy = Math.random() * H * 0.52;
     var mag = Math.random();
     mag = mag * mag;
-    var radius = 0.3 + mag * 0.6; // 0.3-0.9px (tiny!)
-    var brightness = 0.15 + mag * 0.55; // 0.15-0.7
+    var radius = 0.3 + mag * 0.7; // 0.3-1.0px
+    var brightness = 0.20 + mag * 0.65; // 0.20-0.85 (brighter for visibility)
     var rnd = Math.random(), cumul = 0, colorIdx = 6;
     for (var ci = 0; ci < typeWeights.length; ci++) {
       cumul += typeWeights[ci]; if (rnd < cumul) { colorIdx = ci; break; }
@@ -1725,10 +1725,10 @@ CloudSystem.prototype._noise2 = function(x, y) {
   return nx0 + (nx1 - nx0) * uy;
 };
 
-// 2D fBm — 4 octaves (octaves 5-6 are sub-pixel on dome)
+// 2D fBm — 5 octaves for better cloud detail (Tenkoku: multi-layer volumetric)
 CloudSystem.prototype._fbm2 = function(x, y) {
   var val = 0, amp = 0.5, freq = 1.0;
-  for (var i = 0; i < 4; i++) {
+  for (var i = 0; i < 5; i++) {
     val += amp * this._noise2(x * freq, y * freq);
     freq *= 2.0;
     amp *= 0.5;
@@ -1810,8 +1810,8 @@ CloudSystem.prototype.updateTexture = function(atmosphere) {
     baseG = Math.round(_lerp(160, 245, st));
     baseB = Math.round(_lerp(120, 250, st));
   } else {
-    // Night: visible grey-blue (clouds should be seen against starfield)
-    baseR = 55; baseG = 58; baseB = 72;
+    // Night: subtle dark blue-grey (visible against starfield but not overpowering)
+    baseR = 35; baseG = 38; baseB = 52;
   }
 
   // Sun-side lighting direction (horizontal angle for gradient overlay)
@@ -1837,12 +1837,12 @@ CloudSystem.prototype.updateTexture = function(atmosphere) {
       var windX = t * 0.03;
       var windY = t * 0.008;
 
-      // Layer 1: Cumulus — large puffy formations with sharp edges
+      // Layer 1: Cumulus — large puffy formations with sharp edges (Tenkoku: distinct puffs)
       // coverage=0 → nearly empty, 0.35 → scattered patches, 0.7 → mostly covered, 1.0 → full
-      var n1 = this._fbm2(nx * 0.6 + windX, ny * 0.6 + windY);
-      var c1 = _clamp(n1 + coverage * 2.0 - 1.0, 0, 1);
-      c1 = c1 * c1 * c1; // cube for sharper puffy edges (Tenkoku-style distinct cumulus)
-      var fade1 = _smoothstep(0.05, 0.18, v) * _smoothstep(0.88, 0.35, v);
+      var n1 = this._fbm2(nx * 0.5 + windX, ny * 0.5 + windY);
+      var c1 = _clamp(n1 + coverage * 2.2 - 1.0, 0, 1);
+      c1 = c1 * c1 * c1 * c1; // 4th power for very sharp puffy edges (Tenkoku-style)
+      var fade1 = _smoothstep(0.04, 0.16, v) * _smoothstep(0.85, 0.30, v);
       c1 *= fade1;
 
       // Layer 2: Altocumulus — medium scattered patches
@@ -1851,10 +1851,10 @@ CloudSystem.prototype.updateTexture = function(atmosphere) {
       var fade2 = _smoothstep(0.08, 0.22, v) * _smoothstep(0.90, 0.4, v);
       c2 *= fade2;
 
-      // Layer 3: Cirrus — thin wispy horizontal streaks (Tenkoku: very subtle, stretched)
-      var n3 = this._fbm2(nx * 6.0 + windX * 0.4 + 120, ny * 0.5 + windY * 0.2 + 120);
-      var c3 = _clamp(n3 + coverage * 0.8 - 0.55, 0, 1) * 0.15;
-      var fade3 = _smoothstep(0.0, 0.05, v) * _smoothstep(0.45, 0.12, v);
+      // Layer 3: Cirrus — thin wispy horizontal streaks (Tenkoku: subtle, very stretched)
+      var n3 = this._fbm2(nx * 8.0 + windX * 0.3 + 120, ny * 0.4 + windY * 0.15 + 120);
+      var c3 = _clamp(n3 + coverage * 0.9 - 0.5, 0, 1) * 0.18;
+      var fade3 = _smoothstep(0.0, 0.04, v) * _smoothstep(0.40, 0.10, v);
       c3 *= fade3;
 
       // Combined density — lower multiplier for more transparent clouds
@@ -1866,17 +1866,17 @@ CloudSystem.prototype.updateTexture = function(atmosphere) {
       // Sun-facing brightness gradient — stronger contrast for realistic look
       var pixAngle = u * TWO_PI;
       var sunDot = Math.cos(pixAngle - sunAngle) * 0.5 + 0.5;
-      // Higher contrast: dark backs (0.4x) vs bright sun-facing (1.8x) — Tenkoku-style 3D look
-      var lightMul = _lerp(0.4, 1.8, sunDot) * brightness;
-      // Altitude shading: cloud bottoms significantly darker (self-shadowing)
-      lightMul *= _lerp(0.4, 1.0, 1.0 - v);
+      // Strong contrast: dark backs (0.3x) vs bright sun-facing (2.0x) — Tenkoku 3D volumetric look
+      var lightMul = _lerp(0.3, 2.0, sunDot) * brightness;
+      // Altitude shading: cloud bottoms very dark (Tenkoku: grey undersides, white tops)
+      lightMul *= _lerp(0.3, 1.0, 1.0 - v);
 
       var r = _clamp(baseR * lightMul / 255, 0, 1);
       var g = _clamp(baseG * lightMul / 255, 0, 1);
       var b = _clamp(baseB * lightMul / 255, 0, 1);
 
-      // Alpha: gradual opacity — most clouds semi-transparent, only dense cores nearly opaque
-      var alpha = _clamp(d * 2.0, 0, 0.85) * altFade;
+      // Alpha: Tenkoku ref shows dense opaque cumulus cores with soft transparent edges
+      var alpha = _clamp(d * 2.5, 0, 0.93) * altFade;
 
       pix[idx]     = Math.round(r * 255);
       pix[idx + 1] = Math.round(g * 255);
@@ -2024,18 +2024,20 @@ MoonRenderer.prototype.build = function(scene) {
   this._mesh.frustumCulled = false;
   scene.add(this._mesh);
 
-  // Atmospheric glow halo behind moon (like Tenkoku reference)
+  // Atmospheric glow halo — Tenkoku reference: large soft atmospheric halo around moon
   var glowCanvas = document.createElement("canvas");
-  glowCanvas.width = glowCanvas.height = 128;
+  glowCanvas.width = glowCanvas.height = 256;
   var glowCtx = glowCanvas.getContext("2d");
-  var glowGrad = glowCtx.createRadialGradient(64, 64, 0, 64, 64, 64);
-  glowGrad.addColorStop(0, "rgba(240,235,220,0.6)");
-  glowGrad.addColorStop(0.15, "rgba(230,225,215,0.35)");
-  glowGrad.addColorStop(0.4, "rgba(200,200,210,0.1)");
-  glowGrad.addColorStop(0.7, "rgba(180,185,200,0.03)");
+  var glowGrad = glowCtx.createRadialGradient(128, 128, 0, 128, 128, 128);
+  glowGrad.addColorStop(0, "rgba(245,240,230,0.75)");
+  glowGrad.addColorStop(0.08, "rgba(240,237,228,0.55)");
+  glowGrad.addColorStop(0.18, "rgba(230,228,222,0.35)");
+  glowGrad.addColorStop(0.3, "rgba(215,215,220,0.18)");
+  glowGrad.addColorStop(0.5, "rgba(195,200,212,0.07)");
+  glowGrad.addColorStop(0.7, "rgba(180,185,200,0.02)");
   glowGrad.addColorStop(1, "rgba(160,170,190,0)");
   glowCtx.fillStyle = glowGrad;
-  glowCtx.fillRect(0, 0, 128, 128);
+  glowCtx.fillRect(0, 0, 256, 256);
   var glowTex = new THREE.CanvasTexture(glowCanvas);
   glowTex.colorSpace = THREE.SRGBColorSpace;
 
@@ -2106,9 +2108,9 @@ MoonRenderer.prototype.update = function(camera, moonDir, sunDir, moonPhase, sun
     this._glowMesh.visible = this._mesh.visible;
     if (this._glowMesh.visible && camera) {
       this._glowMesh.position.copy(this._mesh.position);
-      this._glowMesh.scale.setScalar(this._size * 18);
+      this._glowMesh.scale.setScalar(this._size * 30);
       this._glowMesh.lookAt(camera.position);
-      this._glowMesh.material.opacity = phaseBrightness * horizonFade * 0.55;
+      this._glowMesh.material.opacity = phaseBrightness * horizonFade * 0.72;
     }
   }
 };
@@ -3067,9 +3069,9 @@ function SkyWeatherAdvancedSystem(scene, settings) {
   // All checks use != null guard to avoid treating null/undefined as numeric
   var sky = this.settings.sky;
   if (sky.mieDirectionalG == null || sky.mieDirectionalG < 0.5) sky.mieDirectionalG = 0.76;
-  if (sky.exposure == null || sky.exposure < 0.5 || sky.exposure > 4) sky.exposure = 1.2;
-  if (sky.sunIntensity == null || sky.sunIntensity < 10) sky.sunIntensity = 22.0;
-  if (sky.nightBrightness == null) sky.nightBrightness = 0.2;
+  if (sky.exposure == null || sky.exposure < 0.2 || sky.exposure > 4) sky.exposure = 1.2;
+  if (sky.sunIntensity == null || sky.sunIntensity < 3) sky.sunIntensity = 22.0;
+  if (sky.nightBrightness == null) sky.nightBrightness = 0.12;
   var fog = this.settings.fog;
   if (fog.density != null && fog.density > 0.05) fog.density = 0.015;
   var clouds = this.settings.clouds;
@@ -3156,7 +3158,7 @@ function SkyWeatherAdvancedSystem(scene, settings) {
   this.atmosphere._exposure = initSky.exposure != null ? initSky.exposure : 1.2;
   this.atmosphere._mieG = initSky.mieDirectionalG != null ? initSky.mieDirectionalG : 0.76;
   this.atmosphere._starIntensity = initSky.starIntensity != null ? initSky.starIntensity : 1.0;
-  this.atmosphere._nightBrightness = initSky.nightBrightness != null ? initSky.nightBrightness : 0.2;
+  this.atmosphere._nightBrightness = initSky.nightBrightness != null ? initSky.nightBrightness : 0.12;
   this.atmosphere._solarTime = ts.solarTime != null ? ts.solarTime : 0.45;
   this.atmosphere._moonDir = [this.orbital.moonDirection.x, this.orbital.moonDirection.y, this.orbital.moonDirection.z];
   this.atmosphere.setSunDirection(this.orbital.sunDirection);
@@ -3201,7 +3203,7 @@ SkyWeatherAdvancedSystem.DEFAULTS = {
     mieCoefficient: 0.005,
     mieDirectionalG: 0.82,
     starIntensity: 1.0,
-    nightBrightness: 0.2,
+    nightBrightness: 0.12,
     exposure: 1.2,
     rayleighScale: 1.0,
     sunIntensity: 22.0,
@@ -3489,9 +3491,9 @@ SkyWeatherAdvancedSystem.prototype.updateSettings = function(patch) {
   // which may contain bad saved values that override our init sanitization
   var sky = this.settings.sky;
   if (sky.mieDirectionalG == null || sky.mieDirectionalG < 0.5) sky.mieDirectionalG = 0.76;
-  if (sky.exposure == null || sky.exposure < 0.3 || sky.exposure > 4) sky.exposure = 1.2;
-  if (sky.sunIntensity == null || sky.sunIntensity < 3) sky.sunIntensity = 22.0;
-  if (sky.nightBrightness == null) sky.nightBrightness = 0.2;
+  if (sky.exposure == null || sky.exposure < 0.2 || sky.exposure > 4) sky.exposure = 1.2;
+  if (sky.sunIntensity == null || sky.sunIntensity < 2) sky.sunIntensity = 22.0;
+  if (sky.nightBrightness == null) sky.nightBrightness = 0.12;
   var fog = this.settings.fog;
   if (fog.density != null && fog.density > 0.05) fog.density = 0.015;
   if (!fog.enabled) { fog.enabled = true; fog.density = fog.density != null ? fog.density : 0.002; }
