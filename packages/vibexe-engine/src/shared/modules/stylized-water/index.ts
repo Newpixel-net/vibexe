@@ -149,8 +149,6 @@ var DEFAULT_SETTINGS = {
   resolution: 1.0, // 1 vert per meter — smooth enough to avoid sharp facets
   followCamera: true,
   visible: true,
-  volumeDepth: 8, // depth of underwater volume floor below surface
-
   // Colors — high alpha for realistic water volume (not glass-like)
   shallowColor: { r: 0.4, g: 0.8, b: 0.9, a: 0.92 },
   deepColor: { r: 0.05, g: 0.15, b: 0.4, a: 0.98 },
@@ -615,24 +613,7 @@ StylizedWaterSystem.prototype._build = function() {
   this._underwaterMesh.frustumCulled = false;
   this.scene.add(this._underwaterMesh);
 
-  // Volume floor — visible from ABOVE through the water, gives depth/volume illusion
-  var vfDepth = s.volumeDepth || 8;
-  var vfGeo = new THREE.PlaneGeometry(s.scale * 1.2, s.scale * 1.2);
-  vfGeo.rotateX(-Math.PI / 2); // face upward (visible from above looking through water)
-  this._volumeFloorMat = new THREE.MeshBasicMaterial({
-    color: new THREE.Color(deep.r * 0.15, deep.g * 0.15, deep.b * 0.3),
-    transparent: true,
-    opacity: 0.95,
-    side: THREE.FrontSide,
-    depthWrite: false,
-    fog: true,
-  });
-  this._volumeFloorMesh = new THREE.Mesh(vfGeo, this._volumeFloorMat);
-  this._volumeFloorMesh.name = '__water_volume_floor__';
-  this._volumeFloorMesh.position.y = s.waterLevel - vfDepth;
-  this._volumeFloorMesh.renderOrder = 97;
-  this._volumeFloorMesh.frustumCulled = false;
-  this.scene.add(this._volumeFloorMesh);
+  // Volume floor removed — opaque underwater solid plane provides sufficient depth
 };
 
 // ── Texture Loading ────────────────────────────────────
@@ -1251,10 +1232,6 @@ StylizedWaterSystem.prototype._updateCameraFollow = function() {
     this._underwaterMesh.position.y = this._mesh.position.y - 0.15;
     this._underwaterMesh.position.z = this._mesh.position.z;
   }
-  if (this._volumeFloorMesh) {
-    this._volumeFloorMesh.position.x = this._mesh.position.x;
-    this._volumeFloorMesh.position.z = this._mesh.position.z;
-  }
 };
 
 // ── Underwater Camera Fog ──────────────────────────────
@@ -1505,7 +1482,6 @@ StylizedWaterSystem.prototype.updateSettings = function(patch) {
   if (this.settings.waterLevel !== oldLevel && this._mesh) {
     this._mesh.position.y = this.settings.waterLevel;
     if (this._underwaterMesh) this._underwaterMesh.position.y = this.settings.waterLevel - 0.15;
-    if (this._volumeFloorMesh) this._volumeFloorMesh.position.y = this.settings.waterLevel - (this.settings.volumeDepth || 8);
     window.__vibexe_waterLevel = this.settings.waterLevel;
   }
 
@@ -1626,12 +1602,13 @@ StylizedWaterSystem.prototype.dispose = function() {
   if (this._animFrameId) cancelAnimationFrame(this._animFrameId);
 
   if (this._mesh && this.scene) this.scene.remove(this._mesh);
-  if (this._underwaterMesh && this.scene) this.scene.remove(this._underwaterMesh);
-  if (this._volumeFloorMesh && this.scene) this.scene.remove(this._volumeFloorMesh);
+  if (this._underwaterMesh && this.scene) {
+    this.scene.remove(this._underwaterMesh);
+    if (this._underwaterMesh.geometry) this._underwaterMesh.geometry.dispose();
+  }
   if (this._geometry) this._geometry.dispose();
   if (this._material) this._material.dispose();
   if (this._underwaterMat) this._underwaterMat.dispose();
-  if (this._volumeFloorMat) this._volumeFloorMat.dispose();
 
   // Restore fog if underwater fog was active
   if (this._underwaterFogActive && this.scene) {
@@ -1855,10 +1832,6 @@ WaterBodyManager.prototype.handleBridgeMessage = function(type, payload) {
           psys._underwaterMesh.position.x = payload.position.x || 0;
           psys._underwaterMesh.position.z = payload.position.z || 0;
         }
-        if (psys._volumeFloorMesh) {
-          psys._volumeFloorMesh.position.x = payload.position.x || 0;
-          psys._volumeFloorMesh.position.z = payload.position.z || 0;
-        }
         this._requestSave();
       }
       return;
@@ -2004,7 +1977,6 @@ module.exports = {
 		resolution: 1.0,
 		followCamera: true,
 		visible: true,
-		volumeDepth: 8,
 		shallowColor: { r: 0.4, g: 0.8, b: 0.9, a: 0.92 },
 		deepColor: { r: 0.05, g: 0.15, b: 0.4, a: 0.98 },
 		horizonColor: { r: 0.6, g: 0.8, b: 1.0, a: 0.5 },
