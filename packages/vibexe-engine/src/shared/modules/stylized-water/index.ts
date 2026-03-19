@@ -257,7 +257,7 @@ var PRESETS = {
     causticsEnabled: true, causticsBrightness: 2.0, causticsTiling: 0.8,
     normalStrength: 0.3, normalSpeed: 0.05,
     translucencyStrength: 0.3,
-    refractionEnabled: true, refractionStrength: 0.4, refractionThickness: 3.0,
+    refractionEnabled: false, refractionStrength: 0.4, refractionThickness: 3.0,
   },
   river: {
     shallowColor: { r: 0.35, g: 0.7, b: 0.65, a: 0.75 },
@@ -325,7 +325,7 @@ var PRESETS = {
     translucencyStrength: 0.6,
     normalStrength: 0.7, normalSpeed: 0.1,
     sparkleIntensity: 0.3,
-    refractionEnabled: true, refractionStrength: 0.25, refractionThickness: 2.5,
+    refractionEnabled: false, refractionStrength: 0.25, refractionThickness: 2.5,
   },
   murky: {
     shallowColor: { r: 0.3, g: 0.3, b: 0.2, a: 0.92 },
@@ -729,7 +729,7 @@ StylizedWaterSystem.prototype._animLoop = function() {
   this._lastTime = now;
   this._time += dt;
 
-  // FPS tracking (Phase 7)
+  // FPS tracking (Phase 7) + auto-quality adjustment
   this._fpsFrames++;
   var fpsElapsed = now - this._fpsTime;
   if (fpsElapsed >= 5000) {
@@ -738,6 +738,13 @@ StylizedWaterSystem.prototype._animLoop = function() {
     this._fpsTime = now;
     if (this._currentFPS < 90) {
       console.warn('[StylizedWater] FPS: ' + this._currentFPS + ' (target: 90+)');
+    }
+    // Auto-disable refraction if FPS drops too low (it doubles render cost)
+    if (this._currentFPS > 0 && this._currentFPS < 40 && this._usePhysical && this.settings.refractionEnabled) {
+      this.settings.refractionEnabled = false;
+      this._material.transmission = 0;
+      this._material.needsUpdate = true;
+      console.warn('[StylizedWater] Auto-disabled refraction (FPS was ' + this._currentFPS + ')');
     }
   }
 
