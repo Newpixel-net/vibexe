@@ -92,6 +92,8 @@ export function getGameEditorBridgeScript(): string {
         // Skip population preview/heatmap overlays and spawned population objects
         if (child.name && child.name.indexOf("__pop_") === 0) continue;
         if (child.name && child.name.indexOf("pop_") === 0) continue;
+        // Skip water meshes (managed by water panel, not scene hierarchy)
+        if (child.name && (child.name.indexOf("StylizedWater") === 0 || child.name.indexOf("__water") === 0)) continue;
         // Skip stale character meshes - only keep the active player mesh
         if (child.name && child.name.indexOf("Character_") === 0) {
           var activePlayer = window.__vibexe_playerMesh__;
@@ -385,6 +387,8 @@ export function getGameEditorBridgeScript(): string {
         if (child.name === "__skyDome__" || child.name === "__default_ground__" || child.name === "__terrain_boundary_grid__") return;
         // Skip population preview overlays and spawned population objects
         if (child.name.indexOf("__pop_") === 0 || child.name.indexOf("pop_") === 0) return;
+        // Skip water meshes (follow camera = green box follows camera everywhere)
+        if (child.name.indexOf("StylizedWater") === 0 || child.name.indexOf("__water") === 0) return;
         meshes.push(child);
       }
     });
