@@ -361,10 +361,8 @@ function _buildWaterTSLMaterial(u, tex) {
     var cg = THREE.mix(u.uShallowColor.y, u.uDeepColor.y, density).toVar();
     var cb = THREE.mix(u.uShallowColor.z, u.uDeepColor.z, density).toVar();
     // Depth-driven alpha: transparent at surface, opaque deep
-    // 0.1 multiplier = slow ramp so objects 1-3m below surface stay visible
-    // At depth 1.5m (Ocean depthVert=1.5): ~20% opacity (character clearly visible)
-    // At depth 5m: ~53% opacity, at 10m+: ~80%+ (deep water opaque)
-    var depthAlpha = THREE.float(1.0).sub(THREE.exp(waterDepth.negate().mul(u.uDepthVert).mul(0.1)));
+    // At depth=0: alpha=0 (see-through), ramps to deepAlpha at depth
+    var depthAlpha = THREE.float(1.0).sub(THREE.exp(waterDepth.negate().mul(u.uDepthVert).mul(0.5)));
     var ca = depthAlpha.mul(u.uDeepAlpha).toVar();
 
     // =================================================================
