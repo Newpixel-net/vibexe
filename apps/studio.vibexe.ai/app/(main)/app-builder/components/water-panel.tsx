@@ -151,8 +151,8 @@ const PRESETS = [
 
 const NORMAL_MAPS = ["Smooth Waves", "Rough Waves", "Sharp Waves", "Stream Waves"];
 const NORMAL_MAP_FILES = ["SmoothWaves", "RoughWaves", "SharpWaves", "StreamWaves"];
-const FOAM_TEXTURES = ["Foam 1", "Foam 2", "Foam Sea", "Bubbles", "Fine Grain", "Heavy", "Ripple"];
-const FOAM_TEX_FILES = ["Foam1", "Foam2", "FoamSea", "FoamBubbles", "FoamFine", "FoamHeavy", "FoamRipple"];
+const FOAM_TEXTURES = ["Foam 1", "Foam 2", "Foam Sea"];
+const FOAM_TEX_FILES = ["Foam1", "Foam2", "FoamSea"];
 const INTERSECTION_STYLES = ["Sharp", "Smooth", "Ripple"];
 const TEX_THUMB_BASE = "/api/app-builder/media-stock-3d/water-textures/";
 

@@ -737,7 +737,7 @@ var PRESETS = {
     horizonColor: { r: 0.18, g: 0.35, b: 0.55, a: 0.45 },
     waveHeight: 1.0, waveSpeed: 0.7, waveSteepness: 0.35, waveCount: 4,
     depthVertical: 2.0, depthHorizontal: 1.0, horizonDistance: 6.0,
-    foamWaveAmount: 0.25, foamBaseAmount: 0.0,
+    foamTextureIndex: 2, foamWaveAmount: 0.25, foamBaseAmount: 0.0,
     roughness: 0.15, metalness: 0.35,
     causticsEnabled: true, causticsBrightness: 0.5,
     translucencyStrength: 0.6, translucencyExp: 8.0,
@@ -823,7 +823,7 @@ var PRESETS = {
     horizonColor: { r: 0.22, g: 0.40, b: 0.58, a: 0.5 },
     waveHeight: 0.5, waveSpeed: 0.9, waveSteepness: 0.4, waveCount: 4,
     depthVertical: 1.5, depthHorizontal: 1.0, horizonDistance: 5.0,
-    foamWaveAmount: 0.2, foamBaseAmount: 0.01,
+    foamTextureIndex: 2, foamWaveAmount: 0.2, foamBaseAmount: 0.01,
     roughness: 0.12, metalness: 0.4,
     causticsEnabled: true, causticsBrightness: 1.2, causticsDistortion: 0.4,
     translucencyStrength: 0.5, translucencyExp: 7.0,
@@ -860,7 +860,7 @@ var PRESETS = {
     horizonColor: { r: 0.30, g: 0.58, b: 0.75, a: 0.28 },
     waveHeight: 0.3, waveSpeed: 0.5, waveSteepness: 0.15, waveCount: 3,
     depthVertical: 0.5, depthHorizontal: 0.8, horizonDistance: 5.0,
-    foamWaveAmount: 0.06, foamBaseAmount: 0.0,
+    foamTextureIndex: 2, foamWaveAmount: 0.06, foamBaseAmount: 0.0,
     roughness: 0.05, metalness: 0.42,
     causticsEnabled: true, causticsBrightness: 2.5, causticsTiling: 0.7, causticsDistortion: 0.3,
     translucencyStrength: 0.8, translucencyExp: 5.0,
@@ -876,7 +876,7 @@ var PRESETS = {
     horizonColor: { r: 0.25, g: 0.45, b: 0.68, a: 0.38 },
     waveHeight: 0.4, waveSpeed: 0.75, waveSteepness: 0.28, waveCount: 3,
     depthVertical: 0.6, depthHorizontal: 0.8, horizonDistance: 5.0,
-    foamWaveAmount: 0.15, foamBaseAmount: 0.0,
+    foamTextureIndex: 2, foamWaveAmount: 0.15, foamBaseAmount: 0.0,
     roughness: 0.07, metalness: 0.45,
     causticsEnabled: true, causticsBrightness: 1.8, causticsTiling: 0.6, causticsDistortion: 0.25,
     translucencyStrength: 0.65, translucencyExp: 5.0,
@@ -892,7 +892,7 @@ var PRESETS = {
     horizonColor: { r: 0.22, g: 0.28, b: 0.32, a: 0.50 },
     waveHeight: 0.85, waveSpeed: 0.55, waveSteepness: 0.32, waveCount: 4,
     depthVertical: 2.5, depthHorizontal: 1.2, horizonDistance: 7.0,
-    foamWaveAmount: 0.22, foamBaseAmount: 0.02,
+    foamTextureIndex: 2, foamWaveAmount: 0.22, foamBaseAmount: 0.02,
     foamColor: { r: 0.80, g: 0.84, b: 0.82, a: 0.7 },
     roughness: 0.20, metalness: 0.30,
     causticsEnabled: false,
@@ -909,7 +909,7 @@ var PRESETS = {
     horizonColor: { r: 0.14, g: 0.16, b: 0.18, a: 0.60 },
     waveHeight: 1.1, waveSpeed: 1.4, waveSteepness: 0.38, waveCount: 4,
     depthVertical: 1.5, depthHorizontal: 0.8, horizonDistance: 4.0,
-    foamWaveAmount: 0.3, foamBaseAmount: 0.06,
+    foamTextureIndex: 2, foamWaveAmount: 0.3, foamBaseAmount: 0.06,
     foamColor: { r: 0.72, g: 0.75, b: 0.72, a: 0.7 },
     roughness: 0.4, metalness: 0.10,
     causticsEnabled: false,
@@ -929,7 +929,7 @@ var PRESETS = {
 
 var TEXTURE_BASE = '/api/app-builder/media-stock-3d/water-textures/';
 var NORMAL_MAP_NAMES = ['SmoothWaves', 'RoughWaves', 'SharpWaves', 'StreamWaves'];
-var FOAM_TEX_NAMES = ['Foam1', 'Foam2', 'FoamSea', 'FoamBubbles', 'FoamFine', 'FoamHeavy', 'FoamRipple'];
+var FOAM_TEX_NAMES = ['Foam1', 'Foam2', 'FoamSea'];
 var CAUSTIC_TEX_NAMES = ['Caustics_1', 'Caustics_2'];
 var _textureCache = {};
 
