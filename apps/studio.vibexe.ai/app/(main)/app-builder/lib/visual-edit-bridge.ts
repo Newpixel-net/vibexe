@@ -893,6 +893,11 @@ export function getVisualEditBridgeScript(): string {
         if (child.name && (child.name.indexOf("__particle_") === 0 || child.name.indexOf("__trail_") === 0)) continue;
         // Skip population preview overlays and spawned population objects
         if (child.name && (child.name.indexOf("__pop_") === 0 || child.name.indexOf("pop_") === 0)) continue;
+        // Skip cameras (view camera is not a scene object — selecting it draws
+        // a confusing green BoxHelper around the viewport) and water meshes
+        // (managed by the water panel, not the scene hierarchy)
+        if (child.isCamera) continue;
+        if (child.name && (child.name.indexOf("StylizedWater") === 0 || child.name.indexOf("__water") === 0)) continue;
         var s = serializeNode(child);
         if (s) children.push(s);
       }
