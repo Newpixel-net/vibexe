@@ -1166,10 +1166,26 @@ StylizedWaterSystem.prototype._updateCameraFollow = function() {
 
 StylizedWaterSystem.prototype._updateUnderwaterFog = function() {
   if (!this.camera || !this.scene) return;
+
+  // Only apply underwater fog for followCamera bodies (the main water surface).
+  // Non-followCamera bodies at arbitrary Y positions should NOT hijack scene.background/fog
+  // when the camera happens to orbit below their water level.
+  if (!this.settings.followCamera) {
+    // Restore fog if it was previously active (e.g. body config changed from follow→static)
+    if (this._underwaterFogActive) {
+      this._underwaterFogActive = false;
+      this.scene.fog = this._savedFog || null;
+      if (this._savedBgColor !== undefined) this.scene.background = this._savedBgColor;
+    }
+    return;
+  }
+
   var camY = this.camera.position.y;
   var waterSurface = this._mesh ? this._mesh.position.y : this.settings.waterLevel;
 
-  if (camY < waterSurface) {
+  // Require camera to be at least 0.5 units below water surface to trigger fog
+  // (prevents oscillation at the boundary)
+  if (camY < waterSurface - 0.5) {
     // Camera is underwater — apply underwater fog + tint
     if (!this._underwaterFogActive) {
       this._underwaterFogActive = true;
