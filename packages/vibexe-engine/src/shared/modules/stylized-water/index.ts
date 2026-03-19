@@ -360,7 +360,10 @@ function _buildWaterTSLMaterial(u, tex) {
     var cr = THREE.mix(u.uShallowColor.x, u.uDeepColor.x, density).toVar();
     var cg = THREE.mix(u.uShallowColor.y, u.uDeepColor.y, density).toVar();
     var cb = THREE.mix(u.uShallowColor.z, u.uDeepColor.z, density).toVar();
-    var ca = THREE.mix(u.uShallowAlpha, u.uDeepAlpha, density).toVar();
+    // Depth-driven alpha: transparent at surface, opaque deep
+    // At depth=0: alpha=0 (see-through), ramps to deepAlpha at depth
+    var depthAlpha = THREE.float(1.0).sub(THREE.exp(waterDepth.negate().mul(u.uDepthVert).mul(0.5)));
+    var ca = depthAlpha.mul(u.uDeepAlpha).toVar();
 
     // =================================================================
     // Phase 3: Dual scrolling normal maps with RNM blend
@@ -598,8 +601,9 @@ function _buildWaterTSLMaterial(u, tex) {
     // Use rawWaterDepth (pre-floor) so edges still fade properly at depth < 0.3
     var edgeA = rawWaterDepth.div(u.uEdgeFade.mul(0.5).add(0.001)).clamp(0, 1);
     ca.mulAssign(edgeA);
+    // Minimal floor — just prevents z-fighting flicker at exact shore edge
     var dABoost = rawWaterDepth.mul(0.3).clamp(0, 1);
-    ca.assign(THREE.max(ca, THREE.float(0.15).add(dABoost.mul(0.45))));
+    ca.assign(THREE.max(ca, THREE.float(0.02).add(dABoost.mul(0.1))));
 
     // --- Sky transparency: water with only sky behind it becomes invisible ---
     // Prevents large water planes from acting as dark overlays on the sky dome
