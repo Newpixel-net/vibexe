@@ -355,7 +355,7 @@ var PRESETS = {
 
 var TEXTURE_BASE = '/api/app-builder/media-stock-3d/water-textures/';
 var NORMAL_MAP_NAMES = ['SmoothWaves', 'RoughWaves', 'SharpWaves', 'StreamWaves'];
-var FOAM_TEX_NAMES = ['Foam1', 'Foam2', 'FoamSea'];
+var FOAM_TEX_NAMES = ['Foam1', 'Foam2', 'FoamSea', 'FoamBubbles', 'FoamFine', 'FoamHeavy', 'FoamRipple'];
 var CAUSTIC_TEX_NAMES = ['Caustics_1', 'Caustics_2'];
 var _textureCache = {};
 
@@ -407,9 +407,99 @@ function _loadTextureCanvas(name, size, callback) {
     callback(imageData.data, size);
   };
   img.onerror = function() {
-    console.warn('[StylizedWater] Failed to load canvas texture:', name);
+    // Generate procedural foam texture as fallback
+    var pData = _generateProceduralFoam(name, size);
+    if (pData) {
+      _canvasCache[key] = pData;
+      callback(pData.data, size);
+      console.log('[StylizedWater] Procedural foam generated: ' + name);
+    } else {
+      console.warn('[StylizedWater] Failed to load canvas texture:', name);
+    }
   };
   img.src = TEXTURE_BASE + name + '.webp';
+}
+
+/** Generate procedural foam textures for types without server files */
+function _generateProceduralFoam(name, size) {
+  var canvas = document.createElement('canvas');
+  canvas.width = size;
+  canvas.height = size;
+  var ctx = canvas.getContext('2d');
+  if (!ctx) return null;
+
+  // Noise helper
+  function hash(x, y) {
+    var n = Math.sin(x * 127.1 + y * 311.7) * 43758.5453;
+    return n - Math.floor(n);
+  }
+  function smoothNoise(x, y, freq) {
+    var fx = x * freq, fy = y * freq;
+    var ix = Math.floor(fx), iy = Math.floor(fy);
+    var dx = fx - ix, dy = fy - iy;
+    var a = hash(ix, iy), b = hash(ix+1, iy), c = hash(ix, iy+1), d = hash(ix+1, iy+1);
+    var sx = dx*dx*(3-2*dx), sy = dy*dy*(3-2*dy);
+    return a + (b-a)*sx + (c-a)*sy + (a-b-c+d)*sx*sy;
+  }
+  function fbm(x, y, octaves, freq) {
+    var v = 0, amp = 1, tot = 0;
+    for (var o = 0; o < octaves; o++) {
+      v += smoothNoise(x, y, freq) * amp;
+      tot += amp; freq *= 2.1; amp *= 0.5;
+    }
+    return v / tot;
+  }
+
+  var imageData = ctx.createImageData(size, size);
+  var d = imageData.data;
+
+  for (var py = 0; py < size; py++) {
+    for (var px = 0; px < size; px++) {
+      var u = px / size, v = py / size;
+      var val = 0;
+
+      if (name === 'FoamBubbles') {
+        // Voronoi-like bubbles
+        var minDist = 1;
+        for (var ci = 0; ci < 20; ci++) {
+          var cx = hash(ci, 0), cy = hash(0, ci);
+          var ddx = u - cx, ddy = v - cy;
+          // Tile wrap
+          if (ddx > 0.5) ddx -= 1; if (ddx < -0.5) ddx += 1;
+          if (ddy > 0.5) ddy -= 1; if (ddy < -0.5) ddy += 1;
+          var dist = Math.sqrt(ddx*ddx + ddy*ddy);
+          if (dist < minDist) minDist = dist;
+        }
+        val = 1 - _clamp(minDist * 8, 0, 1);
+        val = val * val * 0.9 + fbm(u, v, 3, 8) * 0.1;
+      } else if (name === 'FoamFine') {
+        // Fine grain noise foam
+        val = fbm(u, v, 6, 12) * 0.7 + fbm(u + 5.3, v + 1.7, 4, 24) * 0.3;
+        val = _clamp(val * 1.4 - 0.15, 0, 1);
+      } else if (name === 'FoamHeavy') {
+        // Thick chunky foam
+        var n1 = fbm(u, v, 3, 4);
+        var n2 = fbm(u + 2.7, v + 6.1, 3, 6);
+        val = _clamp((n1 + n2) * 0.8 - 0.1, 0, 1);
+        val = val > 0.35 ? 1 : val * 2;
+      } else if (name === 'FoamRipple') {
+        // Concentric ripple foam
+        var rx = u - 0.5, ry = v - 0.5;
+        var rd = Math.sqrt(rx*rx + ry*ry);
+        var ripple = Math.sin(rd * 30) * 0.5 + 0.5;
+        val = ripple * fbm(u, v, 4, 8);
+        val = _clamp(val * 1.5, 0, 1);
+      } else {
+        val = fbm(u, v, 4, 6);
+      }
+
+      var vi = Math.round(_clamp(val, 0, 1) * 255);
+      var idx = (py * size + px) * 4;
+      d[idx] = vi; d[idx+1] = vi; d[idx+2] = vi; d[idx+3] = 255;
+    }
+  }
+  ctx.putImageData(imageData, 0, 0);
+  return imageData;
 }
 
 /** Sample a pixel from ImageData at tiled UV coordinates */

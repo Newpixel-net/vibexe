@@ -140,8 +140,8 @@ const PRESETS = [
 
 const NORMAL_MAPS = ["Smooth Waves", "Rough Waves", "Sharp Waves", "Stream Waves"];
 const NORMAL_MAP_FILES = ["SmoothWaves", "RoughWaves", "SharpWaves", "StreamWaves"];
-const FOAM_TEXTURES = ["Foam 1", "Foam 2", "Foam Sea"];
-const FOAM_TEX_FILES = ["Foam1", "Foam2", "FoamSea"];
+const FOAM_TEXTURES = ["Foam 1", "Foam 2", "Foam Sea", "Bubbles", "Fine Grain", "Heavy", "Ripple"];
+const FOAM_TEX_FILES = ["Foam1", "Foam2", "FoamSea", "FoamBubbles", "FoamFine", "FoamHeavy", "FoamRipple"];
 const INTERSECTION_STYLES = ["Sharp", "Smooth", "Ripple"];
 const TEX_THUMB_BASE = "/api/app-builder/media-stock-3d/water-textures/";
 
@@ -364,7 +364,7 @@ export function WaterPanel({ sendToIframe, onClose, settings, onChange, onSave }
 					<select
 						value={activeBodyId}
 						onChange={(e) => selectBody(e.target.value)}
-						className="flex-1 bg-white/5 border border-white/10 rounded text-[10px] text-white/70 px-1.5 py-1 truncate"
+						className="flex-1 bg-[#1a1a1f] border border-white/10 rounded text-[10px] text-white/70 px-1.5 py-1 truncate [&>option]:bg-[#1a1a1f] [&>option]:text-white/80"
 					>
 						{bodies.map((b) => (
 							<option key={b.id} value={b.id}>{b.name}</option>
@@ -426,7 +426,7 @@ export function WaterPanel({ sendToIframe, onClose, settings, onChange, onSave }
 									type="text"
 									value={bodies.find((b) => b.id === activeBodyId)?.name || ""}
 									onChange={(e) => renameBody(e.target.value)}
-									className="flex-1 bg-white/5 border border-white/10 rounded text-[10px] text-white/70 px-1.5 py-0.5"
+									className="flex-1 bg-[#1a1a1f] border border-white/10 rounded text-[10px] text-white/70 px-1.5 py-0.5 [&>option]:bg-[#1a1a1f] [&>option]:text-white/80"
 								/>
 							</div>
 						)}
@@ -499,7 +499,7 @@ export function WaterPanel({ sendToIframe, onClose, settings, onChange, onSave }
 							<select
 								value={config.normalMapIndex ?? 0}
 								onChange={(e) => sendConfig({ normalMapIndex: parseInt(e.target.value) })}
-								className="flex-1 bg-white/5 border border-white/10 rounded text-[10px] text-white/70 px-1.5 py-0.5"
+								className="flex-1 bg-[#1a1a1f] border border-white/10 rounded text-[10px] text-white/70 px-1.5 py-0.5 [&>option]:bg-[#1a1a1f] [&>option]:text-white/80"
 							>
 								{NORMAL_MAPS.map((name, i) => (
 									<option key={name} value={i}>{name}</option>
@@ -571,7 +571,7 @@ export function WaterPanel({ sendToIframe, onClose, settings, onChange, onSave }
 							<select
 								value={config.foamTextureIndex ?? 0}
 								onChange={(e) => sendConfig({ foamTextureIndex: parseInt(e.target.value) })}
-								className="flex-1 bg-white/5 border border-white/10 rounded text-[10px] text-white/70 px-1.5 py-0.5"
+								className="flex-1 bg-[#1a1a1f] border border-white/10 rounded text-[10px] text-white/70 px-1.5 py-0.5 [&>option]:bg-[#1a1a1f] [&>option]:text-white/80"
 							>
 								{FOAM_TEXTURES.map((name, i) => (
 									<option key={name} value={i}>{name}</option>
@@ -603,7 +603,7 @@ export function WaterPanel({ sendToIframe, onClose, settings, onChange, onSave }
 							<select
 								value={config.intersectionStyle ?? 1}
 								onChange={(e) => sendConfig({ intersectionStyle: parseInt(e.target.value) })}
-								className="flex-1 bg-white/5 border border-white/10 rounded text-[10px] text-white/70 px-1.5 py-0.5"
+								className="flex-1 bg-[#1a1a1f] border border-white/10 rounded text-[10px] text-white/70 px-1.5 py-0.5 [&>option]:bg-[#1a1a1f] [&>option]:text-white/80"
 							>
 								{INTERSECTION_STYLES.map((name, i) => (
 									<option key={name} value={i}>{name}</option>
