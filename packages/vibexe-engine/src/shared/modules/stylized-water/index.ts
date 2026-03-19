@@ -151,9 +151,9 @@ var DEFAULT_SETTINGS = {
   visible: true,
   volumeDepth: 8, // depth of underwater volume floor below surface
 
-  // Colors — higher minimum alpha so water is never fully transparent
-  shallowColor: { r: 0.4, g: 0.8, b: 0.9, a: 0.88 },
-  deepColor: { r: 0.05, g: 0.15, b: 0.4, a: 0.96 },
+  // Colors — high alpha for realistic water volume (not glass-like)
+  shallowColor: { r: 0.4, g: 0.8, b: 0.9, a: 0.92 },
+  deepColor: { r: 0.05, g: 0.15, b: 0.4, a: 0.98 },
   horizonColor: { r: 0.6, g: 0.8, b: 1.0, a: 0.5 },
   horizonDistance: 3.0,
   depthVertical: 1.0,
@@ -597,21 +597,19 @@ StylizedWaterSystem.prototype._build = function() {
 
   this.scene.add(this._mesh);
 
-  // Underwater plane — opaque surface below water for visibility from underneath
-  var uwGeo = new THREE.PlaneGeometry(s.scale * 1.2, s.scale * 1.2);
-  uwGeo.rotateX(Math.PI / 2); // face downward (visible from below)
+  // Underwater ceiling — SHARES wave geometry, BackSide only (visible from below)
+  // Uses same geometry as water surface so waves match perfectly — no flat plane artifact
   this._underwaterMat = new THREE.MeshBasicMaterial({
-    color: new THREE.Color(deep.r * 0.6, deep.g * 0.6, deep.b * 0.8),
-    transparent: true,
-    opacity: 0.85,
-    side: THREE.FrontSide,
-    depthWrite: false,
+    color: new THREE.Color(deep.r * 0.15, deep.g * 0.2, deep.b * 0.45),
+    transparent: false,
+    side: THREE.BackSide,
+    depthWrite: true,
     fog: true,
   });
-  this._underwaterMesh = new THREE.Mesh(uwGeo, this._underwaterMat);
+  this._underwaterMesh = new THREE.Mesh(this._geometry, this._underwaterMat);
   this._underwaterMesh.name = '__water_underside__';
-  this._underwaterMesh.position.y = s.waterLevel - 0.05; // slightly below water surface
-  this._underwaterMesh.renderOrder = 99;
+  this._underwaterMesh.position.y = s.waterLevel;
+  this._underwaterMesh.renderOrder = 98;
   this._underwaterMesh.frustumCulled = false;
   this.scene.add(this._underwaterMesh);
 
@@ -1208,9 +1206,9 @@ StylizedWaterSystem.prototype._updateColors = function() {
     }
 
     // ── Minimum alpha floor (prevent fully transparent water) ──
-    // Deeper water = more opaque; shallow shore = transparent
-    var depthAlphaBoost = _saturate(depth * 0.3);
-    a = Math.max(a, 0.4 + depthAlphaBoost * 0.45);
+    // Deeper water = more opaque; shallow shore keeps edge fade
+    var depthAlphaBoost = _saturate(depth * 0.4);
+    a = Math.max(a, 0.5 + depthAlphaBoost * 0.42);
 
     // ── Final output ──
     colors[i4]     = _saturate(r);
@@ -1245,9 +1243,10 @@ StylizedWaterSystem.prototype._updateCameraFollow = function() {
   this._mesh.position.x = Math.round(camX / cellSize) * cellSize;
   this._mesh.position.z = Math.round(camZ / cellSize) * cellSize;
 
-  // Sync underwater plane + volume floor
+  // Sync underwater ceiling + volume floor (shared geometry follows automatically)
   if (this._underwaterMesh) {
     this._underwaterMesh.position.x = this._mesh.position.x;
+    this._underwaterMesh.position.y = this._mesh.position.y;
     this._underwaterMesh.position.z = this._mesh.position.z;
   }
   if (this._volumeFloorMesh) {
@@ -1503,7 +1502,7 @@ StylizedWaterSystem.prototype.updateSettings = function(patch) {
   // Update water level
   if (this.settings.waterLevel !== oldLevel && this._mesh) {
     this._mesh.position.y = this.settings.waterLevel;
-    if (this._underwaterMesh) this._underwaterMesh.position.y = this.settings.waterLevel - 0.05;
+    if (this._underwaterMesh) this._underwaterMesh.position.y = this.settings.waterLevel;
     if (this._volumeFloorMesh) this._volumeFloorMesh.position.y = this.settings.waterLevel - (this.settings.volumeDepth || 8);
     window.__vibexe_waterLevel = this.settings.waterLevel;
   }
@@ -1564,6 +1563,8 @@ StylizedWaterSystem.prototype._rebuildGeometry = function() {
   this._geometry.setAttribute('color', new THREE.BufferAttribute(this._vertexColors, 4));
 
   this._mesh.geometry = this._geometry;
+  // Underwater ceiling shares geometry with water surface
+  if (this._underwaterMesh) this._underwaterMesh.geometry = this._geometry;
   console.log('[StylizedWater] Rebuilt geometry — verts:' + vertCount);
 };
 
@@ -1997,8 +1998,8 @@ module.exports = {
 		followCamera: true,
 		visible: true,
 		volumeDepth: 8,
-		shallowColor: { r: 0.4, g: 0.8, b: 0.9, a: 0.88 },
-		deepColor: { r: 0.05, g: 0.15, b: 0.4, a: 0.96 },
+		shallowColor: { r: 0.4, g: 0.8, b: 0.9, a: 0.92 },
+		deepColor: { r: 0.05, g: 0.15, b: 0.4, a: 0.98 },
 		horizonColor: { r: 0.6, g: 0.8, b: 1.0, a: 0.5 },
 		horizonDistance: 3.0,
 		depthVertical: 1.0,
