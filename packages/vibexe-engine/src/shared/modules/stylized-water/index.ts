@@ -334,8 +334,10 @@ function _buildWaterTSLMaterial(u, tex) {
     // Clamp to valid range to handle edge cases (sky, no geometry behind water)
     sceneLinZ = sceneLinZ.clamp(near, far);
     var fragLinZ = THREE.positionView.z.negate();
-    var waterDepth = THREE.max(sceneLinZ.sub(fragLinZ), THREE.float(0.0));
-    waterDepth = THREE.min(waterDepth, THREE.float(50.0));
+    var rawWaterDepth = THREE.max(sceneLinZ.sub(fragLinZ), THREE.float(0.0));
+    rawWaterDepth = THREE.min(rawWaterDepth, THREE.float(50.0));
+    // Floor at 0.3 prevents near-zero depth instability (flashing) from underwater plane
+    var waterDepth = THREE.max(rawWaterDepth, THREE.float(0.3));
 
     // --- Depth-based color ---
     var depthAtten = THREE.float(1.0).sub(THREE.exp(waterDepth.negate().mul(u.uDepthVert).mul(0.25)));
@@ -403,6 +405,9 @@ function _buildWaterTSLMaterial(u, tex) {
       waveN.y,
       waveN.z.add(rnmResult.y.mul(u.uNormalStrength))
     )).toVar();
+
+    // Clamp normal Y to be positive — water surface normal should always point upward
+    N.assign(THREE.normalize(THREE.vec3(N.x, THREE.max(N.y, THREE.float(0.1)), N.z)));
 
     // --- Fresnel (Schlick) using perturbed normal ---
     var NdotV = THREE.dot(N, viewDir).clamp(0, 1);
@@ -483,7 +488,8 @@ function _buildWaterTSLMaterial(u, tex) {
 
     // Smooth intersection: noise * foamTex * (1-dist)^2
     var intVal = noiseSamp.r.mul(intFoamSamp.r).add(intMask).clamp(0, 1).mul(intMask).mul(intMask);
-    intAmount.assign(intVal.clamp(0, 1).mul(u.uIntEnabled));
+    // Reduce intersection foam dominance (was making shallow areas look beige/tan)
+    intAmount.assign(intVal.clamp(0, 1).mul(0.6).mul(u.uIntEnabled));
 
     // Blend intersection color
     cr.assign(THREE.mix(cr, u.uIntColor.x, intAmount));
@@ -570,9 +576,10 @@ function _buildWaterTSLMaterial(u, tex) {
     cb.assign(THREE.mix(cb, u.uHorizonColor.z, hT.mul(u.uHorizonAlpha)));
 
     // --- Edge fade (alpha near shore via depth buffer) ---
-    var edgeA = waterDepth.div(u.uEdgeFade.mul(0.5).add(0.001)).clamp(0, 1);
+    // Use rawWaterDepth (pre-floor) so edges still fade properly at depth < 0.3
+    var edgeA = rawWaterDepth.div(u.uEdgeFade.mul(0.5).add(0.001)).clamp(0, 1);
     ca.mulAssign(edgeA);
-    var dABoost = waterDepth.mul(0.4).clamp(0, 1);
+    var dABoost = rawWaterDepth.mul(0.4).clamp(0, 1);
     ca.assign(THREE.max(ca, THREE.float(0.5).add(dABoost.mul(0.42))));
 
     // --- Sun specular (Blinn-Phong) using perturbed normal ---
@@ -1144,6 +1151,11 @@ StylizedWaterSystem.prototype._build = function() {
   this._underwaterMesh.position.y = s.waterLevel - 0.15;
   this._underwaterMesh.renderOrder = 98;
   this._underwaterMesh.frustumCulled = false;
+  // TSL path: disable depthWrite so viewportDepthTexture sees real scene geometry,
+  // not the artificial underwater plane (prevents depth oscillation → color flashing)
+  if (this._useTSL) {
+    this._underwaterMat.depthWrite = false;
+  }
   this.scene.add(this._underwaterMesh);
 
   // Volume floor removed — opaque underwater solid plane provides sufficient depth
@@ -1316,7 +1328,7 @@ StylizedWaterSystem.prototype._animLoop = function() {
   // FPS tracking (Phase 7) + auto-quality adjustment
   this._fpsFrames++;
   var fpsElapsed = now - this._fpsTime;
-  if (fpsElapsed >= 5000) {
+  if (fpsElapsed >= 30000) {
     this._currentFPS = Math.round(this._fpsFrames / (fpsElapsed / 1000));
     this._fpsFrames = 0;
     this._fpsTime = now;
