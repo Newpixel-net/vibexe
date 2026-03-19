@@ -2306,8 +2306,8 @@ CloudSystem.prototype.updateTexture = function(atmosphere) {
   }
   var imgData = this._imgData;
   var pix = imgData.data;
-  // Clear previous cloud data (faster than createImageData each time)
-  for (var ci = 0; ci < pix.length; ci++) pix[ci] = 0;
+  // Clear previous cloud data — TypedArray.fill is ~50x faster than per-element loop
+  pix.fill(0);
   var hasCloud = false;
 
   // Cloud base color from sun altitude
@@ -2454,41 +2454,25 @@ CloudSystem.prototype.updateTexture = function(atmosphere) {
     }
   }
 
-  // Edge softening: 2-pass 5x1 separable blur on alpha for softer cloud edges (Tenkoku: fluffy)
+  // Edge softening: single-pass 3-wide horizontal blur on alpha (was 4-loop separable 5x1)
+  // Reduced from 4 full-texture passes to 1 to eliminate periodic frame stutter
   if (hasCloud) {
     if (!this._blurBuf || this._blurBuf.length !== W * H) this._blurBuf = new Uint8ClampedArray(W * H);
     var blurAlpha = this._blurBuf;
-    // Horizontal pass (5-wide)
     for (var by = 0; by < H; by++) {
-      for (var bx = 2; bx < W - 2; bx++) {
-        var sum = pix[((by) * W + bx - 2) * 4 + 3]
-                + pix[((by) * W + bx - 1) * 4 + 3] * 2
-                + pix[((by) * W + bx) * 4 + 3] * 3
-                + pix[((by) * W + bx + 1) * 4 + 3] * 2
-                + pix[((by) * W + bx + 2) * 4 + 3];
-        blurAlpha[by * W + bx] = Math.round(sum / 9);
+      var rowOff = by * W;
+      for (var bx = 1; bx < W - 1; bx++) {
+        blurAlpha[rowOff + bx] = (
+          pix[(rowOff + bx - 1) * 4 + 3] +
+          pix[(rowOff + bx) * 4 + 3] * 2 +
+          pix[(rowOff + bx + 1) * 4 + 3]
+        ) >> 2; // divide by 4 via bit shift (no Math.round)
       }
     }
-    // Write horizontal result back
     for (var by1 = 0; by1 < H; by1++) {
-      for (var bx1 = 2; bx1 < W - 2; bx1++) {
-        pix[(by1 * W + bx1) * 4 + 3] = blurAlpha[by1 * W + bx1];
-      }
-    }
-    // Vertical pass (5-tall)
-    for (var by2 = 2; by2 < H - 2; by2++) {
-      for (var bx2 = 0; bx2 < W; bx2++) {
-        var sum2 = pix[((by2 - 2) * W + bx2) * 4 + 3]
-                 + pix[((by2 - 1) * W + bx2) * 4 + 3] * 2
-                 + pix[((by2) * W + bx2) * 4 + 3] * 3
-                 + pix[((by2 + 1) * W + bx2) * 4 + 3] * 2
-                 + pix[((by2 + 2) * W + bx2) * 4 + 3];
-        blurAlpha[by2 * W + bx2] = Math.round(sum2 / 9);
-      }
-    }
-    for (var by3 = 2; by3 < H - 2; by3++) {
-      for (var bx3 = 0; bx3 < W; bx3++) {
-        pix[(by3 * W + bx3) * 4 + 3] = blurAlpha[by3 * W + bx3];
+      var ro = by1 * W;
+      for (var bx1 = 1; bx1 < W - 1; bx1++) {
+        pix[(ro + bx1) * 4 + 3] = blurAlpha[ro + bx1];
       }
     }
   }
@@ -4177,9 +4161,9 @@ function SkyWeatherAdvancedSystem(scene, settings) {
   this._time = 0;
   this._lastUpdate = Date.now();
   this._skyUpdateTimer = 0;
-  this._skyUpdateInterval = 2.0; // Recompute sky colors every 2 seconds (expensive)
-  this._cloudUpdateTimer = 0;
-  this._cloudUpdateInterval = 3.0; // Recompute cloud noise every 3 seconds (wind UV offset still per-frame)
+  this._skyUpdateInterval = 3.0; // Recompute sky colors every 3 seconds (expensive vertex color calc)
+  this._cloudUpdateTimer = 1.5; // Offset from sky timer to prevent both heavy ops on same frame
+  this._cloudUpdateInterval = 5.0; // Recompute cloud noise every 5 seconds (wind UV offset still per-frame)
 
   // Initialize all subsystems
   this.atmosphere.build(scene);
