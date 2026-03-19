@@ -18,6 +18,7 @@ import {
 	Lightbulb,
 	Moon,
 	CloudFog,
+	Palette,
 	RotateCcw,
 	Sparkles,
 	Star,
@@ -95,6 +96,9 @@ interface SkyWeatherConfig {
 		ambientAudio?: boolean;
 		audioVolume?: number;
 	};
+	theme?: {
+		active?: string | null;
+	};
 }
 
 interface SkyWeatherPanelProps {
@@ -106,7 +110,7 @@ interface SkyWeatherPanelProps {
 	moduleId?: string;
 }
 
-type SkyTab = "time" | "celestial" | "atmos" | "weather" | "fog" | "fx";
+type SkyTab = "time" | "celestial" | "atmos" | "weather" | "fog" | "fx" | "themes";
 
 const WEATHER_PRESETS = [
 	{ label: "Clear", icon: "☀️", clouds: { coverage: 0.05, brightness: 1.1 }, fog: { enabled: true, density: 0.0008, autoColor: true }, precipitation: { type: "none", intensity: 0 }, lightning: { enabled: false }, sky: { exposure: 1.3, sunIntensity: 24 } },
@@ -128,6 +132,19 @@ const TIME_PRESETS = [
 	{ label: "Dusk", time: 0.78, icon: "🌇", sky: { exposure: 0.85, rayleighScale: 1.4 } },
 	{ label: "Night", time: 0.0, icon: "🌙", sky: { exposure: 0.5, rayleighScale: 1.0 } },
 ];
+
+const SKYBOX_THEMES = [
+	{ id: "casual-day", label: "Casual Day", icon: "☀️", category: "Realistic" },
+	{ id: "cloudy-morning", label: "Cloudy Morning", icon: "🌤", category: "Realistic" },
+	{ id: "high-fantasy", label: "High Fantasy", icon: "✨", category: "Fantasy" },
+	{ id: "dark-storm", label: "Dark Storm", icon: "⛈", category: "Dramatic" },
+	{ id: "coriolis-night", label: "Coriolis Night", icon: "🌙", category: "Night" },
+	{ id: "skyhigh-clouds", label: "Sky High", icon: "☁️", category: "Clouds" },
+	{ id: "day-in-clouds", label: "Day in Clouds", icon: "⛅", category: "Clouds" },
+	{ id: "unearthly-red", label: "Unearthly Red", icon: "🔴", category: "Sci-Fi" },
+	{ id: "cosmic-cloud", label: "Cosmic Cloud", icon: "🌌", category: "Sci-Fi" },
+	{ id: "sunless-overcast", label: "Sunless", icon: "🌫", category: "Moody" },
+] as const;
 
 const ADVANCED_DEFAULTS: SkyWeatherConfig = {
 	time: { solarTime: 0.65, cycleLengthMinutes: 10, autoAdvance: true, latitude: 35, longitude: 136, timezone: 9, year: 2024, month: 6, day: 21 },
@@ -181,6 +198,7 @@ export function SkyWeatherPanel({ sendToIframe, onClose, settings, onChange, onS
 			lightning: { ...d.lightning, ...skyWeather?.lightning },
 			weather: { ...d.weather, ...skyWeather?.weather },
 			effects: { ...d.effects, ...skyWeather?.effects },
+			theme: { active: (skyWeather as SkyWeatherConfig | undefined)?.theme?.active ?? null },
 		};
 	});
 
@@ -204,6 +222,7 @@ export function SkyWeatherPanel({ sendToIframe, onClose, settings, onChange, onS
 			lightning: { ...cur.lightning, ...patch.lightning },
 			weather: { ...cur.weather, ...patch.weather },
 			effects: { ...cur.effects, ...patch.effects },
+			theme: { ...cur.theme, ...patch.theme },
 		};
 		setConfig(merged);
 		latestConfigRef.current = merged;
@@ -233,6 +252,7 @@ export function SkyWeatherPanel({ sendToIframe, onClose, settings, onChange, onS
 			{ id: "weather", label: "Weather", icon: Cloud },
 			{ id: "fog", label: "Fog", icon: CloudFog },
 			{ id: "fx", label: "FX", icon: Sparkles },
+			{ id: "themes", label: "Themes", icon: Palette },
 		]
 		: [
 			{ id: "time", label: "Time", icon: Clock },
@@ -661,6 +681,55 @@ export function SkyWeatherPanel({ sendToIframe, onClose, settings, onChange, onS
 									min={0} max={1} step={0.05} format={(v) => `${Math.round(v * 100)}%`}
 									onChange={(v) => sendConfig({ effects: { ...config.effects, audioVolume: v } })} />
 							)}
+						</div>
+					</>
+				)}
+
+				{/* ══════════════════════ THEMES ══════════════════════ */}
+				{activeTab === "themes" && (
+					<>
+						<SectionLabel icon={Palette} label="Sky Themes" />
+						<p className="text-[9px] text-white/30 mb-2">
+							Curated HDR sky environments. Clouds, weather & fog still work on top.
+						</p>
+
+						{/* Procedural mode button */}
+						<button type="button" onClick={() => {
+							sendToIframe({ type: "sky-weather-set-theme", payload: { themeId: null } });
+							sendConfig({ theme: { active: null } });
+						}}
+							className={`w-full mb-2 px-2 py-2 text-[10px] rounded-lg transition-all ${
+								!config.theme?.active
+									? "bg-amber-500/20 text-amber-300 ring-1 ring-amber-500/30"
+									: "bg-white/[0.04] text-white/40 hover:bg-white/[0.08]"
+							}`}
+						>
+							Procedural Sky (Default)
+						</button>
+
+						{/* Theme grid */}
+						<div className="grid grid-cols-2 gap-1.5">
+							{SKYBOX_THEMES.map((theme) => (
+								<button key={theme.id} type="button" onClick={() => {
+									sendToIframe({ type: "sky-weather-set-theme", payload: { themeId: theme.id } });
+									sendConfig({ theme: { active: theme.id } });
+								}}
+									className={`relative overflow-hidden rounded-lg transition-all ${
+										config.theme?.active === theme.id
+											? "ring-2 ring-amber-500/50"
+											: "hover:ring-1 hover:ring-white/20"
+									}`}
+								>
+									<img src={`/api/app-builder/media-stock-3d/skybox-themes/${theme.id}-thumb.jpg`}
+										alt={theme.label}
+										className="w-full h-14 object-cover"
+										loading="lazy"
+									/>
+									<div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/70 to-transparent px-1.5 py-1">
+										<span className="text-[9px] text-white/80">{theme.icon} {theme.label}</span>
+									</div>
+								</button>
+							))}
 						</div>
 					</>
 				)}

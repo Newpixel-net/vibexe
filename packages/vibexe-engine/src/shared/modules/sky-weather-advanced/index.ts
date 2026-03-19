@@ -4160,6 +4160,10 @@ function SkyWeatherAdvancedSystem(scene, settings) {
   this._cloudUpdateTimer = 0;
   this._cloudUpdateInterval = 3.0; // Recompute cloud noise every 3 seconds (wind UV offset still per-frame)
 
+  // Skybox theme state
+  this._themeTexture = null;      // THREE.Texture (loaded panoramic)
+  this._activeTheme = null;       // Current theme ID string
+
   // Initialize all subsystems
   this.atmosphere.build(scene);
   this.clouds.build(scene);
@@ -4212,6 +4216,12 @@ function SkyWeatherAdvancedSystem(scene, settings) {
   this.clouds._sunDir = [this.orbital.sunDirection.x, this.orbital.sunDirection.y, this.orbital.sunDirection.z];
   if (this.clouds._dome) this.clouds._dome.visible = this.clouds._coverage > 0.01;
   this.clouds.updateTexture(this.atmosphere);
+
+  // Restore saved skybox theme if present
+  var savedTheme = (this.settings.theme && this.settings.theme.active) ? this.settings.theme.active : null;
+  if (savedTheme && SKYBOX_THEMES[savedTheme]) {
+    this._loadTheme(savedTheme);
+  }
 
   // Hook into game loop
   this._animFrameId = null;
@@ -4328,8 +4338,8 @@ SkyWeatherAdvancedSystem.prototype._startLoop = function() {
 SkyWeatherAdvancedSystem.prototype._tick = function(dt) {
   var ts = this.settings.time || {};
 
-  // Orphan detection: re-add sky dome if removed from scene
-  if (this.atmosphere.dome && !this.atmosphere.dome.parent && this.scene) {
+  // Orphan detection: re-add sky dome if removed from scene (skip when theme active)
+  if (this.atmosphere.dome && !this.atmosphere.dome.parent && this.scene && !this._activeTheme) {
     this.scene.add(this.atmosphere.dome);
   }
 
@@ -4386,10 +4396,13 @@ SkyWeatherAdvancedSystem.prototype._tick = function(dt) {
     this.atmosphere.setSunDirection(this.orbital.sunDirection);
 
     // Sync scene.background to zenith color as fallback (dome gradient renders on top)
-    var zenithColor = this.atmosphere._computeSkyColor([0, 1, 0]);
-    if (this.scene) {
-      if (!this.scene.background) this.scene.background = new THREE.Color();
-      this.scene.background.setRGB(zenithColor[0], zenithColor[1], zenithColor[2]);
+    // Skip when skybox theme is active — theme texture IS the background
+    if (!this._activeTheme) {
+      var zenithColor = this.atmosphere._computeSkyColor([0, 1, 0]);
+      if (this.scene) {
+        if (!this.scene.background) this.scene.background = new THREE.Color();
+        this.scene.background.setRGB(zenithColor[0], zenithColor[1], zenithColor[2]);
+      }
     }
 
     // Overcast reduces exposure mildly (desaturation handles most of the dimming)
@@ -4555,6 +4568,18 @@ SkyWeatherAdvancedSystem.prototype.updateSettings = function(patch) {
     }
   }
 
+  // Handle theme changes from updateSettings
+  if (patch.theme !== undefined) {
+    var newTheme = patch.theme && patch.theme.active ? patch.theme.active : null;
+    if (newTheme !== this._activeTheme) {
+      if (newTheme) {
+        this._loadTheme(newTheme);
+      } else {
+        this._unloadTheme();
+      }
+    }
+  }
+
   // Force immediate sky recompute on settings change
   this._skyUpdateTimer = this._skyUpdateInterval;
   this._cloudUpdateTimer = this._cloudUpdateInterval;
@@ -4565,6 +4590,9 @@ SkyWeatherAdvancedSystem.prototype.destroy = function() {
     cancelAnimationFrame(this._animFrameId);
     this._animFrameId = null;
   }
+  // Dispose theme texture
+  if (this._themeTexture) { this._themeTexture.dispose(); this._themeTexture = null; }
+  this._activeTheme = null;
   // Restore original scene background
   if (this.scene && this._origBg !== undefined) {
     this.scene.background = this._origBg;
@@ -4650,6 +4678,105 @@ SkyWeatherAdvancedSystem.prototype.applyPreset = function(presetName) {
 
 
 // ============================================================
+// Skybox Themes — Curated HDR Sky Environments
+// ============================================================
+
+var SKYBOX_THEMES = {
+  "casual-day":       { label: "Casual Day",       fog: [0.55, 0.65, 0.78], ambient: 0.5,  sunTint: [1, 0.95, 0.9] },
+  "cloudy-morning":   { label: "Cloudy Morning",   fog: [0.6,  0.6,  0.58], ambient: 0.4,  sunTint: [1, 0.9, 0.7] },
+  "high-fantasy":     { label: "High Fantasy",     fog: [0.65, 0.55, 0.35], ambient: 0.45, sunTint: [1, 0.85, 0.6] },
+  "dark-storm":       { label: "Dark Storm",       fog: [0.25, 0.25, 0.28], ambient: 0.2,  sunTint: [0.7, 0.7, 0.8] },
+  "coriolis-night":   { label: "Coriolis Night",   fog: [0.05, 0.05, 0.1],  ambient: 0.1,  sunTint: [0.3, 0.3, 0.5] },
+  "skyhigh-clouds":   { label: "Sky High",         fog: [0.6,  0.65, 0.75], ambient: 0.5,  sunTint: [1, 0.95, 0.9] },
+  "day-in-clouds":    { label: "Day in Clouds",    fog: [0.65, 0.7,  0.8],  ambient: 0.5,  sunTint: [1, 0.95, 0.88] },
+  "unearthly-red":    { label: "Unearthly Red",    fog: [0.4,  0.12, 0.08], ambient: 0.25, sunTint: [1, 0.4, 0.2] },
+  "cosmic-cloud":     { label: "Cosmic Cloud",     fog: [0.08, 0.06, 0.15], ambient: 0.15, sunTint: [0.5, 0.4, 0.8] },
+  "sunless-overcast": { label: "Sunless",          fog: [0.45, 0.45, 0.48], ambient: 0.3,  sunTint: [0.8, 0.8, 0.85] },
+};
+
+SkyWeatherAdvancedSystem.prototype._loadTheme = function(themeId) {
+  var self = this;
+  var meta = SKYBOX_THEMES[themeId];
+  if (!meta) {
+    console.warn("[SkyWeatherAdvanced] Unknown theme: " + themeId);
+    return;
+  }
+
+  // Dispose previous theme texture
+  if (this._themeTexture) {
+    this._themeTexture.dispose();
+    this._themeTexture = null;
+  }
+
+  var url = "/api/app-builder/media-stock-3d/skybox-themes/" + themeId + ".jpg";
+  var loader = new THREE.TextureLoader();
+  loader.load(url, function(texture) {
+    texture.mapping = THREE.EquirectangularReflectionMapping;
+    texture.colorSpace = THREE.SRGBColorSpace;
+
+    self._themeTexture = texture;
+    self._activeTheme = themeId;
+
+    // Set as scene background
+    if (self.scene) {
+      self.scene.background = texture;
+    }
+
+    // Hide procedural domes
+    if (self.atmosphere.dome) self.atmosphere.dome.visible = false;
+    if (self.stars && self.stars._dome) self.stars._dome.visible = false;
+    if (self.sunDisk && self.sunDisk._mesh) self.sunDisk._mesh.visible = false;
+    if (self.moon && self.moon._mesh) self.moon._mesh.visible = false;
+
+    // Apply theme fog color
+    if (self.scene && self.scene.fog && meta.fog) {
+      self.scene.fog.color.setRGB(meta.fog[0], meta.fog[1], meta.fog[2]);
+    }
+
+    // Adjust ambient light intensity
+    if (self.lighting && self.lighting._ambientLight && meta.ambient != null) {
+      self.lighting._ambientLight.intensity = meta.ambient;
+    }
+
+    console.log("[SkyWeatherAdvanced] Theme loaded: " + themeId);
+  }, undefined, function(err) {
+    console.error("[SkyWeatherAdvanced] Failed to load theme: " + themeId, err);
+  });
+};
+
+SkyWeatherAdvancedSystem.prototype._unloadTheme = function() {
+  if (this._themeTexture) {
+    this._themeTexture.dispose();
+    this._themeTexture = null;
+  }
+  this._activeTheme = null;
+
+  // Restore procedural dome
+  if (this.atmosphere.dome) {
+    this.atmosphere.dome.visible = true;
+    if (!this.atmosphere.dome.parent && this.scene) {
+      this.scene.add(this.atmosphere.dome);
+    }
+  }
+  // Restore stars, sun disk, moon
+  if (this.stars && this.stars._dome) this.stars._dome.visible = true;
+  if (this.sunDisk && this.sunDisk._mesh) this.sunDisk._mesh.visible = true;
+  if (this.moon && this.moon._mesh) this.moon._mesh.visible = true;
+
+  // Restore scene.background to zenith color
+  if (this.scene) {
+    var zenithColor = this.atmosphere._computeSkyColor([0, 1, 0]);
+    this.scene.background = new THREE.Color(zenithColor[0], zenithColor[1], zenithColor[2]);
+  }
+
+  // Force sky recompute
+  this._skyUpdateTimer = this._skyUpdateInterval;
+
+  console.log("[SkyWeatherAdvanced] Theme unloaded, procedural sky restored");
+};
+
+
+// ============================================================
 // Bridge Message Handlers
 // ============================================================
 
@@ -4682,6 +4809,14 @@ SkyWeatherAdvancedSystem.prototype.handleBridgeMessage = function(type, payload)
     case "set-weather":
       if (payload.state) {
         this.weather.setState(payload.state);
+      }
+      break;
+
+    case "set-theme":
+      if (payload.themeId) {
+        this._loadTheme(payload.themeId);
+      } else {
+        this._unloadTheme();
       }
       break;
   }
@@ -4861,6 +4996,9 @@ module.exports = {
 			shootingStars: 0,
 			ambientAudio: false,
 			audioVolume: 0.5,
+		},
+		theme: {
+			active: null,
 		},
 	},
 };
