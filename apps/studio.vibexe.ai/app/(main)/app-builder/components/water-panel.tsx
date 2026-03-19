@@ -137,8 +137,11 @@ const PRESETS = [
 ] as const;
 
 const NORMAL_MAPS = ["Smooth Waves", "Rough Waves", "Sharp Waves", "Stream Waves"];
+const NORMAL_MAP_FILES = ["SmoothWaves", "RoughWaves", "SharpWaves", "StreamWaves"];
 const FOAM_TEXTURES = ["Foam 1", "Foam 2", "Foam Sea"];
+const FOAM_TEX_FILES = ["Foam1", "Foam2", "FoamSea"];
 const INTERSECTION_STYLES = ["Sharp", "Smooth", "Ripple"];
+const TEX_THUMB_BASE = "/api/app-builder/media-stock-3d/water-textures/";
 
 function colorToHex(c: { r: number; g: number; b: number }): string {
 	const r = Math.round(c.r * 255).toString(16).padStart(2, "0");
@@ -382,6 +385,11 @@ export function WaterPanel({ sendToIframe, onClose, settings, onChange, onSave }
 						<div className="text-[10px] text-white/30 uppercase tracking-wider mt-3 mb-1">Normal Map</div>
 						<div className="flex items-center gap-2">
 							<span className="text-[10px] text-white/50 w-[72px]">Map</span>
+							<img
+								src={`${TEX_THUMB_BASE}${NORMAL_MAP_FILES[config.normalMapIndex ?? 0]}-thumb.webp`}
+								className="w-6 h-6 rounded border border-white/10 object-cover"
+								alt=""
+							/>
 							<select
 								value={config.normalMapIndex ?? 0}
 								onChange={(e) => sendConfig({ normalMapIndex: parseInt(e.target.value) })}
@@ -449,6 +457,11 @@ export function WaterPanel({ sendToIframe, onClose, settings, onChange, onSave }
 
 						<div className="flex items-center gap-2 mt-1">
 							<span className="text-[10px] text-white/50 w-[72px]">Texture</span>
+							<img
+								src={`${TEX_THUMB_BASE}${FOAM_TEX_FILES[config.foamTextureIndex ?? 0]}-thumb.webp`}
+								className="w-6 h-6 rounded border border-white/10 object-cover"
+								alt=""
+							/>
 							<select
 								value={config.foamTextureIndex ?? 0}
 								onChange={(e) => sendConfig({ foamTextureIndex: parseInt(e.target.value) })}

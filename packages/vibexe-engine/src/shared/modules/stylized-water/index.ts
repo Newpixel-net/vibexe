@@ -586,15 +586,87 @@ StylizedWaterSystem.prototype._loadTextures = function() {
   var self = this;
   var s = this.settings;
 
-  // 1. Normal map → material.normalMap (GPU-side, UV-animated)
-  var normalName = NORMAL_MAP_NAMES[_clamp(s.normalMapIndex || 0, 0, NORMAL_MAP_NAMES.length - 1)];
-  _loadTexture(normalName, function(tex) {
-    if (self._material && self._usePBR) {
+  // 1. Dual normal map with RNM blending (Phase 2: true dual-layer)
+  // Loads TWO normal maps and blends them per-pixel using Reoriented Normal Mapping
+  var idx1 = _clamp(s.normalMapIndex || 0, 0, NORMAL_MAP_NAMES.length - 1);
+  var idx2 = (idx1 + 1) % NORMAL_MAP_NAMES.length; // next normal map for blending
+  var normalName1 = NORMAL_MAP_NAMES[idx1];
+  var normalName2 = NORMAL_MAP_NAMES[idx2];
+
+  // Also load the primary as a fallback (immediate display before RNM completes)
+  _loadTexture(normalName1, function(tex) {
+    if (self._material && self._usePBR && !self._rnmApplied) {
       self._material.normalMap = tex;
       self._material.normalScale.set(s.normalStrength || 0.5, -(s.normalStrength || 0.5));
       self._material.needsUpdate = true;
-      console.log('[StylizedWater] Normal map loaded: ' + normalName);
     }
+  });
+
+  // Load both normal maps for RNM blend
+  self._rnmApplied = false;
+  var rnmSize = 256;
+  var rnmData1 = null, rnmData2 = null;
+  var rnmLoaded = 0;
+
+  function onRNMReady() {
+    // Reoriented Normal Mapping blend on canvas
+    var canvas = document.createElement('canvas');
+    canvas.width = rnmSize;
+    canvas.height = rnmSize;
+    var ctx = canvas.getContext('2d');
+    var output = ctx.createImageData(rnmSize, rnmSize);
+    var out = output.data;
+
+    for (var p = 0; p < rnmSize * rnmSize; p++) {
+      var pi = p * 4;
+      // Decode normals from [0,1] to [-1,1]
+      var n1x = (rnmData1[pi] / 255) * 2 - 1;
+      var n1y = (rnmData1[pi+1] / 255) * 2 - 1;
+      var n1z = Math.max((rnmData1[pi+2] / 255) * 2 - 1, 0.01);
+      var n2x = (rnmData2[pi] / 255) * 2 - 1;
+      var n2y = (rnmData2[pi+1] / 255) * 2 - 1;
+      var n2z = Math.max((rnmData2[pi+2] / 255) * 2 - 1, 0.01);
+
+      // RNM formula: t = n1.xyz + vec3(0,0,1), u = n2.xyz * vec3(-1,-1,1)
+      // result = normalize(t * dot(t,u) - u * t.z)
+      var tx = n1x, ty = n1y, tz = n1z + 1;
+      var ux = -n2x, uy = -n2y, uz = n2z;
+      var d = tx * ux + ty * uy + tz * uz;
+      var rx = tx * d - ux * tz;
+      var ry = ty * d - uy * tz;
+      var rz = tz * d - uz * tz;
+
+      var len = Math.sqrt(rx*rx + ry*ry + rz*rz);
+      if (len > 0.001) { rx /= len; ry /= len; rz /= len; }
+
+      // Encode back to [0,1]
+      out[pi]   = Math.round(_clamp(rx * 0.5 + 0.5, 0, 1) * 255);
+      out[pi+1] = Math.round(_clamp(ry * 0.5 + 0.5, 0, 1) * 255);
+      out[pi+2] = Math.round(_clamp(rz * 0.5 + 0.5, 0, 1) * 255);
+      out[pi+3] = 255;
+    }
+
+    ctx.putImageData(output, 0, 0);
+    var tex = new THREE.CanvasTexture(canvas);
+    tex.wrapS = THREE.RepeatWrapping;
+    tex.wrapT = THREE.RepeatWrapping;
+    tex.generateMipmaps = true;
+
+    if (self._material && self._usePBR) {
+      self._material.normalMap = tex;
+      self._material.needsUpdate = true;
+      self._rnmApplied = true;
+      console.log('[StylizedWater] RNM-blended normal map: ' + normalName1 + ' + ' + normalName2);
+    }
+  }
+
+  _loadTextureCanvas(normalName1, rnmSize, function(d) {
+    rnmData1 = d; rnmLoaded++;
+    if (rnmLoaded === 2) onRNMReady();
+  });
+  _loadTextureCanvas(normalName2, rnmSize, function(d) {
+    rnmData2 = d; rnmLoaded++;
+    if (rnmLoaded === 2) onRNMReady();
   });
 
   // 2. Foam texture → CPU canvas for per-vertex sampling
@@ -1130,6 +1202,31 @@ StylizedWaterSystem.prototype._getSunColor = function() {
     }
   }
   return { r: 1.0, g: 0.95, b: 0.9 };
+};
+
+// ── FPS Query (Phase 7) ────────────────────────────────
+
+StylizedWaterSystem.prototype.getFPS = function() {
+  return this._currentFPS;
+};
+
+StylizedWaterSystem.prototype.getStats = function() {
+  return {
+    fps: this._currentFPS,
+    vertices: this._origPositions ? this._origPositions.length / 3 : 0,
+    material: this._usePhysical ? 'MeshPhysicalMaterial' : (this._usePBR ? 'MeshStandardMaterial' : 'MeshBasicMaterial'),
+    refraction: this._usePhysical && this.settings.refractionEnabled ? 'ON' : 'OFF',
+    textures: {
+      normalMap: this._rnmApplied ? 'RNM-blended' : (this._material && this._material.normalMap ? 'loaded' : 'none'),
+      foam: this._foamData ? 'loaded' : 'none',
+      caustics: this._causticsData ? 'loaded' : 'none',
+      noise: this._noiseData ? 'loaded' : 'none',
+      intFoam: this._intFoamData ? 'loaded' : 'none',
+    },
+    waterBodies: (window.__vibexe_waterBodies || []).length,
+    riverMode: !!this.settings.riverMode,
+    avgFoam: Math.round(this._avgFoam * 1000) / 1000,
+  };
 };
 
 // ── Vertex Color Painting API (Phase 5) ────────────────
