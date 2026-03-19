@@ -1094,10 +1094,11 @@ StylizedWaterSystem.prototype._animLoop = function() {
     }
   }
 
-  // Enforce mesh Y = waterLevel (prevents gizmo Y drift causing sky overlay bugs)
+  // Sync waterLevel FROM mesh position (gizmo is the source of truth, not saved settings)
   if (this._mesh && Math.abs(this._mesh.position.y - this.settings.waterLevel) > 0.01) {
-    this._mesh.position.y = this.settings.waterLevel;
-    if (this._underwaterMesh) this._underwaterMesh.position.y = this.settings.waterLevel - 0.5;
+    this.settings.waterLevel = this._mesh.position.y;
+    window.__vibexe_waterLevel = this._mesh.position.y;
+    if (this._tslU) this._tslU.uWaterLevel.value = this._mesh.position.y;
   }
 
   if (this._tslU) {
