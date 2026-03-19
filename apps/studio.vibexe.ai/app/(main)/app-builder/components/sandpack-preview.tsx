@@ -45,6 +45,7 @@ import {
 	Smartphone,
 	Tablet,
 	Undo2,
+	Waves,
 	X,
 } from "lucide-react";
 import { MobilePublishPanel } from "./mobile-publish-panel";
@@ -60,6 +61,7 @@ import { TerrainPainterPanel } from "./terrain-painter-panel";
 import { SkyWeatherPanel } from "./sky-weather-panel";
 import { CharacterSystemPanel } from "./character-system-panel";
 import { WorldBuilderPanel } from "./world-builder-panel";
+import { WaterPanel } from "./water-panel";
 import { GameRuntimeIframe } from "./game-runtime-iframe";
 import { DebugOverlay } from "./debug-overlay";
 import type { RightPanelView } from "./right-panel-tabs";
@@ -81,6 +83,7 @@ const MODULE_ICONS: Record<string, React.ComponentType<{ className?: string }>> 
 	PersonStanding,
 	Puzzle,
 	Layers,
+	Waves,
 };
 
 type DeviceSize = "desktop" | "tablet" | "mobile";
@@ -2898,6 +2901,23 @@ export function SandpackPreview({
 						<WorldBuilderPanel
 							sendToIframe={gameEditor.sendToIframe}
 							onClose={() => setActiveModulePanel(null)}
+						/>
+					) : activeModulePanel === "stylized-water" ? (
+						<WaterPanel
+							sendToIframe={gameEditor.sendToIframe}
+							onClose={() => setActiveModulePanel(null)}
+							settings={gameEditor.gameSettings}
+							onChange={(waterConfig) => {
+								gameEditor.updateGameSettings({ stylizedWater: waterConfig as unknown as Record<string, unknown> });
+							}}
+							onSave={(waterConfig) => {
+								const modules = { ...gameEditor.gameSettings.modules };
+								if (modules.installed?.["stylized-water"]) {
+									modules.installed = { ...modules.installed, "stylized-water": { ...modules.installed["stylized-water"], config: waterConfig as unknown as Record<string, unknown> } };
+								}
+								const updatedSettings = { ...gameEditor.gameSettings, stylizedWater: waterConfig as unknown as Record<string, unknown>, modules };
+								handleSaveSettings(updatedSettings);
+							}}
 						/>
 					) : gameEditor.isSettingsOpen ? (
 						<GameSettingsPanel
