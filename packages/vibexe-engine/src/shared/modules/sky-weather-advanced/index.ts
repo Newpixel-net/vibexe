@@ -2301,13 +2301,8 @@ CloudSystem.prototype.updateTexture = function(atmosphere) {
     return;
   }
 
-  if (!this._imgData || this._imgData.width !== W || this._imgData.height !== H) {
-    this._imgData = ctx.createImageData(W, H);
-  }
-  var imgData = this._imgData;
+  var imgData = ctx.createImageData(W, H);
   var pix = imgData.data;
-  // Clear previous cloud data — TypedArray.fill is ~50x faster than per-element loop
-  pix.fill(0);
   var hasCloud = false;
 
   // Cloud base color from sun altitude
@@ -4161,9 +4156,9 @@ function SkyWeatherAdvancedSystem(scene, settings) {
   this._time = 0;
   this._lastUpdate = Date.now();
   this._skyUpdateTimer = 0;
-  this._skyUpdateInterval = 3.0; // Recompute sky colors every 3 seconds (expensive vertex color calc)
-  this._cloudUpdateTimer = 1.5; // Offset from sky timer to prevent both heavy ops on same frame
-  this._cloudUpdateInterval = 5.0; // Recompute cloud noise every 5 seconds (wind UV offset still per-frame)
+  this._skyUpdateInterval = 2.0; // Recompute sky colors every 2 seconds
+  this._cloudUpdateTimer = 0;
+  this._cloudUpdateInterval = 3.0; // Recompute cloud noise every 3 seconds (wind UV offset still per-frame)
 
   // Initialize all subsystems
   this.atmosphere.build(scene);
