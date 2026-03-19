@@ -1747,6 +1747,28 @@ WaterBodyManager.prototype._sendBodyList = function() {
   }
 };
 
+// Request parent to persist full body state to DB
+WaterBodyManager.prototype._requestSave = function() {
+  var bodies = [];
+  for (var i = 0; i < this._bodyOrder.length; i++) {
+    var id = this._bodyOrder[i];
+    var sys = this._bodies[id];
+    if (sys) {
+      var cfg = _deepMerge({}, sys.settings);
+      cfg.id = id;
+      cfg.name = sys._displayName;
+      bodies.push(cfg);
+    }
+  }
+  if (window.parent && window.parent !== window) {
+    window.parent.postMessage({
+      type: 'stylized-water-save-all',
+      bodies: bodies,
+      selectedBodyId: this._activeBodyId,
+    }, '*');
+  }
+};
+
 WaterBodyManager.prototype._sendBodyConfig = function(id) {
   var sys = id ? this._bodies[id] : this.getActiveBody();
   if (!sys) return;
@@ -1783,6 +1805,7 @@ WaterBodyManager.prototype.handleBridgeMessage = function(type, payload) {
         this._activeBodyId = sys._bodyId;
         this._sendBodyList();
         this._sendBodyConfig(sys._bodyId);
+        this._requestSave();
       }
       return;
     }
@@ -1790,6 +1813,7 @@ WaterBodyManager.prototype.handleBridgeMessage = function(type, payload) {
       var rid = payload.bodyId || this._activeBodyId;
       if (this._bodyOrder.length <= 1) return;
       this.removeBody(rid);
+      this._requestSave();
       return;
     }
     case 'select-body': {
@@ -1806,6 +1830,7 @@ WaterBodyManager.prototype.handleBridgeMessage = function(type, payload) {
       if (rsys && payload.name) {
         rsys._displayName = payload.name;
         this._sendBodyList();
+        this._requestSave();
       }
       return;
     }
@@ -1822,6 +1847,11 @@ WaterBodyManager.prototype.handleBridgeMessage = function(type, payload) {
           psys._underwaterMesh.position.x = payload.position.x || 0;
           psys._underwaterMesh.position.z = payload.position.z || 0;
         }
+        if (psys._volumeFloorMesh) {
+          psys._volumeFloorMesh.position.x = payload.position.x || 0;
+          psys._volumeFloorMesh.position.z = payload.position.z || 0;
+        }
+        this._requestSave();
       }
       return;
     }

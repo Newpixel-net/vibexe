@@ -1618,6 +1618,15 @@ export function SandpackPreview({
 				}
 			} else if (data.type === "game-editor-object-deselected") {
 				gameEditor.updateSelectedObject(null);
+			} else if (data.type === "stylized-water-save-all") {
+				// Persist full multi-body water state to DB (triggered by add/remove/rename/move)
+				const finalWater = { bodies: data.bodies || [], selectedBodyId: data.selectedBodyId || "" };
+				const modules = { ...gameEditor.gameSettings.modules };
+				if (modules.installed?.["stylized-water"]) {
+					modules.installed = { ...modules.installed, "stylized-water": { ...modules.installed["stylized-water"], config: finalWater as unknown as Record<string, unknown> } };
+				}
+				const updatedSettings = { ...gameEditor.gameSettings, stylizedWater: finalWater as unknown as Record<string, unknown>, modules };
+				handleSaveSettings(updatedSettings);
 			} else if (data.type === "game-editor-gizmo-mode") {
 				gameEditor.setGizmoMode(data.mode as GizmoMode);
 			} else if (data.type === "game-editor-snap-changed") {
