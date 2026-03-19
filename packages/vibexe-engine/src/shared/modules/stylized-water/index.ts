@@ -144,11 +144,12 @@ function _sampleWaves(worldX, worldZ, time, s) {
 // ============================================================
 
 var DEFAULT_SETTINGS = {
-  waterLevel: 0,
+  waterLevel: -3,
   scale: 200,
   resolution: 1.0, // 1 vert per meter — smooth enough to avoid sharp facets
   followCamera: true,
   visible: true,
+  volumeDepth: 8, // depth of underwater volume floor below surface
 
   // Colors — higher minimum alpha so water is never fully transparent
   shallowColor: { r: 0.4, g: 0.8, b: 0.9, a: 0.88 },
@@ -613,6 +614,25 @@ StylizedWaterSystem.prototype._build = function() {
   this._underwaterMesh.renderOrder = 99;
   this._underwaterMesh.frustumCulled = false;
   this.scene.add(this._underwaterMesh);
+
+  // Volume floor — visible from ABOVE through the water, gives depth/volume illusion
+  var vfDepth = s.volumeDepth || 8;
+  var vfGeo = new THREE.PlaneGeometry(s.scale * 1.2, s.scale * 1.2);
+  vfGeo.rotateX(-Math.PI / 2); // face upward (visible from above looking through water)
+  this._volumeFloorMat = new THREE.MeshBasicMaterial({
+    color: new THREE.Color(deep.r * 0.15, deep.g * 0.15, deep.b * 0.3),
+    transparent: true,
+    opacity: 0.95,
+    side: THREE.FrontSide,
+    depthWrite: false,
+    fog: true,
+  });
+  this._volumeFloorMesh = new THREE.Mesh(vfGeo, this._volumeFloorMat);
+  this._volumeFloorMesh.name = '__water_volume_floor__';
+  this._volumeFloorMesh.position.y = s.waterLevel - vfDepth;
+  this._volumeFloorMesh.renderOrder = 97;
+  this._volumeFloorMesh.frustumCulled = false;
+  this.scene.add(this._volumeFloorMesh);
 };
 
 // ── Texture Loading ────────────────────────────────────
@@ -778,6 +798,9 @@ StylizedWaterSystem.prototype._animLoop = function() {
 
   // Camera follow every frame
   this._updateCameraFollow();
+
+  // Underwater camera fog (check every frame)
+  this._updateUnderwaterFog();
 
   // Physics buoyancy every 3 frames (Phase 5)
   if (this._colorCounter === 0) {
@@ -948,9 +971,9 @@ StylizedWaterSystem.prototype._updateColors = function() {
       depth = Math.max(0, wy - terrainH);
     }
 
-    // ── Depth density ──
-    var depthAtten = 1 - Math.exp(-depth * s.depthVertical * 0.1);
-    var heightAtten = 1 - Math.exp(-depth * s.depthHorizontal);
+    // ── Depth density (stronger attenuation for realistic water volume) ──
+    var depthAtten = 1 - Math.exp(-depth * s.depthVertical * 0.25);
+    var heightAtten = 1 - Math.exp(-depth * s.depthHorizontal * 1.5);
     var density = _saturate(Math.max(depthAtten, heightAtten));
 
     // ── Color absorption (Phase 3): Beer's law ──
@@ -1185,7 +1208,9 @@ StylizedWaterSystem.prototype._updateColors = function() {
     }
 
     // ── Minimum alpha floor (prevent fully transparent water) ──
-    a = Math.max(a, 0.4);
+    // Deeper water = more opaque; shallow shore = transparent
+    var depthAlphaBoost = _saturate(depth * 0.3);
+    a = Math.max(a, 0.4 + depthAlphaBoost * 0.45);
 
     // ── Final output ──
     colors[i4]     = _saturate(r);
@@ -1220,10 +1245,47 @@ StylizedWaterSystem.prototype._updateCameraFollow = function() {
   this._mesh.position.x = Math.round(camX / cellSize) * cellSize;
   this._mesh.position.z = Math.round(camZ / cellSize) * cellSize;
 
-  // Sync underwater plane
+  // Sync underwater plane + volume floor
   if (this._underwaterMesh) {
     this._underwaterMesh.position.x = this._mesh.position.x;
     this._underwaterMesh.position.z = this._mesh.position.z;
+  }
+  if (this._volumeFloorMesh) {
+    this._volumeFloorMesh.position.x = this._mesh.position.x;
+    this._volumeFloorMesh.position.z = this._mesh.position.z;
+  }
+};
+
+// ── Underwater Camera Fog ──────────────────────────────
+
+StylizedWaterSystem.prototype._updateUnderwaterFog = function() {
+  if (!this.camera || !this.scene) return;
+  var camY = this.camera.position.y;
+  var waterSurface = this._mesh ? this._mesh.position.y : this.settings.waterLevel;
+
+  if (camY < waterSurface) {
+    // Camera is underwater — apply underwater fog + tint
+    if (!this._underwaterFogActive) {
+      this._underwaterFogActive = true;
+      this._savedFog = this.scene.fog || null;
+      this._savedBgColor = this.scene.background;
+      var deep = this.settings.deepColor;
+      var fogColor = new THREE.Color(deep.r * 0.3, deep.g * 0.3, deep.b * 0.5);
+      this.scene.fog = new THREE.FogExp2(fogColor, 0.06);
+      this.scene.background = fogColor;
+    }
+    // Dynamically adjust fog density based on depth below surface
+    if (this.scene.fog && this.scene.fog.density !== undefined) {
+      var depthBelow = waterSurface - camY;
+      this.scene.fog.density = _clamp(0.03 + depthBelow * 0.008, 0.03, 0.15);
+    }
+  } else {
+    // Camera is above water — restore original fog
+    if (this._underwaterFogActive) {
+      this._underwaterFogActive = false;
+      this.scene.fog = this._savedFog || null;
+      if (this._savedBgColor !== undefined) this.scene.background = this._savedBgColor;
+    }
   }
 };
 
@@ -1442,6 +1504,7 @@ StylizedWaterSystem.prototype.updateSettings = function(patch) {
   if (this.settings.waterLevel !== oldLevel && this._mesh) {
     this._mesh.position.y = this.settings.waterLevel;
     if (this._underwaterMesh) this._underwaterMesh.position.y = this.settings.waterLevel - 0.05;
+    if (this._volumeFloorMesh) this._volumeFloorMesh.position.y = this.settings.waterLevel - (this.settings.volumeDepth || 8);
     window.__vibexe_waterLevel = this.settings.waterLevel;
   }
 
@@ -1556,9 +1619,17 @@ StylizedWaterSystem.prototype.dispose = function() {
 
   if (this._mesh && this.scene) this.scene.remove(this._mesh);
   if (this._underwaterMesh && this.scene) this.scene.remove(this._underwaterMesh);
+  if (this._volumeFloorMesh && this.scene) this.scene.remove(this._volumeFloorMesh);
   if (this._geometry) this._geometry.dispose();
   if (this._material) this._material.dispose();
   if (this._underwaterMat) this._underwaterMat.dispose();
+  if (this._volumeFloorMat) this._volumeFloorMat.dispose();
+
+  // Restore fog if underwater fog was active
+  if (this._underwaterFogActive && this.scene) {
+    this.scene.fog = this._savedFog || null;
+    if (this._savedBgColor !== undefined) this.scene.background = this._savedBgColor;
+  }
 
   // Remove from water bodies array
   var bodies = window.__vibexe_waterBodies || [];
@@ -1890,11 +1961,12 @@ module.exports = {
 		"stylized-water-sync-position": "handleSyncPosition",
 	},
 	defaultSettings: {
-		waterLevel: 0,
+		waterLevel: -3,
 		scale: 200,
 		resolution: 1.0,
 		followCamera: true,
 		visible: true,
+		volumeDepth: 8,
 		shallowColor: { r: 0.4, g: 0.8, b: 0.9, a: 0.88 },
 		deepColor: { r: 0.05, g: 0.15, b: 0.4, a: 0.96 },
 		horizonColor: { r: 0.6, g: 0.8, b: 1.0, a: 0.5 },

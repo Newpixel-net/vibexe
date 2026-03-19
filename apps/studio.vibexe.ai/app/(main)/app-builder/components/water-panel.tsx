@@ -88,7 +88,7 @@ interface WaterPanelProps {
 type WaterTab = "color" | "waves" | "foam" | "under" | "lighting" | "presets";
 
 const DEFAULTS: WaterConfig = {
-	waterLevel: 0,
+	waterLevel: -3,
 	scale: 200,
 	resolution: 0.5,
 	followCamera: true,
