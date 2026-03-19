@@ -566,26 +566,6 @@ function _buildWaterTSLMaterial(u, tex) {
     cg.addAssign(causticG.mul(cBright).mul(0.3));
     cb.addAssign(causticB.mul(cBright).mul(0.25));
 
-    // =================================================================
-    // Phase 4: Sparkle effect (hash-based per-pixel)
-    // =================================================================
-    // Hash function: fract(sin(dot(pos, constants)) * 43758.5453)
-    var sparkInput = worldPos.x.mul(127.1).add(worldPos.z.mul(311.7)).add(u.uTime.mul(5.0));
-    var sparkHash = THREE.fract(THREE.sin(sparkInput).mul(43758.5453));
-
-    // sparkle fires when hash > sparkleSize threshold
-    var sparkleThresh = THREE.step(u.uSparkleSize, sparkHash);
-    var sparkleVal = sparkHash.sub(u.uSparkleSize).div(THREE.float(1.0).sub(u.uSparkleSize).add(0.001)).clamp(0, 1);
-    sparkleVal = sparkleVal.mul(sparkleThresh).mul(u.uSparkleIntensity);
-
-    // Only sparkle where lit by sun (NdotL > 0)
-    var sparkNdotL = THREE.dot(N, u.uSunDir).clamp(0, 1);
-    sparkleVal = sparkleVal.mul(sparkNdotL);
-
-    cr.addAssign(sparkleVal.mul(u.uSunColor.x));
-    cg.addAssign(sparkleVal.mul(u.uSunColor.y));
-    cb.addAssign(sparkleVal.mul(u.uSunColor.z));
-
     // --- Horizon distance blend ---
     var dCam = THREE.length(worldPos.sub(THREE.cameraPosition));
     var hT = THREE.smoothstep(THREE.float(0), u.uHorizonDist.mul(100.0), dCam);
@@ -613,6 +593,21 @@ function _buildWaterTSLMaterial(u, tex) {
     cr.addAssign(spec.mul(u.uSunColor.x).mul(fresnel));
     cg.addAssign(spec.mul(u.uSunColor.y).mul(fresnel));
     cb.addAssign(spec.mul(u.uSunColor.z).mul(fresnel));
+
+    // =================================================================
+    // Phase 4: Sparkle — normal-map-driven specular glints
+    // Reuses H and NdotH from Blinn-Phong above. Very high exponent
+    // makes only near-perfect reflection angles produce output. The
+    // dual scrolling normal maps naturally break the specular lobe
+    // into organic, wave-following glint patches (like Unity SWA2).
+    // =================================================================
+    var sparkT = u.uSparkleSize.sub(0.5).mul(2.0).clamp(0, 1);
+    var sparkExp = THREE.mix(THREE.float(128.0), THREE.float(2048.0), sparkT);
+    var sparkleRaw = THREE.pow(NdotH, sparkExp);
+    var sparkleVal = sparkleRaw.mul(u.uSparkleIntensity).mul(3.0);
+    cr.addAssign(sparkleVal.mul(u.uSunColor.x));
+    cg.addAssign(sparkleVal.mul(u.uSunColor.y));
+    cb.addAssign(sparkleVal.mul(u.uSunColor.z));
 
     // --- Translucency / SSS ---
     var tDir = worldPos.sub(THREE.cameraPosition).normalize();
