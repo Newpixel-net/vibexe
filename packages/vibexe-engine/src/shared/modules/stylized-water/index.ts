@@ -257,6 +257,7 @@ var PRESETS = {
     causticsEnabled: true, causticsBrightness: 2.0, causticsTiling: 0.8,
     normalStrength: 0.3, normalSpeed: 0.05,
     translucencyStrength: 0.3,
+    refractionEnabled: true, refractionStrength: 0.4, refractionThickness: 3.0,
   },
   river: {
     shallowColor: { r: 0.35, g: 0.7, b: 0.65, a: 0.75 },
@@ -320,10 +321,11 @@ var PRESETS = {
     depthVertical: 1.2, depthHorizontal: 1.0, horizonDistance: 5.0,
     foamWaveAmount: 0.3, foamBaseAmount: 0.02,
     roughness: 0.08, metalness: 0.5,
-    causticsEnabled: true, causticsBrightness: 1.5,
+    causticsEnabled: true, causticsBrightness: 1.5, causticsDistortion: 0.5,
     translucencyStrength: 0.6,
     normalStrength: 0.7, normalSpeed: 0.1,
     sparkleIntensity: 0.3,
+    refractionEnabled: true, refractionStrength: 0.25, refractionThickness: 2.5,
   },
   murky: {
     shallowColor: { r: 0.3, g: 0.3, b: 0.2, a: 0.92 },
@@ -460,6 +462,12 @@ function StylizedWaterSystem(scene, camera, settings) {
   // Performance: stagger color updates
   this._colorCounter = 0;
   this._colorInterval = 2;
+
+  // FPS tracking (Phase 7)
+  this._fpsFrames = 0;
+  this._fpsTime = Date.now();
+  this._currentFPS = 0;
+  this._avgFoam = 0; // average foam for normal flattening
 
   // Build water
   this._build();
@@ -628,6 +636,18 @@ StylizedWaterSystem.prototype._animLoop = function() {
   this._lastTime = now;
   this._time += dt;
 
+  // FPS tracking (Phase 7)
+  this._fpsFrames++;
+  var fpsElapsed = now - this._fpsTime;
+  if (fpsElapsed >= 5000) {
+    this._currentFPS = Math.round(this._fpsFrames / (fpsElapsed / 1000));
+    this._fpsFrames = 0;
+    this._fpsTime = now;
+    if (this._currentFPS < 90) {
+      console.warn('[StylizedWater] FPS: ' + this._currentFPS + ' (target: 90+)');
+    }
+  }
+
   // Wave vertex displacement every frame
   this._updateWaves();
 
@@ -720,13 +740,15 @@ StylizedWaterSystem.prototype._updateNormalMapUV = function() {
   this._material.normalMap.offset.set(blendU, blendV);
 
   // Distance-based normal strength reduction (Phase 5: distance normals)
+  // + foam-based normal flattening (Phase 2: foam flattens tangent normals)
   if (this.camera) {
     var cam = this.camera.position;
     var dx = cam.x - this._mesh.position.x;
     var dz = cam.z - this._mesh.position.z;
     var dist = Math.sqrt(dx * dx + dz * dz);
     var distFactor = _saturate(1 - dist / (s.scale * 0.4));
-    var ns = (s.normalStrength || 0.5) * (0.2 + 0.8 * distFactor);
+    var foamFlatten = 1.0 - _saturate(this._avgFoam * 2.0); // flatten when lots of foam
+    var ns = (s.normalStrength || 0.5) * (0.2 + 0.8 * distFactor) * foamFlatten;
     this._material.normalScale.set(ns, -ns);
   }
 };
@@ -764,6 +786,7 @@ StylizedWaterSystem.prototype._updateColors = function() {
   var hasFoamTex = !!this._foamData;
   var hasCausticsTex = !!this._causticsData;
   var hasNoiseTex = !!this._noiseData;
+  var totalFoam = 0;
 
   for (var i = 0; i < count; i++) {
     var i3 = i * 3;
@@ -910,9 +933,20 @@ StylizedWaterSystem.prototype._updateColors = function() {
       var c2 = _sampleImageData(this._causticsData, this._causticsDataSize, cu2, cv2);
 
       // Key visual trick: min of two layers → "swimming light network"
-      var causticR = Math.min(c1.r, c2.r) * 2.0;
       var causticG = Math.min(c1.g, c2.g) * 2.0;
-      var causticB = Math.min(c1.b, c2.b) * 2.0;
+
+      // Chromatic aberration: shift R and B channels by UV offset
+      var causticR, causticB;
+      if (s.causticsDistortion > 0.01) {
+        var caOff = s.causticsDistortion * 0.015;
+        var c1r = _sampleImageData(this._causticsData, this._causticsDataSize, cu1 + caOff, cv1 + caOff * 0.5);
+        var c1b = _sampleImageData(this._causticsData, this._causticsDataSize, cu1 - caOff, cv1 - caOff * 0.5);
+        causticR = Math.min(c1r.r, c2.r) * 2.0;
+        causticB = Math.min(c1b.b, c2.b) * 2.0;
+      } else {
+        causticR = Math.min(c1.r, c2.r) * 2.0;
+        causticB = Math.min(c1.b, c2.b) * 2.0;
+      }
 
       // Chromance control: mono vs color
       if (s.causticsChromance < 0.99) {
@@ -933,16 +967,27 @@ StylizedWaterSystem.prototype._updateColors = function() {
       b += causticB * caustMask * cBright * 0.25;
     }
 
-    // ── Horizon color (distance-based Fresnel approximation for vertex colors) ──
-    if (horizon.a > 0.001) {
+    // ── Horizon color (distance-based + SWA fog integration) ──
+    // Phase 7: auto-match horizon to SWA atmospheric fog color
+    var hCol = horizon;
+    var swa = window.__vibexe_skyWeatherAdvanced;
+    if (swa && swa._fogColor && this.scene && this.scene.fog) {
+      var fc = this.scene.fog.color;
+      if (fc) {
+        hCol = { r: _lerp(horizon.r, fc.r, 0.5), g: _lerp(horizon.g, fc.g, 0.5),
+                 b: _lerp(horizon.b, fc.b, 0.5), a: horizon.a };
+      }
+    }
+
+    if (hCol.a > 0.001) {
       var dx = wx - camX;
       var dz = wz - camZ;
       var dist = Math.sqrt(dx * dx + dz * dz);
       var horizonFactor = _saturate(dist / (s.horizonDistance * 100));
       horizonFactor = horizonFactor * horizonFactor;
-      r = _lerp(r, horizon.r, horizonFactor * horizon.a);
-      g = _lerp(g, horizon.g, horizonFactor * horizon.a);
-      b = _lerp(b, horizon.b, horizonFactor * horizon.a);
+      r = _lerp(r, hCol.r, horizonFactor * hCol.a);
+      g = _lerp(g, hCol.g, horizonFactor * hCol.a);
+      b = _lerp(b, hCol.b, horizonFactor * hCol.a);
     }
 
     // ── Translucency / SSS (Phase 4) ──
@@ -990,7 +1035,13 @@ StylizedWaterSystem.prototype._updateColors = function() {
     colors[i4 + 1] = _saturate(g);
     colors[i4 + 2] = _saturate(b);
     colors[i4 + 3] = _saturate(a);
+
+    // Track foam for normal flattening
+    totalFoam += foam + intersection;
   }
+
+  // Store average foam for normal flattening in _updateNormalMapUV
+  this._avgFoam = totalFoam / Math.max(count, 1);
 
   this._geometry.attributes.color.needsUpdate = true;
 };
@@ -1310,8 +1361,10 @@ if (typeof window !== 'undefined') {
           if (gs) {
             if (gs.stylizedWater && typeof gs.stylizedWater === 'object') {
               settings = gs.stylizedWater;
+              console.log('[StylizedWater] Loaded saved config from stylizedWater (' + Object.keys(settings).length + ' keys)');
             } else if (gs.modules && gs.modules.installed && gs.modules.installed['stylized-water']) {
               settings = gs.modules.installed['stylized-water'].config || {};
+              console.log('[StylizedWater] Loaded saved config from modules.installed (' + Object.keys(settings).length + ' keys)');
             }
           }
         } catch(e) {}
