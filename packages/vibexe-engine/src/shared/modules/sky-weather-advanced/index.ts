@@ -4700,7 +4700,7 @@ SkyWeatherAdvancedSystem.prototype._loadTheme = function(themeId) {
     this._themeTexture = null;
   }
 
-  var url = "/api/app-builder/media-stock-3d/skybox-themes/" + themeId + ".jpg";
+  var url = "/api/app-builder/media-stock-3d/skybox-themes/" + themeId + ".webp";
   var loader = new THREE.TextureLoader();
   loader.load(url, function(texture) {
     texture.mapping = THREE.EquirectangularReflectionMapping;

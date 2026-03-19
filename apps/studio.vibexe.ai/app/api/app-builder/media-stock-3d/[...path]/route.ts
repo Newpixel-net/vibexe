@@ -16,6 +16,7 @@ const CONTENT_TYPES: Record<string, string> = {
 	".png": "image/png",
 	".jpg": "image/jpeg",
 	".jpeg": "image/jpeg",
+	".webp": "image/webp",
 	".tga": "application/octet-stream",
 	// Audio (Platformer Project SFX/Music)
 	".wav": "audio/wav",
