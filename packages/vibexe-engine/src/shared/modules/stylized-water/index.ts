@@ -417,9 +417,11 @@ function _buildWaterTSLMaterial(u, tex) {
     var NdotV = THREE.dot(N, viewDir).clamp(0, 1);
     var gF = THREE.float(1.0).sub(NdotV);
     var fresnel = THREE.float(0.02).add(THREE.float(0.98).mul(gF.mul(gF).mul(gF).mul(gF).mul(gF))).clamp(0, 1);
-    cr.assign(THREE.mix(cr, u.uHorizonColor.x, fresnel));
-    cg.assign(THREE.mix(cg, u.uHorizonColor.y, fresnel));
-    cb.assign(THREE.mix(cb, u.uHorizonColor.z, fresnel));
+    // Cap Fresnel at 50% to keep shallow/deep colors visible (was 100% → white/cream water)
+    var fresnelMix = fresnel.mul(0.5);
+    cr.assign(THREE.mix(cr, u.uHorizonColor.x, fresnelMix));
+    cg.assign(THREE.mix(cg, u.uHorizonColor.y, fresnelMix));
+    cb.assign(THREE.mix(cb, u.uHorizonColor.z, fresnelMix));
 
     // --- Wave tint (darken troughs, lighten crests) ---
     var wH = _vWH;
@@ -983,8 +985,8 @@ StylizedWaterSystem.prototype._build = function() {
   this._underwaterMat = new THREE.MeshBasicMaterial({
     color: new THREE.Color(deep.r * 0.5, deep.g * 0.5, deep.b * 0.6),
     transparent: false,
-    side: THREE.DoubleSide,
-    depthWrite: true,
+    side: THREE.BackSide,
+    depthWrite: false,
     fog: true,
   });
   this._underwaterMesh = new THREE.Mesh(uwGeo, this._underwaterMat);
@@ -1389,6 +1391,12 @@ StylizedWaterSystem.prototype.updateSettings = function(patch) {
     this._mesh.position.y = this.settings.waterLevel;
     if (this._underwaterMesh) this._underwaterMesh.position.y = this.settings.waterLevel - 0.5;
     window.__vibexe_waterLevel = this.settings.waterLevel;
+  }
+
+  // Update underwater plane color to match current deep color (preset changes)
+  if (this._underwaterMat) {
+    var uwDp = this.settings.deepColor || { r: 0.05, g: 0.15, b: 0.4 };
+    this._underwaterMat.color.setRGB(uwDp.r * 0.5, uwDp.g * 0.5, uwDp.b * 0.6);
   }
 
   // ── Update TSL uniforms (GPU path) ──
