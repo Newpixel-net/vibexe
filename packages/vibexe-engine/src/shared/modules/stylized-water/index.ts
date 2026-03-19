@@ -144,11 +144,30 @@ function _sampleWaves(worldX, worldZ, time, s) {
 // v3.0.0: Replaces CPU _updateWaves() + _updateColors() with GPU shader
 // ============================================================
 
+/** Create a placeholder THREE.Texture with RepeatWrapping (for TSL texture() sampling) */
+function _createPlaceholderTex() {
+  var canvas = document.createElement('canvas');
+  canvas.width = 4;
+  canvas.height = 4;
+  var ctx = canvas.getContext('2d');
+  ctx.fillStyle = '#808080';
+  ctx.fillRect(0, 0, 4, 4);
+  var tex = new THREE.CanvasTexture(canvas);
+  tex.wrapS = THREE.RepeatWrapping;
+  tex.wrapT = THREE.RepeatWrapping;
+  tex.magFilter = THREE.LinearFilter;
+  tex.minFilter = THREE.LinearMipmapLinearFilter;
+  tex.generateMipmaps = true;
+  return tex;
+}
+
 /** Create TSL uniform nodes for all water shader parameters */
 function _createWaterTSLUniforms(s) {
   var sh = s.shallowColor || { r: 0.4, g: 0.8, b: 0.9, a: 0.92 };
   var dp = s.deepColor || { r: 0.05, g: 0.15, b: 0.4, a: 0.98 };
   var hz = s.horizonColor || { r: 0.6, g: 0.8, b: 1.0, a: 0.5 };
+  var fc = s.foamColor || { r: 1, g: 1, b: 1, a: 0.8 };
+  var ic = s.intersectionColor || { r: 1, g: 1, b: 1, a: 1 };
   return {
     uTime: THREE.uniform(0.0),
     uMeshPosX: THREE.uniform(0.0),
@@ -180,11 +199,41 @@ function _createWaterTSLUniforms(s) {
     uSunSpecStr: THREE.uniform(s.sunReflectionStrength || 1.0),
     uTranslucencyStr: THREE.uniform(s.translucencyStrength || 0.5),
     uTranslucencyExp: THREE.uniform(s.translucencyExp || 6.0),
+    // Phase 3: Normal map uniforms
+    uNormalTiling: THREE.uniform((s.normalTilingX || 0.5) * 10),
+    uNormalSubTiling: THREE.uniform(s.normalSubTiling || 0.5),
+    uNormalSpeed: THREE.uniform(s.normalSpeed || 0.1),
+    uNormalSubSpeed: THREE.uniform(s.normalSubSpeed || -0.25),
+    uNormalStrength: THREE.uniform(s.normalStrength || 0.5),
+    // Phase 3: Foam uniforms
+    uFoamEnabled: THREE.uniform(s.foamEnabled !== false ? 1.0 : 0.0),
+    uFoamColor: THREE.uniform(new THREE.Color(fc.r, fc.g, fc.b)),
+    uFoamAlpha: THREE.uniform(fc.a != null ? fc.a : 0.8),
+    uFoamTilingX: THREE.uniform(s.foamTilingX || 0.1),
+    uFoamTilingY: THREE.uniform(s.foamTilingY || 0.1),
+    uFoamSpeed: THREE.uniform(s.foamSpeed || 0.1),
+    uFoamWaveAmount: THREE.uniform(s.foamWaveAmount || 0.3),
+    uFoamBaseAmount: THREE.uniform(s.foamBaseAmount || 0),
+    uFoamClipping: THREE.uniform(s.foamClipping || 0),
+    // Phase 4: Intersection foam uniforms
+    uIntEnabled: THREE.uniform(s.intersectionEnabled !== false ? 1.0 : 0.0),
+    uIntColor: THREE.uniform(new THREE.Color(ic.r, ic.g, ic.b)),
+    uIntLength: THREE.uniform(s.intersectionLength || 2),
+    // Phase 4: Caustics uniforms
+    uCausticsEnabled: THREE.uniform(s.causticsEnabled !== false ? 1.0 : 0.0),
+    uCausticsBrightness: THREE.uniform(s.causticsBrightness || 1.0),
+    uCausticsChromance: THREE.uniform(s.causticsChromance || 0.5),
+    uCausticsTiling: THREE.uniform(s.causticsTiling || 0.5),
+    uCausticsSpeed: THREE.uniform(s.causticsSpeed || 0.5),
+    uCausticsDistortion: THREE.uniform(s.causticsDistortion || 0.3),
+    // Phase 4: Sparkle uniforms
+    uSparkleIntensity: THREE.uniform(s.sparkleIntensity || 0),
+    uSparkleSize: THREE.uniform(s.sparkleSize || 0.9),
   };
 }
 
 /** Build MeshBasicMaterial with GPU TSL positionNode + colorNode */
-function _buildWaterTSLMaterial(u) {
+function _buildWaterTSLMaterial(u, tex) {
   var _Fn = THREE.Fn || THREE.tslFn;
 
   var mat = new THREE.MeshBasicMaterial({
@@ -266,7 +315,7 @@ function _buildWaterTSLMaterial(u) {
   // Shared alpha node (set in colorNode, used by opacityNode)
   var _alphaOut;
 
-  // ── colorNode: per-pixel depth coloring, Fresnel, specular, translucency ──
+  // ── colorNode: per-pixel depth, normal maps, foam, caustics, Fresnel, specular, translucency ──
   mat.colorNode = _Fn(function() {
     var worldPos = THREE.positionWorld;
     var viewDir = THREE.normalize(THREE.cameraPosition.sub(worldPos));
@@ -296,8 +345,62 @@ function _buildWaterTSLMaterial(u) {
     var cb = THREE.mix(u.uShallowColor.z, u.uDeepColor.z, density).toVar();
     var ca = THREE.mix(u.uShallowAlpha, u.uDeepAlpha, density).toVar();
 
-    // --- Fresnel (Schlick) using wave normal from vertex shader ---
-    var N = _vWN;
+    // =================================================================
+    // Phase 3: Dual scrolling normal maps with RNM blend
+    // =================================================================
+    // World-space UV: geometry UV + mesh position offset (tiles continuously)
+    var baseUV = THREE.uv();
+    var meshOff = THREE.vec2(u.uMeshPosX.div(u.uScale), u.uMeshPosZ.div(u.uScale));
+    var worldUV = baseUV.add(meshOff);
+
+    // Primary normal map UV — scroll in one direction
+    var nScroll1 = THREE.vec2(u.uTime.mul(u.uNormalSpeed), u.uTime.mul(u.uNormalSpeed).mul(0.7));
+    var nUV1 = worldUV.mul(u.uNormalTiling).add(nScroll1);
+
+    // Secondary normal map UV — cross-scroll at different scale
+    var nScroll2 = THREE.vec2(
+      u.uTime.mul(u.uNormalSpeed).mul(u.uNormalSubSpeed),
+      u.uTime.mul(u.uNormalSpeed).mul(u.uNormalSubSpeed).mul(-0.6)
+    );
+    var nUV2 = worldUV.mul(u.uNormalTiling).mul(u.uNormalSubTiling).add(nScroll2);
+
+    // Sample both normal maps (returns vec4, .xyz is normal in [0,1])
+    var nSamp1 = THREE.texture(tex.normal1, nUV1);
+    var nSamp2 = THREE.texture(tex.normal2, nUV2);
+
+    // Decode from [0,1] to [-1,1]
+    var n1 = THREE.vec3(
+      nSamp1.x.mul(2.0).sub(1.0),
+      nSamp1.y.mul(2.0).sub(1.0),
+      nSamp1.z.mul(2.0).sub(1.0)
+    );
+    var n2 = THREE.vec3(
+      nSamp2.x.mul(2.0).sub(1.0),
+      nSamp2.y.mul(2.0).sub(1.0),
+      nSamp2.z.mul(2.0).sub(1.0)
+    );
+
+    // Reoriented Normal Mapping (RNM) blend
+    // t = vec3(n1.x, n1.y, n1.z + 1)
+    // r = vec3(-n2.x, -n2.y, n2.z)
+    // result = normalize(t * dot(t,r) - r * t.z)
+    var rnmT = THREE.vec3(n1.x, n1.y, n1.z.add(1.0));
+    var rnmR = THREE.vec3(n2.x.negate(), n2.y.negate(), n2.z);
+    var rnmDot = THREE.dot(rnmT, rnmR);
+    var rnmResult = THREE.normalize(
+      rnmT.mul(rnmDot).sub(rnmR.mul(rnmT.z))
+    );
+
+    // Perturb wave normal with blended normal map
+    // N = normalize(waveNormal + vec3(rnm.x * strength, 0, rnm.y * strength))
+    var waveN = _vWN;
+    var N = THREE.normalize(THREE.vec3(
+      waveN.x.add(rnmResult.x.mul(u.uNormalStrength)),
+      waveN.y,
+      waveN.z.add(rnmResult.y.mul(u.uNormalStrength))
+    )).toVar();
+
+    // --- Fresnel (Schlick) using perturbed normal ---
     var NdotV = THREE.dot(N, viewDir).clamp(0, 1);
     var gF = THREE.float(1.0).sub(NdotV);
     var fresnel = THREE.float(0.02).add(THREE.float(0.98).mul(gF.mul(gF).mul(gF).mul(gF).mul(gF))).clamp(0, 1);
@@ -311,6 +414,148 @@ function _buildWaterTSLMaterial(u) {
     cr.addAssign(tint.mul(0.08).mul(u.uSunColor.x));
     cg.addAssign(tint.mul(0.12).mul(u.uSunColor.y));
     cb.addAssign(tint.mul(0.08).mul(u.uSunColor.z));
+
+    // =================================================================
+    // Phase 3: Wave crest foam with dual-layer texture sampling + dissolve
+    // =================================================================
+    var foamAmount = THREE.float(0.0).toVar();
+
+    // Only compute foam when enabled (uFoamEnabled > 0.5)
+    // Wave crest foam: height-based + base amount
+    var crest = wH.mul(2.0).clamp(0, 1).mul(u.uFoamWaveAmount);
+    var rawFoam = crest.add(u.uFoamBaseAmount);
+
+    // Dual-layer foam texture sampling
+    var fUV1 = THREE.vec2(
+      worldUV.x.mul(u.uFoamTilingX.mul(10.0)).add(u.uTime.mul(u.uFoamSpeed)),
+      worldUV.y.mul(u.uFoamTilingY.mul(10.0)).add(u.uTime.mul(u.uFoamSpeed).mul(0.7))
+    );
+    var fUV2 = THREE.vec2(
+      worldUV.x.mul(u.uFoamTilingX.mul(14.0)).sub(u.uTime.mul(u.uFoamSpeed).mul(0.3)),
+      worldUV.y.mul(u.uFoamTilingY.mul(14.0)).add(u.uTime.mul(u.uFoamSpeed).mul(0.5))
+    );
+    var fSamp1 = THREE.texture(tex.foam, fUV1);
+    var fSamp2 = THREE.texture(tex.foam, fUV2);
+
+    // Combine: saturate(layer1 + layer2) for rich dissolve
+    var foamTex = fSamp1.r.add(fSamp2.r).clamp(0, 1).toVar();
+
+    // Dissolve clipping
+    var clipStep = THREE.smoothstep(u.uFoamClipping, THREE.float(1.0), foamTex);
+    foamTex.assign(clipStep);
+
+    // Smoothstep dissolve edge
+    var invertedMask = THREE.float(1.0).sub(rawFoam);
+    var dissolvedFoam = THREE.smoothstep(invertedMask, invertedMask.add(0.8), foamTex).mul(u.uFoamAlpha);
+    foamAmount.assign(dissolvedFoam.clamp(0, 1).mul(u.uFoamEnabled));
+
+    // Blend foam color into water
+    cr.assign(THREE.mix(cr, u.uFoamColor.x, foamAmount));
+    cg.assign(THREE.mix(cg, u.uFoamColor.y, foamAmount));
+    cb.assign(THREE.mix(cb, u.uFoamColor.z, foamAmount));
+
+    // =================================================================
+    // Phase 4: Shore intersection foam using waterDepth + texture
+    // =================================================================
+    var intAmount = THREE.float(0.0).toVar();
+
+    // Intersection distance: 0 at shore, 1 at intersectionLength
+    var intDist = waterDepth.div(THREE.max(u.uIntLength, THREE.float(0.01))).clamp(0, 1);
+    var intMask = THREE.float(1.0).sub(intDist);
+
+    // Sample intersection foam texture
+    var ifUV = THREE.vec2(
+      worldUV.x.mul(1.5).add(u.uTime.mul(0.02)),
+      worldUV.y.mul(1.5).sub(u.uTime.mul(0.015))
+    );
+    var intFoamSamp = THREE.texture(tex.intFoam, ifUV);
+
+    // Sample noise texture for variation
+    var noiseUV = THREE.vec2(
+      worldUV.x.mul(3.0).add(u.uTime.mul(0.05)),
+      worldUV.y.mul(3.0).add(u.uTime.mul(0.03))
+    );
+    var noiseSamp = THREE.texture(tex.noise, noiseUV);
+
+    // Smooth intersection: noise * foamTex * (1-dist)^2
+    var intVal = noiseSamp.r.mul(intFoamSamp.r).add(intMask).clamp(0, 1).mul(intMask).mul(intMask);
+    intAmount.assign(intVal.clamp(0, 1).mul(u.uIntEnabled));
+
+    // Blend intersection color
+    cr.assign(THREE.mix(cr, u.uIntColor.x, intAmount));
+    cg.assign(THREE.mix(cg, u.uIntColor.y, intAmount));
+    cb.assign(THREE.mix(cb, u.uIntColor.z, intAmount));
+
+    // =================================================================
+    // Phase 4: Caustics (dual-layer min blend + chromatic aberration)
+    // =================================================================
+    // Only where depth > 0.1 and < 20, and caustics enabled
+    var caustMask = waterDepth.sub(0.1).clamp(0, 1).mul(
+      THREE.float(1.0).sub(waterDepth.div(20.0)).clamp(0, 1)
+    ).mul(u.uCausticsEnabled);
+
+    // Reduce caustics under foam/intersection
+    caustMask = caustMask.mul(THREE.float(1.0).sub(foamAmount.mul(0.5)).sub(intAmount.mul(0.5)).clamp(0, 1));
+    caustMask = caustMask.mul(THREE.float(1.0).sub(density.mul(0.5)));
+
+    var cTime = u.uTime.mul(u.uCausticsSpeed);
+    var cTile = u.uCausticsTiling;
+
+    // Layer 1 UVs
+    var cUV1 = THREE.vec2(
+      worldUV.x.mul(cTile.mul(10.0)).add(cTime),
+      worldUV.y.mul(cTile.mul(10.0)).add(cTime.mul(0.5))
+    );
+    // Layer 2 UVs (different scale + reversed)
+    var cUV2 = THREE.vec2(
+      worldUV.x.mul(cTile.mul(8.0)).sub(cTime),
+      worldUV.y.mul(cTile.mul(8.0)).sub(cTime.mul(0.3))
+    );
+
+    // Chromatic aberration offset
+    var caOff = u.uCausticsDistortion.mul(0.015);
+
+    // Sample caustics: R channel offset, G center, B offset opposite
+    var cSamp1 = THREE.texture(tex.caustics, cUV1);
+    var cSamp2 = THREE.texture(tex.caustics, cUV2);
+    var cSamp1R = THREE.texture(tex.caustics, cUV1.add(THREE.vec2(caOff, caOff.mul(0.5))));
+    var cSamp1B = THREE.texture(tex.caustics, cUV1.sub(THREE.vec2(caOff, caOff.mul(0.5))));
+
+    // Min of two layers = "swimming light network"
+    var causticR = THREE.min(cSamp1R.r, cSamp2.r).mul(2.0).toVar();
+    var causticG = THREE.min(cSamp1.g, cSamp2.g).mul(2.0).toVar();
+    var causticB = THREE.min(cSamp1B.b, cSamp2.b).mul(2.0).toVar();
+
+    // Chromance control: mono vs color
+    var causticMono = causticR.add(causticG).add(causticB).div(3.0);
+    causticR.assign(THREE.mix(causticMono, causticR, u.uCausticsChromance));
+    causticG.assign(THREE.mix(causticMono, causticG, u.uCausticsChromance));
+    causticB.assign(THREE.mix(causticMono, causticB, u.uCausticsChromance));
+
+    var cBright = u.uCausticsBrightness.mul(caustMask);
+    cr.addAssign(causticR.mul(cBright).mul(0.3));
+    cg.addAssign(causticG.mul(cBright).mul(0.3));
+    cb.addAssign(causticB.mul(cBright).mul(0.25));
+
+    // =================================================================
+    // Phase 4: Sparkle effect (hash-based per-pixel)
+    // =================================================================
+    // Hash function: fract(sin(dot(pos, constants)) * 43758.5453)
+    var sparkInput = worldPos.x.mul(127.1).add(worldPos.z.mul(311.7)).add(u.uTime.mul(5.0));
+    var sparkHash = THREE.fract(THREE.sin(sparkInput).mul(43758.5453));
+
+    // sparkle fires when hash > sparkleSize threshold
+    var sparkleThresh = THREE.step(u.uSparkleSize, sparkHash);
+    var sparkleVal = sparkHash.sub(u.uSparkleSize).div(THREE.float(1.0).sub(u.uSparkleSize).add(0.001)).clamp(0, 1);
+    sparkleVal = sparkleVal.mul(sparkleThresh).mul(u.uSparkleIntensity);
+
+    // Only sparkle where lit by sun (NdotL > 0)
+    var sparkNdotL = THREE.dot(N, u.uSunDir).clamp(0, 1);
+    sparkleVal = sparkleVal.mul(sparkNdotL);
+
+    cr.addAssign(sparkleVal.mul(u.uSunColor.x));
+    cg.addAssign(sparkleVal.mul(u.uSunColor.y));
+    cb.addAssign(sparkleVal.mul(u.uSunColor.z));
 
     // --- Horizon distance blend ---
     var dCam = THREE.length(worldPos.sub(THREE.cameraPosition));
@@ -326,7 +571,7 @@ function _buildWaterTSLMaterial(u) {
     var dABoost = waterDepth.mul(0.4).clamp(0, 1);
     ca.assign(THREE.max(ca, THREE.float(0.5).add(dABoost.mul(0.42))));
 
-    // --- Sun specular (Blinn-Phong) ---
+    // --- Sun specular (Blinn-Phong) using perturbed normal ---
     var H = THREE.normalize(u.uSunDir.add(viewDir));
     var NdotH = THREE.max(THREE.dot(N, H), THREE.float(0));
     var specPow = THREE.float(128.0).mul(u.uSunSpecSize);
@@ -771,6 +1016,7 @@ function StylizedWaterSystem(scene, camera, settings, bodyId, displayName) {
 
   // TSL GPU shader state
   this._tslU = null;
+  this._tslTex = null;
   this._useTSL = false;
   this._buoyancyCounter = 0;
 
@@ -837,7 +1083,15 @@ StylizedWaterSystem.prototype._build = function() {
     // ── v3.0.0 GPU TSL path: positionNode + colorNode ──
     this._tslU = _createWaterTSLUniforms(s);
     this._tslU.uIsWebGPU.value = (window.__vibexe_webgpu__ || window.__vibexe_hasWebGPU__) ? 1.0 : 0.0;
-    this._material = _buildWaterTSLMaterial(this._tslU);
+    this._tslTex = {
+      normal1: _createPlaceholderTex(),
+      normal2: _createPlaceholderTex(),
+      foam: _createPlaceholderTex(),
+      caustics: _createPlaceholderTex(),
+      noise: _createPlaceholderTex(),
+      intFoam: _createPlaceholderTex(),
+    };
+    this._material = _buildWaterTSLMaterial(this._tslU, this._tslTex);
     this._usePBR = false;
     this._usePhysical = false;
     this._useTSL = true;
@@ -897,117 +1151,152 @@ StylizedWaterSystem.prototype._loadTextures = function() {
   var self = this;
   var s = this.settings;
 
-  // 1. Dual normal map with RNM blending (Phase 2: true dual-layer)
-  // Loads TWO normal maps and blends them per-pixel using Reoriented Normal Mapping
+  // Texture name lookups
   var idx1 = _clamp(s.normalMapIndex || 0, 0, NORMAL_MAP_NAMES.length - 1);
-  var idx2 = (idx1 + 1) % NORMAL_MAP_NAMES.length; // next normal map for blending
+  var idx2 = (idx1 + 1) % NORMAL_MAP_NAMES.length;
   var normalName1 = NORMAL_MAP_NAMES[idx1];
   var normalName2 = NORMAL_MAP_NAMES[idx2];
+  var foamName = FOAM_TEX_NAMES[_clamp(s.foamTextureIndex || 0, 0, FOAM_TEX_NAMES.length - 1)];
 
-  // Also load the primary as a fallback (immediate display before RNM completes)
-  _loadTexture(normalName1, function(tex) {
-    if (self._material && self._usePBR && !self._rnmApplied) {
-      self._material.normalMap = tex;
-      self._material.normalScale.set(s.normalStrength || 0.5, -(s.normalStrength || 0.5));
-      self._material.needsUpdate = true;
-    }
-  });
-
-  // Load both normal maps for RNM blend
-  self._rnmApplied = false;
-  var rnmSize = 256;
-  var rnmData1 = null, rnmData2 = null;
-  var rnmLoaded = 0;
-
-  function onRNMReady() {
-    // Reoriented Normal Mapping blend on canvas
-    var canvas = document.createElement('canvas');
-    canvas.width = rnmSize;
-    canvas.height = rnmSize;
-    var ctx = canvas.getContext('2d');
-    var output = ctx.createImageData(rnmSize, rnmSize);
-    var out = output.data;
-
-    for (var p = 0; p < rnmSize * rnmSize; p++) {
-      var pi = p * 4;
-      // Decode normals from [0,1] to [-1,1]
-      var n1x = (rnmData1[pi] / 255) * 2 - 1;
-      var n1y = (rnmData1[pi+1] / 255) * 2 - 1;
-      var n1z = Math.max((rnmData1[pi+2] / 255) * 2 - 1, 0.01);
-      var n2x = (rnmData2[pi] / 255) * 2 - 1;
-      var n2y = (rnmData2[pi+1] / 255) * 2 - 1;
-      var n2z = Math.max((rnmData2[pi+2] / 255) * 2 - 1, 0.01);
-
-      // RNM formula: t = n1.xyz + vec3(0,0,1), u = n2.xyz * vec3(-1,-1,1)
-      // result = normalize(t * dot(t,u) - u * t.z)
-      var tx = n1x, ty = n1y, tz = n1z + 1;
-      var ux = -n2x, uy = -n2y, uz = n2z;
-      var d = tx * ux + ty * uy + tz * uz;
-      var rx = tx * d - ux * tz;
-      var ry = ty * d - uy * tz;
-      var rz = tz * d - uz * tz;
-
-      var len = Math.sqrt(rx*rx + ry*ry + rz*rz);
-      if (len > 0.001) { rx /= len; ry /= len; rz /= len; }
-
-      // Encode back to [0,1]
-      out[pi]   = Math.round(_clamp(rx * 0.5 + 0.5, 0, 1) * 255);
-      out[pi+1] = Math.round(_clamp(ry * 0.5 + 0.5, 0, 1) * 255);
-      out[pi+2] = Math.round(_clamp(rz * 0.5 + 0.5, 0, 1) * 255);
-      out[pi+3] = 255;
-    }
-
-    ctx.putImageData(output, 0, 0);
-    var tex = new THREE.CanvasTexture(canvas);
-    tex.wrapS = THREE.RepeatWrapping;
-    tex.wrapT = THREE.RepeatWrapping;
-    tex.generateMipmaps = true;
-
-    if (self._material && self._usePBR) {
-      self._material.normalMap = tex;
-      self._material.needsUpdate = true;
-      self._rnmApplied = true;
-      console.log('[StylizedWater] RNM-blended normal map: ' + normalName1 + ' + ' + normalName2);
-    }
+  // Helper: update a TSL placeholder texture with loaded image data
+  function _updatePlaceholder(placeholder, loadedTex) {
+    if (!placeholder) return;
+    placeholder.image = loadedTex.image;
+    placeholder.wrapS = THREE.RepeatWrapping;
+    placeholder.wrapT = THREE.RepeatWrapping;
+    placeholder.magFilter = THREE.LinearFilter;
+    placeholder.minFilter = THREE.LinearMipmapLinearFilter;
+    placeholder.generateMipmaps = true;
+    placeholder.needsUpdate = true;
   }
 
-  _loadTextureCanvas(normalName1, rnmSize, function(d) {
-    rnmData1 = d; rnmLoaded++;
-    if (rnmLoaded === 2) onRNMReady();
-  });
-  _loadTextureCanvas(normalName2, rnmSize, function(d) {
-    rnmData2 = d; rnmLoaded++;
-    if (rnmLoaded === 2) onRNMReady();
-  });
+  if (self._useTSL && self._tslTex) {
+    // ── GPU TSL path: load textures into placeholder objects for shader sampling ──
+    _loadTexture(normalName1, function(tex) {
+      _updatePlaceholder(self._tslTex.normal1, tex);
+      console.log('[StylizedWater] TSL normal1 loaded: ' + normalName1);
+    });
+    _loadTexture(normalName2, function(tex) {
+      _updatePlaceholder(self._tslTex.normal2, tex);
+      console.log('[StylizedWater] TSL normal2 loaded: ' + normalName2);
+    });
+    _loadTexture(foamName, function(tex) {
+      _updatePlaceholder(self._tslTex.foam, tex);
+      console.log('[StylizedWater] TSL foam loaded: ' + foamName);
+    });
+    _loadTexture('Caustics_1', function(tex) {
+      _updatePlaceholder(self._tslTex.caustics, tex);
+      console.log('[StylizedWater] TSL caustics loaded');
+    });
+    _loadTexture('IntersectionNoise', function(tex) {
+      _updatePlaceholder(self._tslTex.noise, tex);
+      console.log('[StylizedWater] TSL intersection noise loaded');
+    });
+    _loadTexture('Intersection_Foam', function(tex) {
+      _updatePlaceholder(self._tslTex.intFoam, tex);
+      console.log('[StylizedWater] TSL intersection foam loaded');
+    });
+  } else {
+    // ── CPU fallback path: load into canvas for per-vertex sampling ──
 
-  // 2. Foam texture → CPU canvas for per-vertex sampling
-  var foamName = FOAM_TEX_NAMES[_clamp(s.foamTextureIndex || 0, 0, FOAM_TEX_NAMES.length - 1)];
-  _loadTextureCanvas(foamName, 128, function(data, size) {
-    self._foamData = data;
-    self._foamDataSize = size;
-    console.log('[StylizedWater] Foam texture loaded for CPU sampling: ' + foamName);
-  });
+    // 1. Dual normal map with RNM blending (Phase 2: true dual-layer)
+    _loadTexture(normalName1, function(tex) {
+      if (self._material && self._usePBR && !self._rnmApplied) {
+        self._material.normalMap = tex;
+        self._material.normalScale.set(s.normalStrength || 0.5, -(s.normalStrength || 0.5));
+        self._material.needsUpdate = true;
+      }
+    });
 
-  // 3. Caustics texture → CPU canvas for dual-layer min() sampling
-  _loadTextureCanvas('Caustics_1', 128, function(data, size) {
-    self._causticsData = data;
-    self._causticsDataSize = size;
-    console.log('[StylizedWater] Caustics texture loaded for CPU sampling');
-  });
+    self._rnmApplied = false;
+    var rnmSize = 256;
+    var rnmData1 = null, rnmData2 = null;
+    var rnmLoaded = 0;
 
-  // 4. Intersection noise → CPU canvas
-  _loadTextureCanvas('IntersectionNoise', 64, function(data, size) {
-    self._noiseData = data;
-    self._noiseDataSize = size;
-    console.log('[StylizedWater] Intersection noise loaded for CPU sampling');
-  });
+    function onRNMReady() {
+      var canvas = document.createElement('canvas');
+      canvas.width = rnmSize;
+      canvas.height = rnmSize;
+      var ctx = canvas.getContext('2d');
+      var output = ctx.createImageData(rnmSize, rnmSize);
+      var out = output.data;
 
-  // 5. Intersection foam texture → CPU canvas (shore foam pattern)
-  _loadTextureCanvas('Intersection_Foam', 128, function(data, size) {
-    self._intFoamData = data;
-    self._intFoamDataSize = size;
-    console.log('[StylizedWater] Intersection foam texture loaded for CPU sampling');
-  });
+      for (var p = 0; p < rnmSize * rnmSize; p++) {
+        var pi = p * 4;
+        var n1x = (rnmData1[pi] / 255) * 2 - 1;
+        var n1y = (rnmData1[pi+1] / 255) * 2 - 1;
+        var n1z = Math.max((rnmData1[pi+2] / 255) * 2 - 1, 0.01);
+        var n2x = (rnmData2[pi] / 255) * 2 - 1;
+        var n2y = (rnmData2[pi+1] / 255) * 2 - 1;
+        var n2z = Math.max((rnmData2[pi+2] / 255) * 2 - 1, 0.01);
+
+        var tx = n1x, ty = n1y, tz = n1z + 1;
+        var ux = -n2x, uy = -n2y, uz = n2z;
+        var d = tx * ux + ty * uy + tz * uz;
+        var rx = tx * d - ux * tz;
+        var ry = ty * d - uy * tz;
+        var rz = tz * d - uz * tz;
+
+        var len = Math.sqrt(rx*rx + ry*ry + rz*rz);
+        if (len > 0.001) { rx /= len; ry /= len; rz /= len; }
+
+        out[pi]   = Math.round(_clamp(rx * 0.5 + 0.5, 0, 1) * 255);
+        out[pi+1] = Math.round(_clamp(ry * 0.5 + 0.5, 0, 1) * 255);
+        out[pi+2] = Math.round(_clamp(rz * 0.5 + 0.5, 0, 1) * 255);
+        out[pi+3] = 255;
+      }
+
+      ctx.putImageData(output, 0, 0);
+      var tex = new THREE.CanvasTexture(canvas);
+      tex.wrapS = THREE.RepeatWrapping;
+      tex.wrapT = THREE.RepeatWrapping;
+      tex.generateMipmaps = true;
+
+      if (self._material && self._usePBR) {
+        self._material.normalMap = tex;
+        self._material.needsUpdate = true;
+        self._rnmApplied = true;
+        console.log('[StylizedWater] RNM-blended normal map: ' + normalName1 + ' + ' + normalName2);
+      }
+    }
+
+    _loadTextureCanvas(normalName1, rnmSize, function(d) {
+      rnmData1 = d; rnmLoaded++;
+      if (rnmLoaded === 2) onRNMReady();
+    });
+    _loadTextureCanvas(normalName2, rnmSize, function(d) {
+      rnmData2 = d; rnmLoaded++;
+      if (rnmLoaded === 2) onRNMReady();
+    });
+
+    // 2. Foam texture
+    _loadTextureCanvas(foamName, 128, function(data, size) {
+      self._foamData = data;
+      self._foamDataSize = size;
+      console.log('[StylizedWater] Foam texture loaded for CPU sampling: ' + foamName);
+    });
+
+    // 3. Caustics texture
+    _loadTextureCanvas('Caustics_1', 128, function(data, size) {
+      self._causticsData = data;
+      self._causticsDataSize = size;
+      console.log('[StylizedWater] Caustics texture loaded for CPU sampling');
+    });
+
+    // 4. Intersection noise
+    _loadTextureCanvas('IntersectionNoise', 64, function(data, size) {
+      self._noiseData = data;
+      self._noiseDataSize = size;
+      console.log('[StylizedWater] Intersection noise loaded for CPU sampling');
+    });
+
+    // 5. Intersection foam texture
+    _loadTextureCanvas('Intersection_Foam', 128, function(data, size) {
+      self._intFoamData = data;
+      self._intFoamDataSize = size;
+      console.log('[StylizedWater] Intersection foam texture loaded for CPU sampling');
+    });
+  }
 };
 
 // ── Animation Loop ─────────────────────────────────────
@@ -1798,6 +2087,43 @@ StylizedWaterSystem.prototype.updateSettings = function(patch) {
     this._tslU.uSunSpecStr.value = s.sunReflectionStrength || 1.0;
     this._tslU.uTranslucencyStr.value = s.translucencyStrength || 0.5;
     this._tslU.uTranslucencyExp.value = s.translucencyExp || 6.0;
+
+    // Phase 3: Normal map uniforms
+    this._tslU.uNormalTiling.value = (s.normalTilingX || 0.5) * 10;
+    this._tslU.uNormalSubTiling.value = s.normalSubTiling || 0.5;
+    this._tslU.uNormalSpeed.value = s.normalSpeed || 0.1;
+    this._tslU.uNormalSubSpeed.value = s.normalSubSpeed || -0.25;
+    this._tslU.uNormalStrength.value = s.normalStrength || 0.5;
+
+    // Phase 3: Foam uniforms
+    var fc = s.foamColor || { r: 1, g: 1, b: 1, a: 0.8 };
+    this._tslU.uFoamEnabled.value = s.foamEnabled !== false ? 1.0 : 0.0;
+    this._tslU.uFoamColor.value.setRGB(fc.r, fc.g, fc.b);
+    this._tslU.uFoamAlpha.value = fc.a != null ? fc.a : 0.8;
+    this._tslU.uFoamTilingX.value = s.foamTilingX || 0.1;
+    this._tslU.uFoamTilingY.value = s.foamTilingY || 0.1;
+    this._tslU.uFoamSpeed.value = s.foamSpeed || 0.1;
+    this._tslU.uFoamWaveAmount.value = s.foamWaveAmount || 0.3;
+    this._tslU.uFoamBaseAmount.value = s.foamBaseAmount || 0;
+    this._tslU.uFoamClipping.value = s.foamClipping || 0;
+
+    // Phase 4: Intersection foam uniforms
+    var ic = s.intersectionColor || { r: 1, g: 1, b: 1, a: 1 };
+    this._tslU.uIntEnabled.value = s.intersectionEnabled !== false ? 1.0 : 0.0;
+    this._tslU.uIntColor.value.setRGB(ic.r, ic.g, ic.b);
+    this._tslU.uIntLength.value = s.intersectionLength || 2;
+
+    // Phase 4: Caustics uniforms
+    this._tslU.uCausticsEnabled.value = s.causticsEnabled !== false ? 1.0 : 0.0;
+    this._tslU.uCausticsBrightness.value = s.causticsBrightness || 1.0;
+    this._tslU.uCausticsChromance.value = s.causticsChromance || 0.5;
+    this._tslU.uCausticsTiling.value = s.causticsTiling || 0.5;
+    this._tslU.uCausticsSpeed.value = s.causticsSpeed || 0.5;
+    this._tslU.uCausticsDistortion.value = s.causticsDistortion || 0.3;
+
+    // Phase 4: Sparkle uniforms
+    this._tslU.uSparkleIntensity.value = s.sparkleIntensity || 0;
+    this._tslU.uSparkleSize.value = s.sparkleSize || 0.9;
   }
 
   // Visibility
@@ -1828,7 +2154,17 @@ StylizedWaterSystem.prototype._rebuildGeometry = function() {
     if (this._material) this._material.dispose();
     this._tslU = _createWaterTSLUniforms(s);
     this._tslU.uIsWebGPU.value = (window.__vibexe_webgpu__ || window.__vibexe_hasWebGPU__) ? 1.0 : 0.0;
-    this._material = _buildWaterTSLMaterial(this._tslU);
+    if (!this._tslTex) {
+      this._tslTex = {
+        normal1: _createPlaceholderTex(),
+        normal2: _createPlaceholderTex(),
+        foam: _createPlaceholderTex(),
+        caustics: _createPlaceholderTex(),
+        noise: _createPlaceholderTex(),
+        intFoam: _createPlaceholderTex(),
+      };
+    }
+    this._material = _buildWaterTSLMaterial(this._tslU, this._tslTex);
     this._mesh.material = this._material;
   } else {
     // CPU fallback: rebuild vertex colors buffer
@@ -1929,6 +2265,16 @@ StylizedWaterSystem.prototype.dispose = function() {
   this._origPositions = null;
   this._vertexColors = null;
   this._tslU = null;
+  // Dispose TSL placeholder textures
+  if (this._tslTex) {
+    var texKeys = ['normal1', 'normal2', 'foam', 'caustics', 'noise', 'intFoam'];
+    for (var ti = 0; ti < texKeys.length; ti++) {
+      if (this._tslTex[texKeys[ti]]) {
+        this._tslTex[texKeys[ti]].dispose();
+      }
+    }
+    this._tslTex = null;
+  }
   this._useTSL = false;
   this._foamData = null;
   this._causticsData = null;
