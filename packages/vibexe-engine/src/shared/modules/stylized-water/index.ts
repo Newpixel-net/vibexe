@@ -474,8 +474,12 @@ function _buildWaterTSLMaterial(u, tex) {
     // =================================================================
     var intAmount = THREE.float(0.0).toVar();
 
-    // Only show intersection foam near actual geometry (rawDepth < 0.995 means something is behind)
-    var hasGeometry = THREE.float(1.0).sub(rawDepth).clamp(0, 1).mul(200.0).clamp(0, 1);
+    // Detect real geometry behind water (works with both standard AND reverse depth buffers)
+    // rawWaterDepth is linearized: 0 = no depth / sky, 0.01-40 = actual geometry, 50 = capped far
+    // hasGeometry = 1 when depth is in valid range (0.02..40), 0 when sky/no geometry
+    var geoMin = THREE.step(THREE.float(0.02), rawWaterDepth);
+    var geoMax = THREE.float(1.0).sub(THREE.step(THREE.float(40.0), rawWaterDepth));
+    var hasGeometry = geoMin.mul(geoMax);
     // Intersection distance: 0 at shore, 1 at intersectionLength
     var intDist = waterDepth.div(THREE.max(u.uIntLength, THREE.float(0.01))).clamp(0, 1);
     var intMask = THREE.float(1.0).sub(intDist).mul(hasGeometry);
