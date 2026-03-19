@@ -765,8 +765,8 @@ var DEFAULT_SETTINGS = {
   sparkleIntensity: 0,
   sparkleSize: 0.9,
 
-  // Refraction (Phase 3)
-  refractionEnabled: true,
+  // Refraction (Phase 3) — opt-in due to perf cost (~viewportSharedTexture per body)
+  refractionEnabled: false,
   refractionStrength: 0.3,
   refractionThickness: 2.0,
 
@@ -2237,7 +2237,7 @@ module.exports = {
 		translucencyExp: 6.0,
 		sparkleIntensity: 0,
 		sparkleSize: 0.9,
-		refractionEnabled: true,
+		refractionEnabled: false,
 		refractionStrength: 0.3,
 		refractionThickness: 2.0,
 		riverMode: false,

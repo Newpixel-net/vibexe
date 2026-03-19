@@ -130,7 +130,7 @@ const DEFAULTS: WaterConfig = {
 	colorAbsorption: 0.5,
 	buoyancyEnabled: true,
 	surfaceOpacity: 1.0,
-	refractionEnabled: true,
+	refractionEnabled: false,
 	refractionStrength: 0.3,
 	refractionThickness: 2.0,
 };
