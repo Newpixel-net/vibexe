@@ -1965,6 +1965,11 @@ WaterBodyManager.prototype.handleBridgeMessage = function(type, payload) {
   var target = targetId ? this._bodies[targetId] : null;
   if (target) {
     target.handleBridgeMessage(type, payload);
+    // After preset or config change, sync panel state and persist
+    if (t === 'set-preset' || t === 'update-config' || t === 'reset-defaults') {
+      this._sendBodyConfig(targetId);
+      this._requestSave();
+    }
   }
 };
 
