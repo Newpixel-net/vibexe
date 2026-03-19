@@ -66,6 +66,12 @@ interface WaterConfig {
 	translucencyExp?: number;
 	sparkleIntensity?: number;
 	sparkleSize?: number;
+	refractionEnabled?: boolean;
+	refractionStrength?: number;
+	refractionThickness?: number;
+	riverMode?: boolean;
+	riverDirection?: number;
+	riverSpeed?: number;
 	buoyancyEnabled?: boolean;
 }
 
@@ -388,6 +394,20 @@ export function WaterPanel({ sendToIframe, onClose, settings, onChange, onSave }
 						</div>
 						<Slider label="Strength" value={config.normalStrength ?? 0.5} min={0} max={1} step={0.01} onChange={(v) => sendConfig({ normalStrength: v })} />
 
+						<div className="text-[10px] text-white/30 uppercase tracking-wider mt-3 mb-1">River Mode</div>
+						<div className="flex items-center gap-2 mb-1">
+							<span className="text-[10px] text-white/50 w-[72px]">Enabled</span>
+							<button
+								type="button"
+								onClick={() => sendConfig({ riverMode: !config.riverMode })}
+								className={`w-8 h-4 rounded-full transition-colors ${config.riverMode ? "bg-cyan-500/60" : "bg-white/10"}`}
+							>
+								<div className={`w-3 h-3 rounded-full bg-white transition-transform ${config.riverMode ? "translate-x-4" : "translate-x-0.5"}`} />
+							</button>
+						</div>
+						<Slider label="Direction" value={config.riverDirection ?? 0} min={0} max={360} step={5} onChange={(v) => sendConfig({ riverDirection: v })} />
+						<Slider label="Flow Speed" value={config.riverSpeed ?? 1} min={0.1} max={5} step={0.1} onChange={(v) => sendConfig({ riverSpeed: v })} />
+
 						<div className="text-[10px] text-white/30 uppercase tracking-wider mt-3 mb-1">Buoyancy</div>
 						<div className="flex items-center gap-2">
 							<span className="text-[10px] text-white/50 w-[72px]">Enabled</span>
@@ -492,6 +512,20 @@ export function WaterPanel({ sendToIframe, onClose, settings, onChange, onSave }
 						<Slider label="Chromance" value={config.causticsChromance ?? 0.5} min={0} max={1} step={0.01} onChange={(v) => sendConfig({ causticsChromance: v })} />
 						<Slider label="Tiling" value={config.causticsTiling ?? 0.5} min={0.01} max={5} step={0.05} onChange={(v) => sendConfig({ causticsTiling: v })} />
 						<Slider label="Speed" value={config.causticsSpeed ?? 0.5} min={0} max={2} step={0.05} onChange={(v) => sendConfig({ causticsSpeed: v })} />
+
+						<div className="text-[10px] text-white/30 uppercase tracking-wider mt-3 mb-1">Refraction</div>
+						<div className="flex items-center gap-2 mb-1">
+							<span className="text-[10px] text-white/50 w-[72px]">Enabled</span>
+							<button
+								type="button"
+								onClick={() => sendConfig({ refractionEnabled: !config.refractionEnabled })}
+								className={`w-8 h-4 rounded-full transition-colors ${config.refractionEnabled ? "bg-cyan-500/60" : "bg-white/10"}`}
+							>
+								<div className={`w-3 h-3 rounded-full bg-white transition-transform ${config.refractionEnabled ? "translate-x-4" : "translate-x-0.5"}`} />
+							</button>
+						</div>
+						<Slider label="Strength" value={config.refractionStrength ?? 0.3} min={0} max={1} step={0.01} onChange={(v) => sendConfig({ refractionStrength: v })} />
+						<Slider label="Thickness" value={config.refractionThickness ?? 2} min={0.1} max={10} step={0.1} onChange={(v) => sendConfig({ refractionThickness: v })} />
 
 						<div className="text-[10px] text-white/30 uppercase tracking-wider mt-3 mb-1">Absorption</div>
 						<Slider label="Color Abs." value={config.colorAbsorption ?? 0.5} min={0} max={1} step={0.01} onChange={(v) => sendConfig({ colorAbsorption: v })} />

@@ -215,6 +215,16 @@ var DEFAULT_SETTINGS = {
   sparkleIntensity: 0,
   sparkleSize: 0.9,
 
+  // Refraction (Phase 3)
+  refractionEnabled: false,
+  refractionStrength: 0.3,
+  refractionThickness: 2.0,
+
+  // River mode (Phase 5)
+  riverMode: false,
+  riverDirection: 0,
+  riverSpeed: 1.0,
+
   // Buoyancy (Phase 5)
   buoyancyEnabled: true,
 };
@@ -252,11 +262,12 @@ var PRESETS = {
     shallowColor: { r: 0.35, g: 0.7, b: 0.65, a: 0.75 },
     deepColor: { r: 0.05, g: 0.2, b: 0.3, a: 0.9 },
     horizonColor: { r: 0.5, g: 0.7, b: 0.8, a: 0.3 },
-    waveHeight: 0.3, waveSpeed: 1.5, waveSteepness: 0.3, waveCount: 3,
-    depthVertical: 0.8, foamWaveAmount: 0.2, foamBaseAmount: 0.1,
+    waveHeight: 0.15, waveSpeed: 1.5, waveSteepness: 0.2, waveCount: 3,
+    depthVertical: 0.8, foamWaveAmount: 0.15, foamBaseAmount: 0.1,
     intersectionLength: 1.5,
     normalSpeed: 0.15, normalStrength: 0.6, normalMapIndex: 3,
     causticsEnabled: true, causticsBrightness: 1.2,
+    riverMode: true, riverDirection: 90, riverSpeed: 1.5,
   },
   cartoon: {
     shallowColor: { r: 0.2, g: 0.7, b: 0.95, a: 0.85 },
@@ -487,40 +498,66 @@ StylizedWaterSystem.prototype._build = function() {
   this._vertexColors = new Float32Array(vertCount * 4);
   this._geometry.setAttribute('color', new THREE.BufferAttribute(this._vertexColors, 4));
 
-  // ── Material: MeshStandardMaterial for PBR lighting + normalMap ──
+  // ── Material: MeshPhysicalMaterial for PBR + refraction ──
   // PBR handles: specular, fresnel, environment reflections, shadow receiving
+  // Physical adds: transmission (refraction), IOR, attenuation (color absorption)
   // We compute: base color (shallow/deep), foam, caustics, alpha → vertex colors
-  var matOpts = {
-    color: 0xffffff,
-    vertexColors: true,
-    transparent: true,
-    opacity: 1.0,
-    side: THREE.DoubleSide,
-    depthWrite: false,
-    roughness: _clamp(s.roughness || 0.15, 0, 1),
-    metalness: _clamp(s.metalness || 0.3, 0, 1),
-    envMapIntensity: s.envMapIntensity || 0.8,
-    normalMap: null,
-    normalScale: new THREE.Vector2(s.normalStrength || 0.5, -(s.normalStrength || 0.5)),
-    fog: true,
-  };
+  var ns = s.normalStrength || 0.5;
+  var deep = s.deepColor || DEFAULT_SETTINGS.deepColor;
 
-  // Try MeshStandardMaterial first; fall back to MeshBasicMaterial
   this._usePBR = true;
+  this._usePhysical = false;
+
   try {
-    this._material = new THREE.MeshStandardMaterial(matOpts);
+    // Try MeshPhysicalMaterial first (refraction support)
+    if (THREE.MeshPhysicalMaterial) {
+      var physOpts = {
+        color: 0xffffff,
+        vertexColors: true,
+        transparent: true,
+        opacity: 1.0,
+        side: THREE.DoubleSide,
+        depthWrite: false,
+        roughness: _clamp(s.roughness || 0.15, 0, 1),
+        metalness: _clamp(s.metalness || 0.3, 0, 1),
+        envMapIntensity: s.envMapIntensity || 0.8,
+        normalMap: null,
+        normalScale: new THREE.Vector2(ns, -ns),
+        fog: true,
+        // Phase 3: Refraction via transmission
+        transmission: s.refractionEnabled ? _clamp(s.refractionStrength || 0.3, 0, 1) : 0,
+        ior: 1.33, // Water index of refraction
+        thickness: _clamp(s.refractionThickness || 2.0, 0.1, 10),
+        attenuationColor: new THREE.Color(deep.r, deep.g, deep.b),
+        attenuationDistance: 5.0,
+      };
+      this._material = new THREE.MeshPhysicalMaterial(physOpts);
+      this._usePhysical = true;
+    } else {
+      throw new Error('No MeshPhysicalMaterial');
+    }
   } catch(e) {
-    console.warn('[StylizedWater] MeshStandardMaterial failed, falling back to Basic');
-    this._usePBR = false;
-    this._material = new THREE.MeshBasicMaterial({
-      color: 0xffffff,
-      vertexColors: true,
-      transparent: true,
-      opacity: 1.0,
-      side: THREE.DoubleSide,
-      depthWrite: false,
-      fog: true,
-    });
+    try {
+      this._material = new THREE.MeshStandardMaterial({
+        color: 0xffffff, vertexColors: true, transparent: true, opacity: 1.0,
+        side: THREE.DoubleSide, depthWrite: false,
+        roughness: _clamp(s.roughness || 0.15, 0, 1),
+        metalness: _clamp(s.metalness || 0.3, 0, 1),
+        envMapIntensity: s.envMapIntensity || 0.8,
+        normalMap: null, normalScale: new THREE.Vector2(ns, -ns), fog: true,
+      });
+    } catch(e2) {
+      console.warn('[StylizedWater] PBR failed, falling back to Basic');
+      this._usePBR = false;
+      this._material = new THREE.MeshBasicMaterial({
+        color: 0xffffff, vertexColors: true, transparent: true, opacity: 1.0,
+        side: THREE.DoubleSide, depthWrite: false, fog: true,
+      });
+    }
+  }
+
+  if (this._usePhysical) {
+    console.log('[StylizedWater] Using MeshPhysicalMaterial (refraction: ' + (s.refractionEnabled ? 'ON' : 'OFF') + ')');
   }
 
   // Create mesh
@@ -658,13 +695,22 @@ StylizedWaterSystem.prototype._updateNormalMapUV = function() {
   var meshU = this._mesh.position.x / Math.max(s.scale, 1);
   var meshV = this._mesh.position.z / Math.max(s.scale, 1);
 
+  // River mode: bias UV scroll in flow direction (Phase 5)
+  var flowDirX = 1.0;
+  var flowDirZ = 0.7;
+  if (s.riverMode) {
+    var rad = (s.riverDirection || 0) * Math.PI / 180;
+    flowDirX = Math.cos(rad) * (s.riverSpeed || 1.0);
+    flowDirZ = Math.sin(rad) * (s.riverSpeed || 1.0);
+  }
+
   // Primary layer UV scroll
-  var u1 = meshU * tiling + this._time * speed;
-  var v1 = meshV * tiling + this._time * speed * 0.7;
+  var u1 = meshU * tiling + this._time * speed * flowDirX;
+  var v1 = meshV * tiling + this._time * speed * flowDirZ;
 
   // Secondary layer cross-pan (simulates dual normal map RNM blend)
-  var u2 = meshU * tiling * subTiling + this._time * speed * subSpeed;
-  var v2 = meshV * tiling * subTiling + this._time * speed * subSpeed * 0.8;
+  var u2 = meshU * tiling * subTiling + this._time * speed * subSpeed * flowDirX;
+  var v2 = meshV * tiling * subTiling + this._time * speed * subSpeed * flowDirZ;
 
   // Blend primary + secondary via sinusoidal perturbation
   var blendU = u1 + Math.sin(u2 * TWO_PI) * 0.04;
@@ -1101,6 +1147,18 @@ StylizedWaterSystem.prototype.updateSettings = function(patch) {
     this._material.envMapIntensity = this.settings.envMapIntensity || 0.8;
     var ns = this.settings.normalStrength || 0.5;
     this._material.normalScale.set(ns, -ns);
+
+    // Phase 3: Update refraction (MeshPhysicalMaterial only)
+    if (this._usePhysical) {
+      this._material.transmission = this.settings.refractionEnabled
+        ? _clamp(this.settings.refractionStrength || 0.3, 0, 1) : 0;
+      this._material.thickness = _clamp(this.settings.refractionThickness || 2.0, 0.1, 10);
+      var dp = this.settings.deepColor || DEFAULT_SETTINGS.deepColor;
+      if (this._material.attenuationColor) {
+        this._material.attenuationColor.setRGB(dp.r, dp.g, dp.b);
+      }
+      this._material.needsUpdate = true;
+    }
   }
 
   // Reload textures if indices changed
@@ -1337,6 +1395,12 @@ module.exports = {
 		translucencyExp: 6.0,
 		sparkleIntensity: 0,
 		sparkleSize: 0.9,
+		refractionEnabled: false,
+		refractionStrength: 0.3,
+		refractionThickness: 2.0,
+		riverMode: false,
+		riverDirection: 0,
+		riverSpeed: 1.0,
 		buoyancyEnabled: true,
 	},
 };
