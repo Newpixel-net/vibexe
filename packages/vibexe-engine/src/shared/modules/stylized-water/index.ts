@@ -1965,9 +1965,14 @@ WaterBodyManager.prototype.handleBridgeMessage = function(type, payload) {
   var target = targetId ? this._bodies[targetId] : null;
   if (target) {
     target.handleBridgeMessage(type, payload);
-    // After preset or config change, sync panel state and persist
-    if (t === 'set-preset' || t === 'update-config' || t === 'reset-defaults') {
+    // After preset or reset, sync panel state so sliders match engine.
+    // Do NOT echo back after update-config — panel is the source of truth
+    // for slider changes; echoing back causes feedback loops.
+    if (t === 'set-preset' || t === 'reset-defaults') {
       this._sendBodyConfig(targetId);
+    }
+    // Persist to DB after any config change
+    if (t === 'set-preset' || t === 'update-config' || t === 'reset-defaults') {
       this._requestSave();
     }
   }
