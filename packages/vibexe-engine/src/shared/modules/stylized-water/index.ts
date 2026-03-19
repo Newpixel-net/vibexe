@@ -1094,6 +1094,12 @@ StylizedWaterSystem.prototype._animLoop = function() {
     }
   }
 
+  // Enforce mesh Y = waterLevel (prevents gizmo Y drift causing sky overlay bugs)
+  if (this._mesh && Math.abs(this._mesh.position.y - this.settings.waterLevel) > 0.01) {
+    this._mesh.position.y = this.settings.waterLevel;
+    if (this._underwaterMesh) this._underwaterMesh.position.y = this.settings.waterLevel - 0.5;
+  }
+
   if (this._tslU) {
     // ── GPU TSL path: update uniforms only (shader does all visual work) ──
     this._tslU.uTime.value = this._time;
@@ -1790,6 +1796,11 @@ WaterBodyManager.prototype.handleBridgeMessage = function(type, payload) {
       if (psys && payload.position) {
         psys.settings.followCamera = false;
         psys.settings.position = { x: payload.position.x || 0, y: payload.position.y || 0, z: payload.position.z || 0 };
+        // Sync Y: update waterLevel when gizmo moves water vertically
+        if (payload.position.y != null) {
+          psys.settings.waterLevel = payload.position.y;
+          psys.updateSettings({ waterLevel: payload.position.y });
+        }
         if (psys._mesh) {
           psys._mesh.position.x = payload.position.x || 0;
           psys._mesh.position.z = payload.position.z || 0;
