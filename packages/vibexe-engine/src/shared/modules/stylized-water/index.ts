@@ -236,10 +236,6 @@ function _createWaterTSLUniforms(s) {
     uSparkleSize: THREE.uniform(s.sparkleSize != null ? s.sparkleSize : 0.9),
     // Surface opacity (global alpha multiplier)
     uSurfaceOpacity: THREE.uniform(s.surfaceOpacity != null ? s.surfaceOpacity : 1.0),
-    // Phase 3: Screen-space refraction uniforms
-    uRefractionEnabled: THREE.uniform(s.refractionEnabled ? 1.0 : 0.0),
-    uRefractionStrength: THREE.uniform(s.refractionStrength != null ? s.refractionStrength : 0.3),
-    uRefractionThickness: THREE.uniform(s.refractionThickness != null ? s.refractionThickness : 2.0),
     // Underwater post-process uniforms
     uUnderwaterStr: THREE.uniform(0.0),
     uUnderwaterFogColor: THREE.uniform(new THREE.Color(dp.r * 0.3, dp.g * 0.3, dp.b * 0.5)),
@@ -429,58 +425,6 @@ function _buildWaterTSLMaterial(u, tex) {
     // Clamp normal Y to be positive — water surface normal should always point upward
     N.assign(THREE.normalize(THREE.vec3(N.x, THREE.max(N.y, THREE.float(0.1)), N.z)));
 
-    // Detect real geometry behind water (used by refraction + intersection foam)
-    // rawWaterDepth is linearized: 0 = no depth / sky, 0.01-40 = actual geometry, 50 = capped far
-    var geoMin = THREE.step(THREE.float(0.02), rawWaterDepth);
-    var geoMax = THREE.float(1.0).sub(THREE.step(THREE.float(40.0), rawWaterDepth));
-    var hasGeometry = geoMin.mul(geoMax);
-
-    // =================================================================
-    // Screen-Space Refraction: see terrain/objects through water
-    // Samples the rendered scene behind the water at UV coordinates
-    // distorted by the surface normal maps, then applies Beer's law
-    // absorption to tint the view based on water depth.
-    // =================================================================
-    var refrEnabled = u.uRefractionEnabled.mul(hasGeometry);
-
-    // UV distortion from dual-scrolling normal maps
-    var refrDistort = THREE.vec2(
-      rnmResult.x.mul(u.uRefractionStrength).mul(0.05),
-      rnmResult.y.mul(u.uRefractionStrength).mul(0.05)
-    );
-    // Scale distortion by depth — less distortion in very shallow water
-    refrDistort = refrDistort.mul(density.add(0.2).clamp(0, 1));
-    var refrUV = THREE.screenUV.add(refrDistort);
-
-    // Depth-guard: prevent sampling foreground objects through water
-    var refrSceneDepth = THREE.linearDepth(THREE.viewportDepthTexture(refrUV));
-    var fragDepth = THREE.linearDepth();
-    var depthBehind = refrSceneDepth.sub(fragDepth);
-    var safeRefrUV = depthBehind.lessThan(0).select(THREE.screenUV, refrUV);
-
-    // Sample the scene behind the water
-    var sceneBehind = THREE.viewportSharedTexture(safeRefrUV);
-
-    // Beer's law absorption: exp(-depth * thickness)
-    // Shallow water → transmittance ≈ 1 (see-through)
-    // Deep water → transmittance ≈ 0 (opaque water color)
-    var transmittance = THREE.exp(waterDepth.negate().mul(u.uRefractionThickness).mul(0.3));
-    transmittance = transmittance.clamp(0, 1);
-
-    // Blend refracted scene with water color based on transmittance
-    var refrR = THREE.mix(cr, sceneBehind.x, transmittance);
-    var refrG = THREE.mix(cg, sceneBehind.y, transmittance);
-    var refrB = THREE.mix(cb, sceneBehind.z, transmittance);
-
-    // Apply only when refraction is enabled and geometry exists behind
-    cr.assign(THREE.mix(cr, refrR, refrEnabled));
-    cg.assign(THREE.mix(cg, refrG, refrEnabled));
-    cb.assign(THREE.mix(cb, refrB, refrEnabled));
-
-    // Make water opaque where refraction is active (transparency handled
-    // by color blend, not alpha — prevents double-compositing)
-    ca.assign(THREE.mix(ca, THREE.float(1.0), refrEnabled.mul(transmittance.oneMinus().add(0.3).clamp(0, 1))));
-
     // --- Fresnel (Schlick) using perturbed normal ---
     var NdotV = THREE.dot(N, viewDir).clamp(0, 1);
     var gF = THREE.float(1.0).sub(NdotV);
@@ -542,7 +486,12 @@ function _buildWaterTSLMaterial(u, tex) {
     // =================================================================
     var intAmount = THREE.float(0.0).toVar();
 
-    // hasGeometry already computed above (shared with refraction)
+    // Detect real geometry behind water (works with both standard AND reverse depth buffers)
+    // rawWaterDepth is linearized: 0 = no depth / sky, 0.01-40 = actual geometry, 50 = capped far
+    // hasGeometry = 1 when depth is in valid range (0.02..40), 0 when sky/no geometry
+    var geoMin = THREE.step(THREE.float(0.02), rawWaterDepth);
+    var geoMax = THREE.float(1.0).sub(THREE.step(THREE.float(40.0), rawWaterDepth));
+    var hasGeometry = geoMin.mul(geoMax);
     // Intersection distance: 0 at shore, 1 at intersectionLength
     var intDist = waterDepth.div(THREE.max(u.uIntLength, THREE.float(0.01))).clamp(0, 1);
     var intMask = THREE.float(1.0).sub(intDist).mul(hasGeometry);
@@ -1677,11 +1626,6 @@ StylizedWaterSystem.prototype.updateSettings = function(patch) {
 
     // Surface opacity
     this._tslU.uSurfaceOpacity.value = s.surfaceOpacity != null ? s.surfaceOpacity : 1.0;
-
-    // Screen-space refraction uniforms
-    if (this._tslU.uRefractionEnabled) this._tslU.uRefractionEnabled.value = s.refractionEnabled ? 1.0 : 0.0;
-    if (this._tslU.uRefractionStrength) this._tslU.uRefractionStrength.value = s.refractionStrength != null ? s.refractionStrength : 0.3;
-    if (this._tslU.uRefractionThickness) this._tslU.uRefractionThickness.value = s.refractionThickness != null ? s.refractionThickness : 2.0;
 
     // Underwater: sync fog color from deep color
     if (this._tslU.uUnderwaterFogColor) {
