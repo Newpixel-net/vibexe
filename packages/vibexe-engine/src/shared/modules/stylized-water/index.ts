@@ -340,8 +340,8 @@ function _buildWaterTSLMaterial(u, tex) {
     var fragLinZ = THREE.positionView.z.negate();
     var rawWaterDepth = THREE.max(sceneLinZ.sub(fragLinZ), THREE.float(0.0));
     rawWaterDepth = THREE.min(rawWaterDepth, THREE.float(50.0));
-    // Floor at 0.3 prevents near-zero depth instability (flashing) from underwater plane
-    var waterDepth = THREE.max(rawWaterDepth, THREE.float(0.3));
+    // Small floor prevents depth instability at exact shore edge
+    var waterDepth = THREE.max(rawWaterDepth, THREE.float(0.05));
 
     // --- Depth-based color ---
     var depthAtten = THREE.float(1.0).sub(THREE.exp(waterDepth.negate().mul(u.uDepthVert).mul(0.25)));
@@ -417,8 +417,8 @@ function _buildWaterTSLMaterial(u, tex) {
     var NdotV = THREE.dot(N, viewDir).clamp(0, 1);
     var gF = THREE.float(1.0).sub(NdotV);
     var fresnel = THREE.float(0.02).add(THREE.float(0.98).mul(gF.mul(gF).mul(gF).mul(gF).mul(gF))).clamp(0, 1);
-    // Cap Fresnel at 50% to keep shallow/deep colors visible (was 100% → white/cream water)
-    var fresnelMix = fresnel.mul(0.5);
+    // Cap Fresnel at 35% to keep shallow/deep colors dominant (50% was still too bright)
+    var fresnelMix = fresnel.mul(0.35);
     cr.assign(THREE.mix(cr, u.uHorizonColor.x, fresnelMix));
     cg.assign(THREE.mix(cg, u.uHorizonColor.y, fresnelMix));
     cb.assign(THREE.mix(cb, u.uHorizonColor.z, fresnelMix));
@@ -474,9 +474,11 @@ function _buildWaterTSLMaterial(u, tex) {
     // =================================================================
     var intAmount = THREE.float(0.0).toVar();
 
+    // Only show intersection foam near actual geometry (rawDepth < 0.995 means something is behind)
+    var hasGeometry = THREE.float(1.0).sub(rawDepth).clamp(0, 1).mul(200.0).clamp(0, 1);
     // Intersection distance: 0 at shore, 1 at intersectionLength
     var intDist = waterDepth.div(THREE.max(u.uIntLength, THREE.float(0.01))).clamp(0, 1);
-    var intMask = THREE.float(1.0).sub(intDist);
+    var intMask = THREE.float(1.0).sub(intDist).mul(hasGeometry);
 
     // Sample intersection foam texture
     var ifUV = THREE.vec2(
@@ -505,10 +507,10 @@ function _buildWaterTSLMaterial(u, tex) {
     // =================================================================
     // Phase 4: Caustics (dual-layer min blend + chromatic aberration)
     // =================================================================
-    // Only where depth > 0.1 and < 20, and caustics enabled
+    // Only where depth > 0.1 and < 20, caustics enabled, and actual geometry behind
     var caustMask = waterDepth.sub(0.1).clamp(0, 1).mul(
       THREE.float(1.0).sub(waterDepth.div(20.0)).clamp(0, 1)
-    ).mul(u.uCausticsEnabled);
+    ).mul(u.uCausticsEnabled).mul(hasGeometry);
 
     // Reduce caustics under foam/intersection
     caustMask = caustMask.mul(THREE.float(1.0).sub(foamAmount.mul(0.5)).sub(intAmount.mul(0.5)).clamp(0, 1));
@@ -585,8 +587,8 @@ function _buildWaterTSLMaterial(u, tex) {
     // Use rawWaterDepth (pre-floor) so edges still fade properly at depth < 0.3
     var edgeA = rawWaterDepth.div(u.uEdgeFade.mul(0.5).add(0.001)).clamp(0, 1);
     ca.mulAssign(edgeA);
-    var dABoost = rawWaterDepth.mul(0.4).clamp(0, 1);
-    ca.assign(THREE.max(ca, THREE.float(0.5).add(dABoost.mul(0.42))));
+    var dABoost = rawWaterDepth.mul(0.3).clamp(0, 1);
+    ca.assign(THREE.max(ca, THREE.float(0.15).add(dABoost.mul(0.45))));
 
     // --- Sun specular (Blinn-Phong) using perturbed normal ---
     var H = THREE.normalize(u.uSunDir.add(viewDir));
@@ -1068,16 +1070,17 @@ StylizedWaterSystem.prototype._animLoop = function() {
   this._lastTime = now;
   this._time += dt;
 
-  // FPS tracking (Phase 7) + auto-quality adjustment
+  // FPS tracking — 120s interval, only log once per threshold crossing
   this._fpsFrames++;
   var fpsElapsed = now - this._fpsTime;
-  if (fpsElapsed >= 30000) {
+  if (fpsElapsed >= 120000) {
     this._currentFPS = Math.round(this._fpsFrames / (fpsElapsed / 1000));
     this._fpsFrames = 0;
     this._fpsTime = now;
-    if (this._currentFPS < 90) {
+    if (this._currentFPS < 90 && !this._fpsWarnLogged) {
+      this._fpsWarnLogged = true;
       console.warn('[StylizedWater] FPS: ' + this._currentFPS + ' (target: 90+)');
-    } else if (!this._fpsOkLogged) {
+    } else if (this._currentFPS >= 90 && !this._fpsOkLogged) {
       this._fpsOkLogged = true;
       console.log('[StylizedWater] FPS: ' + this._currentFPS + ' — target met');
     }
@@ -1139,7 +1142,7 @@ StylizedWaterSystem.prototype._updateCameraFollow = function() {
   // Sync underwater solid + volume floor
   if (this._underwaterMesh) {
     this._underwaterMesh.position.x = this._mesh.position.x;
-    this._underwaterMesh.position.y = this._mesh.position.y - 0.15;
+    this._underwaterMesh.position.y = this._mesh.position.y - 0.5;
     this._underwaterMesh.position.z = this._mesh.position.z;
   }
 };
@@ -1942,7 +1945,7 @@ module.exports = {
 		waveTint: 0.1,
 		waveHeight: 0.5,
 		waveSpeed: 1.0,
-		waveSteepness: 0.5,
+		waveSteepness: 0.3,
 		waveCount: 2,
 		waveDistance: 0.5,
 		normalMapIndex: 0,
