@@ -94,6 +94,9 @@ export function getGameEditorBridgeScript(): string {
         if (child.name && child.name.indexOf("pop_") === 0) continue;
         // Skip water meshes (managed by water panel, not scene hierarchy)
         if (child.name && (child.name.indexOf("StylizedWater") === 0 || child.name.indexOf("__water") === 0)) continue;
+        // Skip cameras — the view camera is not a scene object, selecting it
+        // just draws a confusing green BoxHelper around the viewport
+        if (child.isCamera) continue;
         // Skip stale character meshes - only keep the active player mesh
         if (child.name && child.name.indexOf("Character_") === 0) {
           var activePlayer = window.__vibexe_playerMesh__;
