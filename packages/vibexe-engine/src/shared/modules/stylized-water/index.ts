@@ -163,9 +163,9 @@ function _createPlaceholderTex() {
 
 /** Create TSL uniform nodes for all water shader parameters */
 function _createWaterTSLUniforms(s) {
-  var sh = s.shallowColor || { r: 0.4, g: 0.8, b: 0.9, a: 0.92 };
-  var dp = s.deepColor || { r: 0.05, g: 0.15, b: 0.4, a: 0.98 };
-  var hz = s.horizonColor || { r: 0.6, g: 0.8, b: 1.0, a: 0.5 };
+  var sh = s.shallowColor || { r: 0.2, g: 0.6, b: 0.7, a: 0.88 };
+  var dp = s.deepColor || { r: 0.03, g: 0.1, b: 0.3, a: 0.96 };
+  var hz = s.horizonColor || { r: 0.4, g: 0.65, b: 0.85, a: 0.4 };
   var fc = s.foamColor || { r: 1, g: 1, b: 1, a: 0.8 };
   var ic = s.intersectionColor || { r: 1, g: 1, b: 1, a: 1 };
   return {
@@ -632,10 +632,10 @@ var DEFAULT_SETTINGS = {
   resolution: 1.0, // 1 vert per meter — smooth enough to avoid sharp facets
   followCamera: true,
   visible: true,
-  // Colors — high alpha for realistic water volume (not glass-like)
-  shallowColor: { r: 0.4, g: 0.8, b: 0.9, a: 0.92 },
-  deepColor: { r: 0.05, g: 0.15, b: 0.4, a: 0.98 },
-  horizonColor: { r: 0.6, g: 0.8, b: 1.0, a: 0.5 },
+  // Colors — rich teal defaults (closer to Unity Stylized Water 2 reference)
+  shallowColor: { r: 0.2, g: 0.6, b: 0.7, a: 0.88 },
+  deepColor: { r: 0.03, g: 0.1, b: 0.3, a: 0.96 },
+  horizonColor: { r: 0.4, g: 0.65, b: 0.85, a: 0.4 },
   horizonDistance: 3.0,
   depthVertical: 1.0,
   depthHorizontal: 1.0,
@@ -1935,9 +1935,9 @@ module.exports = {
 		resolution: 1.0,
 		followCamera: true,
 		visible: true,
-		shallowColor: { r: 0.4, g: 0.8, b: 0.9, a: 0.92 },
-		deepColor: { r: 0.05, g: 0.15, b: 0.4, a: 0.98 },
-		horizonColor: { r: 0.6, g: 0.8, b: 1.0, a: 0.5 },
+		shallowColor: { r: 0.2, g: 0.6, b: 0.7, a: 0.88 },
+		deepColor: { r: 0.03, g: 0.1, b: 0.3, a: 0.96 },
+		horizonColor: { r: 0.4, g: 0.65, b: 0.85, a: 0.4 },
 		horizonDistance: 3.0,
 		depthVertical: 1.0,
 		depthHorizontal: 1.0,
