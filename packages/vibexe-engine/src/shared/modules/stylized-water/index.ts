@@ -597,18 +597,20 @@ StylizedWaterSystem.prototype._build = function() {
 
   this.scene.add(this._mesh);
 
-  // Underwater ceiling — SHARES wave geometry, BackSide only (visible from below)
-  // Uses same geometry as water surface so waves match perfectly — no flat plane artifact
+  // Underwater solid — opaque dark plane just below surface, blocks view from ALL angles
+  // DoubleSide + opaque + depthWrite = water looks solid from side, below, and edge-on
+  var uwGeo = new THREE.PlaneGeometry(s.scale, s.scale);
+  uwGeo.rotateX(-Math.PI / 2);
   this._underwaterMat = new THREE.MeshBasicMaterial({
-    color: new THREE.Color(deep.r * 0.15, deep.g * 0.2, deep.b * 0.45),
+    color: new THREE.Color(deep.r * 0.12, deep.g * 0.15, deep.b * 0.35),
     transparent: false,
-    side: THREE.BackSide,
+    side: THREE.DoubleSide,
     depthWrite: true,
     fog: true,
   });
-  this._underwaterMesh = new THREE.Mesh(this._geometry, this._underwaterMat);
+  this._underwaterMesh = new THREE.Mesh(uwGeo, this._underwaterMat);
   this._underwaterMesh.name = '__water_underside__';
-  this._underwaterMesh.position.y = s.waterLevel;
+  this._underwaterMesh.position.y = s.waterLevel - 0.15;
   this._underwaterMesh.renderOrder = 98;
   this._underwaterMesh.frustumCulled = false;
   this.scene.add(this._underwaterMesh);
@@ -1243,10 +1245,10 @@ StylizedWaterSystem.prototype._updateCameraFollow = function() {
   this._mesh.position.x = Math.round(camX / cellSize) * cellSize;
   this._mesh.position.z = Math.round(camZ / cellSize) * cellSize;
 
-  // Sync underwater ceiling + volume floor (shared geometry follows automatically)
+  // Sync underwater solid + volume floor
   if (this._underwaterMesh) {
     this._underwaterMesh.position.x = this._mesh.position.x;
-    this._underwaterMesh.position.y = this._mesh.position.y;
+    this._underwaterMesh.position.y = this._mesh.position.y - 0.15;
     this._underwaterMesh.position.z = this._mesh.position.z;
   }
   if (this._volumeFloorMesh) {
@@ -1502,7 +1504,7 @@ StylizedWaterSystem.prototype.updateSettings = function(patch) {
   // Update water level
   if (this.settings.waterLevel !== oldLevel && this._mesh) {
     this._mesh.position.y = this.settings.waterLevel;
-    if (this._underwaterMesh) this._underwaterMesh.position.y = this.settings.waterLevel;
+    if (this._underwaterMesh) this._underwaterMesh.position.y = this.settings.waterLevel - 0.15;
     if (this._volumeFloorMesh) this._volumeFloorMesh.position.y = this.settings.waterLevel - (this.settings.volumeDepth || 8);
     window.__vibexe_waterLevel = this.settings.waterLevel;
   }
@@ -1563,8 +1565,13 @@ StylizedWaterSystem.prototype._rebuildGeometry = function() {
   this._geometry.setAttribute('color', new THREE.BufferAttribute(this._vertexColors, 4));
 
   this._mesh.geometry = this._geometry;
-  // Underwater ceiling shares geometry with water surface
-  if (this._underwaterMesh) this._underwaterMesh.geometry = this._geometry;
+  // Rebuild underwater plane to match new scale
+  if (this._underwaterMesh) {
+    var uwGeo2 = new THREE.PlaneGeometry(s.scale, s.scale);
+    uwGeo2.rotateX(-Math.PI / 2);
+    if (this._underwaterMesh.geometry) this._underwaterMesh.geometry.dispose();
+    this._underwaterMesh.geometry = uwGeo2;
+  }
   console.log('[StylizedWater] Rebuilt geometry — verts:' + vertCount);
 };
 
