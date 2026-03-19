@@ -229,6 +229,8 @@ function _createWaterTSLUniforms(s) {
     // Phase 4: Sparkle uniforms
     uSparkleIntensity: THREE.uniform(s.sparkleIntensity || 0),
     uSparkleSize: THREE.uniform(s.sparkleSize || 0.9),
+    // Surface opacity (global alpha multiplier)
+    uSurfaceOpacity: THREE.uniform(s.surfaceOpacity != null ? s.surfaceOpacity : 1.0),
     // Underwater post-process uniforms
     uUnderwaterStr: THREE.uniform(0.0),
     uUnderwaterFogColor: THREE.uniform(new THREE.Color(dp.r * 0.3, dp.g * 0.3, dp.b * 0.5)),
@@ -624,6 +626,8 @@ function _buildWaterTSLMaterial(u, tex) {
     cr.assign(cr.clamp(0, 1));
     cg.assign(cg.clamp(0, 1));
     cb.assign(cb.clamp(0, 1));
+    // Apply surface opacity multiplier (user-controlled transparency)
+    ca.mulAssign(u.uSurfaceOpacity);
     ca.assign(ca.clamp(0, 1));
 
     _alphaOut = ca;
@@ -719,6 +723,9 @@ var DEFAULT_SETTINGS = {
   riverMode: false,
   riverDirection: 0,
   riverSpeed: 1.0,
+
+  // Surface opacity (global alpha multiplier)
+  surfaceOpacity: 1.0,
 
   // Buoyancy (Phase 5)
   buoyancyEnabled: true,
@@ -1521,6 +1528,9 @@ StylizedWaterSystem.prototype.updateSettings = function(patch) {
     this._tslU.uSparkleIntensity.value = s.sparkleIntensity || 0;
     this._tslU.uSparkleSize.value = s.sparkleSize || 0.9;
 
+    // Surface opacity
+    this._tslU.uSurfaceOpacity.value = s.surfaceOpacity != null ? s.surfaceOpacity : 1.0;
+
     // Underwater: sync fog color from deep color
     if (this._tslU.uUnderwaterFogColor) {
       this._tslU.uUnderwaterFogColor.value.setRGB(dp.r * 0.3, dp.g * 0.3, dp.b * 0.5);
@@ -2055,6 +2065,7 @@ module.exports = {
 		riverMode: false,
 		riverDirection: 0,
 		riverSpeed: 1.0,
+		surfaceOpacity: 1.0,
 		buoyancyEnabled: true,
 	},
 };

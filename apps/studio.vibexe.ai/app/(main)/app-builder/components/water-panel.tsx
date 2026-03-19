@@ -74,6 +74,7 @@ interface WaterConfig {
 	riverMode?: boolean;
 	riverDirection?: number;
 	riverSpeed?: number;
+	surfaceOpacity?: number;
 	buoyancyEnabled?: boolean;
 }
 
@@ -616,7 +617,10 @@ export function WaterPanel({ sendToIframe, onClose, settings, onChange, onSave }
 				{/* ── Underwater Tab ── */}
 				{activeTab === "under" && (
 					<>
-						<div className="text-[10px] text-white/30 uppercase tracking-wider mb-1">Caustics</div>
+						<div className="text-[10px] text-white/30 uppercase tracking-wider mb-1">Surface</div>
+						<Slider label="Opacity" value={config.surfaceOpacity ?? 1} min={0.05} max={1} step={0.01} onChange={(v) => sendConfig({ surfaceOpacity: v })} />
+
+						<div className="text-[10px] text-white/30 uppercase tracking-wider mt-3 mb-1">Caustics</div>
 						<div className="flex items-center gap-2 mb-1">
 							<span className="text-[10px] text-white/50 w-[72px]">Enabled</span>
 							<button
