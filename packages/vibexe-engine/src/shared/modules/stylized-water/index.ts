@@ -321,14 +321,18 @@ function _buildWaterTSLMaterial(u, tex) {
     var viewDir = THREE.normalize(THREE.cameraPosition.sub(worldPos));
 
     // --- Depth via viewport depth texture ---
+    // Three.js viewportDepthTexture returns perspective depth in [0,1] on BOTH
+    // WebGL and WebGPU (neither uses reversed depth in Three.js r170+).
+    // Standard linearization: viewZ = near*far / (far - depth*(far-near))
     var rawDepth = THREE.viewportDepthTexture(THREE.screenUV);
     var near = THREE.cameraNear;
     var far = THREE.cameraFar;
-    // Linearize depth (handles both WebGPU reversed and WebGL standard)
     var diff = far.sub(near);
-    var linGL = near.mul(far).div(far.sub(rawDepth.mul(diff)));
-    var linGPU = near.mul(far).div(near.add(rawDepth.mul(diff)));
-    var sceneLinZ = THREE.mix(linGL, linGPU, u.uIsWebGPU);
+    // Prevent division by zero when rawDepth=1.0 (far plane / no geometry behind)
+    var denom = THREE.max(far.sub(rawDepth.mul(diff)), THREE.float(0.001));
+    var sceneLinZ = near.mul(far).div(denom);
+    // Clamp to valid range to handle edge cases (sky, no geometry behind water)
+    sceneLinZ = sceneLinZ.clamp(near, far);
     var fragLinZ = THREE.positionView.z.negate();
     var waterDepth = THREE.max(sceneLinZ.sub(fragLinZ), THREE.float(0.0));
     waterDepth = THREE.min(waterDepth, THREE.float(50.0));
