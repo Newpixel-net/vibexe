@@ -439,6 +439,8 @@ function StylizedWaterSystem(scene, camera, settings) {
   // Texture data for CPU sampling
   this._foamData = null;
   this._foamDataSize = 0;
+  this._intFoamData = null;  // Intersection_Foam texture
+  this._intFoamDataSize = 0;
   this._causticsData = null;
   this._causticsDataSize = 0;
   this._noiseData = null;
@@ -570,6 +572,13 @@ StylizedWaterSystem.prototype._loadTextures = function() {
     self._noiseDataSize = size;
     console.log('[StylizedWater] Intersection noise loaded for CPU sampling');
   });
+
+  // 5. Intersection foam texture → CPU canvas (shore foam pattern)
+  _loadTextureCanvas('Intersection_Foam', 128, function(data, size) {
+    self._intFoamData = data;
+    self._intFoamDataSize = size;
+    console.log('[StylizedWater] Intersection foam texture loaded for CPU sampling');
+  });
 };
 
 // ── Animation Loop ─────────────────────────────────────
@@ -597,6 +606,11 @@ StylizedWaterSystem.prototype._animLoop = function() {
 
   // Camera follow every frame
   this._updateCameraFollow();
+
+  // Physics buoyancy every 3 frames (Phase 5)
+  if (this._colorCounter === 0) {
+    this._updateBuoyancy();
+  }
 
   this._animFrameId = requestAnimationFrame(this._animLoop);
 };
@@ -637,17 +651,38 @@ StylizedWaterSystem.prototype._updateNormalMapUV = function() {
   var s = this.settings;
   var tiling = (s.normalTilingX || 0.5) * 10;
   var speed = s.normalSpeed || 0.1;
+  var subTiling = s.normalSubTiling || 0.5;
+  var subSpeed = s.normalSubSpeed || -0.25;
 
   // World-space UV compensation for camera-following mesh
   var meshU = this._mesh.position.x / Math.max(s.scale, 1);
   var meshV = this._mesh.position.z / Math.max(s.scale, 1);
 
-  // Primary layer
+  // Primary layer UV scroll
+  var u1 = meshU * tiling + this._time * speed;
+  var v1 = meshV * tiling + this._time * speed * 0.7;
+
+  // Secondary layer cross-pan (simulates dual normal map RNM blend)
+  var u2 = meshU * tiling * subTiling + this._time * speed * subSpeed;
+  var v2 = meshV * tiling * subTiling + this._time * speed * subSpeed * 0.8;
+
+  // Blend primary + secondary via sinusoidal perturbation
+  var blendU = u1 + Math.sin(u2 * TWO_PI) * 0.04;
+  var blendV = v1 + Math.cos(v2 * TWO_PI) * 0.04;
+
   this._material.normalMap.repeat.set(tiling, tiling);
-  this._material.normalMap.offset.set(
-    meshU * tiling + this._time * speed,
-    meshV * tiling + this._time * speed * 0.7
-  );
+  this._material.normalMap.offset.set(blendU, blendV);
+
+  // Distance-based normal strength reduction (Phase 5: distance normals)
+  if (this.camera) {
+    var cam = this.camera.position;
+    var dx = cam.x - this._mesh.position.x;
+    var dz = cam.z - this._mesh.position.z;
+    var dist = Math.sqrt(dx * dx + dz * dz);
+    var distFactor = _saturate(1 - dist / (s.scale * 0.4));
+    var ns = (s.normalStrength || 0.5) * (0.2 + 0.8 * distFactor);
+    this._material.normalScale.set(ns, -ns);
+  }
 };
 
 // ── Vertex Color Computation ───────────────────────────
@@ -732,18 +767,29 @@ StylizedWaterSystem.prototype._updateColors = function() {
       var crest = _saturate(waveY * 2.0) * s.foamWaveAmount;
       foam = crest + s.foamBaseAmount;
 
-      // Sample foam texture for pattern/dissolve
+      // Dual-layer foam texture sampling (Phase 2: proper dissolve)
       if (hasFoamTex && foam > 0.001) {
-        var foamU = wx * s.foamTilingX + this._time * s.foamSpeed;
-        var foamV = wz * s.foamTilingY + this._time * s.foamSpeed * 0.7;
-        var foamSample = _sampleImageData(this._foamData, this._foamDataSize, foamU, foamV);
-        var foamTex = _saturate(foamSample.r + foamSample.g * 0.5);
+        // Layer 1: primary foam pattern
+        var foamU1 = wx * s.foamTilingX + this._time * s.foamSpeed;
+        var foamV1 = wz * s.foamTilingY + this._time * s.foamSpeed * 0.7;
+        var fs1 = _sampleImageData(this._foamData, this._foamDataSize, foamU1, foamV1);
 
-        // Dissolve/clipping
+        // Layer 2: secondary at different scale + reversed scroll
+        var foamU2 = wx * s.foamTilingX * 1.4 - this._time * s.foamSpeed * 0.3;
+        var foamV2 = wz * s.foamTilingY * 1.4 + this._time * s.foamSpeed * 0.5;
+        var fs2 = _sampleImageData(this._foamData, this._foamDataSize, foamU2, foamV2);
+
+        // Combine: saturate(sample1.r + sample2.r) → rich dissolve pattern
+        var foamTex = _saturate(fs1.r + fs2.r);
+
+        // Dissolve clipping
         if (s.foamClipping > 0.001) {
           foamTex = _smoothstep(s.foamClipping, 1.0, foamTex);
         }
-        foam *= foamTex;
+
+        // Smoothstep dissolve edge (Unity: smoothstep(invertedMask, invertedMask+1, foamTex))
+        var invertedMask = 1.0 - foam;
+        foam = _smoothstep(invertedMask, invertedMask + 0.8, foamTex) * foamCol.a;
       }
 
       foam = _saturate(foam);
@@ -757,12 +803,12 @@ StylizedWaterSystem.prototype._updateColors = function() {
       }
     }
 
-    // ── Intersection foam (Phase 2): noise-texture-sampled ──
+    // ── Intersection foam (Phase 2): texture + noise sampled ──
     var intersection = 0;
     if (intEnabled && getTerrainH && depth < s.intersectionLength) {
       var intDist = _saturate(depth / Math.max(s.intersectionLength, 0.01));
 
-      // Sample intersection noise for pattern
+      // Sample intersection noise for pattern variation
       var noise = 1.0;
       if (hasNoiseTex) {
         var noiseU = wx * 0.3 + this._time * 0.05;
@@ -770,18 +816,27 @@ StylizedWaterSystem.prototype._updateColors = function() {
         noise = _sampleImageData(this._noiseData, this._noiseDataSize, noiseU, noiseV).r;
       }
 
+      // Sample intersection foam texture for shore foam pattern
+      var intFoamTex = 1.0;
+      if (this._intFoamData) {
+        var ifU = wx * 0.15 + this._time * 0.02;
+        var ifV = wz * 0.15 - this._time * 0.015;
+        intFoamTex = _sampleImageData(this._intFoamData, this._intFoamDataSize, ifU, ifV).r;
+      }
+
       if (s.intersectionStyle === 0) {
-        // Sharp step with noise
+        // Sharp step: step(clipping, saturate((noise + sineRipple) * dist + dist))
         var sineRipple = Math.sin(intDist * 12.566 + this._time * 2.0) * 0.5 + 0.5;
         intersection = 1.0 - _smoothstep(0.0, 0.3, _saturate((noise + sineRipple) * intDist + intDist));
+        intersection *= intFoamTex;
       } else if (s.intersectionStyle === 1) {
-        // Smooth gradient with noise
-        intersection = _saturate(noise * 0.8 + (1.0 - intDist)) * (1.0 - intDist);
+        // Smooth: saturate(noise1 + noise2 + dist) * dist
+        intersection = _saturate(noise * intFoamTex + (1.0 - intDist)) * (1.0 - intDist);
         intersection *= intersection;
       } else {
-        // Ripple with noise
+        // Ripple: animated sine waves with foam texture
         var ripple = Math.sin(intDist * 18.85 + this._time * 3.0) * 0.5 + 0.5;
-        intersection = (1.0 - intDist) * ripple * noise;
+        intersection = (1.0 - intDist) * ripple * noise * intFoamTex;
       }
 
       intersection = _saturate(intersection) * intCol.a;
@@ -944,6 +999,54 @@ StylizedWaterSystem.prototype._getSunColor = function() {
     }
   }
   return { r: 1.0, g: 0.95, b: 0.9 };
+};
+
+// ── Physics Buoyancy Force (Phase 5) ───────────────────
+// Applies upward force + drag to Rapier rigid bodies submerged in water
+
+StylizedWaterSystem.prototype._updateBuoyancy = function() {
+  if (!this.settings.buoyancyEnabled) return;
+
+  // Find Rapier world
+  var rapierWorld = window.__vibexe_rapierWorld__ || null;
+  if (!rapierWorld || !rapierWorld.forEachRigidBody) return;
+
+  var self = this;
+  var s = this.settings;
+
+  try {
+    rapierWorld.forEachRigidBody(function(body) {
+      if (body.isFixed() || body.isKinematic()) return;
+
+      var pos = body.translation();
+      var waterH = _sampleWaves(pos.x, pos.z, self._time, s).height;
+      var submerged = waterH - pos.y;
+
+      if (submerged > 0) {
+        // Buoyancy force proportional to submersion depth
+        var force = Math.min(submerged * 12, 40);
+        body.applyImpulse({ x: 0, y: force * 0.016, z: 0 }, true);
+
+        // Water drag (resistance)
+        var vel = body.linvel();
+        body.applyImpulse({
+          x: -vel.x * 0.04,
+          y: -vel.y * 0.015,
+          z: -vel.z * 0.04
+        }, true);
+
+        // Angular drag (dampen spinning)
+        var angVel = body.angvel();
+        body.applyTorqueImpulse({
+          x: -angVel.x * 0.02,
+          y: -angVel.y * 0.02,
+          z: -angVel.z * 0.02
+        }, true);
+      }
+    });
+  } catch(e) {
+    // Rapier iteration may fail if world is being stepped
+  }
 };
 
 // ── Buoyancy API (Phase 5) ─────────────────────────────
