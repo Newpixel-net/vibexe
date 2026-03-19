@@ -250,7 +250,8 @@ export function WaterPanel({ sendToIframe, onClose, settings, onChange, onSave }
 		configRef.current = { ...DEFAULTS };
 		latestRef.current = { ...DEFAULTS };
 		dirtyRef.current = true;
-		sendToIframe({ type: "stylized-water-update-config", config: DEFAULTS, bodyId: activeBodyId });
+		// Send reset-defaults (not update-config) so the engine rebuilds geometry and reloads textures
+		sendToIframe({ type: "stylized-water-reset-defaults", bodyId: activeBodyId });
 		onChange(DEFAULTS);
 	}, [sendToIframe, onChange, activeBodyId]);
 

@@ -60,7 +60,12 @@ function _deepMerge(target, source) {
           result[k] && typeof result[k] === 'object' && !Array.isArray(result[k])) {
         result[k] = _deepMerge(result[k], source[k]);
       } else {
-        result[k] = source[k];
+        // Clone objects to prevent mutation of source
+        if (source[k] && typeof source[k] === 'object' && !Array.isArray(source[k])) {
+          result[k] = _deepMerge({}, source[k]);
+        } else {
+          result[k] = source[k];
+        }
       }
     }
   }
@@ -99,12 +104,12 @@ function _gerstnerWave(wx, wz, dirX, dirY, steepness, wavelength, amplitude, spe
 }
 
 function _sampleWaves(worldX, worldZ, time, s) {
-  var height = s.waveHeight || 0.5;
-  var speed = s.waveSpeed || 1.0;
-  var steepness = s.waveSteepness || 0.5;
-  var count = _clamp(Math.round(s.waveCount || 2), 1, 5);
-  var dist = s.waveDistance || 0.5;
-  var waterLevel = s.waterLevel || 0;
+  var height = s.waveHeight != null ? s.waveHeight : 0.5;
+  var speed = s.waveSpeed != null ? s.waveSpeed : 1.0;
+  var steepness = s.waveSteepness != null ? s.waveSteepness : 0.5;
+  var count = _clamp(Math.round(s.waveCount != null ? s.waveCount : 2), 1, 5);
+  var dist = s.waveDistance != null ? s.waveDistance : 0.5;
+  var waterLevel = s.waterLevel != null ? s.waterLevel : 0;
 
   var ox = 0, oy = 0, oz = 0;
   var nx = 0, ny = 1, nz = 0;
@@ -175,60 +180,60 @@ function _createWaterTSLUniforms(s) {
     uCamPosX: THREE.uniform(0.0),
     uCamPosZ: THREE.uniform(0.0),
     uIsWebGPU: THREE.uniform(0.0),
-    uWaveHeight: THREE.uniform(s.waveHeight || 0.5),
-    uWaveSpeed: THREE.uniform(s.waveSpeed || 1.0),
-    uWaveSteepness: THREE.uniform(s.waveSteepness || 0.3),
-    uWaveCount: THREE.uniform(s.waveCount || 2),
-    uWaveDistance: THREE.uniform(s.waveDistance || 0.5),
-    uScale: THREE.uniform(s.scale || 200),
-    uWaterLevel: THREE.uniform(s.waterLevel || -3),
+    uWaveHeight: THREE.uniform(s.waveHeight != null ? s.waveHeight : 0.5),
+    uWaveSpeed: THREE.uniform(s.waveSpeed != null ? s.waveSpeed : 1.0),
+    uWaveSteepness: THREE.uniform(s.waveSteepness != null ? s.waveSteepness : 0.3),
+    uWaveCount: THREE.uniform(s.waveCount != null ? s.waveCount : 2),
+    uWaveDistance: THREE.uniform(s.waveDistance != null ? s.waveDistance : 0.5),
+    uScale: THREE.uniform(s.scale != null ? s.scale : 200),
+    uWaterLevel: THREE.uniform(s.waterLevel != null ? s.waterLevel : -3),
     uShallowColor: THREE.uniform(new THREE.Color(sh.r, sh.g, sh.b)),
     uDeepColor: THREE.uniform(new THREE.Color(dp.r, dp.g, dp.b)),
     uHorizonColor: THREE.uniform(new THREE.Color(hz.r, hz.g, hz.b)),
     uShallowAlpha: THREE.uniform(sh.a != null ? sh.a : 0.92),
     uDeepAlpha: THREE.uniform(dp.a != null ? dp.a : 0.98),
     uHorizonAlpha: THREE.uniform(hz.a != null ? hz.a : 0.5),
-    uDepthVert: THREE.uniform(s.depthVertical || 1.0),
-    uColorAbsorption: THREE.uniform(s.colorAbsorption || 0.5),
-    uEdgeFade: THREE.uniform(s.edgeFade || 1.0),
-    uWaveTint: THREE.uniform(s.waveTint || 0.1),
-    uHorizonDist: THREE.uniform(s.horizonDistance || 3.0),
+    uDepthVert: THREE.uniform(s.depthVertical != null ? s.depthVertical : 1.0),
+    uColorAbsorption: THREE.uniform(s.colorAbsorption != null ? s.colorAbsorption : 0.5),
+    uEdgeFade: THREE.uniform(s.edgeFade != null ? s.edgeFade : 1.0),
+    uWaveTint: THREE.uniform(s.waveTint != null ? s.waveTint : 0.1),
+    uHorizonDist: THREE.uniform(s.horizonDistance != null ? s.horizonDistance : 3.0),
     uSunDir: THREE.uniform(new THREE.Vector3(0, 0.707, 0.707)),
     uSunColor: THREE.uniform(new THREE.Color(1.0, 0.95, 0.9)),
-    uSunSpecSize: THREE.uniform(s.sunReflectionSize || 0.5),
-    uSunSpecStr: THREE.uniform(s.sunReflectionStrength || 1.0),
-    uTranslucencyStr: THREE.uniform(s.translucencyStrength || 0.5),
-    uTranslucencyExp: THREE.uniform(s.translucencyExp || 6.0),
+    uSunSpecSize: THREE.uniform(s.sunReflectionSize != null ? s.sunReflectionSize : 0.5),
+    uSunSpecStr: THREE.uniform(s.sunReflectionStrength != null ? s.sunReflectionStrength : 1.0),
+    uTranslucencyStr: THREE.uniform(s.translucencyStrength != null ? s.translucencyStrength : 0.5),
+    uTranslucencyExp: THREE.uniform(s.translucencyExp != null ? s.translucencyExp : 6.0),
     // Phase 3: Normal map uniforms
-    uNormalTiling: THREE.uniform((s.normalTilingX || 0.5) * 10),
-    uNormalSubTiling: THREE.uniform(s.normalSubTiling || 0.5),
-    uNormalSpeed: THREE.uniform(s.normalSpeed || 0.1),
-    uNormalSubSpeed: THREE.uniform(s.normalSubSpeed || -0.25),
-    uNormalStrength: THREE.uniform(s.normalStrength || 0.5),
+    uNormalTiling: THREE.uniform((s.normalTilingX != null ? s.normalTilingX : 0.5) * 10),
+    uNormalSubTiling: THREE.uniform(s.normalSubTiling != null ? s.normalSubTiling : 0.5),
+    uNormalSpeed: THREE.uniform(s.normalSpeed != null ? s.normalSpeed : 0.1),
+    uNormalSubSpeed: THREE.uniform(s.normalSubSpeed != null ? s.normalSubSpeed : -0.25),
+    uNormalStrength: THREE.uniform(s.normalStrength != null ? s.normalStrength : 0.5),
     // Phase 3: Foam uniforms
     uFoamEnabled: THREE.uniform(s.foamEnabled !== false ? 1.0 : 0.0),
     uFoamColor: THREE.uniform(new THREE.Color(fc.r, fc.g, fc.b)),
     uFoamAlpha: THREE.uniform(fc.a != null ? fc.a : 0.8),
-    uFoamTilingX: THREE.uniform(s.foamTilingX || 0.1),
-    uFoamTilingY: THREE.uniform(s.foamTilingY || 0.1),
-    uFoamSpeed: THREE.uniform(s.foamSpeed || 0.1),
-    uFoamWaveAmount: THREE.uniform(s.foamWaveAmount || 0.3),
-    uFoamBaseAmount: THREE.uniform(s.foamBaseAmount || 0),
-    uFoamClipping: THREE.uniform(s.foamClipping || 0),
+    uFoamTilingX: THREE.uniform(s.foamTilingX != null ? s.foamTilingX : 0.1),
+    uFoamTilingY: THREE.uniform(s.foamTilingY != null ? s.foamTilingY : 0.1),
+    uFoamSpeed: THREE.uniform(s.foamSpeed != null ? s.foamSpeed : 0.1),
+    uFoamWaveAmount: THREE.uniform(s.foamWaveAmount != null ? s.foamWaveAmount : 0.3),
+    uFoamBaseAmount: THREE.uniform(s.foamBaseAmount != null ? s.foamBaseAmount : 0),
+    uFoamClipping: THREE.uniform(s.foamClipping != null ? s.foamClipping : 0),
     // Phase 4: Intersection foam uniforms
     uIntEnabled: THREE.uniform(s.intersectionEnabled !== false ? 1.0 : 0.0),
     uIntColor: THREE.uniform(new THREE.Color(ic.r, ic.g, ic.b)),
-    uIntLength: THREE.uniform(s.intersectionLength || 2),
+    uIntLength: THREE.uniform(s.intersectionLength != null ? s.intersectionLength : 2),
     // Phase 4: Caustics uniforms
     uCausticsEnabled: THREE.uniform(s.causticsEnabled !== false ? 1.0 : 0.0),
-    uCausticsBrightness: THREE.uniform(s.causticsBrightness || 1.0),
-    uCausticsChromance: THREE.uniform(s.causticsChromance || 0.5),
-    uCausticsTiling: THREE.uniform(s.causticsTiling || 0.5),
-    uCausticsSpeed: THREE.uniform(s.causticsSpeed || 0.5),
-    uCausticsDistortion: THREE.uniform(s.causticsDistortion || 0.3),
+    uCausticsBrightness: THREE.uniform(s.causticsBrightness != null ? s.causticsBrightness : 1.0),
+    uCausticsChromance: THREE.uniform(s.causticsChromance != null ? s.causticsChromance : 0.5),
+    uCausticsTiling: THREE.uniform(s.causticsTiling != null ? s.causticsTiling : 0.5),
+    uCausticsSpeed: THREE.uniform(s.causticsSpeed != null ? s.causticsSpeed : 0.5),
+    uCausticsDistortion: THREE.uniform(s.causticsDistortion != null ? s.causticsDistortion : 0.3),
     // Phase 4: Sparkle uniforms
-    uSparkleIntensity: THREE.uniform(s.sparkleIntensity || 0),
-    uSparkleSize: THREE.uniform(s.sparkleSize || 0.9),
+    uSparkleIntensity: THREE.uniform(s.sparkleIntensity != null ? s.sparkleIntensity : 0),
+    uSparkleSize: THREE.uniform(s.sparkleSize != null ? s.sparkleSize : 0.9),
     // Surface opacity (global alpha multiplier)
     uSurfaceOpacity: THREE.uniform(s.surfaceOpacity != null ? s.surfaceOpacity : 1.0),
     // Underwater post-process uniforms
@@ -1506,8 +1511,16 @@ StylizedWaterSystem.prototype.updateSettings = function(patch) {
   var oldScale = this.settings.scale;
   var oldRes = this.settings.resolution;
   var oldLevel = this.settings.waterLevel;
+  var oldNormalIdx = this.settings.normalMapIndex;
+  var oldFoamIdx = this.settings.foamTextureIndex;
 
   this.settings = _deepMerge(this.settings, patch);
+
+  // Reload textures if normal map or foam texture index changed
+  if ((this.settings.normalMapIndex || 0) !== (oldNormalIdx || 0) ||
+      (this.settings.foamTextureIndex || 0) !== (oldFoamIdx || 0)) {
+    this._loadTextures();
+  }
 
   // Rebuild geometry if scale/resolution changed
   if (this.settings.scale !== oldScale || this.settings.resolution !== oldRes) {
@@ -1534,13 +1547,13 @@ StylizedWaterSystem.prototype.updateSettings = function(patch) {
     var dp = s.deepColor || DEFAULT_SETTINGS.deepColor;
     var hz = s.horizonColor || DEFAULT_SETTINGS.horizonColor;
 
-    this._tslU.uWaveHeight.value = s.waveHeight || 0.5;
-    this._tslU.uWaveSpeed.value = s.waveSpeed || 1.0;
-    this._tslU.uWaveSteepness.value = s.waveSteepness || 0.3;
-    this._tslU.uWaveCount.value = s.waveCount || 2;
-    this._tslU.uWaveDistance.value = s.waveDistance || 0.5;
-    this._tslU.uScale.value = s.scale || 200;
-    this._tslU.uWaterLevel.value = s.waterLevel || -3;
+    this._tslU.uWaveHeight.value = s.waveHeight != null ? s.waveHeight : 0.5;
+    this._tslU.uWaveSpeed.value = s.waveSpeed != null ? s.waveSpeed : 1.0;
+    this._tslU.uWaveSteepness.value = s.waveSteepness != null ? s.waveSteepness : 0.3;
+    this._tslU.uWaveCount.value = s.waveCount != null ? s.waveCount : 2;
+    this._tslU.uWaveDistance.value = s.waveDistance != null ? s.waveDistance : 0.5;
+    this._tslU.uScale.value = s.scale != null ? s.scale : 200;
+    this._tslU.uWaterLevel.value = s.waterLevel != null ? s.waterLevel : -3;
 
     this._tslU.uShallowColor.value.setRGB(sh.r, sh.g, sh.b);
     this._tslU.uDeepColor.value.setRGB(dp.r, dp.g, dp.b);
@@ -1549,53 +1562,53 @@ StylizedWaterSystem.prototype.updateSettings = function(patch) {
     this._tslU.uDeepAlpha.value = dp.a != null ? dp.a : 0.98;
     this._tslU.uHorizonAlpha.value = hz.a != null ? hz.a : 0.5;
 
-    this._tslU.uDepthVert.value = s.depthVertical || 1.0;
-    this._tslU.uColorAbsorption.value = s.colorAbsorption || 0.5;
-    this._tslU.uEdgeFade.value = s.edgeFade || 1.0;
-    this._tslU.uWaveTint.value = s.waveTint || 0.1;
-    this._tslU.uHorizonDist.value = s.horizonDistance || 3.0;
+    this._tslU.uDepthVert.value = s.depthVertical != null ? s.depthVertical : 1.0;
+    this._tslU.uColorAbsorption.value = s.colorAbsorption != null ? s.colorAbsorption : 0.5;
+    this._tslU.uEdgeFade.value = s.edgeFade != null ? s.edgeFade : 1.0;
+    this._tslU.uWaveTint.value = s.waveTint != null ? s.waveTint : 0.1;
+    this._tslU.uHorizonDist.value = s.horizonDistance != null ? s.horizonDistance : 3.0;
 
-    this._tslU.uSunSpecSize.value = s.sunReflectionSize || 0.5;
-    this._tslU.uSunSpecStr.value = s.sunReflectionStrength || 1.0;
-    this._tslU.uTranslucencyStr.value = s.translucencyStrength || 0.5;
-    this._tslU.uTranslucencyExp.value = s.translucencyExp || 6.0;
+    this._tslU.uSunSpecSize.value = s.sunReflectionSize != null ? s.sunReflectionSize : 0.5;
+    this._tslU.uSunSpecStr.value = s.sunReflectionStrength != null ? s.sunReflectionStrength : 1.0;
+    this._tslU.uTranslucencyStr.value = s.translucencyStrength != null ? s.translucencyStrength : 0.5;
+    this._tslU.uTranslucencyExp.value = s.translucencyExp != null ? s.translucencyExp : 6.0;
 
     // Phase 3: Normal map uniforms
-    this._tslU.uNormalTiling.value = (s.normalTilingX || 0.5) * 10;
-    this._tslU.uNormalSubTiling.value = s.normalSubTiling || 0.5;
-    this._tslU.uNormalSpeed.value = s.normalSpeed || 0.1;
-    this._tslU.uNormalSubSpeed.value = s.normalSubSpeed || -0.25;
-    this._tslU.uNormalStrength.value = s.normalStrength || 0.5;
+    this._tslU.uNormalTiling.value = (s.normalTilingX != null ? s.normalTilingX : 0.5) * 10;
+    this._tslU.uNormalSubTiling.value = s.normalSubTiling != null ? s.normalSubTiling : 0.5;
+    this._tslU.uNormalSpeed.value = s.normalSpeed != null ? s.normalSpeed : 0.1;
+    this._tslU.uNormalSubSpeed.value = s.normalSubSpeed != null ? s.normalSubSpeed : -0.25;
+    this._tslU.uNormalStrength.value = s.normalStrength != null ? s.normalStrength : 0.5;
 
     // Phase 3: Foam uniforms
     var fc = s.foamColor || { r: 1, g: 1, b: 1, a: 0.8 };
     this._tslU.uFoamEnabled.value = s.foamEnabled !== false ? 1.0 : 0.0;
     this._tslU.uFoamColor.value.setRGB(fc.r, fc.g, fc.b);
     this._tslU.uFoamAlpha.value = fc.a != null ? fc.a : 0.8;
-    this._tslU.uFoamTilingX.value = s.foamTilingX || 0.1;
-    this._tslU.uFoamTilingY.value = s.foamTilingY || 0.1;
-    this._tslU.uFoamSpeed.value = s.foamSpeed || 0.1;
-    this._tslU.uFoamWaveAmount.value = s.foamWaveAmount || 0.3;
-    this._tslU.uFoamBaseAmount.value = s.foamBaseAmount || 0;
-    this._tslU.uFoamClipping.value = s.foamClipping || 0;
+    this._tslU.uFoamTilingX.value = s.foamTilingX != null ? s.foamTilingX : 0.1;
+    this._tslU.uFoamTilingY.value = s.foamTilingY != null ? s.foamTilingY : 0.1;
+    this._tslU.uFoamSpeed.value = s.foamSpeed != null ? s.foamSpeed : 0.1;
+    this._tslU.uFoamWaveAmount.value = s.foamWaveAmount != null ? s.foamWaveAmount : 0.3;
+    this._tslU.uFoamBaseAmount.value = s.foamBaseAmount != null ? s.foamBaseAmount : 0;
+    this._tslU.uFoamClipping.value = s.foamClipping != null ? s.foamClipping : 0;
 
     // Phase 4: Intersection foam uniforms
     var ic = s.intersectionColor || { r: 1, g: 1, b: 1, a: 1 };
     this._tslU.uIntEnabled.value = s.intersectionEnabled !== false ? 1.0 : 0.0;
     this._tslU.uIntColor.value.setRGB(ic.r, ic.g, ic.b);
-    this._tslU.uIntLength.value = s.intersectionLength || 2;
+    this._tslU.uIntLength.value = s.intersectionLength != null ? s.intersectionLength : 2;
 
     // Phase 4: Caustics uniforms
     this._tslU.uCausticsEnabled.value = s.causticsEnabled !== false ? 1.0 : 0.0;
-    this._tslU.uCausticsBrightness.value = s.causticsBrightness || 1.0;
-    this._tslU.uCausticsChromance.value = s.causticsChromance || 0.5;
-    this._tslU.uCausticsTiling.value = s.causticsTiling || 0.5;
-    this._tslU.uCausticsSpeed.value = s.causticsSpeed || 0.5;
-    this._tslU.uCausticsDistortion.value = s.causticsDistortion || 0.3;
+    this._tslU.uCausticsBrightness.value = s.causticsBrightness != null ? s.causticsBrightness : 1.0;
+    this._tslU.uCausticsChromance.value = s.causticsChromance != null ? s.causticsChromance : 0.5;
+    this._tslU.uCausticsTiling.value = s.causticsTiling != null ? s.causticsTiling : 0.5;
+    this._tslU.uCausticsSpeed.value = s.causticsSpeed != null ? s.causticsSpeed : 0.5;
+    this._tslU.uCausticsDistortion.value = s.causticsDistortion != null ? s.causticsDistortion : 0.3;
 
     // Phase 4: Sparkle uniforms
-    this._tslU.uSparkleIntensity.value = s.sparkleIntensity || 0;
-    this._tslU.uSparkleSize.value = s.sparkleSize || 0.9;
+    this._tslU.uSparkleIntensity.value = s.sparkleIntensity != null ? s.sparkleIntensity : 0;
+    this._tslU.uSparkleSize.value = s.sparkleSize != null ? s.sparkleSize : 0.9;
 
     // Surface opacity
     this._tslU.uSurfaceOpacity.value = s.surfaceOpacity != null ? s.surfaceOpacity : 1.0;
@@ -1615,6 +1628,9 @@ StylizedWaterSystem.prototype.updateSettings = function(patch) {
   // Visibility
   if (this._mesh) {
     this._mesh.visible = this.settings.visible !== false;
+  }
+  if (this._underwaterMesh) {
+    this._underwaterMesh.visible = this.settings.visible !== false;
   }
 };
 
@@ -1704,9 +1720,9 @@ StylizedWaterSystem.prototype._applyPreset = function(presetId) {
     merged.followCamera = this.settings.followCamera;
     merged.visible = this.settings.visible;
     merged.buoyancyEnabled = this.settings.buoyancyEnabled;
-    merged.riverMode = this.settings.riverMode;
-    merged.riverDirection = this.settings.riverDirection;
-    merged.riverSpeed = this.settings.riverSpeed;
+    if (preset.riverMode == null) merged.riverMode = this.settings.riverMode;
+    if (preset.riverDirection == null) merged.riverDirection = this.settings.riverDirection;
+    if (preset.riverSpeed == null) merged.riverSpeed = this.settings.riverSpeed;
     this.updateSettings(merged);
     console.log('[StylizedWater] Applied preset: ' + presetId);
   } else {

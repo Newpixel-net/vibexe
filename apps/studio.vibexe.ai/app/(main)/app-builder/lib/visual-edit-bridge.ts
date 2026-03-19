@@ -1063,6 +1063,9 @@ export function getVisualEditBridgeScript(): string {
     if (_n.indexOf("pop_") === 0) return;
     // Block infrastructure (__xxx) selection only from viewport clicks, not from hierarchy
     if (!fromHierarchy && _n.indexOf("__") === 0) return;
+    // Never select water meshes or cameras — managed by their own panels
+    if (_n.indexOf("StylizedWater") === 0 || _n.indexOf("__water") === 0) return;
+    if (obj.isCamera) return;
     // Never attach TransformControls to the scene root — causes infinite recursion in updateMatrixWorld
     // Triple-check: reference equality, type check, AND parent check (scene root has no parent)
     if (obj === editor.scene || obj.type === "Scene" || !obj.parent) {
@@ -1752,7 +1755,7 @@ export function getVisualEditBridgeScript(): string {
     // Pass 1: standard mesh raycasting (works for static Mesh objects)
     var meshes = [];
     editor.scene.traverse(function(child) {
-      if (child.isMesh && child !== boxHelper && child.type !== "TransformControlsGizmo" && child.type !== "TransformControlsPlane" && child.type !== "SpotLightHelper" && child.type !== "PointLightHelper" && (child.name||"").indexOf("__") !== 0 && (child.name||"").indexOf("pop_") !== 0 && !isGroundPlane(child)) {
+      if (child.isMesh && child !== boxHelper && child.type !== "TransformControlsGizmo" && child.type !== "TransformControlsPlane" && child.type !== "SpotLightHelper" && child.type !== "PointLightHelper" && (child.name||"").indexOf("__") !== 0 && (child.name||"").indexOf("pop_") !== 0 && (child.name||"").indexOf("StylizedWater") !== 0 && !isGroundPlane(child)) {
         meshes.push(child);
       }
     });
