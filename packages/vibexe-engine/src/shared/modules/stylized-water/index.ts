@@ -976,12 +976,12 @@ StylizedWaterSystem.prototype._build = function() {
 
   this.scene.add(this._mesh);
 
-  // Underwater solid — opaque dark plane just below surface, blocks view from ALL angles
-  // DoubleSide + opaque + depthWrite = water looks solid from side, below, and edge-on
+  // Underwater solid — matches deep water color, blocks view from below/edges
+  // Uses deep color directly (not darkened) so it blends seamlessly with GPU water
   var uwGeo = new THREE.PlaneGeometry(s.scale, s.scale);
   uwGeo.rotateX(-Math.PI / 2);
   this._underwaterMat = new THREE.MeshBasicMaterial({
-    color: new THREE.Color(deep.r * 0.12, deep.g * 0.15, deep.b * 0.35),
+    color: new THREE.Color(deep.r * 0.5, deep.g * 0.5, deep.b * 0.6),
     transparent: false,
     side: THREE.DoubleSide,
     depthWrite: true,
@@ -989,7 +989,7 @@ StylizedWaterSystem.prototype._build = function() {
   });
   this._underwaterMesh = new THREE.Mesh(uwGeo, this._underwaterMat);
   this._underwaterMesh.name = '__water_underside__';
-  this._underwaterMesh.position.y = s.waterLevel - 0.15;
+  this._underwaterMesh.position.y = s.waterLevel - 0.5;
   this._underwaterMesh.renderOrder = 98;
   this._underwaterMesh.frustumCulled = false;
   // TSL path: disable depthWrite so viewportDepthTexture sees real scene geometry,
@@ -1387,7 +1387,7 @@ StylizedWaterSystem.prototype.updateSettings = function(patch) {
   // Update water level
   if (this.settings.waterLevel !== oldLevel && this._mesh) {
     this._mesh.position.y = this.settings.waterLevel;
-    if (this._underwaterMesh) this._underwaterMesh.position.y = this.settings.waterLevel - 0.15;
+    if (this._underwaterMesh) this._underwaterMesh.position.y = this.settings.waterLevel - 0.5;
     window.__vibexe_waterLevel = this.settings.waterLevel;
   }
 
