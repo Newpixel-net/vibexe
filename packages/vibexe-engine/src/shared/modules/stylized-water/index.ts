@@ -590,6 +590,10 @@ function _buildWaterTSLMaterial(u, tex) {
     var dABoost = rawWaterDepth.mul(0.3).clamp(0, 1);
     ca.assign(THREE.max(ca, THREE.float(0.15).add(dABoost.mul(0.45))));
 
+    // --- Sky transparency: water with only sky behind it becomes invisible ---
+    // Prevents large water planes from acting as dark overlays on the sky dome
+    ca.mulAssign(hasGeometry);
+
     // --- Sun specular (Blinn-Phong) using perturbed normal ---
     var H = THREE.normalize(u.uSunDir.add(viewDir));
     var NdotH = THREE.max(THREE.dot(N, H), THREE.float(0));
