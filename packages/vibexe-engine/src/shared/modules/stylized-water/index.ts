@@ -146,13 +146,13 @@ function _sampleWaves(worldX, worldZ, time, s) {
 var DEFAULT_SETTINGS = {
   waterLevel: 0,
   scale: 200,
-  resolution: 0.5,
+  resolution: 1.0, // 1 vert per meter — smooth enough to avoid sharp facets
   followCamera: true,
   visible: true,
 
-  // Colors
-  shallowColor: { r: 0.4, g: 0.8, b: 0.9, a: 0.8 },
-  deepColor: { r: 0.05, g: 0.15, b: 0.4, a: 0.95 },
+  // Colors — higher minimum alpha so water is never fully transparent
+  shallowColor: { r: 0.4, g: 0.8, b: 0.9, a: 0.88 },
+  deepColor: { r: 0.05, g: 0.15, b: 0.4, a: 0.96 },
   horizonColor: { r: 0.6, g: 0.8, b: 1.0, a: 0.5 },
   horizonDistance: 3.0,
   depthVertical: 1.0,
@@ -160,10 +160,10 @@ var DEFAULT_SETTINGS = {
   edgeFade: 1.0,
   waveTint: 0.1,
 
-  // Waves
+  // Waves — lower steepness to avoid sharp peaks
   waveHeight: 0.5,
   waveSpeed: 1.0,
-  waveSteepness: 0.5,
+  waveSteepness: 0.3,
   waveCount: 2,
   waveDistance: 0.5,
 
@@ -205,8 +205,8 @@ var DEFAULT_SETTINGS = {
   colorAbsorption: 0.5,
 
   // Lighting (Phase 4)
-  roughness: 0.15,
-  metalness: 0.3,
+  roughness: 0.25,
+  metalness: 0.15,
   envMapIntensity: 0.8,
   sunReflectionSize: 0.5,
   sunReflectionStrength: 1.0,
@@ -569,15 +569,35 @@ StylizedWaterSystem.prototype._build = function() {
     console.log('[StylizedWater] Using MeshPhysicalMaterial (refraction: ' + (s.refractionEnabled ? 'ON' : 'OFF') + ')');
   }
 
-  // Create mesh
+  // Create mesh — use non-__ name so editor gizmo can select it
   this._mesh = new THREE.Mesh(this._geometry, this._material);
-  this._mesh.name = '__vibexe_stylized_water__';
+  this._mesh.name = 'StylizedWater';
+  this._mesh.userData.__isWater = true;
+  this._mesh.userData.__waterSystem = this;
   this._mesh.position.y = s.waterLevel;
   this._mesh.renderOrder = 100;
   this._mesh.frustumCulled = false;
-  this._mesh.receiveShadow = true; // Phase 4: shadow receiving
+  this._mesh.receiveShadow = true;
 
   this.scene.add(this._mesh);
+
+  // Underwater plane — opaque surface below water for visibility from underneath
+  var uwGeo = new THREE.PlaneGeometry(s.scale * 1.2, s.scale * 1.2);
+  uwGeo.rotateX(Math.PI / 2); // face downward (visible from below)
+  this._underwaterMat = new THREE.MeshBasicMaterial({
+    color: new THREE.Color(deep.r * 0.6, deep.g * 0.6, deep.b * 0.8),
+    transparent: true,
+    opacity: 0.85,
+    side: THREE.FrontSide,
+    depthWrite: false,
+    fog: true,
+  });
+  this._underwaterMesh = new THREE.Mesh(uwGeo, this._underwaterMat);
+  this._underwaterMesh.name = '__water_underside__';
+  this._underwaterMesh.position.y = s.waterLevel - 0.05; // slightly below water surface
+  this._underwaterMesh.renderOrder = 99;
+  this._underwaterMesh.frustumCulled = false;
+  this.scene.add(this._underwaterMesh);
 };
 
 // ── Texture Loading ────────────────────────────────────
@@ -781,9 +801,15 @@ StylizedWaterSystem.prototype._updateWaves = function() {
       wf *= (1.0 - this._paintData[i * 4 + 2]); // B=1 → flat
     }
 
-    pos[i3]     = orig[i3]     + wave.offset.x * wf;
-    pos[i3 + 1] = orig[i3 + 1] + wave.offset.y * wf;
-    pos[i3 + 2] = orig[i3 + 2] + wave.offset.z * wf;
+    // Cap maximum displacement to prevent extreme peaks/sharp edges
+    var maxDisp = s.waveHeight * 1.5;
+    var offX = _clamp(wave.offset.x * wf, -maxDisp, maxDisp);
+    var offY = wave.offset.y * wf; // Y not clamped (height is natural)
+    var offZ = _clamp(wave.offset.z * wf, -maxDisp, maxDisp);
+
+    pos[i3]     = orig[i3]     + offX;
+    pos[i3 + 1] = orig[i3 + 1] + offY;
+    pos[i3 + 2] = orig[i3 + 2] + offZ;
   }
 
   this._geometry.attributes.position.needsUpdate = true;
@@ -1136,6 +1162,9 @@ StylizedWaterSystem.prototype._updateColors = function() {
       a *= edgeAlpha;
     }
 
+    // ── Minimum alpha floor (prevent fully transparent water) ──
+    a = Math.max(a, 0.4);
+
     // ── Final output ──
     colors[i4]     = _saturate(r);
     colors[i4 + 1] = _saturate(g);
@@ -1157,6 +1186,10 @@ StylizedWaterSystem.prototype._updateColors = function() {
 StylizedWaterSystem.prototype._updateCameraFollow = function() {
   if (!this.settings.followCamera || !this.camera) return;
 
+  // Disable camera follow when editor is active (so gizmo can move the water)
+  var editor = window.__vibexe_editor__;
+  if (editor && editor.isEditing) return;
+
   var camX = this.camera.position.x;
   var camZ = this.camera.position.z;
   var cellSize = 1.0 / Math.max(this.settings.resolution, 0.01);
@@ -1164,6 +1197,12 @@ StylizedWaterSystem.prototype._updateCameraFollow = function() {
 
   this._mesh.position.x = Math.round(camX / cellSize) * cellSize;
   this._mesh.position.z = Math.round(camZ / cellSize) * cellSize;
+
+  // Sync underwater plane
+  if (this._underwaterMesh) {
+    this._underwaterMesh.position.x = this._mesh.position.x;
+    this._underwaterMesh.position.z = this._mesh.position.z;
+  }
 };
 
 // ── Sun Direction / Color ──────────────────────────────
@@ -1361,6 +1400,7 @@ StylizedWaterSystem.prototype.updateSettings = function(patch) {
   // Update water level
   if (this.settings.waterLevel !== oldLevel && this._mesh) {
     this._mesh.position.y = this.settings.waterLevel;
+    if (this._underwaterMesh) this._underwaterMesh.position.y = this.settings.waterLevel - 0.05;
     window.__vibexe_waterLevel = this.settings.waterLevel;
   }
 
@@ -1481,8 +1521,10 @@ StylizedWaterSystem.prototype.dispose = function() {
   if (this._animFrameId) cancelAnimationFrame(this._animFrameId);
 
   if (this._mesh && this.scene) this.scene.remove(this._mesh);
+  if (this._underwaterMesh && this.scene) this.scene.remove(this._underwaterMesh);
   if (this._geometry) this._geometry.dispose();
   if (this._material) this._material.dispose();
+  if (this._underwaterMat) this._underwaterMat.dispose();
 
   // Remove from water bodies array
   var bodies = window.__vibexe_waterBodies || [];
@@ -1590,11 +1632,11 @@ module.exports = {
 	defaultSettings: {
 		waterLevel: 0,
 		scale: 200,
-		resolution: 0.5,
+		resolution: 1.0,
 		followCamera: true,
 		visible: true,
-		shallowColor: { r: 0.4, g: 0.8, b: 0.9, a: 0.8 },
-		deepColor: { r: 0.05, g: 0.15, b: 0.4, a: 0.95 },
+		shallowColor: { r: 0.4, g: 0.8, b: 0.9, a: 0.88 },
+		deepColor: { r: 0.05, g: 0.15, b: 0.4, a: 0.96 },
 		horizonColor: { r: 0.6, g: 0.8, b: 1.0, a: 0.5 },
 		horizonDistance: 3.0,
 		depthVertical: 1.0,
