@@ -915,6 +915,9 @@ function StylizedWaterSystem(scene, camera, settings, bodyId, displayName) {
   this._tslTex = null;
   this._useTSL = false;
   this._buoyancyCounter = 0;
+  this._underwaterPPApplied = false;
+  this._underwaterOverlay = null;
+  this._underwaterOverlayMat = null;
 
   // FPS tracking (Phase 7)
   this._fpsFrames = 0;
@@ -1174,11 +1177,63 @@ StylizedWaterSystem.prototype._updateCameraFollow = function() {
   }
 };
 
-// ── Underwater Effect (disabled — surface opacity handles transparency) ──
+// ── Underwater Overlay (camera-attached quad, no scene globals) ──
+
+StylizedWaterSystem.prototype._createUnderwaterOverlay = function() {
+  if (this._underwaterOverlay) return;
+  if (!this.camera) return;
+
+  var dp = this.settings.deepColor || { r: 0.03, g: 0.1, b: 0.3 };
+  this._underwaterOverlayMat = new THREE.MeshBasicMaterial({
+    color: new THREE.Color(dp.r * 0.4, dp.g * 0.4, dp.b * 0.6),
+    transparent: true,
+    opacity: 0,
+    side: THREE.DoubleSide,
+    depthTest: false,
+    depthWrite: false,
+    fog: false,
+  });
+
+  // Small quad that fills the camera view — attached to the camera so it moves with it
+  var geo = new THREE.PlaneGeometry(2, 2);
+  this._underwaterOverlay = new THREE.Mesh(geo, this._underwaterOverlayMat);
+  this._underwaterOverlay.name = '__water_underwater_overlay__';
+  this._underwaterOverlay.renderOrder = 999;
+  this._underwaterOverlay.frustumCulled = false;
+
+  // Add to camera so it follows automatically
+  this.camera.add(this._underwaterOverlay);
+  // Position just in front of near plane
+  this._underwaterOverlay.position.set(0, 0, -0.11);
+
+  // If camera isn't in the scene, add it
+  if (!this.camera.parent) {
+    this.scene.add(this.camera);
+  }
+
+  console.log('[StylizedWater] Underwater overlay created');
+};
 
 StylizedWaterSystem.prototype._updateUnderwaterFog = function() {
-  // No-op: underwater visual is handled purely by surface opacity + the water
-  // plane's alpha. No overlay or scene globals needed.
+  if (!this.camera) return;
+
+  // Create overlay on first call
+  if (!this._underwaterOverlay) this._createUnderwaterOverlay();
+  if (!this._underwaterOverlayMat) return;
+
+  var camY = this.camera.position.y;
+  var waterSurface = this._mesh ? this._mesh.position.y : this.settings.waterLevel;
+  // Smooth submersion ramp: 0 = above water, 1 = 0.5+ units below surface
+  var submersion = _clamp((waterSurface - camY) * 2.0, 0, 1);
+
+  // Update overlay opacity — max 0.6 for a tinted but not opaque effect
+  this._underwaterOverlayMat.opacity = submersion * 0.6;
+  this._underwaterOverlay.visible = submersion > 0.001;
+
+  // Also update TSL uniform if PostProcessing pipeline exists
+  if (this._tslU) {
+    this._tslU.uUnderwaterStr.value = submersion;
+  }
 };
 
 // ── Sun Direction / Color ──────────────────────────────
@@ -1482,6 +1537,12 @@ StylizedWaterSystem.prototype.updateSettings = function(patch) {
     }
   }
 
+  // Sync underwater overlay color with deep color
+  if (this._underwaterOverlayMat) {
+    var uwDp2 = this.settings.deepColor || { r: 0.03, g: 0.1, b: 0.3 };
+    this._underwaterOverlayMat.color.setRGB(uwDp2.r * 0.4, uwDp2.g * 0.4, uwDp2.b * 0.6);
+  }
+
   // Visibility
   if (this._mesh) {
     this._mesh.visible = this.settings.visible !== false;
@@ -1586,6 +1647,16 @@ StylizedWaterSystem.prototype.dispose = function() {
   if (this._material) this._material.dispose();
   if (this._underwaterMat) this._underwaterMat.dispose();
 
+  // Clean up underwater overlay
+  if (this._underwaterOverlay) {
+    if (this._underwaterOverlay.parent) this._underwaterOverlay.parent.remove(this._underwaterOverlay);
+    if (this._underwaterOverlay.geometry) this._underwaterOverlay.geometry.dispose();
+    this._underwaterOverlay = null;
+  }
+  if (this._underwaterOverlayMat) {
+    this._underwaterOverlayMat.dispose();
+    this._underwaterOverlayMat = null;
+  }
   this._underwaterPPApplied = false;
 
   // Remove from water bodies array
