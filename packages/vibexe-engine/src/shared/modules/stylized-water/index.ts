@@ -1693,7 +1693,16 @@ StylizedWaterSystem.prototype._applyPreset = function(presetId) {
   if (typeof presetId === 'object') presetId = presetId.preset || presetId.presetId || 'ocean';
   var preset = PRESETS[presetId];
   if (preset) {
-    this.updateSettings(preset);
+    // Reset to clean defaults first, then apply preset on top.
+    // This ensures presets produce identical results regardless of current state.
+    var merged = _deepMerge(DEFAULT_SETTINGS, preset);
+    // Preserve non-visual settings that shouldn't change with presets
+    merged.waterLevel = this.settings.waterLevel;
+    merged.scale = this.settings.scale;
+    merged.followCamera = this.settings.followCamera;
+    merged.visible = this.settings.visible;
+    merged.buoyancyEnabled = this.settings.buoyancyEnabled;
+    this.updateSettings(merged);
     console.log('[StylizedWater] Applied preset: ' + presetId);
   } else {
     console.warn('[StylizedWater] Unknown preset: ' + presetId);
