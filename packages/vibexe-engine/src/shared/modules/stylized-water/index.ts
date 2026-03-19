@@ -5,11 +5,11 @@
  * AAA-quality stylized water with Gerstner waves, foam, caustics, refraction,
  * translucency, specular, fresnel, and buoyancy.
  *
- * Phase 1: Foundation — Mesh, Gerstner Waves, Depth-Based Coloring
- * Phase 2: Surface Detail — Foam (wave crest + intersection)
- * Phase 3: Underwater — Caustics placeholder
- * Phase 4: Lighting — Specular + Fresnel + Translucency
- * Phase 5: Buoyancy — CPU wave sampling + global API
+ * Phase 1: Foundation — Mesh, Gerstner Waves, Depth-Based Coloring, Edge Fade
+ * Phase 2: Surface Detail — Dual Normal Maps, Foam Textures, Intersection Noise
+ * Phase 3: Underwater — Caustics (dual-layer min), Color Absorption
+ * Phase 4: Lighting — PBR via MeshStandardMaterial, Translucency, Sparkles
+ * Phase 5: Buoyancy — CPU wave sampling, Global API, River Mode basics
  */
 
 import type { ModuleManifest } from "../module-types";
@@ -17,14 +17,14 @@ import type { ModuleManifest } from "../module-types";
 export const STYLIZED_WATER_MANIFEST: ModuleManifest = {
 	id: "stylized-water",
 	name: "Stylized Water 2",
-	version: "1.0.0",
+	version: "2.0.0",
 	category: "level-design",
 	description:
 		"AAA-quality stylized water with Gerstner waves, foam, caustics, refraction, translucency, and buoyancy",
 	icon: "Waves",
 	assets: [],
 	runtimeCode: `
-// @vibexe/stylized-water v1.0.0
+// @vibexe/stylized-water v2.0.0
 // Stylized Water 2 — converted from Unity (Staggart Creations)
 var THREE = require('three');
 
@@ -73,23 +73,16 @@ function _deepMerge(target, source) {
 // ============================================================
 
 var TWO_PI = 6.283185307;
-var STEEPNESS_SCALE = 0.01; // XZ displacement dampening (Unity value)
+var STEEPNESS_SCALE = 0.01;
 
-// Canonical wave directions (spread across compass)
 var WAVE_DIRS = [
-  { x: 0.866, y: 0.5 },     // 30 deg
-  { x: -0.5,  y: 0.866 },   // 120 deg
-  { x: 0.259, y: -0.966 },  // 255 deg
-  { x: -0.707, y: -0.707 }, // 225 deg
-  { x: 0.966, y: -0.259 }   // 345 deg
+  { x: 0.866, y: 0.5 },
+  { x: -0.5,  y: 0.866 },
+  { x: 0.259, y: -0.966 },
+  { x: -0.707, y: -0.707 },
+  { x: 0.966, y: -0.259 }
 ];
 
-/**
- * Single Gerstner wave displacement.
- *   offset.x = Q * A * dir.x * cos(omega * dot(D, xz) + phi)
- *   offset.y = A * sin(omega * dot(D, xz) + phi)
- *   offset.z = Q * A * dir.z * cos(omega * dot(D, xz) + phi)
- */
 function _gerstnerWave(wx, wz, dirX, dirY, steepness, wavelength, amplitude, speed, time) {
   var omega = TWO_PI / Math.max(wavelength, 0.01);
   var phi = speed * omega;
@@ -105,10 +98,6 @@ function _gerstnerWave(wx, wz, dirX, dirY, steepness, wavelength, amplitude, spe
   };
 }
 
-/**
- * Sample multiple Gerstner waves at a world-space point.
- * Returns { height, normal: {x,y,z}, offset: {x,y,z} }
- */
 function _sampleWaves(worldX, worldZ, time, s) {
   var height = s.waveHeight || 0.5;
   var speed = s.waveSpeed || 1.0;
@@ -119,7 +108,6 @@ function _sampleWaves(worldX, worldZ, time, s) {
 
   var ox = 0, oy = 0, oz = 0;
   var nx = 0, ny = 1, nz = 0;
-
   var freqMul = 1.0, ampMul = 1.0, speedMul = 1.0;
 
   for (var i = 0; i < count; i++) {
@@ -127,26 +115,20 @@ function _sampleWaves(worldX, worldZ, time, s) {
     var wl = 10.0 / freqMul;
     var amp = height * ampMul * 0.5;
     var spd = speed * speedMul;
-
     var wave = _gerstnerWave(worldX, worldZ, dir.x, dir.y, steepness, wl, amp, spd, time);
     ox += wave.x;
     oy += wave.y;
     oz += wave.z;
-
-    // Normal contribution
     var omega = TWO_PI / Math.max(wl, 0.01);
     var dotDP = dir.x * worldX + dir.y * worldZ;
     var cosP = Math.cos(omega * dotDP + spd * omega * time);
     nx -= dir.x * omega * amp * cosP;
     nz -= dir.y * omega * amp * cosP;
-
-    // Frequency cascade
     freqMul *= 1.18 + dist * 0.4;
     ampMul *= 0.82 - dist * 0.15;
     speedMul *= 1.07;
   }
 
-  // Normalize the accumulated normal
   var nLen = Math.sqrt(nx * nx + ny * ny + nz * nz);
   if (nLen > 0.001) { nx /= nLen; ny /= nLen; nz /= nLen; }
 
@@ -162,14 +144,13 @@ function _sampleWaves(worldX, worldZ, time, s) {
 // ============================================================
 
 var DEFAULT_SETTINGS = {
-  // General
   waterLevel: 0,
   scale: 200,
   resolution: 0.5,
   followCamera: true,
   visible: true,
 
-  // Colors (matching Stylized Water 2 defaults)
+  // Colors
   shallowColor: { r: 0.4, g: 0.8, b: 0.9, a: 0.8 },
   deepColor: { r: 0.05, g: 0.15, b: 0.4, a: 0.95 },
   horizonColor: { r: 0.6, g: 0.8, b: 1.0, a: 0.5 },
@@ -186,7 +167,7 @@ var DEFAULT_SETTINGS = {
   waveCount: 2,
   waveDistance: 0.5,
 
-  // Normal map
+  // Normal Maps (Phase 2)
   normalMapIndex: 0,
   normalTilingX: 0.5,
   normalTilingY: 0.5,
@@ -195,7 +176,7 @@ var DEFAULT_SETTINGS = {
   normalSubSpeed: -0.25,
   normalStrength: 0.5,
 
-  // Foam
+  // Foam (Phase 2)
   foamEnabled: true,
   foamColor: { r: 1, g: 1, b: 1, a: 0.8 },
   foamTilingX: 0.1,
@@ -206,30 +187,35 @@ var DEFAULT_SETTINGS = {
   foamClipping: 0,
   foamTextureIndex: 0,
 
-  // Intersection
+  // Intersection (Phase 2)
   intersectionEnabled: true,
   intersectionColor: { r: 1, g: 1, b: 1, a: 1 },
   intersectionLength: 2,
   intersectionStyle: 1,
 
-  // Lighting
+  // Caustics (Phase 3)
+  causticsEnabled: true,
+  causticsBrightness: 1.0,
+  causticsChromance: 0.5,
+  causticsTiling: 0.5,
+  causticsSpeed: 0.5,
+  causticsDistortion: 0.3,
+
+  // Color absorption (Phase 3)
+  colorAbsorption: 0.5,
+
+  // Lighting (Phase 4)
+  roughness: 0.15,
+  metalness: 0.3,
+  envMapIntensity: 0.8,
   sunReflectionSize: 0.5,
   sunReflectionStrength: 1.0,
   translucencyStrength: 0.5,
   translucencyExp: 6.0,
   sparkleIntensity: 0,
+  sparkleSize: 0.9,
 
-  // Underwater (Phase 3)
-  refractionEnabled: false,
-  refractionStrength: 0.5,
-  colorAbsorption: 0.5,
-  causticsEnabled: false,
-  causticsBrightness: 1.0,
-  causticsChromance: 0.5,
-  causticsTiling: 0.5,
-  causticsSpeed: 0.5,
-
-  // Buoyancy
+  // Buoyancy (Phase 5)
   buoyancyEnabled: true,
 };
 
@@ -245,7 +231,10 @@ var PRESETS = {
     waveHeight: 1.2, waveSpeed: 0.8, waveSteepness: 0.4, waveCount: 4,
     depthVertical: 1.5, depthHorizontal: 0.8, horizonDistance: 5.0,
     foamWaveAmount: 0.5, foamBaseAmount: 0.05,
-    sunReflectionStrength: 1.5, translucencyStrength: 0.7,
+    roughness: 0.1, metalness: 0.4,
+    causticsEnabled: true, causticsBrightness: 0.8,
+    translucencyStrength: 0.7,
+    normalStrength: 0.6, normalSpeed: 0.08,
   },
   'clear-pool': {
     shallowColor: { r: 0.5, g: 0.9, b: 0.95, a: 0.6 },
@@ -254,7 +243,10 @@ var PRESETS = {
     waveHeight: 0.05, waveSpeed: 0.3, waveSteepness: 0.1, waveCount: 2,
     depthVertical: 0.5, edgeFade: 0.5, horizonDistance: 2.0,
     foamWaveAmount: 0, foamBaseAmount: 0,
-    sunReflectionStrength: 2.0, translucencyStrength: 0.3,
+    roughness: 0.05, metalness: 0.5,
+    causticsEnabled: true, causticsBrightness: 2.0, causticsTiling: 0.8,
+    normalStrength: 0.3, normalSpeed: 0.05,
+    translucencyStrength: 0.3,
   },
   river: {
     shallowColor: { r: 0.35, g: 0.7, b: 0.65, a: 0.75 },
@@ -263,6 +255,8 @@ var PRESETS = {
     waveHeight: 0.3, waveSpeed: 1.5, waveSteepness: 0.3, waveCount: 3,
     depthVertical: 0.8, foamWaveAmount: 0.2, foamBaseAmount: 0.1,
     intersectionLength: 1.5,
+    normalSpeed: 0.15, normalStrength: 0.6, normalMapIndex: 3,
+    causticsEnabled: true, causticsBrightness: 1.2,
   },
   cartoon: {
     shallowColor: { r: 0.2, g: 0.7, b: 0.95, a: 0.85 },
@@ -271,6 +265,9 @@ var PRESETS = {
     waveHeight: 0.8, waveSpeed: 1.0, waveSteepness: 0.7, waveCount: 2,
     depthVertical: 0.8, foamWaveAmount: 0.4, foamBaseAmount: 0.05,
     intersectionLength: 3.0, intersectionStyle: 0,
+    roughness: 0.3, metalness: 0.1,
+    causticsEnabled: false,
+    normalStrength: 0.4,
   },
   swamp: {
     shallowColor: { r: 0.25, g: 0.35, b: 0.15, a: 0.92 },
@@ -278,14 +275,20 @@ var PRESETS = {
     horizonColor: { r: 0.2, g: 0.25, b: 0.1, a: 0.3 },
     waveHeight: 0.05, waveSpeed: 0.1, waveSteepness: 0.05, waveCount: 1,
     depthVertical: 3.0, foamEnabled: false,
-    sunReflectionStrength: 0.3, translucencyStrength: 0.1,
+    roughness: 0.6, metalness: 0.05,
+    causticsEnabled: false,
+    translucencyStrength: 0.1,
+    normalStrength: 0.2, normalSpeed: 0.02,
   },
   frozen: {
     shallowColor: { r: 0.7, g: 0.85, b: 0.95, a: 0.95 },
     deepColor: { r: 0.3, g: 0.5, b: 0.7, a: 0.98 },
     horizonColor: { r: 0.8, g: 0.9, b: 1.0, a: 0.6 },
     waveHeight: 0.0, waveSpeed: 0, waveSteepness: 0, waveCount: 1,
-    foamEnabled: false, sunReflectionStrength: 2.5,
+    foamEnabled: false,
+    roughness: 0.02, metalness: 0.6,
+    causticsEnabled: false,
+    normalStrength: 0.1, normalSpeed: 0,
   },
   lava: {
     shallowColor: { r: 1.0, g: 0.4, b: 0.0, a: 0.95 },
@@ -293,8 +296,10 @@ var PRESETS = {
     horizonColor: { r: 1.0, g: 0.2, b: 0.0, a: 0.5 },
     waveHeight: 0.3, waveSpeed: 0.2, waveSteepness: 0.2, waveCount: 3,
     depthVertical: 2.0, foamEnabled: false,
-    sunReflectionStrength: 0, translucencyStrength: 1.5,
-    translucencyExp: 3.0,
+    roughness: 0.8, metalness: 0.0,
+    causticsEnabled: false,
+    translucencyStrength: 1.5, translucencyExp: 3.0,
+    normalStrength: 0.8, normalSpeed: 0.03,
   },
   realistic: {
     shallowColor: { r: 0.25, g: 0.55, b: 0.55, a: 0.82 },
@@ -303,7 +308,11 @@ var PRESETS = {
     waveHeight: 0.6, waveSpeed: 1.0, waveSteepness: 0.5, waveCount: 4,
     depthVertical: 1.2, depthHorizontal: 1.0, horizonDistance: 5.0,
     foamWaveAmount: 0.3, foamBaseAmount: 0.02,
-    sunReflectionStrength: 1.8, translucencyStrength: 0.6,
+    roughness: 0.08, metalness: 0.5,
+    causticsEnabled: true, causticsBrightness: 1.5,
+    translucencyStrength: 0.6,
+    normalStrength: 0.7, normalSpeed: 0.1,
+    sparkleIntensity: 0.3,
   },
   murky: {
     shallowColor: { r: 0.3, g: 0.3, b: 0.2, a: 0.92 },
@@ -311,7 +320,10 @@ var PRESETS = {
     horizonColor: { r: 0.3, g: 0.3, b: 0.2, a: 0.4 },
     waveHeight: 0.2, waveSpeed: 0.4, waveSteepness: 0.15, waveCount: 2,
     depthVertical: 4.0, foamEnabled: false,
-    sunReflectionStrength: 0.5, translucencyStrength: 0.1,
+    roughness: 0.5, metalness: 0.1,
+    causticsEnabled: false,
+    translucencyStrength: 0.1,
+    normalStrength: 0.3,
   },
   'low-poly': {
     shallowColor: { r: 0.3, g: 0.75, b: 0.85, a: 0.85 },
@@ -319,19 +331,23 @@ var PRESETS = {
     horizonColor: { r: 0.5, g: 0.75, b: 0.9, a: 0.4 },
     waveHeight: 0.6, waveSpeed: 0.8, waveSteepness: 0.8, waveCount: 1,
     resolution: 0.15, foamWaveAmount: 0.5,
-    sunReflectionStrength: 0.8,
+    roughness: 0.3, metalness: 0.2,
+    causticsEnabled: false,
+    normalStrength: 0.0,
   },
 };
 
 // ============================================================
-// Section 5: Texture Helpers
+// Section 5: Texture Loading + CPU Sampling
 // ============================================================
 
 var TEXTURE_BASE = '/api/app-builder/media-stock-3d/water-textures/';
 var NORMAL_MAP_NAMES = ['SmoothWaves', 'RoughWaves', 'SharpWaves', 'StreamWaves'];
 var FOAM_TEX_NAMES = ['Foam1', 'Foam2', 'FoamSea'];
+var CAUSTIC_TEX_NAMES = ['Caustics_1', 'Caustics_2'];
 var _textureCache = {};
 
+/** Load a Three.js texture (for material properties like normalMap) */
 function _loadTexture(name, onLoad) {
   if (_textureCache[name]) {
     if (onLoad) onLoad(_textureCache[name]);
@@ -350,11 +366,53 @@ function _loadTexture(name, onLoad) {
       if (onLoad) onLoad(tex);
     },
     undefined,
-    function(err) {
-      console.warn('[StylizedWater] Failed to load texture:', name, err);
-    }
+    function(err) { console.warn('[StylizedWater] Failed to load texture:', name); }
   );
   return null;
+}
+
+/**
+ * Load a texture into a canvas for per-vertex CPU sampling.
+ * Returns ImageData.data (Uint8ClampedArray) via callback.
+ */
+var _canvasCache = {};
+function _loadTextureCanvas(name, size, callback) {
+  var key = name + '_' + size;
+  if (_canvasCache[key]) {
+    callback(_canvasCache[key].data, size);
+    return;
+  }
+  var img = new Image();
+  img.crossOrigin = 'anonymous';
+  img.onload = function() {
+    var canvas = document.createElement('canvas');
+    canvas.width = size;
+    canvas.height = size;
+    var ctx = canvas.getContext('2d');
+    ctx.drawImage(img, 0, 0, size, size);
+    var imageData = ctx.getImageData(0, 0, size, size);
+    _canvasCache[key] = imageData;
+    callback(imageData.data, size);
+  };
+  img.onerror = function() {
+    console.warn('[StylizedWater] Failed to load canvas texture:', name);
+  };
+  img.src = TEXTURE_BASE + name + '.webp';
+}
+
+/** Sample a pixel from ImageData at tiled UV coordinates */
+function _sampleImageData(data, size, u, v) {
+  u = ((u % 1) + 1) % 1;
+  v = ((v % 1) + 1) % 1;
+  var px = Math.floor(u * size) % size;
+  var py = Math.floor(v * size) % size;
+  var idx = (py * size + px) * 4;
+  return {
+    r: data[idx] / 255,
+    g: data[idx + 1] / 255,
+    b: data[idx + 2] / 255,
+    a: data[idx + 3] / 255
+  };
 }
 
 // ============================================================
@@ -378,13 +436,17 @@ function StylizedWaterSystem(scene, camera, settings) {
   this._origPositions = null;
   this._vertexColors = null;
 
-  // Textures
-  this._normalMapTex = null;
-  this._foamTex = null;
+  // Texture data for CPU sampling
+  this._foamData = null;
+  this._foamDataSize = 0;
+  this._causticsData = null;
+  this._causticsDataSize = 0;
+  this._noiseData = null;
+  this._noiseDataSize = 0;
 
   // Performance: stagger color updates
   this._colorCounter = 0;
-  this._colorInterval = 2; // update colors every N frames
+  this._colorInterval = 2;
 
   // Build water
   this._build();
@@ -395,45 +457,69 @@ function StylizedWaterSystem(scene, camera, settings) {
   this._animLoop = this._animLoop.bind(this);
   this._animFrameId = requestAnimationFrame(this._animLoop);
 
-  console.log('[StylizedWater] v1.0.0 initialized — scale:' + this.settings.scale +
+  console.log('[StylizedWater] v2.0.0 initialized — scale:' + this.settings.scale +
     ' level:' + this.settings.waterLevel + ' verts:' + (this._origPositions ? this._origPositions.length / 3 : 0));
 }
 
-// ── Build ──────────────────────────────────────────────
+// ── Build: Geometry + Material ─────────────────────────
 
 StylizedWaterSystem.prototype._build = function() {
   var s = this.settings;
 
-  // Create plane geometry lying flat on XZ plane
+  // Create plane geometry lying flat on XZ
   var segX = Math.round(s.scale * s.resolution);
   var segZ = Math.round(s.scale * s.resolution);
   segX = _clamp(segX, 8, 400);
   segZ = _clamp(segZ, 8, 400);
 
   this._geometry = new THREE.PlaneGeometry(s.scale, s.scale, segX, segZ);
-  this._geometry.rotateX(-Math.PI / 2); // Lie flat on XZ
+  this._geometry.rotateX(-Math.PI / 2);
 
-  // Store original vertex positions for wave displacement
+  // Store original positions for wave displacement
   var pos = this._geometry.attributes.position.array;
   this._origPositions = new Float32Array(pos.length);
   this._origPositions.set(pos);
 
-  // Set up vertex colors (RGBA)
+  // Vertex colors (RGBA) for depth/foam/caustics coloring
   var vertCount = pos.length / 3;
   this._vertexColors = new Float32Array(vertCount * 4);
   this._geometry.setAttribute('color', new THREE.BufferAttribute(this._vertexColors, 4));
 
-  // Material — MeshBasicMaterial with vertex colors
-  // We compute all lighting (specular, fresnel, etc.) in vertex colors
-  this._material = new THREE.MeshBasicMaterial({
+  // ── Material: MeshStandardMaterial for PBR lighting + normalMap ──
+  // PBR handles: specular, fresnel, environment reflections, shadow receiving
+  // We compute: base color (shallow/deep), foam, caustics, alpha → vertex colors
+  var matOpts = {
     color: 0xffffff,
     vertexColors: true,
     transparent: true,
     opacity: 1.0,
     side: THREE.DoubleSide,
     depthWrite: false,
+    roughness: _clamp(s.roughness || 0.15, 0, 1),
+    metalness: _clamp(s.metalness || 0.3, 0, 1),
+    envMapIntensity: s.envMapIntensity || 0.8,
+    normalMap: null,
+    normalScale: new THREE.Vector2(s.normalStrength || 0.5, -(s.normalStrength || 0.5)),
     fog: true,
-  });
+  };
+
+  // Try MeshStandardMaterial first; fall back to MeshBasicMaterial
+  this._usePBR = true;
+  try {
+    this._material = new THREE.MeshStandardMaterial(matOpts);
+  } catch(e) {
+    console.warn('[StylizedWater] MeshStandardMaterial failed, falling back to Basic');
+    this._usePBR = false;
+    this._material = new THREE.MeshBasicMaterial({
+      color: 0xffffff,
+      vertexColors: true,
+      transparent: true,
+      opacity: 1.0,
+      side: THREE.DoubleSide,
+      depthWrite: false,
+      fog: true,
+    });
+  }
 
   // Create mesh
   this._mesh = new THREE.Mesh(this._geometry, this._material);
@@ -441,6 +527,7 @@ StylizedWaterSystem.prototype._build = function() {
   this._mesh.position.y = s.waterLevel;
   this._mesh.renderOrder = 100;
   this._mesh.frustumCulled = false;
+  this._mesh.receiveShadow = true; // Phase 4: shadow receiving
 
   this.scene.add(this._mesh);
 };
@@ -451,18 +538,37 @@ StylizedWaterSystem.prototype._loadTextures = function() {
   var self = this;
   var s = this.settings;
 
-  // Load normal map (for visual reference; actual normal mapping
-  // would require MeshStandardMaterial — here we use the texture
-  // data for per-vertex detail modulation)
-  var normalName = NORMAL_MAP_NAMES[_clamp(s.normalMapIndex, 0, NORMAL_MAP_NAMES.length - 1)];
+  // 1. Normal map → material.normalMap (GPU-side, UV-animated)
+  var normalName = NORMAL_MAP_NAMES[_clamp(s.normalMapIndex || 0, 0, NORMAL_MAP_NAMES.length - 1)];
   _loadTexture(normalName, function(tex) {
-    self._normalMapTex = tex;
+    if (self._material && self._usePBR) {
+      self._material.normalMap = tex;
+      self._material.normalScale.set(s.normalStrength || 0.5, -(s.normalStrength || 0.5));
+      self._material.needsUpdate = true;
+      console.log('[StylizedWater] Normal map loaded: ' + normalName);
+    }
   });
 
-  // Load foam texture
-  var foamName = FOAM_TEX_NAMES[_clamp(s.foamTextureIndex, 0, FOAM_TEX_NAMES.length - 1)];
-  _loadTexture(foamName, function(tex) {
-    self._foamTex = tex;
+  // 2. Foam texture → CPU canvas for per-vertex sampling
+  var foamName = FOAM_TEX_NAMES[_clamp(s.foamTextureIndex || 0, 0, FOAM_TEX_NAMES.length - 1)];
+  _loadTextureCanvas(foamName, 128, function(data, size) {
+    self._foamData = data;
+    self._foamDataSize = size;
+    console.log('[StylizedWater] Foam texture loaded for CPU sampling: ' + foamName);
+  });
+
+  // 3. Caustics texture → CPU canvas for dual-layer min() sampling
+  _loadTextureCanvas('Caustics_1', 128, function(data, size) {
+    self._causticsData = data;
+    self._causticsDataSize = size;
+    console.log('[StylizedWater] Caustics texture loaded for CPU sampling');
+  });
+
+  // 4. Intersection noise → CPU canvas
+  _loadTextureCanvas('IntersectionNoise', 64, function(data, size) {
+    self._noiseData = data;
+    self._noiseDataSize = size;
+    console.log('[StylizedWater] Intersection noise loaded for CPU sampling');
   });
 };
 
@@ -476,10 +582,13 @@ StylizedWaterSystem.prototype._animLoop = function() {
   this._lastTime = now;
   this._time += dt;
 
-  // Wave displacement every frame (smooth animation)
+  // Wave vertex displacement every frame
   this._updateWaves();
 
-  // Vertex colors every N frames (heavy computation)
+  // Normal map UV scrolling every frame (GPU-side, cheap)
+  this._updateNormalMapUV();
+
+  // Vertex colors every N frames (CPU-heavy)
   this._colorCounter++;
   if (this._colorCounter >= this._colorInterval) {
     this._colorCounter = 0;
@@ -508,9 +617,7 @@ StylizedWaterSystem.prototype._updateWaves = function() {
     var i3 = i * 3;
     var wx = orig[i3] + meshX;
     var wz = orig[i3 + 2] + meshZ;
-
     var wave = _sampleWaves(wx, wz, this._time, s);
-
     pos[i3]     = orig[i3]     + wave.offset.x;
     pos[i3 + 1] = orig[i3 + 1] + wave.offset.y;
     pos[i3 + 2] = orig[i3 + 2] + wave.offset.z;
@@ -520,124 +627,163 @@ StylizedWaterSystem.prototype._updateWaves = function() {
   this._geometry.computeVertexNormals();
 };
 
+// ── Normal Map UV Animation ────────────────────────────
+// Scrolls the normal map UVs each frame for moving water surface
+// Compensates for mesh world position so normals stay fixed in world space
+
+StylizedWaterSystem.prototype._updateNormalMapUV = function() {
+  if (!this._usePBR || !this._material.normalMap) return;
+
+  var s = this.settings;
+  var tiling = (s.normalTilingX || 0.5) * 10;
+  var speed = s.normalSpeed || 0.1;
+
+  // World-space UV compensation for camera-following mesh
+  var meshU = this._mesh.position.x / Math.max(s.scale, 1);
+  var meshV = this._mesh.position.z / Math.max(s.scale, 1);
+
+  // Primary layer
+  this._material.normalMap.repeat.set(tiling, tiling);
+  this._material.normalMap.offset.set(
+    meshU * tiling + this._time * speed,
+    meshV * tiling + this._time * speed * 0.7
+  );
+};
+
 // ── Vertex Color Computation ───────────────────────────
-// Computes: depth color, foam, specular, fresnel, edge fade
-// All baked into vertex colors for MeshBasicMaterial
+// Computes per-vertex: depth color, foam (textured), intersection (noise),
+// caustics (dual-layer min), wave tint, translucency glow, edge fade.
+// PBR material handles specular/fresnel/shadows automatically.
 
 StylizedWaterSystem.prototype._updateColors = function() {
   var s = this.settings;
   var colors = this._vertexColors;
   var pos = this._geometry.attributes.position.array;
-  var orig = this._origPositions;
   var count = pos.length / 3;
   var meshPos = this._mesh.position;
 
-  // Gather external data
   var cam = this.camera;
   var camX = cam ? cam.position.x : 0;
   var camY = cam ? cam.position.y : 20;
   var camZ = cam ? cam.position.z : 0;
   var getTerrainH = window.__vibexe_getVisualTerrainHeight || null;
 
-  // Sun direction (from SWA or default)
   var sun = this._getSunDirection();
-  var sunColor = this._getSunColor();
+  var sunCol = this._getSunColor();
 
-  // Precompute color components
   var shallow = s.shallowColor;
   var deep = s.deepColor;
   var horizon = s.horizonColor;
   var foamCol = s.foamColor;
   var intCol = s.intersectionColor;
 
+  var foamEnabled = s.foamEnabled;
+  var intEnabled = s.intersectionEnabled;
+  var causticsEnabled = s.causticsEnabled;
+  var hasFoamTex = !!this._foamData;
+  var hasCausticsTex = !!this._causticsData;
+  var hasNoiseTex = !!this._noiseData;
+
   for (var i = 0; i < count; i++) {
     var i3 = i * 3;
     var i4 = i * 4;
 
-    // World position of this vertex
     var wx = pos[i3] + meshPos.x;
     var wy = pos[i3 + 1] + meshPos.y;
     var wz = pos[i3 + 2] + meshPos.z;
 
     // ── Depth ──
-    var depth = 5.0; // default if no terrain
+    var depth = 5.0;
     if (getTerrainH) {
       var terrainH = getTerrainH(wx, wz);
       depth = Math.max(0, wy - terrainH);
     }
 
-    // Vertical depth attenuation: 1 - exp(-depth * factor)
+    // ── Depth density ──
     var depthAtten = 1 - Math.exp(-depth * s.depthVertical * 0.1);
     var heightAtten = 1 - Math.exp(-depth * s.depthHorizontal);
     var density = _saturate(Math.max(depthAtten, heightAtten));
 
-    // ── Base Color: shallow → deep blend ──
+    // ── Color absorption (Phase 3): Beer's law ──
+    if (s.colorAbsorption > 0.01) {
+      density = _saturate(density + (1 - Math.exp(-depth * s.colorAbsorption * 0.2)));
+    }
+
+    // ── Base color: shallow → deep ──
     var r = _lerp(shallow.r, deep.r, density);
     var g = _lerp(shallow.g, deep.g, density);
     var b = _lerp(shallow.b, deep.b, density);
     var a = _lerp(shallow.a, deep.a, density);
 
-    // ── Wave Normal ──
     var waveY = pos[i3 + 1]; // wave displacement height
-    var waveNormal = _sampleWaves(wx, wz, this._time, s).normal;
 
-    // ── Directional Lighting (Lambert) ──
-    var NdotL = _saturate(waveNormal.x * sun.x + waveNormal.y * sun.y + waveNormal.z * sun.z);
-    var ambient = 0.45;
-    var lighting = ambient + (1 - ambient) * NdotL;
-    r *= lighting;
-    g *= lighting;
-    b *= lighting;
-
-    // ── Wave Tint (darken troughs) ──
+    // ── Wave tint (darken troughs, lighten crests) ──
     if (s.waveTint > 0.001) {
       var tint = _saturate(waveY * s.waveTint * 2.0);
-      r += tint * 0.08 * sunColor.r;
-      g += tint * 0.12 * sunColor.g;
-      b += tint * 0.08 * sunColor.b;
+      r += tint * 0.08 * sunCol.r;
+      g += tint * 0.12 * sunCol.g;
+      b += tint * 0.08 * sunCol.b;
     }
 
-    // ── Foam (wave crest) ──
+    // ── Foam (Phase 2): texture-sampled ──
     var foam = 0;
-    if (s.foamEnabled) {
+    if (foamEnabled) {
       // Wave crest foam
       var crest = _saturate(waveY * 2.0) * s.foamWaveAmount;
-      foam += crest;
-      // Base foam
-      foam += s.foamBaseAmount;
+      foam = crest + s.foamBaseAmount;
 
-      // Foam clipping
-      if (s.foamClipping > 0.001) {
-        foam = _smoothstep(s.foamClipping, 1.0, foam);
+      // Sample foam texture for pattern/dissolve
+      if (hasFoamTex && foam > 0.001) {
+        var foamU = wx * s.foamTilingX + this._time * s.foamSpeed;
+        var foamV = wz * s.foamTilingY + this._time * s.foamSpeed * 0.7;
+        var foamSample = _sampleImageData(this._foamData, this._foamDataSize, foamU, foamV);
+        var foamTex = _saturate(foamSample.r + foamSample.g * 0.5);
+
+        // Dissolve/clipping
+        if (s.foamClipping > 0.001) {
+          foamTex = _smoothstep(s.foamClipping, 1.0, foamTex);
+        }
+        foam *= foamTex;
       }
+
       foam = _saturate(foam);
 
       // Blend foam color
       if (foam > 0.001) {
-        var foamA = foam * foamCol.a;
-        r = _lerp(r, foamCol.r, foamA);
-        g = _lerp(g, foamCol.g, foamA);
-        b = _lerp(b, foamCol.b, foamA);
+        var fA = foam * foamCol.a;
+        r = _lerp(r, foamCol.r, fA);
+        g = _lerp(g, foamCol.g, fA);
+        b = _lerp(b, foamCol.b, fA);
       }
     }
 
-    // ── Intersection Foam (depth-based shore line) ──
-    if (s.intersectionEnabled && getTerrainH && depth < s.intersectionLength) {
+    // ── Intersection foam (Phase 2): noise-texture-sampled ──
+    var intersection = 0;
+    if (intEnabled && getTerrainH && depth < s.intersectionLength) {
       var intDist = _saturate(depth / Math.max(s.intersectionLength, 0.01));
 
-      var intersection = 0;
-      if (s.intersectionStyle === 0) {
-        // Sharp step
-        intersection = 1.0 - _smoothstep(0.0, 0.5, intDist);
-      } else if (s.intersectionStyle === 1) {
-        // Smooth gradient
-        intersection = 1.0 - intDist;
-        intersection *= intersection; // squared for smoother
-      } else {
-        // Sine ripple
-        var ripple = Math.sin(intDist * 12.566 + this._time * 2.0) * 0.5 + 0.5;
-        intersection = (1.0 - intDist) * ripple;
+      // Sample intersection noise for pattern
+      var noise = 1.0;
+      if (hasNoiseTex) {
+        var noiseU = wx * 0.3 + this._time * 0.05;
+        var noiseV = wz * 0.3 + this._time * 0.03;
+        noise = _sampleImageData(this._noiseData, this._noiseDataSize, noiseU, noiseV).r;
       }
+
+      if (s.intersectionStyle === 0) {
+        // Sharp step with noise
+        var sineRipple = Math.sin(intDist * 12.566 + this._time * 2.0) * 0.5 + 0.5;
+        intersection = 1.0 - _smoothstep(0.0, 0.3, _saturate((noise + sineRipple) * intDist + intDist));
+      } else if (s.intersectionStyle === 1) {
+        // Smooth gradient with noise
+        intersection = _saturate(noise * 0.8 + (1.0 - intDist)) * (1.0 - intDist);
+        intersection *= intersection;
+      } else {
+        // Ripple with noise
+        var ripple = Math.sin(intDist * 18.85 + this._time * 3.0) * 0.5 + 0.5;
+        intersection = (1.0 - intDist) * ripple * noise;
+      }
+
       intersection = _saturate(intersection) * intCol.a;
 
       if (intersection > 0.001) {
@@ -647,64 +793,59 @@ StylizedWaterSystem.prototype._updateColors = function() {
       }
     }
 
-    // ── Specular (Blinn-Phong sun reflection) ──
-    if (s.sunReflectionStrength > 0.001) {
-      var vdx = camX - wx;
-      var vdy = camY - wy;
-      var vdz = camZ - wz;
-      var vLen = Math.sqrt(vdx * vdx + vdy * vdy + vdz * vdz);
-      if (vLen > 0.01) {
-        vdx /= vLen; vdy /= vLen; vdz /= vLen;
+    // ── Caustics (Phase 3): dual-layer min() blend ──
+    if (causticsEnabled && hasCausticsTex && depth > 0.1 && depth < 20) {
+      var ct = this._time * s.causticsSpeed;
+      var cTile = s.causticsTiling;
 
-        // Half vector
-        var hx = sun.x + vdx;
-        var hy = sun.y + vdy;
-        var hz = sun.z + vdz;
-        var hLen = Math.sqrt(hx * hx + hy * hy + hz * hz);
-        if (hLen > 0.01) {
-          hx /= hLen; hy /= hLen; hz /= hLen;
+      // Layer 1
+      var cu1 = wx * cTile + ct;
+      var cv1 = wz * cTile + ct * 0.5;
+      var c1 = _sampleImageData(this._causticsData, this._causticsDataSize, cu1, cv1);
 
-          // N dot H
-          var NdotH = _saturate(
-            waveNormal.x * hx + waveNormal.y * hy + waveNormal.z * hz
-          );
+      // Layer 2 (different scale + reversed direction)
+      var cu2 = wx * cTile * 0.8 - ct;
+      var cv2 = wz * cTile * 0.8 - ct * 0.3;
+      var c2 = _sampleImageData(this._causticsData, this._causticsDataSize, cu2, cv2);
 
-          // Specular exponent: small sunReflectionSize = sharp, large = broad
-          var specExp = _lerp(8196, 64, _saturate(s.sunReflectionSize));
-          var spec = Math.pow(NdotH, specExp) * s.sunReflectionStrength;
+      // Key visual trick: min of two layers → "swimming light network"
+      var causticR = Math.min(c1.r, c2.r) * 2.0;
+      var causticG = Math.min(c1.g, c2.g) * 2.0;
+      var causticB = Math.min(c1.b, c2.b) * 2.0;
 
-          // View-angle mask (no specular at grazing angles from light)
-          var geoNdotL = _saturate(waveNormal.y * sun.y + waveNormal.x * sun.x + waveNormal.z * sun.z);
-          var viewFactor = _smoothstep(0.0, 0.15, geoNdotL);
-          spec *= viewFactor;
-
-          // Apply specular with sun color
-          r += spec * sunColor.r;
-          g += spec * sunColor.g;
-          b += spec * sunColor.b;
-        }
+      // Chromance control: mono vs color
+      if (s.causticsChromance < 0.99) {
+        var causticMono = (causticR + causticG + causticB) / 3;
+        causticR = _lerp(causticMono, causticR, s.causticsChromance);
+        causticG = _lerp(causticMono, causticG, s.causticsChromance);
+        causticB = _lerp(causticMono, causticB, s.causticsChromance);
       }
+
+      // Mask: fade out near foam/intersection/deep water
+      var caustMask = _saturate((1 - density * 0.5) - foam * 0.5 - intersection * 0.5);
+      var caustDepthMask = _saturate(1 - depth / 20);
+      caustMask *= caustDepthMask;
+
+      var cBright = s.causticsBrightness;
+      r += causticR * caustMask * cBright * 0.3;
+      g += causticG * caustMask * cBright * 0.3;
+      b += causticB * caustMask * cBright * 0.25;
     }
 
-    // ── Fresnel (horizon color blend) ──
+    // ── Horizon color (distance-based Fresnel approximation for vertex colors) ──
     if (horizon.a > 0.001) {
-      var fdx = camX - wx;
-      var fdy = camY - wy;
-      var fdz = camZ - wz;
-      var fLen = Math.sqrt(fdx * fdx + fdy * fdy + fdz * fdz);
-      if (fLen > 0.01) {
-        fdx /= fLen; fdy /= fLen; fdz /= fLen;
-        var VdotN = _saturate(fdx * waveNormal.x + fdy * waveNormal.y + fdz * waveNormal.z);
-        var fresnel = Math.pow(Math.max(0, 1.000293 - VdotN), s.horizonDistance);
-        fresnel = _saturate(fresnel) * horizon.a;
-
-        r = _lerp(r, horizon.r, fresnel);
-        g = _lerp(g, horizon.g, fresnel);
-        b = _lerp(b, horizon.b, fresnel);
-      }
+      var dx = wx - camX;
+      var dz = wz - camZ;
+      var dist = Math.sqrt(dx * dx + dz * dz);
+      var horizonFactor = _saturate(dist / (s.horizonDistance * 100));
+      horizonFactor = horizonFactor * horizonFactor;
+      r = _lerp(r, horizon.r, horizonFactor * horizon.a);
+      g = _lerp(g, horizon.g, horizonFactor * horizon.a);
+      b = _lerp(b, horizon.b, horizonFactor * horizon.a);
     }
 
-    // ── Translucency (subsurface scattering) ──
+    // ── Translucency / SSS (Phase 4) ──
+    // Adds subsurface glow when looking towards light through water
     if (s.translucencyStrength > 0.001 && cam) {
       var tvx = -(camX - wx);
       var tvy = -(camY - wy);
@@ -714,26 +855,36 @@ StylizedWaterSystem.prototype._updateColors = function() {
         tvx /= tvLen; tvy /= tvLen; tvz /= tvLen;
         var transmit = _saturate(tvx * sun.x + tvy * sun.y + tvz * sun.z);
         transmit = Math.pow(transmit, s.translucencyExp) * s.translucencyStrength;
-
-        // Curvature mask
-        var curvature = _saturate(_lerp(1.0,
-          -(waveNormal.x * sun.x + waveNormal.y * sun.y + waveNormal.z * sun.z), 0.3));
-        transmit *= curvature;
-
-        // Add subsurface glow (greenish tint like real water)
-        r += transmit * 0.1 * sunColor.r;
-        g += transmit * 0.3 * sunColor.g;
-        b += transmit * 0.2 * sunColor.b;
+        r += transmit * 0.1 * sunCol.r;
+        g += transmit * 0.3 * sunCol.g;
+        b += transmit * 0.2 * sunCol.b;
       }
     }
 
-    // ── Edge Fade (alpha near shore) ──
+    // ── Sparkles (Phase 5) ──
+    if (s.sparkleIntensity > 0.001) {
+      var sparkHash = Math.sin(wx * 127.1 + wz * 311.7 + this._time * 5.0) * 43758.5453;
+      sparkHash = sparkHash - Math.floor(sparkHash);
+      if (sparkHash > s.sparkleSize) {
+        var sparkle = (sparkHash - s.sparkleSize) / (1 - s.sparkleSize);
+        sparkle *= s.sparkleIntensity;
+        // Only sparkle where lit by sun
+        var wNorm = _sampleWaves(wx, wz, this._time, s).normal;
+        var NdotL = _saturate(wNorm.x * sun.x + wNorm.y * sun.y + wNorm.z * sun.z);
+        sparkle *= NdotL;
+        r += sparkle * sunCol.r;
+        g += sparkle * sunCol.g;
+        b += sparkle * sunCol.b;
+      }
+    }
+
+    // ── Edge fade (alpha near shore) ──
     if (s.edgeFade > 0.001 && getTerrainH) {
       var edgeAlpha = _saturate(depth / (s.edgeFade * 0.5));
       a *= edgeAlpha;
     }
 
-    // ── Final Output ──
+    // ── Final output ──
     colors[i4]     = _saturate(r);
     colors[i4 + 1] = _saturate(g);
     colors[i4 + 2] = _saturate(b);
@@ -750,8 +901,6 @@ StylizedWaterSystem.prototype._updateCameraFollow = function() {
 
   var camX = this.camera.position.x;
   var camZ = this.camera.position.z;
-
-  // Snap to grid to prevent visible vertex swimming
   var cellSize = 1.0 / Math.max(this.settings.resolution, 0.01);
   cellSize = Math.max(cellSize, 2);
 
@@ -762,24 +911,20 @@ StylizedWaterSystem.prototype._updateCameraFollow = function() {
 // ── Sun Direction / Color ──────────────────────────────
 
 StylizedWaterSystem.prototype._getSunDirection = function() {
-  // Try SWA module
   var swa = window.__vibexe_skyWeatherAdvanced;
   if (swa && swa._sunDirection) {
     var sd = swa._sunDirection;
     return _normalize3(sd.x || sd[0] || 0, sd.y || sd[1] || 0.707, sd.z || sd[2] || 0.707);
   }
-  // Try scene directional light
   var scene = this.scene;
   if (scene) {
     for (var j = 0; j < scene.children.length; j++) {
       var child = scene.children[j];
       if (child.isDirectionalLight && child.visible) {
-        var p = child.position;
-        return _normalize3(p.x, p.y, p.z);
+        return _normalize3(child.position.x, child.position.y, child.position.z);
       }
     }
   }
-  // Default: sun at 45 deg elevation from south
   return { x: 0.0, y: 0.707, z: 0.707 };
 };
 
@@ -794,15 +939,14 @@ StylizedWaterSystem.prototype._getSunColor = function() {
     for (var j = 0; j < scene.children.length; j++) {
       var child = scene.children[j];
       if (child.isDirectionalLight && child.visible) {
-        var c = child.color;
-        return { r: c.r, g: c.g, b: c.b };
+        return { r: child.color.r, g: child.color.g, b: child.color.b };
       }
     }
   }
   return { r: 1.0, g: 0.95, b: 0.9 };
 };
 
-// ── Buoyancy API ───────────────────────────────────────
+// ── Buoyancy API (Phase 5) ─────────────────────────────
 
 StylizedWaterSystem.prototype._registerBuoyancyAPI = function() {
   var self = this;
@@ -822,7 +966,6 @@ StylizedWaterSystem.prototype._registerBuoyancyAPI = function() {
     return y < wh;
   };
 
-  // Also expose water level directly
   window.__vibexe_waterLevel = self.settings.waterLevel;
 };
 
@@ -848,12 +991,21 @@ StylizedWaterSystem.prototype.updateSettings = function(patch) {
     window.__vibexe_waterLevel = this.settings.waterLevel;
   }
 
+  // Update PBR material properties
+  if (this._usePBR && this._material) {
+    this._material.roughness = _clamp(this.settings.roughness || 0.15, 0, 1);
+    this._material.metalness = _clamp(this.settings.metalness || 0.3, 0, 1);
+    this._material.envMapIntensity = this.settings.envMapIntensity || 0.8;
+    var ns = this.settings.normalStrength || 0.5;
+    this._material.normalScale.set(ns, -ns);
+  }
+
   // Reload textures if indices changed
   if (this.settings.normalMapIndex !== oldNormalIdx || this.settings.foamTextureIndex !== oldFoamIdx) {
     this._loadTextures();
   }
 
-  // Update visibility
+  // Visibility
   if (this._mesh) {
     this._mesh.visible = this.settings.visible !== false;
   }
@@ -868,10 +1020,8 @@ StylizedWaterSystem.prototype._rebuildGeometry = function() {
   var s = this.settings;
   if (this._geometry) this._geometry.dispose();
 
-  var segX = Math.round(s.scale * s.resolution);
-  var segZ = Math.round(s.scale * s.resolution);
-  segX = _clamp(segX, 8, 400);
-  segZ = _clamp(segZ, 8, 400);
+  var segX = _clamp(Math.round(s.scale * s.resolution), 8, 400);
+  var segZ = _clamp(Math.round(s.scale * s.resolution), 8, 400);
 
   this._geometry = new THREE.PlaneGeometry(s.scale, s.scale, segX, segZ);
   this._geometry.rotateX(-Math.PI / 2);
@@ -885,15 +1035,13 @@ StylizedWaterSystem.prototype._rebuildGeometry = function() {
   this._geometry.setAttribute('color', new THREE.BufferAttribute(this._vertexColors, 4));
 
   this._mesh.geometry = this._geometry;
-
-  console.log('[StylizedWater] Rebuilt geometry — segments:' + segX + 'x' + segZ + ' verts:' + vertCount);
+  console.log('[StylizedWater] Rebuilt geometry — verts:' + vertCount);
 };
 
 // ── Bridge Messages ────────────────────────────────────
 
 StylizedWaterSystem.prototype.handleBridgeMessage = function(type, payload) {
   var t = type.replace('stylized-water-', '');
-
   switch (t) {
     case 'update-config':
       this.updateSettings(payload.config || payload);
@@ -911,10 +1059,13 @@ StylizedWaterSystem.prototype.handleBridgeMessage = function(type, payload) {
       this.settings = _deepMerge({}, DEFAULT_SETTINGS);
       this._rebuildGeometry();
       this._loadTextures();
-      this._mesh.position.y = this.settings.waterLevel;
+      if (this._mesh) this._mesh.position.y = this.settings.waterLevel;
+      if (this._usePBR && this._material) {
+        this._material.roughness = 0.15;
+        this._material.metalness = 0.3;
+      }
       break;
-    default:
-      break;
+    default: break;
   }
 };
 
@@ -937,13 +1088,10 @@ StylizedWaterSystem.prototype.dispose = function() {
   this._disposed = true;
   if (this._animFrameId) cancelAnimationFrame(this._animFrameId);
 
-  if (this._mesh && this.scene) {
-    this.scene.remove(this._mesh);
-  }
+  if (this._mesh && this.scene) this.scene.remove(this._mesh);
   if (this._geometry) this._geometry.dispose();
   if (this._material) this._material.dispose();
 
-  // Clean up globals
   delete window.__vibexe_getWaterHeight;
   delete window.__vibexe_getWaterNormal;
   delete window.__vibexe_isUnderwater;
@@ -955,6 +1103,9 @@ StylizedWaterSystem.prototype.dispose = function() {
   this._material = null;
   this._origPositions = null;
   this._vertexColors = null;
+  this._foamData = null;
+  this._causticsData = null;
+  this._noiseData = null;
 
   console.log('[StylizedWater] Disposed');
 };
@@ -975,7 +1126,6 @@ if (typeof window !== 'undefined') {
       attempts++;
       var scene = window.__vibexe_scene__;
 
-      // Detect scene change — destroy + reinit
       if (scene && window.__vibexe_stylizedWater &&
           window.__vibexe_stylizedWater.scene !== scene) {
         console.log('[StylizedWater] Scene changed, re-initializing');
@@ -986,7 +1136,6 @@ if (typeof window !== 'undefined') {
       if (scene && typeof THREE !== 'undefined' && !window.__vibexe_stylizedWater) {
         clearInterval(timer);
 
-        // Find camera
         var camera = window.__vibexe_camera__ || null;
         if (!camera) {
           scene.traverse(function(obj) {
@@ -994,7 +1143,6 @@ if (typeof window !== 'undefined') {
           });
         }
 
-        // Load settings
         var settings = {};
         try {
           var gs = window.__VIBEXE_GAME_SETTINGS__;
@@ -1009,7 +1157,6 @@ if (typeof window !== 'undefined') {
 
         window.__vibexe_stylizedWater = new StylizedWaterSystem(scene, camera, settings);
 
-        // Bridge message listener
         window.addEventListener('message', function(ev) {
           if (!ev.data || !ev.data.type) return;
           var sys = window.__vibexe_stylizedWater;
@@ -1059,19 +1206,34 @@ module.exports = {
 		waveDistance: 0.5,
 		normalMapIndex: 0,
 		normalStrength: 0.5,
+		normalSpeed: 0.1,
 		foamEnabled: true,
 		foamColor: { r: 1, g: 1, b: 1, a: 0.8 },
+		foamTilingX: 0.1,
+		foamTilingY: 0.1,
+		foamSpeed: 0.1,
 		foamWaveAmount: 0.3,
 		foamBaseAmount: 0,
 		foamClipping: 0,
+		foamTextureIndex: 0,
 		intersectionEnabled: true,
 		intersectionColor: { r: 1, g: 1, b: 1, a: 1 },
 		intersectionLength: 2,
 		intersectionStyle: 1,
+		causticsEnabled: true,
+		causticsBrightness: 1.0,
+		causticsChromance: 0.5,
+		causticsTiling: 0.5,
+		causticsSpeed: 0.5,
+		colorAbsorption: 0.5,
+		roughness: 0.15,
+		metalness: 0.3,
 		sunReflectionSize: 0.5,
 		sunReflectionStrength: 1.0,
 		translucencyStrength: 0.5,
 		translucencyExp: 6.0,
+		sparkleIntensity: 0,
+		sparkleSize: 0.9,
 		buoyancyEnabled: true,
 	},
 };

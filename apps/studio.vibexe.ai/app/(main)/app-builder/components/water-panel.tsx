@@ -51,10 +51,21 @@ interface WaterConfig {
 	intersectionColor?: { r: number; g: number; b: number; a: number };
 	intersectionLength?: number;
 	intersectionStyle?: number;
+	causticsEnabled?: boolean;
+	causticsBrightness?: number;
+	causticsChromance?: number;
+	causticsTiling?: number;
+	causticsSpeed?: number;
+	colorAbsorption?: number;
+	roughness?: number;
+	metalness?: number;
+	envMapIntensity?: number;
 	sunReflectionSize?: number;
 	sunReflectionStrength?: number;
 	translucencyStrength?: number;
 	translucencyExp?: number;
+	sparkleIntensity?: number;
+	sparkleSize?: number;
 	buoyancyEnabled?: boolean;
 }
 
@@ -66,7 +77,7 @@ interface WaterPanelProps {
 	onSave: (config: WaterConfig) => void;
 }
 
-type WaterTab = "color" | "waves" | "foam" | "lighting" | "presets";
+type WaterTab = "color" | "waves" | "foam" | "under" | "lighting" | "presets";
 
 const DEFAULTS: WaterConfig = {
 	waterLevel: 0,
@@ -189,6 +200,7 @@ export function WaterPanel({ sendToIframe, onClose, settings, onChange, onSave }
 		{ id: "color", label: "Color", icon: Palette },
 		{ id: "waves", label: "Waves", icon: Waves },
 		{ id: "foam", label: "Foam", icon: Droplets },
+		{ id: "under", label: "Under", icon: Wind },
 		{ id: "lighting", label: "Light", icon: Sun },
 		{ id: "presets", label: "Presets", icon: Sparkles },
 	];
@@ -276,7 +288,7 @@ export function WaterPanel({ sendToIframe, onClose, settings, onChange, onSave }
 			</div>
 
 			{/* Tabs */}
-			<div className="grid grid-cols-5 gap-0.5 border-b border-white/[0.06] px-1.5 py-1.5">
+			<div className="grid grid-cols-6 gap-0.5 border-b border-white/[0.06] px-1.5 py-1.5">
 				{tabs.map((tab) => {
 					const Icon = tab.icon;
 					const isActive = activeTab === tab.id;
@@ -462,16 +474,45 @@ export function WaterPanel({ sendToIframe, onClose, settings, onChange, onSave }
 					</>
 				)}
 
+				{/* ── Underwater Tab ── */}
+				{activeTab === "under" && (
+					<>
+						<div className="text-[10px] text-white/30 uppercase tracking-wider mb-1">Caustics</div>
+						<div className="flex items-center gap-2 mb-1">
+							<span className="text-[10px] text-white/50 w-[72px]">Enabled</span>
+							<button
+								type="button"
+								onClick={() => sendConfig({ causticsEnabled: !config.causticsEnabled })}
+								className={`w-8 h-4 rounded-full transition-colors ${config.causticsEnabled ? "bg-cyan-500/60" : "bg-white/10"}`}
+							>
+								<div className={`w-3 h-3 rounded-full bg-white transition-transform ${config.causticsEnabled ? "translate-x-4" : "translate-x-0.5"}`} />
+							</button>
+						</div>
+						<Slider label="Brightness" value={config.causticsBrightness ?? 1} min={0} max={3} step={0.05} onChange={(v) => sendConfig({ causticsBrightness: v })} />
+						<Slider label="Chromance" value={config.causticsChromance ?? 0.5} min={0} max={1} step={0.01} onChange={(v) => sendConfig({ causticsChromance: v })} />
+						<Slider label="Tiling" value={config.causticsTiling ?? 0.5} min={0.01} max={5} step={0.05} onChange={(v) => sendConfig({ causticsTiling: v })} />
+						<Slider label="Speed" value={config.causticsSpeed ?? 0.5} min={0} max={2} step={0.05} onChange={(v) => sendConfig({ causticsSpeed: v })} />
+
+						<div className="text-[10px] text-white/30 uppercase tracking-wider mt-3 mb-1">Absorption</div>
+						<Slider label="Color Abs." value={config.colorAbsorption ?? 0.5} min={0} max={1} step={0.01} onChange={(v) => sendConfig({ colorAbsorption: v })} />
+					</>
+				)}
+
 				{/* ── Lighting Tab ── */}
 				{activeTab === "lighting" && (
 					<>
-						<div className="text-[10px] text-white/30 uppercase tracking-wider mb-1">Sun Reflection</div>
-						<Slider label="Size" value={config.sunReflectionSize ?? 0.5} min={0} max={1} step={0.01} onChange={(v) => sendConfig({ sunReflectionSize: v })} />
-						<Slider label="Strength" value={config.sunReflectionStrength ?? 1} min={0} max={3} step={0.05} onChange={(v) => sendConfig({ sunReflectionStrength: v })} />
+						<div className="text-[10px] text-white/30 uppercase tracking-wider mb-1">PBR Material</div>
+						<Slider label="Roughness" value={config.roughness ?? 0.15} min={0} max={1} step={0.01} onChange={(v) => sendConfig({ roughness: v })} />
+						<Slider label="Metalness" value={config.metalness ?? 0.3} min={0} max={1} step={0.01} onChange={(v) => sendConfig({ metalness: v })} />
+						<Slider label="Env Reflect" value={config.envMapIntensity ?? 0.8} min={0} max={2} step={0.05} onChange={(v) => sendConfig({ envMapIntensity: v })} />
 
 						<div className="text-[10px] text-white/30 uppercase tracking-wider mt-3 mb-1">Translucency</div>
 						<Slider label="Strength" value={config.translucencyStrength ?? 0.5} min={0} max={2} step={0.05} onChange={(v) => sendConfig({ translucencyStrength: v })} />
 						<Slider label="Exponent" value={config.translucencyExp ?? 6} min={1} max={20} step={0.5} onChange={(v) => sendConfig({ translucencyExp: v })} />
+
+						<div className="text-[10px] text-white/30 uppercase tracking-wider mt-3 mb-1">Sparkles</div>
+						<Slider label="Intensity" value={config.sparkleIntensity ?? 0} min={0} max={1} step={0.01} onChange={(v) => sendConfig({ sparkleIntensity: v })} />
+						<Slider label="Size" value={config.sparkleSize ?? 0.9} min={0.5} max={0.999} step={0.01} onChange={(v) => sendConfig({ sparkleSize: v })} />
 					</>
 				)}
 
