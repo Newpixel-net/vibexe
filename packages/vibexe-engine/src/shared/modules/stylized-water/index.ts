@@ -1223,8 +1223,8 @@ StylizedWaterSystem.prototype._updateUnderwaterFog = function() {
 
   var camY = this.camera.position.y;
   var waterSurface = this._mesh ? this._mesh.position.y : this.settings.waterLevel;
-  // Smooth submersion ramp: 0 = above water, 1 = 0.5+ units below surface
-  var submersion = _clamp((waterSurface - camY) * 2.0, 0, 1);
+  // Camera must be 0.5+ units below water before overlay starts
+  var submersion = _clamp((waterSurface - camY - 0.5) * 2.0, 0, 1);
 
   // Update overlay opacity — max 0.6 for a tinted but not opaque effect
   this._underwaterOverlayMat.opacity = submersion * 0.6;
