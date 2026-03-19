@@ -229,6 +229,11 @@ function _createWaterTSLUniforms(s) {
     // Phase 4: Sparkle uniforms
     uSparkleIntensity: THREE.uniform(s.sparkleIntensity || 0),
     uSparkleSize: THREE.uniform(s.sparkleSize || 0.9),
+    // Underwater post-process uniforms
+    uUnderwaterStr: THREE.uniform(0.0),
+    uUnderwaterFogColor: THREE.uniform(new THREE.Color(dp.r * 0.3, dp.g * 0.3, dp.b * 0.5)),
+    uUnderwaterFogDensity: THREE.uniform(0.06),
+    uUnderwaterDistortion: THREE.uniform(0.02),
   };
 }
 
@@ -903,6 +908,7 @@ function StylizedWaterSystem(scene, camera, settings, bodyId, displayName) {
   this._tslTex = null;
   this._useTSL = false;
   this._buoyancyCounter = 0;
+  this._underwaterPPApplied = false;
 
   // FPS tracking (Phase 7)
   this._fpsFrames = 0;
@@ -1162,22 +1168,55 @@ StylizedWaterSystem.prototype._updateCameraFollow = function() {
   }
 };
 
-// ── Underwater Camera Fog ──────────────────────────────
+// ── Underwater Post-Process (GPU shader, no scene globals) ──
+
+StylizedWaterSystem.prototype._applyUnderwaterPostProcess = function() {
+  var pp = window.__vibexe_composer__;
+  if (!pp || !pp.outputNode || this._underwaterPPApplied) return;
+
+  var u = this._tslU;
+  if (!u) return;
+  var T = THREE;
+  var _Fn = T.Fn || T.tslFn;
+  var currentOutput = pp.outputNode;
+
+  // Build underwater effect node
+  var underwaterNode = _Fn(function() {
+    var sceneColor = currentOutput.toVar();
+
+    // Depth-based fog: mix(fogColor, sceneColor, exp2(-density * fragDepth))
+    var fragDepth = T.positionView.z.negate();
+    var fogFactor = T.exp2(u.uUnderwaterFogDensity.negate().mul(fragDepth).mul(0.5));
+    fogFactor = fogFactor.clamp(0, 1);
+    var fogged = T.mix(T.vec3(u.uUnderwaterFogColor.x, u.uUnderwaterFogColor.y, u.uUnderwaterFogColor.z), sceneColor, fogFactor);
+
+    // Subtle animated tint ripple (sine-based color shift)
+    var ripple = T.sin(T.screenUV.y.mul(20.0).add(u.uTime.mul(2.0))).mul(u.uUnderwaterDistortion);
+    var tinted = fogged.add(T.vec3(ripple.mul(0.1), ripple.mul(0.05), T.float(0.0)));
+
+    // Blend between normal scene and underwater based on uUnderwaterStr
+    return T.mix(sceneColor, tinted, u.uUnderwaterStr);
+  })();
+
+  pp.outputNode = underwaterNode;
+  this._underwaterPPApplied = true;
+  console.log('[StylizedWater] Underwater post-process applied to pipeline');
+};
 
 StylizedWaterSystem.prototype._updateUnderwaterFog = function() {
-  // DISABLED: Underwater fog hijacks scene.background and scene.fog, causing sky color
-  // corruption when scene editor camera orbits below water level. The SWA sky system
-  // owns scene.background — water must not override it. Underwater visual effects should
-  // be handled purely via the GPU shader (colorNode), not by modifying global scene state.
-  if (this._underwaterFogActive) {
-    this._underwaterFogActive = false;
-    if (this.scene) {
-      this.scene.fog = this._savedFog || null;
-      if (this._savedBgColor !== undefined) this.scene.background = this._savedBgColor;
-    }
-  }
-  return;
+  if (!this.camera || !this._tslU) return;
+  if (!this.settings.followCamera) return;
 
+  // Try to hook into PostProcessing pipeline (once)
+  if (!this._underwaterPPApplied) this._applyUnderwaterPostProcess();
+
+  var camY = this.camera.position.y;
+  var waterSurface = this._mesh ? this._mesh.position.y : this.settings.waterLevel;
+  // Smooth submersion ramp: 0 = above water, 1 = 0.5+ units below surface
+  var submersion = _clamp((waterSurface - camY) * 2.0, 0, 1);
+
+  // Just update the uniform — the GPU shader does the rest
+  this._tslU.uUnderwaterStr.value = submersion;
 };
 
 // ── Sun Direction / Color ──────────────────────────────
@@ -1471,6 +1510,11 @@ StylizedWaterSystem.prototype.updateSettings = function(patch) {
     // Phase 4: Sparkle uniforms
     this._tslU.uSparkleIntensity.value = s.sparkleIntensity || 0;
     this._tslU.uSparkleSize.value = s.sparkleSize || 0.9;
+
+    // Underwater post-process: sync fog color from deep color
+    if (this._tslU.uUnderwaterFogColor) {
+      this._tslU.uUnderwaterFogColor.value.setRGB(dp.r * 0.3, dp.g * 0.3, dp.b * 0.5);
+    }
   }
 
   // Visibility
@@ -1577,11 +1621,8 @@ StylizedWaterSystem.prototype.dispose = function() {
   if (this._material) this._material.dispose();
   if (this._underwaterMat) this._underwaterMat.dispose();
 
-  // Restore fog if underwater fog was active
-  if (this._underwaterFogActive && this.scene) {
-    this.scene.fog = this._savedFog || null;
-    if (this._savedBgColor !== undefined) this.scene.background = this._savedBgColor;
-  }
+  // Reset underwater post-process state
+  this._underwaterPPApplied = false;
 
   // Remove from water bodies array
   var bodies = window.__vibexe_waterBodies || [];
