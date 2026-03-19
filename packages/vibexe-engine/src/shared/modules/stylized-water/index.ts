@@ -17,14 +17,14 @@ import type { ModuleManifest } from "../module-types";
 export const STYLIZED_WATER_MANIFEST: ModuleManifest = {
 	id: "stylized-water",
 	name: "Stylized Water 2",
-	version: "2.0.0",
+	version: "3.0.0",
 	category: "level-design",
 	description:
 		"AAA-quality stylized water with Gerstner waves, foam, caustics, refraction, translucency, and buoyancy",
 	icon: "Waves",
 	assets: [],
 	runtimeCode: `
-// @vibexe/stylized-water v2.0.0
+// @vibexe/stylized-water v3.0.0
 // Stylized Water 2 — converted from Unity (Staggart Creations)
 var THREE = require('three');
 
@@ -137,6 +137,225 @@ function _sampleWaves(worldX, worldZ, time, s) {
     normal: { x: nx, y: ny, z: nz },
     offset: { x: ox, y: oy, z: oz }
   };
+}
+
+// ============================================================
+// Section 2b: GPU TSL Shader — Gerstner Waves + Per-Pixel Coloring
+// v3.0.0: Replaces CPU _updateWaves() + _updateColors() with GPU shader
+// ============================================================
+
+/** Create TSL uniform nodes for all water shader parameters */
+function _createWaterTSLUniforms(s) {
+  var sh = s.shallowColor || { r: 0.4, g: 0.8, b: 0.9, a: 0.92 };
+  var dp = s.deepColor || { r: 0.05, g: 0.15, b: 0.4, a: 0.98 };
+  var hz = s.horizonColor || { r: 0.6, g: 0.8, b: 1.0, a: 0.5 };
+  return {
+    uTime: THREE.uniform(0.0),
+    uMeshPosX: THREE.uniform(0.0),
+    uMeshPosZ: THREE.uniform(0.0),
+    uCamPosX: THREE.uniform(0.0),
+    uCamPosZ: THREE.uniform(0.0),
+    uIsWebGPU: THREE.uniform(0.0),
+    uWaveHeight: THREE.uniform(s.waveHeight || 0.5),
+    uWaveSpeed: THREE.uniform(s.waveSpeed || 1.0),
+    uWaveSteepness: THREE.uniform(s.waveSteepness || 0.3),
+    uWaveCount: THREE.uniform(s.waveCount || 2),
+    uWaveDistance: THREE.uniform(s.waveDistance || 0.5),
+    uScale: THREE.uniform(s.scale || 200),
+    uWaterLevel: THREE.uniform(s.waterLevel || -3),
+    uShallowColor: THREE.uniform(new THREE.Color(sh.r, sh.g, sh.b)),
+    uDeepColor: THREE.uniform(new THREE.Color(dp.r, dp.g, dp.b)),
+    uHorizonColor: THREE.uniform(new THREE.Color(hz.r, hz.g, hz.b)),
+    uShallowAlpha: THREE.uniform(sh.a != null ? sh.a : 0.92),
+    uDeepAlpha: THREE.uniform(dp.a != null ? dp.a : 0.98),
+    uHorizonAlpha: THREE.uniform(hz.a != null ? hz.a : 0.5),
+    uDepthVert: THREE.uniform(s.depthVertical || 1.0),
+    uColorAbsorption: THREE.uniform(s.colorAbsorption || 0.5),
+    uEdgeFade: THREE.uniform(s.edgeFade || 1.0),
+    uWaveTint: THREE.uniform(s.waveTint || 0.1),
+    uHorizonDist: THREE.uniform(s.horizonDistance || 3.0),
+    uSunDir: THREE.uniform(new THREE.Vector3(0, 0.707, 0.707)),
+    uSunColor: THREE.uniform(new THREE.Color(1.0, 0.95, 0.9)),
+    uSunSpecSize: THREE.uniform(s.sunReflectionSize || 0.5),
+    uSunSpecStr: THREE.uniform(s.sunReflectionStrength || 1.0),
+    uTranslucencyStr: THREE.uniform(s.translucencyStrength || 0.5),
+    uTranslucencyExp: THREE.uniform(s.translucencyExp || 6.0),
+  };
+}
+
+/** Build MeshBasicMaterial with GPU TSL positionNode + colorNode */
+function _buildWaterTSLMaterial(u) {
+  var _Fn = THREE.Fn || THREE.tslFn;
+
+  var mat = new THREE.MeshBasicMaterial({
+    transparent: true,
+    side: THREE.DoubleSide,
+    depthWrite: false,
+    fog: true,
+  });
+
+  // Shared varyings: vertex shader → fragment shader data transfer
+  var _vWN, _vWH;
+
+  // ── positionNode: GPU Gerstner wave vertex displacement ──
+  mat.positionNode = _Fn(function() {
+    var pos = THREE.positionLocal.toVar();
+    var worldX = pos.x.add(u.uMeshPosX);
+    var worldZ = pos.z.add(u.uMeshPosZ);
+
+    // Wave distance fade (reduce amplitude far from camera)
+    var wdx = worldX.sub(u.uCamPosX);
+    var wdz = worldZ.sub(u.uCamPosZ);
+    var wDist = THREE.sqrt(wdx.mul(wdx).add(wdz.mul(wdz)));
+    var waveFade = THREE.float(1.0).sub(wDist.div(u.uScale.mul(0.45))).clamp(0, 1);
+
+    var ox = THREE.float(0).toVar();
+    var oy = THREE.float(0).toVar();
+    var oz = THREE.float(0).toVar();
+    var wnx = THREE.float(0).toVar();
+    var wnz = THREE.float(0).toVar();
+    var freqMul = THREE.float(1.0).toVar();
+    var ampMul = THREE.float(1.0).toVar();
+    var speedMul = THREE.float(1.0).toVar();
+
+    // Wave directions (matches CPU WAVE_DIRS)
+    var WDX = [0.866, -0.5, 0.259, -0.707, 0.966];
+    var WDY = [0.5, 0.866, -0.966, -0.707, -0.259];
+
+    // Unrolled 5-wave Gerstner sum (inactive waves masked by step function)
+    for (var i = 0; i < 5; i++) {
+      var wl = THREE.float(10.0).div(freqMul);
+      var amp = u.uWaveHeight.mul(ampMul).mul(0.5);
+      var sp = u.uWaveSpeed.mul(speedMul);
+      var omega = THREE.float(6.283185).div(THREE.max(wl, THREE.float(0.01)));
+      var dX = THREE.float(WDX[i]);
+      var dY = THREE.float(WDY[i]);
+      var dotDP = dX.mul(worldX).add(dY.mul(worldZ));
+      var phase = omega.mul(dotDP).add(sp.mul(omega).mul(u.uTime));
+      var sinP = THREE.sin(phase);
+      var cosP = THREE.cos(phase);
+      var Q = u.uWaveSteepness.mul(0.01);
+      var active = THREE.step(THREE.float(i + 1), u.uWaveCount);
+
+      ox.addAssign(Q.mul(amp).mul(dX).mul(cosP).mul(active));
+      oy.addAssign(amp.mul(sinP).mul(active));
+      oz.addAssign(Q.mul(amp).mul(dY).mul(cosP).mul(active));
+
+      // Analytical wave normal derivative
+      wnx.addAssign(dX.mul(omega).mul(amp).mul(cosP).mul(active).negate());
+      wnz.addAssign(dY.mul(omega).mul(amp).mul(cosP).mul(active).negate());
+
+      freqMul.assign(freqMul.mul(THREE.float(1.18).add(u.uWaveDistance.mul(0.4))));
+      ampMul.assign(ampMul.mul(THREE.float(0.82).sub(u.uWaveDistance.mul(0.15))));
+      speedMul.assign(speedMul.mul(1.07));
+    }
+
+    // Apply wave offset with fade + clamping
+    var maxDisp = u.uWaveHeight.mul(1.5);
+    pos.x.addAssign(ox.mul(waveFade).clamp(maxDisp.negate(), maxDisp));
+    pos.y.addAssign(oy.mul(waveFade));
+    pos.z.addAssign(oz.mul(waveFade).clamp(maxDisp.negate(), maxDisp));
+
+    // Pass wave normal + height to fragment shader via varyings
+    _vWN = THREE.varying(THREE.normalize(THREE.vec3(wnx.mul(waveFade), THREE.float(1.0), wnz.mul(waveFade))), 'v_wn');
+    _vWH = THREE.varying(oy.mul(waveFade), 'v_wh');
+
+    return pos;
+  })();
+
+  // Shared alpha node (set in colorNode, used by opacityNode)
+  var _alphaOut;
+
+  // ── colorNode: per-pixel depth coloring, Fresnel, specular, translucency ──
+  mat.colorNode = _Fn(function() {
+    var worldPos = THREE.positionWorld;
+    var viewDir = THREE.normalize(THREE.cameraPosition.sub(worldPos));
+
+    // --- Depth via viewport depth texture ---
+    var rawDepth = THREE.viewportDepthTexture(THREE.screenUV);
+    var near = THREE.cameraNear;
+    var far = THREE.cameraFar;
+    // Linearize depth (handles both WebGPU reversed and WebGL standard)
+    var diff = far.sub(near);
+    var linGL = near.mul(far).div(far.sub(rawDepth.mul(diff)));
+    var linGPU = near.mul(far).div(near.add(rawDepth.mul(diff)));
+    var sceneLinZ = THREE.mix(linGL, linGPU, u.uIsWebGPU);
+    var fragLinZ = THREE.positionView.z.negate();
+    var waterDepth = THREE.max(sceneLinZ.sub(fragLinZ), THREE.float(0.0));
+    waterDepth = THREE.min(waterDepth, THREE.float(50.0));
+
+    // --- Depth-based color ---
+    var depthAtten = THREE.float(1.0).sub(THREE.exp(waterDepth.negate().mul(u.uDepthVert).mul(0.25)));
+    var density = depthAtten.clamp(0, 1).toVar();
+    var absorb = THREE.float(1.0).sub(THREE.exp(waterDepth.negate().mul(u.uColorAbsorption).mul(0.2)));
+    density.assign(THREE.max(density, absorb).clamp(0, 1));
+
+    // Shallow -> Deep blend
+    var cr = THREE.mix(u.uShallowColor.x, u.uDeepColor.x, density).toVar();
+    var cg = THREE.mix(u.uShallowColor.y, u.uDeepColor.y, density).toVar();
+    var cb = THREE.mix(u.uShallowColor.z, u.uDeepColor.z, density).toVar();
+    var ca = THREE.mix(u.uShallowAlpha, u.uDeepAlpha, density).toVar();
+
+    // --- Fresnel (Schlick) using wave normal from vertex shader ---
+    var N = _vWN;
+    var NdotV = THREE.dot(N, viewDir).clamp(0, 1);
+    var gF = THREE.float(1.0).sub(NdotV);
+    var fresnel = THREE.float(0.02).add(THREE.float(0.98).mul(gF.mul(gF).mul(gF).mul(gF).mul(gF))).clamp(0, 1);
+    cr.assign(THREE.mix(cr, u.uHorizonColor.x, fresnel));
+    cg.assign(THREE.mix(cg, u.uHorizonColor.y, fresnel));
+    cb.assign(THREE.mix(cb, u.uHorizonColor.z, fresnel));
+
+    // --- Wave tint (darken troughs, lighten crests) ---
+    var wH = _vWH;
+    var tint = wH.mul(u.uWaveTint).mul(2.0).clamp(0, 1);
+    cr.addAssign(tint.mul(0.08).mul(u.uSunColor.x));
+    cg.addAssign(tint.mul(0.12).mul(u.uSunColor.y));
+    cb.addAssign(tint.mul(0.08).mul(u.uSunColor.z));
+
+    // --- Horizon distance blend ---
+    var dCam = THREE.length(worldPos.sub(THREE.cameraPosition));
+    var hT = THREE.smoothstep(THREE.float(0), u.uHorizonDist.mul(100.0), dCam);
+    hT = hT.mul(hT);
+    cr.assign(THREE.mix(cr, u.uHorizonColor.x, hT.mul(u.uHorizonAlpha)));
+    cg.assign(THREE.mix(cg, u.uHorizonColor.y, hT.mul(u.uHorizonAlpha)));
+    cb.assign(THREE.mix(cb, u.uHorizonColor.z, hT.mul(u.uHorizonAlpha)));
+
+    // --- Edge fade (alpha near shore via depth buffer) ---
+    var edgeA = waterDepth.div(u.uEdgeFade.mul(0.5).add(0.001)).clamp(0, 1);
+    ca.mulAssign(edgeA);
+    var dABoost = waterDepth.mul(0.4).clamp(0, 1);
+    ca.assign(THREE.max(ca, THREE.float(0.5).add(dABoost.mul(0.42))));
+
+    // --- Sun specular (Blinn-Phong) ---
+    var H = THREE.normalize(u.uSunDir.add(viewDir));
+    var NdotH = THREE.max(THREE.dot(N, H), THREE.float(0));
+    var specPow = THREE.float(128.0).mul(u.uSunSpecSize);
+    var spec = THREE.pow(NdotH, specPow).mul(u.uSunSpecStr);
+    cr.addAssign(spec.mul(u.uSunColor.x).mul(fresnel));
+    cg.addAssign(spec.mul(u.uSunColor.y).mul(fresnel));
+    cb.addAssign(spec.mul(u.uSunColor.z).mul(fresnel));
+
+    // --- Translucency / SSS ---
+    var tDir = worldPos.sub(THREE.cameraPosition).normalize();
+    var tNdotL = THREE.dot(tDir, u.uSunDir).clamp(0, 1);
+    var trans = THREE.pow(tNdotL, u.uTranslucencyExp).mul(u.uTranslucencyStr);
+    cr.addAssign(trans.mul(0.1).mul(u.uSunColor.x));
+    cg.addAssign(trans.mul(0.3).mul(u.uSunColor.y));
+    cb.addAssign(trans.mul(0.2).mul(u.uSunColor.z));
+
+    // Clamp final output
+    cr.assign(cr.clamp(0, 1));
+    cg.assign(cg.clamp(0, 1));
+    cb.assign(cb.clamp(0, 1));
+    ca.assign(ca.clamp(0, 1));
+
+    _alphaOut = ca;
+    return THREE.vec3(cr, cg, cb);
+  })();
+
+  mat.opacityNode = _alphaOut;
+
+  return mat;
 }
 
 // ============================================================
@@ -540,17 +759,22 @@ function StylizedWaterSystem(scene, camera, settings, bodyId, displayName) {
   this._origPositions = null;
   this._vertexColors = null;
 
-  // Texture data for CPU sampling
+  // Texture data for CPU sampling (kept for Phase 3 GPU texture() migration)
   this._foamData = null;
   this._foamDataSize = 0;
-  this._intFoamData = null;  // Intersection_Foam texture
+  this._intFoamData = null;
   this._intFoamDataSize = 0;
   this._causticsData = null;
   this._causticsDataSize = 0;
   this._noiseData = null;
   this._noiseDataSize = 0;
 
-  // Performance: stagger color updates
+  // TSL GPU shader state
+  this._tslU = null;
+  this._useTSL = false;
+  this._buoyancyCounter = 0;
+
+  // CPU fallback: stagger color updates
   this._colorCounter = 0;
   this._colorInterval = 2;
 
@@ -582,8 +806,9 @@ function StylizedWaterSystem(scene, camera, settings, bodyId, displayName) {
   this._animLoop = this._animLoop.bind(this);
   this._animFrameId = requestAnimationFrame(this._animLoop);
 
-  console.log('[StylizedWater] v2.0.0 initialized — scale:' + this.settings.scale +
-    ' level:' + this.settings.waterLevel + ' verts:' + (this._origPositions ? this._origPositions.length / 3 : 0));
+  console.log('[StylizedWater] v3.0.0 initialized — scale:' + this.settings.scale +
+    ' level:' + this.settings.waterLevel + ' verts:' + (this._origPositions ? this._origPositions.length / 3 : 0) +
+    ' GPU:' + (this._useTSL ? 'TSL' : 'CPU'));
 }
 
 // ── Build: Geometry + Material ─────────────────────────
@@ -600,76 +825,36 @@ StylizedWaterSystem.prototype._build = function() {
   this._geometry = new THREE.PlaneGeometry(s.scale, s.scale, segX, segZ);
   this._geometry.rotateX(-Math.PI / 2);
 
-  // Store original positions for wave displacement
+  // Store original positions (kept for CPU buoyancy wave sampling)
   var pos = this._geometry.attributes.position.array;
   this._origPositions = new Float32Array(pos.length);
   this._origPositions.set(pos);
 
-  // Vertex colors (RGBA) for depth/foam/caustics coloring
-  var vertCount = pos.length / 3;
-  this._vertexColors = new Float32Array(vertCount * 4);
-  this._geometry.setAttribute('color', new THREE.BufferAttribute(this._vertexColors, 4));
-
-  // ── Material: MeshPhysicalMaterial for PBR + refraction ──
-  // PBR handles: specular, fresnel, environment reflections, shadow receiving
-  // Physical adds: transmission (refraction), IOR, attenuation (color absorption)
-  // We compute: base color (shallow/deep), foam, caustics, alpha → vertex colors
-  var ns = s.normalStrength || 0.5;
   var deep = s.deepColor || DEFAULT_SETTINGS.deepColor;
+  var _hasTSL = !!(THREE.Fn || THREE.tslFn);
 
-  this._usePBR = true;
-  this._usePhysical = false;
-
-  try {
-    // Try MeshPhysicalMaterial first (refraction support)
-    if (THREE.MeshPhysicalMaterial) {
-      var physOpts = {
-        color: 0xffffff,
-        vertexColors: true,
-        transparent: true,
-        opacity: 1.0,
-        side: THREE.DoubleSide,
-        depthWrite: false,
-        roughness: _clamp(s.roughness || 0.15, 0, 1),
-        metalness: _clamp(s.metalness || 0.3, 0, 1),
-        envMapIntensity: s.envMapIntensity || 0.8,
-        normalMap: null,
-        normalScale: new THREE.Vector2(ns, -ns),
-        fog: true,
-        // Phase 3: Refraction via transmission
-        transmission: s.refractionEnabled ? _clamp(s.refractionStrength || 0.3, 0, 1) : 0,
-        ior: 1.33, // Water index of refraction
-        thickness: _clamp(s.refractionThickness || 2.0, 0.1, 10),
-        attenuationColor: new THREE.Color(deep.r, deep.g, deep.b),
-        attenuationDistance: 5.0,
-      };
-      this._material = new THREE.MeshPhysicalMaterial(physOpts);
-      this._usePhysical = true;
-    } else {
-      throw new Error('No MeshPhysicalMaterial');
-    }
-  } catch(e) {
-    try {
-      this._material = new THREE.MeshStandardMaterial({
-        color: 0xffffff, vertexColors: true, transparent: true, opacity: 1.0,
-        side: THREE.DoubleSide, depthWrite: false,
-        roughness: _clamp(s.roughness || 0.15, 0, 1),
-        metalness: _clamp(s.metalness || 0.3, 0, 1),
-        envMapIntensity: s.envMapIntensity || 0.8,
-        normalMap: null, normalScale: new THREE.Vector2(ns, -ns), fog: true,
-      });
-    } catch(e2) {
-      console.warn('[StylizedWater] PBR failed, falling back to Basic');
-      this._usePBR = false;
-      this._material = new THREE.MeshBasicMaterial({
-        color: 0xffffff, vertexColors: true, transparent: true, opacity: 1.0,
-        side: THREE.DoubleSide, depthWrite: false, fog: true,
-      });
-    }
-  }
-
-  if (this._usePhysical) {
-    console.log('[StylizedWater] Using MeshPhysicalMaterial (refraction: ' + (s.refractionEnabled ? 'ON' : 'OFF') + ')');
+  if (_hasTSL) {
+    // ── v3.0.0 GPU TSL path: positionNode + colorNode ──
+    this._tslU = _createWaterTSLUniforms(s);
+    this._tslU.uIsWebGPU.value = (window.__vibexe_webgpu__ || window.__vibexe_hasWebGPU__) ? 1.0 : 0.0;
+    this._material = _buildWaterTSLMaterial(this._tslU);
+    this._usePBR = false;
+    this._usePhysical = false;
+    this._useTSL = true;
+    console.log('[StylizedWater] GPU TSL material (WebGPU: ' + (this._tslU.uIsWebGPU.value > 0 ? 'YES' : 'WebGL2') + ')');
+  } else {
+    // ── CPU fallback: vertex colors (for environments without TSL) ──
+    var vertCount = pos.length / 3;
+    this._vertexColors = new Float32Array(vertCount * 4);
+    this._geometry.setAttribute('color', new THREE.BufferAttribute(this._vertexColors, 4));
+    this._material = new THREE.MeshBasicMaterial({
+      color: 0xffffff, vertexColors: true, transparent: true, opacity: 1.0,
+      side: THREE.DoubleSide, depthWrite: false, fog: true,
+    });
+    this._usePBR = false;
+    this._usePhysical = false;
+    this._useTSL = false;
+    console.warn('[StylizedWater] TSL not available, using CPU vertex color fallback');
   }
 
   // Create mesh — use non-__ name so editor gizmo can select it
@@ -845,26 +1030,33 @@ StylizedWaterSystem.prototype._animLoop = function() {
     if (this._currentFPS < 90) {
       console.warn('[StylizedWater] FPS: ' + this._currentFPS + ' (target: 90+)');
     }
-    // Auto-disable refraction if FPS drops too low (it doubles render cost)
-    if (this._currentFPS > 0 && this._currentFPS < 40 && this._usePhysical && this.settings.refractionEnabled) {
-      this.settings.refractionEnabled = false;
-      this._material.transmission = 0;
-      this._material.needsUpdate = true;
-      console.warn('[StylizedWater] Auto-disabled refraction (FPS was ' + this._currentFPS + ')');
-    }
   }
 
-  // Wave vertex displacement every frame
-  this._updateWaves();
-
-  // Normal map UV scrolling every frame (GPU-side, cheap)
-  this._updateNormalMapUV();
-
-  // Vertex colors every N frames (CPU-heavy)
-  this._colorCounter++;
-  if (this._colorCounter >= this._colorInterval) {
-    this._colorCounter = 0;
-    this._updateColors();
+  if (this._useTSL && this._tslU) {
+    // ── GPU TSL path: update uniforms only (shader does all visual work) ──
+    this._tslU.uTime.value = this._time;
+    if (this._mesh) {
+      this._tslU.uMeshPosX.value = this._mesh.position.x;
+      this._tslU.uMeshPosZ.value = this._mesh.position.z;
+    }
+    if (this.camera) {
+      this._tslU.uCamPosX.value = this.camera.position.x;
+      this._tslU.uCamPosZ.value = this.camera.position.z;
+    }
+    // Update sun direction/color from SWA module
+    var sun = this._getSunDirection();
+    var sunCol = this._getSunColor();
+    this._tslU.uSunDir.value.set(sun.x, sun.y, sun.z);
+    this._tslU.uSunColor.value.setRGB(sunCol.r, sunCol.g, sunCol.b);
+  } else {
+    // ── CPU fallback path ──
+    this._updateWaves();
+    this._updateNormalMapUV();
+    this._colorCounter++;
+    if (this._colorCounter >= this._colorInterval) {
+      this._colorCounter = 0;
+      this._updateColors();
+    }
   }
 
   // Camera follow every frame
@@ -873,8 +1065,10 @@ StylizedWaterSystem.prototype._animLoop = function() {
   // Underwater camera fog (check every frame)
   this._updateUnderwaterFog();
 
-  // Physics buoyancy every 3 frames (Phase 5)
-  if (this._colorCounter === 0) {
+  // Physics buoyancy every 3 frames (CPU _sampleWaves for API)
+  this._buoyancyCounter = (this._buoyancyCounter || 0) + 1;
+  if (this._buoyancyCounter >= 3) {
+    this._buoyancyCounter = 0;
     this._updateBuoyancy();
   }
 
@@ -1405,18 +1599,17 @@ StylizedWaterSystem.prototype.getStats = function() {
   return {
     fps: this._currentFPS,
     vertices: this._origPositions ? this._origPositions.length / 3 : 0,
-    material: this._usePhysical ? 'MeshPhysicalMaterial' : (this._usePBR ? 'MeshStandardMaterial' : 'MeshBasicMaterial'),
-    refraction: this._usePhysical && this.settings.refractionEnabled ? 'ON' : 'OFF',
+    material: this._useTSL ? 'GPU TSL (MeshBasicMaterial + positionNode + colorNode)' : 'CPU fallback',
+    rendering: this._useTSL ? 'per-pixel fragment shader' : 'per-vertex CPU',
+    webgpu: this._tslU && this._tslU.uIsWebGPU ? (this._tslU.uIsWebGPU.value > 0 ? 'YES' : 'WebGL2 fallback') : 'N/A',
     textures: {
-      normalMap: this._rnmApplied ? 'RNM-blended' : (this._material && this._material.normalMap ? 'loaded' : 'none'),
-      foam: this._foamData ? 'loaded' : 'none',
-      caustics: this._causticsData ? 'loaded' : 'none',
+      foam: this._foamData ? 'loaded (Phase 3: GPU)' : 'none',
+      caustics: this._causticsData ? 'loaded (Phase 3: GPU)' : 'none',
       noise: this._noiseData ? 'loaded' : 'none',
       intFoam: this._intFoamData ? 'loaded' : 'none',
     },
     waterBodies: (window.__vibexe_waterBodies || []).length,
     riverMode: !!this.settings.riverMode,
-    avgFoam: Math.round(this._avgFoam * 1000) / 1000,
   };
 };
 
@@ -1558,8 +1751,6 @@ StylizedWaterSystem.prototype.updateSettings = function(patch) {
   var oldScale = this.settings.scale;
   var oldRes = this.settings.resolution;
   var oldLevel = this.settings.waterLevel;
-  var oldNormalIdx = this.settings.normalMapIndex;
-  var oldFoamIdx = this.settings.foamTextureIndex;
 
   this.settings = _deepMerge(this.settings, patch);
 
@@ -1575,39 +1766,44 @@ StylizedWaterSystem.prototype.updateSettings = function(patch) {
     window.__vibexe_waterLevel = this.settings.waterLevel;
   }
 
-  // Update PBR material properties
-  if (this._usePBR && this._material) {
-    this._material.roughness = _clamp(this.settings.roughness || 0.15, 0, 1);
-    this._material.metalness = _clamp(this.settings.metalness || 0.3, 0, 1);
-    this._material.envMapIntensity = this.settings.envMapIntensity || 0.8;
-    var ns = this.settings.normalStrength || 0.5;
-    this._material.normalScale.set(ns, -ns);
+  // ── Update TSL uniforms (GPU path) ──
+  if (this._useTSL && this._tslU) {
+    var s = this.settings;
+    var sh = s.shallowColor || DEFAULT_SETTINGS.shallowColor;
+    var dp = s.deepColor || DEFAULT_SETTINGS.deepColor;
+    var hz = s.horizonColor || DEFAULT_SETTINGS.horizonColor;
 
-    // Phase 3: Update refraction (MeshPhysicalMaterial only)
-    if (this._usePhysical) {
-      this._material.transmission = this.settings.refractionEnabled
-        ? _clamp(this.settings.refractionStrength || 0.3, 0, 1) : 0;
-      this._material.thickness = _clamp(this.settings.refractionThickness || 2.0, 0.1, 10);
-      var dp = this.settings.deepColor || DEFAULT_SETTINGS.deepColor;
-      if (this._material.attenuationColor) {
-        this._material.attenuationColor.setRGB(dp.r, dp.g, dp.b);
-      }
-      this._material.needsUpdate = true;
-    }
-  }
+    this._tslU.uWaveHeight.value = s.waveHeight || 0.5;
+    this._tslU.uWaveSpeed.value = s.waveSpeed || 1.0;
+    this._tslU.uWaveSteepness.value = s.waveSteepness || 0.3;
+    this._tslU.uWaveCount.value = s.waveCount || 2;
+    this._tslU.uWaveDistance.value = s.waveDistance || 0.5;
+    this._tslU.uScale.value = s.scale || 200;
+    this._tslU.uWaterLevel.value = s.waterLevel || -3;
 
-  // Reload textures if indices changed
-  if (this.settings.normalMapIndex !== oldNormalIdx || this.settings.foamTextureIndex !== oldFoamIdx) {
-    this._loadTextures();
+    this._tslU.uShallowColor.value.setRGB(sh.r, sh.g, sh.b);
+    this._tslU.uDeepColor.value.setRGB(dp.r, dp.g, dp.b);
+    this._tslU.uHorizonColor.value.setRGB(hz.r, hz.g, hz.b);
+    this._tslU.uShallowAlpha.value = sh.a != null ? sh.a : 0.92;
+    this._tslU.uDeepAlpha.value = dp.a != null ? dp.a : 0.98;
+    this._tslU.uHorizonAlpha.value = hz.a != null ? hz.a : 0.5;
+
+    this._tslU.uDepthVert.value = s.depthVertical || 1.0;
+    this._tslU.uColorAbsorption.value = s.colorAbsorption || 0.5;
+    this._tslU.uEdgeFade.value = s.edgeFade || 1.0;
+    this._tslU.uWaveTint.value = s.waveTint || 0.1;
+    this._tslU.uHorizonDist.value = s.horizonDistance || 3.0;
+
+    this._tslU.uSunSpecSize.value = s.sunReflectionSize || 0.5;
+    this._tslU.uSunSpecStr.value = s.sunReflectionStrength || 1.0;
+    this._tslU.uTranslucencyStr.value = s.translucencyStrength || 0.5;
+    this._tslU.uTranslucencyExp.value = s.translucencyExp || 6.0;
   }
 
   // Visibility
   if (this._mesh) {
     this._mesh.visible = this.settings.visible !== false;
   }
-
-  // Force immediate color update
-  this._colorCounter = this._colorInterval;
 };
 
 StylizedWaterSystem.prototype._rebuildGeometry = function() {
@@ -1625,12 +1821,23 @@ StylizedWaterSystem.prototype._rebuildGeometry = function() {
   var pos = this._geometry.attributes.position.array;
   this._origPositions = new Float32Array(pos.length);
   this._origPositions.set(pos);
-
   var vertCount = pos.length / 3;
-  this._vertexColors = new Float32Array(vertCount * 4);
-  this._geometry.setAttribute('color', new THREE.BufferAttribute(this._vertexColors, 4));
+
+  if (this._useTSL) {
+    // TSL material: rebuild with new uniforms for updated scale
+    if (this._material) this._material.dispose();
+    this._tslU = _createWaterTSLUniforms(s);
+    this._tslU.uIsWebGPU.value = (window.__vibexe_webgpu__ || window.__vibexe_hasWebGPU__) ? 1.0 : 0.0;
+    this._material = _buildWaterTSLMaterial(this._tslU);
+    this._mesh.material = this._material;
+  } else {
+    // CPU fallback: rebuild vertex colors buffer
+    this._vertexColors = new Float32Array(vertCount * 4);
+    this._geometry.setAttribute('color', new THREE.BufferAttribute(this._vertexColors, 4));
+  }
 
   this._mesh.geometry = this._geometry;
+
   // Rebuild underwater plane to match new scale
   if (this._underwaterMesh) {
     var uwGeo2 = new THREE.PlaneGeometry(s.scale, s.scale);
@@ -1663,10 +1870,6 @@ StylizedWaterSystem.prototype.handleBridgeMessage = function(type, payload) {
       this._rebuildGeometry();
       this._loadTextures();
       if (this._mesh) this._mesh.position.y = this.settings.waterLevel;
-      if (this._usePBR && this._material) {
-        this._material.roughness = 0.15;
-        this._material.metalness = 0.3;
-      }
       break;
     default: break;
   }
@@ -1725,6 +1928,8 @@ StylizedWaterSystem.prototype.dispose = function() {
   this._material = null;
   this._origPositions = null;
   this._vertexColors = null;
+  this._tslU = null;
+  this._useTSL = false;
   this._foamData = null;
   this._causticsData = null;
   this._noiseData = null;
