@@ -1216,6 +1216,13 @@ StylizedWaterSystem.prototype._createUnderwaterOverlay = function() {
 
 StylizedWaterSystem.prototype._updateUnderwaterFog = function() {
   if (!this.camera) return;
+  // Only activate for followCamera bodies in game mode — never in scene editor
+  if (!this.settings.followCamera) return;
+  var isGameMode = window.__vibexe_gameMode__ || window.__vibexe_isPlaying__;
+  if (!isGameMode) {
+    if (this._underwaterOverlay) this._underwaterOverlay.visible = false;
+    return;
+  }
 
   // Create overlay on first call
   if (!this._underwaterOverlay) this._createUnderwaterOverlay();
@@ -1223,12 +1230,12 @@ StylizedWaterSystem.prototype._updateUnderwaterFog = function() {
 
   var camY = this.camera.position.y;
   var waterSurface = this._mesh ? this._mesh.position.y : this.settings.waterLevel;
-  // Only activate when camera is 1+ units below surface (not at surface level)
-  var submersion = _clamp((waterSurface - camY - 1.0) * 1.0, 0, 1);
+  // Only activate when camera is 2+ units below surface
+  var submersion = _clamp((waterSurface - camY - 2.0) * 0.5, 0, 1);
 
-  // Update overlay opacity — max 0.6 for a tinted but not opaque effect
-  this._underwaterOverlayMat.opacity = submersion * 0.6;
-  this._underwaterOverlay.visible = submersion > 0.001;
+  // Update overlay opacity — max 0.5 for a tinted but not opaque effect
+  this._underwaterOverlayMat.opacity = submersion * 0.5;
+  this._underwaterOverlay.visible = submersion > 0.01;
 
   // Also update TSL uniform if PostProcessing pipeline exists
   if (this._tslU) {
