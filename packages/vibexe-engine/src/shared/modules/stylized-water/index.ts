@@ -468,6 +468,7 @@ function StylizedWaterSystem(scene, camera, settings) {
   this._fpsTime = Date.now();
   this._currentFPS = 0;
   this._avgFoam = 0; // average foam for normal flattening
+  this._paintData = null; // vertex color painting (Phase 5)
 
   // Build water
   this._build();
@@ -684,14 +685,33 @@ StylizedWaterSystem.prototype._updateWaves = function() {
   var meshX = this._mesh.position.x;
   var meshZ = this._mesh.position.z;
 
+  // Camera position for wave distance fade
+  var camX = this.camera ? this.camera.position.x : meshX;
+  var camZ = this.camera ? this.camera.position.z : meshZ;
+  var fadeRange = s.scale * 0.45; // fade starts at 45% of scale
+
   for (var i = 0; i < count; i++) {
     var i3 = i * 3;
     var wx = orig[i3] + meshX;
     var wz = orig[i3 + 2] + meshZ;
+
+    // Wave distance fade: reduce amplitude far from camera (Phase 1 + perf)
+    var wdx = wx - camX;
+    var wdz = wz - camZ;
+    var wDist = Math.sqrt(wdx * wdx + wdz * wdz);
+    var waveFade = _saturate(1 - wDist / fadeRange);
+
     var wave = _sampleWaves(wx, wz, this._time, s);
-    pos[i3]     = orig[i3]     + wave.offset.x;
-    pos[i3 + 1] = orig[i3 + 1] + wave.offset.y;
-    pos[i3 + 2] = orig[i3 + 2] + wave.offset.z;
+
+    // Phase 5: vertex color B channel = wave flattening
+    var wf = waveFade;
+    if (this._paintData) {
+      wf *= (1.0 - this._paintData[i * 4 + 2]); // B=1 → flat
+    }
+
+    pos[i3]     = orig[i3]     + wave.offset.x * wf;
+    pos[i3 + 1] = orig[i3 + 1] + wave.offset.y * wf;
+    pos[i3 + 2] = orig[i3 + 2] + wave.offset.z * wf;
   }
 
   this._geometry.attributes.position.needsUpdate = true;
@@ -750,6 +770,11 @@ StylizedWaterSystem.prototype._updateNormalMapUV = function() {
     var foamFlatten = 1.0 - _saturate(this._avgFoam * 2.0); // flatten when lots of foam
     var ns = (s.normalStrength || 0.5) * (0.2 + 0.8 * distFactor) * foamFlatten;
     this._material.normalScale.set(ns, -ns);
+
+    // Phase 4: Reflection mask — foam reduces environment reflections
+    if (this._usePhysical) {
+      this._material.envMapIntensity = (s.envMapIntensity || 0.8) * (1.0 - _saturate(this._avgFoam * 3));
+    }
   }
 };
 
@@ -821,6 +846,15 @@ StylizedWaterSystem.prototype._updateColors = function() {
 
     var waveY = pos[i3 + 1]; // wave displacement height
 
+    // ── Phase 5: Vertex paint modulation ──
+    var paintR = 0, paintG = 0, paintA = 0;
+    if (this._paintData) {
+      paintR = this._paintData[i * 4];     // R = intersection boost
+      paintG = this._paintData[i * 4 + 1]; // G = depth mask (force deep)
+      paintA = this._paintData[i * 4 + 3]; // A = foam painting
+      density = _saturate(density + paintG * 0.5); // G pushes toward deep color
+    }
+
     // ── Wave tint (darken troughs, lighten crests) ──
     if (s.waveTint > 0.001) {
       var tint = _saturate(waveY * s.waveTint * 2.0);
@@ -832,9 +866,9 @@ StylizedWaterSystem.prototype._updateColors = function() {
     // ── Foam (Phase 2): texture-sampled ──
     var foam = 0;
     if (foamEnabled) {
-      // Wave crest foam
+      // Wave crest foam + paint channel A
       var crest = _saturate(waveY * 2.0) * s.foamWaveAmount;
-      foam = crest + s.foamBaseAmount;
+      foam = crest + s.foamBaseAmount + paintA;
 
       // Dual-layer foam texture sampling (Phase 2: proper dissolve)
       if (hasFoamTex && foam > 0.001) {
@@ -908,7 +942,7 @@ StylizedWaterSystem.prototype._updateColors = function() {
         intersection = (1.0 - intDist) * ripple * noise * intFoamTex;
       }
 
-      intersection = _saturate(intersection) * intCol.a;
+      intersection = _saturate(intersection + paintR) * intCol.a; // R boosts intersection
 
       if (intersection > 0.001) {
         r = _lerp(r, intCol.r, intersection);
@@ -1098,6 +1132,22 @@ StylizedWaterSystem.prototype._getSunColor = function() {
   return { r: 1.0, g: 0.95, b: 0.9 };
 };
 
+// ── Vertex Color Painting API (Phase 5) ────────────────
+// R = intersection intensity boost
+// G = depth mask override (0 = use computed, 1 = force deep)
+// B = wave flattening (0 = full waves, 1 = flat)
+// A = foam painting (0 = computed, 1 = force foam)
+
+StylizedWaterSystem.prototype.setVertexPaint = function(data) {
+  // data: Float32Array with 4 values per vertex (RGBA)
+  if (data && data.length === (this._origPositions.length / 3) * 4) {
+    this._paintData = data;
+    console.log('[StylizedWater] Vertex paint data applied: ' + (data.length / 4) + ' vertices');
+  } else {
+    console.warn('[StylizedWater] Invalid paint data length');
+  }
+};
+
 // ── Physics Buoyancy Force (Phase 5) ───────────────────
 // Applies upward force + drag to Rapier rigid bodies submerged in water
 
@@ -1151,14 +1201,40 @@ StylizedWaterSystem.prototype._updateBuoyancy = function() {
 StylizedWaterSystem.prototype._registerBuoyancyAPI = function() {
   var self = this;
 
+  // Phase 7: Multiple water bodies support
+  window.__vibexe_waterBodies = window.__vibexe_waterBodies || [];
+  window.__vibexe_waterBodies.push(self);
+
+  // Height query checks ALL water bodies, returns highest
   window.__vibexe_getWaterHeight = function(x, z) {
-    if (!self.settings.buoyancyEnabled || self._disposed) return self.settings.waterLevel;
-    return _sampleWaves(x, z, self._time, self.settings).height;
+    var bodies = window.__vibexe_waterBodies || [];
+    var maxH = -Infinity;
+    for (var i = 0; i < bodies.length; i++) {
+      var b = bodies[i];
+      if (b && !b._disposed && b.settings.buoyancyEnabled) {
+        var h = _sampleWaves(x, z, b._time, b.settings).height;
+        if (h > maxH) maxH = h;
+      }
+    }
+    return maxH > -Infinity ? maxH : 0;
   };
 
+  // Normal query from the highest water body at this position
   window.__vibexe_getWaterNormal = function(x, z) {
-    if (!self.settings.buoyancyEnabled || self._disposed) return { x: 0, y: 1, z: 0 };
-    return _sampleWaves(x, z, self._time, self.settings).normal;
+    var bodies = window.__vibexe_waterBodies || [];
+    var maxH = -Infinity;
+    var bestNormal = { x: 0, y: 1, z: 0 };
+    for (var i = 0; i < bodies.length; i++) {
+      var b = bodies[i];
+      if (b && !b._disposed && b.settings.buoyancyEnabled) {
+        var wave = _sampleWaves(x, z, b._time, b.settings);
+        if (wave.height > maxH) {
+          maxH = wave.height;
+          bestNormal = wave.normal;
+        }
+      }
+    }
+    return bestNormal;
   };
 
   window.__vibexe_isUnderwater = function(x, y, z) {
@@ -1277,6 +1353,13 @@ StylizedWaterSystem.prototype.handleBridgeMessage = function(type, payload) {
         this._material.metalness = 0.3;
       }
       break;
+    case 'add-body':
+      // Phase 7: Create additional water plane at different height
+      var extraSettings = _deepMerge(this.settings, payload.config || {});
+      if (payload.height != null) extraSettings.waterLevel = payload.height;
+      var extra = new StylizedWaterSystem(this.scene, this.camera, extraSettings);
+      console.log('[StylizedWater] Added water body at level: ' + extraSettings.waterLevel);
+      break;
     default: break;
   }
 };
@@ -1304,10 +1387,18 @@ StylizedWaterSystem.prototype.dispose = function() {
   if (this._geometry) this._geometry.dispose();
   if (this._material) this._material.dispose();
 
-  delete window.__vibexe_getWaterHeight;
-  delete window.__vibexe_getWaterNormal;
-  delete window.__vibexe_isUnderwater;
-  delete window.__vibexe_waterLevel;
+  // Remove from water bodies array
+  var bodies = window.__vibexe_waterBodies || [];
+  var idx = bodies.indexOf(this);
+  if (idx >= 0) bodies.splice(idx, 1);
+
+  // Only clean up globals if no water bodies remain
+  if (bodies.length === 0) {
+    delete window.__vibexe_getWaterHeight;
+    delete window.__vibexe_getWaterNormal;
+    delete window.__vibexe_isUnderwater;
+    delete window.__vibexe_waterLevel;
+  }
   delete window.__vibexe_stylizedWater;
 
   this._mesh = null;
