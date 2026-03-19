@@ -4568,17 +4568,9 @@ SkyWeatherAdvancedSystem.prototype.updateSettings = function(patch) {
     }
   }
 
-  // Handle theme changes from updateSettings
-  if (patch.theme !== undefined) {
-    var newTheme = patch.theme && patch.theme.active ? patch.theme.active : null;
-    if (newTheme !== this._activeTheme) {
-      if (newTheme) {
-        this._loadTheme(newTheme);
-      } else {
-        this._unloadTheme();
-      }
-    }
-  }
+  // Theme changes are handled by the "set-theme" bridge message directly.
+  // updateSettings only stores theme.active for persistence — no load/unload here
+  // to avoid double-loading when sendConfig debounce fires update-config.
 
   // Force immediate sky recompute on settings change
   this._skyUpdateTimer = this._skyUpdateInterval;
