@@ -303,8 +303,11 @@ export interface GameSettings {
 		// Custom preset storage
 		customPresets?: Record<string, { name: string; basePreset?: string; config: Record<string, unknown> }>;
 	};
-	// Stylized Water 2 — water surface settings
-	stylizedWater?: Record<string, unknown>;
+	// Stylized Water 2 — water surface settings (flat legacy or multi-body format)
+	stylizedWater?: Record<string, unknown> & {
+		bodies?: Array<Record<string, unknown> & { id: string; name: string }>;
+		selectedBodyId?: string;
+	};
 	// Multi-scene / level system
 	scenes?: SceneDefinition[];
 	activeSceneId?: string;

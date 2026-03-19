@@ -432,10 +432,12 @@ function _sampleImageData(data, size, u, v) {
 // Section 6: StylizedWaterSystem — Main Class
 // ============================================================
 
-function StylizedWaterSystem(scene, camera, settings) {
+function StylizedWaterSystem(scene, camera, settings, bodyId, displayName) {
   this.scene = scene;
   this.camera = camera;
   this.settings = _deepMerge(DEFAULT_SETTINGS, settings);
+  this._bodyId = bodyId || '';
+  this._displayName = displayName || 'Water 1';
 
   this._time = 0;
   this._lastTime = Date.now();
@@ -474,6 +476,18 @@ function StylizedWaterSystem(scene, camera, settings) {
   this._build();
   this._loadTextures();
   this._registerBuoyancyAPI();
+
+  // Apply saved position for non-followCamera bodies
+  if (!this.settings.followCamera && this.settings.position) {
+    if (this._mesh) {
+      this._mesh.position.x = this.settings.position.x || 0;
+      this._mesh.position.z = this.settings.position.z || 0;
+    }
+    if (this._underwaterMesh) {
+      this._underwaterMesh.position.x = this.settings.position.x || 0;
+      this._underwaterMesh.position.z = this.settings.position.z || 0;
+    }
+  }
 
   // Start animation
   this._animLoop = this._animLoop.bind(this);
@@ -571,8 +585,9 @@ StylizedWaterSystem.prototype._build = function() {
 
   // Create mesh — use non-__ name so editor gizmo can select it
   this._mesh = new THREE.Mesh(this._geometry, this._material);
-  this._mesh.name = 'StylizedWater';
+  this._mesh.name = this._bodyId ? ('StylizedWater_' + this._bodyId) : 'StylizedWater';
   this._mesh.userData.__isWater = true;
+  this._mesh.userData.__waterBodyId = this._bodyId || '';
   this._mesh.userData.__waterSystem = this;
   this._mesh.position.y = s.waterLevel;
   this._mesh.renderOrder = 100;
@@ -1309,6 +1324,14 @@ StylizedWaterSystem.prototype._updateBuoyancy = function() {
       if (body.isFixed() || body.isKinematic()) return;
 
       var pos = body.translation();
+
+      // Bounds check: skip bodies outside non-followCamera water extent
+      if (!s.followCamera && self._mesh) {
+        var mx = self._mesh.position.x, mz = self._mesh.position.z;
+        var hs = (s.scale || 200) / 2;
+        if (pos.x < mx - hs || pos.x > mx + hs || pos.z < mz - hs || pos.z > mz + hs) return;
+      }
+
       var waterH = _sampleWaves(pos.x, pos.z, self._time, s).height;
       var submerged = waterH - pos.y;
 
@@ -1348,13 +1371,19 @@ StylizedWaterSystem.prototype._registerBuoyancyAPI = function() {
   window.__vibexe_waterBodies = window.__vibexe_waterBodies || [];
   window.__vibexe_waterBodies.push(self);
 
-  // Height query checks ALL water bodies, returns highest
+  // Height query checks ALL water bodies, returns highest (with spatial bounds)
   window.__vibexe_getWaterHeight = function(x, z) {
     var bodies = window.__vibexe_waterBodies || [];
     var maxH = -Infinity;
     for (var i = 0; i < bodies.length; i++) {
       var b = bodies[i];
       if (b && !b._disposed && b.settings.buoyancyEnabled) {
+        // Skip if query point outside non-followCamera body bounds
+        if (!b.settings.followCamera && b._mesh) {
+          var mx = b._mesh.position.x, mz = b._mesh.position.z;
+          var hs = (b.settings.scale || 200) / 2;
+          if (x < mx - hs || x > mx + hs || z < mz - hs || z > mz + hs) continue;
+        }
         var h = _sampleWaves(x, z, b._time, b.settings).height;
         if (h > maxH) maxH = h;
       }
@@ -1362,7 +1391,7 @@ StylizedWaterSystem.prototype._registerBuoyancyAPI = function() {
     return maxH > -Infinity ? maxH : 0;
   };
 
-  // Normal query from the highest water body at this position
+  // Normal query from the highest water body at this position (with spatial bounds)
   window.__vibexe_getWaterNormal = function(x, z) {
     var bodies = window.__vibexe_waterBodies || [];
     var maxH = -Infinity;
@@ -1370,6 +1399,11 @@ StylizedWaterSystem.prototype._registerBuoyancyAPI = function() {
     for (var i = 0; i < bodies.length; i++) {
       var b = bodies[i];
       if (b && !b._disposed && b.settings.buoyancyEnabled) {
+        if (!b.settings.followCamera && b._mesh) {
+          var mx = b._mesh.position.x, mz = b._mesh.position.z;
+          var hs = (b.settings.scale || 200) / 2;
+          if (x < mx - hs || x > mx + hs || z < mz - hs || z > mz + hs) continue;
+        }
         var wave = _sampleWaves(x, z, b._time, b.settings);
         if (wave.height > maxH) {
           maxH = wave.height;
@@ -1497,13 +1531,6 @@ StylizedWaterSystem.prototype.handleBridgeMessage = function(type, payload) {
         this._material.metalness = 0.3;
       }
       break;
-    case 'add-body':
-      // Phase 7: Create additional water plane at different height
-      var extraSettings = _deepMerge(this.settings, payload.config || {});
-      if (payload.height != null) extraSettings.waterLevel = payload.height;
-      var extra = new StylizedWaterSystem(this.scene, this.camera, extraSettings);
-      console.log('[StylizedWater] Added water body at level: ' + extraSettings.waterLevel);
-      break;
     default: break;
   }
 };
@@ -1560,6 +1587,185 @@ StylizedWaterSystem.prototype.dispose = function() {
 };
 
 // ============================================================
+// Section 6b: WaterBodyManager — Multi-Body System
+// ============================================================
+
+function WaterBodyManager(scene, camera) {
+  this.scene = scene;
+  this.camera = camera;
+  this._bodies = {};
+  this._bodyOrder = [];
+  this._activeBodyId = null;
+  this._maxBodies = 4;
+}
+
+WaterBodyManager.prototype.createBody = function(config, id, name) {
+  if (this._bodyOrder.length >= this._maxBodies) {
+    console.warn('[WaterBodyManager] Max bodies (' + this._maxBodies + ') reached');
+    return null;
+  }
+  var bodyId = id || ('water_' + Date.now().toString(36));
+  var displayName = name || ('Water ' + (this._bodyOrder.length + 1));
+  var system = new StylizedWaterSystem(this.scene, this.camera, config, bodyId, displayName);
+
+  // Stagger color updates across bodies
+  var total = this._bodyOrder.length + 1;
+  system._colorInterval = Math.max(2, total);
+
+  this._bodies[bodyId] = system;
+  this._bodyOrder.push(bodyId);
+
+  if (!this._activeBodyId) this._activeBodyId = bodyId;
+
+  // Update stagger for all existing bodies
+  for (var i = 0; i < this._bodyOrder.length; i++) {
+    var b = this._bodies[this._bodyOrder[i]];
+    if (b) b._colorInterval = Math.max(2, total);
+  }
+
+  return system;
+};
+
+WaterBodyManager.prototype.removeBody = function(id) {
+  var system = this._bodies[id];
+  if (!system) return;
+
+  system.dispose();
+  delete this._bodies[id];
+  var idx = this._bodyOrder.indexOf(id);
+  if (idx >= 0) this._bodyOrder.splice(idx, 1);
+
+  if (this._activeBodyId === id) {
+    this._activeBodyId = this._bodyOrder.length > 0 ? this._bodyOrder[0] : null;
+  }
+
+  var total = this._bodyOrder.length;
+  for (var i = 0; i < this._bodyOrder.length; i++) {
+    var b = this._bodies[this._bodyOrder[i]];
+    if (b) b._colorInterval = Math.max(2, total);
+  }
+
+  this._sendBodyList();
+};
+
+WaterBodyManager.prototype.getActiveBody = function() {
+  return this._activeBodyId ? this._bodies[this._activeBodyId] : null;
+};
+
+WaterBodyManager.prototype._sendBodyList = function() {
+  var bodies = [];
+  for (var i = 0; i < this._bodyOrder.length; i++) {
+    var id = this._bodyOrder[i];
+    var sys = this._bodies[id];
+    if (sys) {
+      bodies.push({
+        id: id,
+        name: sys._displayName,
+        followCamera: sys.settings.followCamera,
+        scale: sys.settings.scale,
+        waterLevel: sys.settings.waterLevel,
+      });
+    }
+  }
+  if (window.parent && window.parent !== window) {
+    window.parent.postMessage({
+      type: 'stylized-water-body-list',
+      bodies: bodies,
+      activeId: this._activeBodyId,
+    }, '*');
+  }
+};
+
+WaterBodyManager.prototype._sendBodyConfig = function(id) {
+  var sys = id ? this._bodies[id] : this.getActiveBody();
+  if (!sys) return;
+  if (window.parent && window.parent !== window) {
+    window.parent.postMessage({
+      type: 'stylized-water-body-config',
+      bodyId: sys._bodyId,
+      config: sys.settings,
+      name: sys._displayName,
+    }, '*');
+  }
+};
+
+WaterBodyManager.prototype.handleBridgeMessage = function(type, payload) {
+  var t = type.replace('stylized-water-', '');
+
+  switch (t) {
+    case 'get-body-list':
+      this._sendBodyList();
+      return;
+    case 'get-body-config':
+      this._sendBodyConfig(payload.bodyId || this._activeBodyId);
+      return;
+    case 'add-body': {
+      var newConfig = _deepMerge({}, DEFAULT_SETTINGS);
+      if (payload.config) newConfig = _deepMerge(newConfig, payload.config);
+      newConfig.followCamera = false;
+      newConfig.scale = (payload.config && payload.config.scale) || 50;
+      if (payload.position) {
+        newConfig.position = { x: payload.position.x || 0, y: payload.position.y || 0, z: payload.position.z || 0 };
+      }
+      var sys = this.createBody(newConfig, null, payload.name);
+      if (sys) {
+        this._activeBodyId = sys._bodyId;
+        this._sendBodyList();
+        this._sendBodyConfig(sys._bodyId);
+      }
+      return;
+    }
+    case 'remove-body': {
+      var rid = payload.bodyId || this._activeBodyId;
+      if (this._bodyOrder.length <= 1) return;
+      this.removeBody(rid);
+      return;
+    }
+    case 'select-body': {
+      var sid = payload.bodyId;
+      if (sid && this._bodies[sid]) {
+        this._activeBodyId = sid;
+        this._sendBodyList();
+        this._sendBodyConfig(sid);
+      }
+      return;
+    }
+    case 'rename-body': {
+      var rsys = this._bodies[payload.bodyId || this._activeBodyId];
+      if (rsys && payload.name) {
+        rsys._displayName = payload.name;
+        this._sendBodyList();
+      }
+      return;
+    }
+    case 'sync-position': {
+      var psys = this._bodies[payload.bodyId || this._activeBodyId];
+      if (psys && payload.position) {
+        psys.settings.followCamera = false;
+        psys.settings.position = { x: payload.position.x || 0, y: payload.position.y || 0, z: payload.position.z || 0 };
+        if (psys._mesh) {
+          psys._mesh.position.x = payload.position.x || 0;
+          psys._mesh.position.z = payload.position.z || 0;
+        }
+        if (psys._underwaterMesh) {
+          psys._underwaterMesh.position.x = payload.position.x || 0;
+          psys._underwaterMesh.position.z = payload.position.z || 0;
+        }
+      }
+      return;
+    }
+    default: break;
+  }
+
+  // Route config updates to specific body or active body
+  var targetId = (payload && payload.bodyId) || this._activeBodyId;
+  var target = targetId ? this._bodies[targetId] : null;
+  if (target) {
+    target.handleBridgeMessage(type, payload);
+  }
+};
+
+// ============================================================
 // Section 7: Auto-Init & Bridge Listener
 // ============================================================
 
@@ -1567,6 +1773,7 @@ if (typeof window !== 'undefined') {
   window.__vibexe_modules__ = window.__vibexe_modules__ || {};
   window.__vibexe_modules__['stylized-water'] = {
     StylizedWaterSystem: StylizedWaterSystem,
+    WaterBodyManager: WaterBodyManager,
   };
 
   (function() {
@@ -1575,14 +1782,21 @@ if (typeof window !== 'undefined') {
       attempts++;
       var scene = window.__vibexe_scene__;
 
-      if (scene && window.__vibexe_stylizedWater &&
-          window.__vibexe_stylizedWater.scene !== scene) {
+      // Re-init if scene changed
+      if (scene && window.__vibexe_waterManager &&
+          window.__vibexe_waterManager.scene !== scene) {
         console.log('[StylizedWater] Scene changed, re-initializing');
-        try { window.__vibexe_stylizedWater.dispose(); } catch(e) {}
+        try {
+          var oldMgr = window.__vibexe_waterManager;
+          for (var oi = oldMgr._bodyOrder.length - 1; oi >= 0; oi--) {
+            try { oldMgr._bodies[oldMgr._bodyOrder[oi]].dispose(); } catch(e) {}
+          }
+        } catch(e) {}
+        window.__vibexe_waterManager = null;
         window.__vibexe_stylizedWater = null;
       }
 
-      if (scene && typeof THREE !== 'undefined' && !window.__vibexe_stylizedWater) {
+      if (scene && typeof THREE !== 'undefined' && !window.__vibexe_waterManager) {
         clearInterval(timer);
 
         var camera = window.__vibexe_camera__ || null;
@@ -1592,28 +1806,59 @@ if (typeof window !== 'undefined') {
           });
         }
 
-        var settings = {};
+        // Load saved settings
+        var rawSettings = {};
         try {
           var gs = window.__VIBEXE_GAME_SETTINGS__;
           if (gs) {
             if (gs.stylizedWater && typeof gs.stylizedWater === 'object') {
-              settings = gs.stylizedWater;
-              console.log('[StylizedWater] Loaded saved config from stylizedWater (' + Object.keys(settings).length + ' keys)');
+              rawSettings = gs.stylizedWater;
             } else if (gs.modules && gs.modules.installed && gs.modules.installed['stylized-water']) {
-              settings = gs.modules.installed['stylized-water'].config || {};
-              console.log('[StylizedWater] Loaded saved config from modules.installed (' + Object.keys(settings).length + ' keys)');
+              rawSettings = gs.modules.installed['stylized-water'].config || {};
             }
           }
         } catch(e) {}
 
-        window.__vibexe_stylizedWater = new StylizedWaterSystem(scene, camera, settings);
+        // Create manager
+        var manager = new WaterBodyManager(scene, camera);
 
+        // Migrate: old flat config → bodies[] array
+        var bodiesArr;
+        if (rawSettings.bodies && Array.isArray(rawSettings.bodies)) {
+          bodiesArr = rawSettings.bodies;
+          console.log('[StylizedWater] Multi-body config — ' + bodiesArr.length + ' bodies');
+        } else {
+          // Old flat format → wrap as single body
+          bodiesArr = [{ id: 'water_0', name: 'Water 1', ...rawSettings }];
+          console.log('[StylizedWater] Migrated flat config to single body');
+        }
+
+        // Create each body
+        for (var bi = 0; bi < bodiesArr.length; bi++) {
+          var bc = bodiesArr[bi];
+          var bid = bc.id || ('water_' + bi);
+          var bname = bc.name || ('Water ' + (bi + 1));
+          manager.createBody(bc, bid, bname);
+        }
+
+        // Select saved active body
+        if (rawSettings.selectedBodyId && manager._bodies[rawSettings.selectedBodyId]) {
+          manager._activeBodyId = rawSettings.selectedBodyId;
+        }
+
+        window.__vibexe_waterManager = manager;
+        // Backwards compat: point singleton at first body
+        window.__vibexe_stylizedWater = manager.getActiveBody();
+
+        // Bridge message listener — route through manager
         window.addEventListener('message', function(ev) {
           if (!ev.data || !ev.data.type) return;
-          var sys = window.__vibexe_stylizedWater;
-          if (!sys) return;
+          var mgr = window.__vibexe_waterManager;
+          if (!mgr) return;
           if (ev.data.type.indexOf('stylized-water-') === 0) {
-            sys.handleBridgeMessage(ev.data.type, ev.data.payload || ev.data);
+            mgr.handleBridgeMessage(ev.data.type, ev.data.payload || ev.data);
+            // Keep singleton ref in sync with active body
+            window.__vibexe_stylizedWater = mgr.getActiveBody();
           }
         });
       }
@@ -1628,6 +1873,7 @@ if (typeof window !== 'undefined') {
 
 module.exports = {
   StylizedWaterSystem: StylizedWaterSystem,
+  WaterBodyManager: WaterBodyManager,
 };
 `,
 	bridgeHandlers: {
@@ -1635,6 +1881,13 @@ module.exports = {
 		"stylized-water-set-height": "handleSetHeight",
 		"stylized-water-set-preset": "handleSetPreset",
 		"stylized-water-set-visible": "handleSetVisible",
+		"stylized-water-add-body": "handleAddBody",
+		"stylized-water-remove-body": "handleRemoveBody",
+		"stylized-water-select-body": "handleSelectBody",
+		"stylized-water-rename-body": "handleRenameBody",
+		"stylized-water-get-body-list": "handleGetBodyList",
+		"stylized-water-get-body-config": "handleGetBodyConfig",
+		"stylized-water-sync-position": "handleSyncPosition",
 	},
 	defaultSettings: {
 		waterLevel: 0,

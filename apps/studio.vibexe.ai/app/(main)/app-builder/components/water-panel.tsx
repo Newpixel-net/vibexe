@@ -16,8 +16,10 @@ import {
 	Sparkles,
 	RotateCcw,
 	X,
+	Plus,
+	Trash2,
 } from "lucide-react";
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { GameSettings } from "../lib/game-editor-context";
 
 interface WaterConfig {
@@ -157,8 +159,20 @@ function hexToColor(hex: string): { r: number; g: number; b: number } {
 	return { r, g, b };
 }
 
+interface WaterBodyInfo {
+	id: string;
+	name: string;
+	followCamera?: boolean;
+	scale?: number;
+	waterLevel?: number;
+}
+
 export function WaterPanel({ sendToIframe, onClose, settings, onChange, onSave }: WaterPanelProps) {
 	const [activeTab, setActiveTab] = useState<WaterTab>("color");
+
+	// Multi-body state
+	const [bodies, setBodies] = useState<WaterBodyInfo[]>([]);
+	const [activeBodyId, setActiveBodyId] = useState<string>("");
 
 	const saved = (settings as Record<string, unknown>).stylizedWater as WaterConfig | undefined;
 	const [config, setConfig] = useState<WaterConfig>(() => ({ ...DEFAULTS, ...saved }));
@@ -168,6 +182,32 @@ export function WaterPanel({ sendToIframe, onClose, settings, onChange, onSave }
 	configRef.current = config;
 	const latestRef = useRef(config);
 	const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+	// Listen for body-list and body-config messages from iframe
+	useEffect(() => {
+		const handler = (ev: MessageEvent) => {
+			if (!ev.data?.type) return;
+			if (ev.data.type === "stylized-water-body-list") {
+				setBodies(ev.data.bodies || []);
+				if (ev.data.activeId) setActiveBodyId(ev.data.activeId);
+			} else if (ev.data.type === "stylized-water-body-config") {
+				const incoming = ev.data.config || {};
+				const merged = { ...DEFAULTS, ...incoming };
+				setConfig(merged);
+				configRef.current = merged;
+				latestRef.current = merged;
+				if (ev.data.name) {
+					setBodies((prev) => prev.map((b) =>
+						b.id === ev.data.bodyId ? { ...b, name: ev.data.name } : b
+					));
+				}
+			}
+		};
+		window.addEventListener("message", handler);
+		// Request initial body list
+		sendToIframe({ type: "stylized-water-get-body-list" });
+		return () => window.removeEventListener("message", handler);
+	}, [sendToIframe]);
 
 	const sendConfig = useCallback(
 		(patch: Partial<WaterConfig>) => {
@@ -179,21 +219,19 @@ export function WaterPanel({ sendToIframe, onClose, settings, onChange, onSave }
 
 			if (debounceRef.current) clearTimeout(debounceRef.current);
 			debounceRef.current = setTimeout(() => {
-				sendToIframe({ type: "stylized-water-update-config", config: merged });
+				sendToIframe({ type: "stylized-water-update-config", config: merged, bodyId: activeBodyId });
 				onChange(merged);
 			}, 80);
 		},
-		[sendToIframe, onChange],
+		[sendToIframe, onChange, activeBodyId],
 	);
 
 	const applyPreset = useCallback(
 		(presetId: string) => {
-			sendToIframe({ type: "stylized-water-set-preset", preset: presetId });
-			// We don't know the exact preset values here — the runtime applies them
-			// and we'll just mark dirty so onClose saves
+			sendToIframe({ type: "stylized-water-set-preset", preset: presetId, bodyId: activeBodyId });
 			dirtyRef.current = true;
 		},
-		[sendToIframe],
+		[sendToIframe, activeBodyId],
 	);
 
 	const resetDefaults = useCallback(() => {
@@ -201,9 +239,29 @@ export function WaterPanel({ sendToIframe, onClose, settings, onChange, onSave }
 		configRef.current = { ...DEFAULTS };
 		latestRef.current = { ...DEFAULTS };
 		dirtyRef.current = true;
-		sendToIframe({ type: "stylized-water-update-config", config: DEFAULTS });
+		sendToIframe({ type: "stylized-water-update-config", config: DEFAULTS, bodyId: activeBodyId });
 		onChange(DEFAULTS);
-	}, [sendToIframe, onChange]);
+	}, [sendToIframe, onChange, activeBodyId]);
+
+	const addBody = useCallback(() => {
+		sendToIframe({ type: "stylized-water-add-body", config: { followCamera: false, scale: 50 } });
+	}, [sendToIframe]);
+
+	const removeBody = useCallback(() => {
+		if (bodies.length <= 1) return;
+		sendToIframe({ type: "stylized-water-remove-body", bodyId: activeBodyId });
+	}, [sendToIframe, activeBodyId, bodies.length]);
+
+	const selectBody = useCallback((id: string) => {
+		setActiveBodyId(id);
+		sendToIframe({ type: "stylized-water-select-body", bodyId: id });
+		sendToIframe({ type: "stylized-water-get-body-config", bodyId: id });
+	}, [sendToIframe]);
+
+	const renameBody = useCallback((name: string) => {
+		sendToIframe({ type: "stylized-water-rename-body", bodyId: activeBodyId, name });
+		setBodies((prev) => prev.map((b) => b.id === activeBodyId ? { ...b, name } : b));
+	}, [sendToIframe, activeBodyId]);
 
 	const tabs: { id: WaterTab; label: string; icon: typeof Sun }[] = [
 		{ id: "color", label: "Color", icon: Palette },
@@ -286,7 +344,11 @@ export function WaterPanel({ sendToIframe, onClose, settings, onChange, onSave }
 					<button
 						type="button"
 						onClick={() => {
-							if (dirtyRef.current) onSave(latestRef.current);
+							if (dirtyRef.current) {
+								const saveConfig = { ...latestRef.current } as WaterConfig & { bodyId?: string };
+								if (activeBodyId) saveConfig.bodyId = activeBodyId;
+								onSave(saveConfig);
+							}
 							onClose();
 						}}
 						className="p-1 rounded-md hover:bg-white/[0.08] text-white/40 hover:text-white/70 transition-colors"
@@ -295,6 +357,39 @@ export function WaterPanel({ sendToIframe, onClose, settings, onChange, onSave }
 					</button>
 				</div>
 			</div>
+
+			{/* Body Selector */}
+			{bodies.length > 0 && (
+				<div className="flex items-center gap-1 px-2 py-1.5 border-b border-white/[0.08]">
+					<select
+						value={activeBodyId}
+						onChange={(e) => selectBody(e.target.value)}
+						className="flex-1 bg-white/5 border border-white/10 rounded text-[10px] text-white/70 px-1.5 py-1 truncate"
+					>
+						{bodies.map((b) => (
+							<option key={b.id} value={b.id}>{b.name}</option>
+						))}
+					</select>
+					<button
+						type="button"
+						onClick={addBody}
+						disabled={bodies.length >= 4}
+						className="p-1 rounded-md hover:bg-white/[0.08] text-white/40 hover:text-cyan-300 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+						title="Add water body"
+					>
+						<Plus className="w-3.5 h-3.5" />
+					</button>
+					<button
+						type="button"
+						onClick={removeBody}
+						disabled={bodies.length <= 1}
+						className="p-1 rounded-md hover:bg-white/[0.08] text-white/40 hover:text-red-300 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+						title="Remove water body"
+					>
+						<Trash2 className="w-3.5 h-3.5" />
+					</button>
+				</div>
+			)}
 
 			{/* Tabs */}
 			<div className="grid grid-cols-6 gap-0.5 border-b border-white/[0.06] px-1.5 py-1.5">
@@ -324,6 +419,17 @@ export function WaterPanel({ sendToIframe, onClose, settings, onChange, onSave }
 				{/* ── Color Tab ── */}
 				{activeTab === "color" && (
 					<>
+						{bodies.length > 0 && (
+							<div className="flex items-center gap-2 mb-2">
+								<span className="text-[10px] text-white/50 w-[72px] shrink-0">Name</span>
+								<input
+									type="text"
+									value={bodies.find((b) => b.id === activeBodyId)?.name || ""}
+									onChange={(e) => renameBody(e.target.value)}
+									className="flex-1 bg-white/5 border border-white/10 rounded text-[10px] text-white/70 px-1.5 py-0.5"
+								/>
+							</div>
+						)}
 						<div className="text-[10px] text-white/30 uppercase tracking-wider mb-1">Water Colors</div>
 						<ColorRow
 							label="Shallow"

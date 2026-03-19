@@ -1583,6 +1583,23 @@ export function SandpackPreview({
 					_lightPenumbra: data._lightPenumbra,
 					_lightTarget: data._lightTarget,
 				});
+				// Auto-open water panel when a water body is clicked
+				if (data.userData?.__isWater) {
+					setActiveModulePanel("stylized-water");
+					const wbId = data.userData.__waterBodyId;
+					if (wbId) {
+						gameEditor.sendToIframe({ type: "stylized-water-select-body", bodyId: wbId });
+						// Sync gizmo position to water system
+						if (data.position) {
+							gameEditor.sendToIframe({
+								type: "stylized-water-sync-position",
+								bodyId: wbId,
+								position: data.position,
+							});
+						}
+					}
+				}
+
 				// Live-sync player character position to Game Settings spawn
 				// Only auto-sync when pick-spawn mode is active (not on every selection)
 				const isPlayer = data.userData?.__isPlayerCharacter
@@ -2908,14 +2925,40 @@ export function SandpackPreview({
 							onClose={() => setActiveModulePanel(null)}
 							settings={gameEditor.gameSettings}
 							onChange={(waterConfig) => {
-								gameEditor.updateGameSettings({ stylizedWater: waterConfig as unknown as Record<string, unknown> });
+								// Multi-body: update specific body in bodies[] array
+								const bodyId = (waterConfig as Record<string, unknown>).bodyId as string | undefined;
+								const existing = gameEditor.gameSettings.stylizedWater;
+								if (existing?.bodies && bodyId) {
+									const updatedBodies = existing.bodies.map((b: Record<string, unknown>) =>
+										b.id === bodyId ? { ...b, ...waterConfig } : b
+									);
+									gameEditor.updateGameSettings({ stylizedWater: { ...existing, bodies: updatedBodies, selectedBodyId: bodyId } as unknown as Record<string, unknown> });
+								} else {
+									gameEditor.updateGameSettings({ stylizedWater: waterConfig as unknown as Record<string, unknown> });
+								}
 							}}
 							onSave={(waterConfig) => {
+								const bodyId = (waterConfig as Record<string, unknown>).bodyId as string | undefined;
+								const existing = gameEditor.gameSettings.stylizedWater;
+								let finalWater: Record<string, unknown>;
+
+								if (existing?.bodies && bodyId) {
+									const updatedBodies = existing.bodies.map((b: Record<string, unknown>) =>
+										b.id === bodyId ? { ...b, ...waterConfig } : b
+									);
+									finalWater = { ...existing, bodies: updatedBodies, selectedBodyId: bodyId };
+								} else if (bodyId && !existing?.bodies) {
+									// Migrate flat → multi-body on save
+									finalWater = { bodies: [{ id: bodyId, name: "Water 1", ...waterConfig }], selectedBodyId: bodyId };
+								} else {
+									finalWater = waterConfig as unknown as Record<string, unknown>;
+								}
+
 								const modules = { ...gameEditor.gameSettings.modules };
 								if (modules.installed?.["stylized-water"]) {
-									modules.installed = { ...modules.installed, "stylized-water": { ...modules.installed["stylized-water"], config: waterConfig as unknown as Record<string, unknown> } };
+									modules.installed = { ...modules.installed, "stylized-water": { ...modules.installed["stylized-water"], config: finalWater } };
 								}
-								const updatedSettings = { ...gameEditor.gameSettings, stylizedWater: waterConfig as unknown as Record<string, unknown>, modules };
+								const updatedSettings = { ...gameEditor.gameSettings, stylizedWater: finalWater, modules };
 								handleSaveSettings(updatedSettings);
 							}}
 						/>
