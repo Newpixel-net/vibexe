@@ -887,37 +887,38 @@ var PRESETS = {
     intersectionLength: 2.5, edgeFade: 1.0,
   },
   'arctic-ocean': {
-    shallowColor: { r: 0.05, g: 0.16, b: 0.20, a: 0.95 },
+    shallowColor: { r: 0.04, g: 0.14, b: 0.18, a: 0.94 },
     deepColor: { r: 0.01, g: 0.03, b: 0.07, a: 0.99 },
-    horizonColor: { r: 0.25, g: 0.30, b: 0.34, a: 0.55 },
-    waveHeight: 1.6, waveSpeed: 0.5, waveSteepness: 0.45, waveCount: 5,
-    depthVertical: 3.5, depthHorizontal: 1.5, horizonDistance: 8.0,
-    foamWaveAmount: 0.45, foamBaseAmount: 0.06,
-    roughness: 0.22, metalness: 0.28,
+    horizonColor: { r: 0.22, g: 0.28, b: 0.32, a: 0.50 },
+    waveHeight: 0.85, waveSpeed: 0.55, waveSteepness: 0.32, waveCount: 4,
+    depthVertical: 2.5, depthHorizontal: 1.2, horizonDistance: 7.0,
+    foamWaveAmount: 0.22, foamBaseAmount: 0.02,
+    foamColor: { r: 0.80, g: 0.84, b: 0.82, a: 0.7 },
+    roughness: 0.20, metalness: 0.30,
     causticsEnabled: false,
-    translucencyStrength: 0.12, translucencyExp: 12.0,
-    normalStrength: 0.80, normalSpeed: 0.06, normalMapIndex: 1,
-    sparkleIntensity: 0.05, sparkleSize: 0.88,
-    sunReflectionStrength: 0.3, sunReflectionSize: 0.3,
-    waveTint: 0.08, colorAbsorption: 0.85,
-    intersectionLength: 4.0, edgeFade: 2.0,
+    translucencyStrength: 0.10, translucencyExp: 10.0,
+    normalStrength: 0.70, normalSpeed: 0.07, normalMapIndex: 1,
+    sparkleIntensity: 0.05, sparkleSize: 0.90,
+    sunReflectionStrength: 0.35, sunReflectionSize: 0.3,
+    waveTint: 0.06, colorAbsorption: 0.75,
+    intersectionLength: 3.0, edgeFade: 1.5,
   },
   storm: {
-    shallowColor: { r: 0.10, g: 0.12, b: 0.11, a: 0.97 },
+    shallowColor: { r: 0.08, g: 0.10, b: 0.10, a: 0.96 },
     deepColor: { r: 0.02, g: 0.04, b: 0.03, a: 1.0 },
-    horizonColor: { r: 0.16, g: 0.18, b: 0.20, a: 0.65 },
-    waveHeight: 2.0, waveSpeed: 1.8, waveSteepness: 0.7, waveCount: 5,
-    depthVertical: 0.6, depthHorizontal: 0.8, horizonDistance: 4.0,
-    foamWaveAmount: 0.7, foamBaseAmount: 0.2,
-    foamColor: { r: 0.82, g: 0.85, b: 0.82, a: 0.9 },
-    roughness: 0.5, metalness: 0.08,
+    horizonColor: { r: 0.14, g: 0.16, b: 0.18, a: 0.60 },
+    waveHeight: 1.1, waveSpeed: 1.4, waveSteepness: 0.38, waveCount: 4,
+    depthVertical: 1.5, depthHorizontal: 0.8, horizonDistance: 4.0,
+    foamWaveAmount: 0.3, foamBaseAmount: 0.06,
+    foamColor: { r: 0.72, g: 0.75, b: 0.72, a: 0.7 },
+    roughness: 0.4, metalness: 0.10,
     causticsEnabled: false,
-    translucencyStrength: 0.06, translucencyExp: 12.0,
-    normalStrength: 0.9, normalSpeed: 0.2, normalMapIndex: 1,
+    translucencyStrength: 0.06, translucencyExp: 10.0,
+    normalStrength: 0.80, normalSpeed: 0.18, normalMapIndex: 1,
     sparkleIntensity: 0, sparkleSize: 0.9,
     sunReflectionStrength: 0.0, sunReflectionSize: 0.0,
-    waveTint: 0.12, colorAbsorption: 0.9,
-    intersectionLength: 4.0, edgeFade: 0.5,
+    waveTint: 0.08, colorAbsorption: 0.8,
+    intersectionLength: 3.0, edgeFade: 0.8,
     surfaceOpacity: 1.0,
   },
 };
@@ -1696,12 +1697,16 @@ StylizedWaterSystem.prototype._applyPreset = function(presetId) {
     // Reset to clean defaults first, then apply preset on top.
     // This ensures presets produce identical results regardless of current state.
     var merged = _deepMerge(DEFAULT_SETTINGS, preset);
-    // Preserve non-visual settings that shouldn't change with presets
+    // Preserve non-visual / structural settings that shouldn't change with presets
     merged.waterLevel = this.settings.waterLevel;
     merged.scale = this.settings.scale;
+    merged.resolution = this.settings.resolution;
     merged.followCamera = this.settings.followCamera;
     merged.visible = this.settings.visible;
     merged.buoyancyEnabled = this.settings.buoyancyEnabled;
+    merged.riverMode = this.settings.riverMode;
+    merged.riverDirection = this.settings.riverDirection;
+    merged.riverSpeed = this.settings.riverSpeed;
     this.updateSettings(merged);
     console.log('[StylizedWater] Applied preset: ' + presetId);
   } else {
