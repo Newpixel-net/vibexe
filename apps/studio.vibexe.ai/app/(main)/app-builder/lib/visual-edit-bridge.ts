@@ -5924,10 +5924,10 @@ export function getVisualEditBridgeScript(): string {
             });
 
             if (_rpFn) {
-              // Read splatmap weights from packed vec4 attributes
+              // Read splatmap weights from packed vec4 attributes (must specify "vec4" type!)
               var _a_uv = _rpTHREE.uv();
-              var _a_wA = _rpTHREE.attribute("weightsA"); // vec4: w0,w1,w2,w3
-              var _a_wB = _rpTHREE.attribute("weightsB"); // vec4: w4,w5,w6,w7
+              var _a_wA = _rpTHREE.attribute("weightsA", "vec4"); // vec4: w0,w1,w2,w3
+              var _a_wB = _rpTHREE.attribute("weightsB", "vec4"); // vec4: w4,w5,w6,w7
               var _allWeights = [_a_wA.x, _a_wA.y, _a_wA.z, _a_wA.w, _a_wB.x, _a_wB.y, _a_wB.z, _a_wB.w];
               var _tWeights = [];
               for (var _twi = 0; _twi < _rpNumLayers; _twi++) {
