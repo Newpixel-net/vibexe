@@ -634,6 +634,29 @@ export function WaterPanel({ sendToIframe, onClose, settings, onChange, onSave }
 						<div className="text-[10px] text-white/30 uppercase tracking-wider mb-1">Surface</div>
 						<Slider label="Opacity" value={config.surfaceOpacity ?? 1} min={0.05} max={1} step={0.01} onChange={(v) => sendConfig({ surfaceOpacity: v })} />
 
+						<div className="text-[10px] text-white/30 uppercase tracking-wider mt-3 mb-1">Underwater Overlay</div>
+						<div className="flex items-center gap-2 mb-1">
+							<span className="text-[10px] text-white/50 w-[72px]">Auto Color</span>
+							<button
+								type="button"
+								onClick={() => {
+									const uw = config.underwater || {};
+									sendConfig({ underwater: { ...uw, color: uw.color ? null : { r: 0.03, g: 0.1, b: 0.3 } } });
+								}}
+								className={`w-8 h-4 rounded-full transition-colors ${!(config.underwater?.color) ? "bg-cyan-500/60" : "bg-white/10"}`}
+							>
+								<div className={`w-3 h-3 rounded-full bg-white transition-transform ${!(config.underwater?.color) ? "translate-x-4" : "translate-x-0.5"}`} />
+							</button>
+						</div>
+						{config.underwater?.color && (
+							<>
+								<Slider label="Red" value={config.underwater.color.r ?? 0.03} min={0} max={1} step={0.01} onChange={(v) => sendConfig({ underwater: { ...config.underwater, color: { ...(config.underwater?.color || {}), r: v } } })} />
+								<Slider label="Green" value={config.underwater.color.g ?? 0.1} min={0} max={1} step={0.01} onChange={(v) => sendConfig({ underwater: { ...config.underwater, color: { ...(config.underwater?.color || {}), g: v } } })} />
+								<Slider label="Blue" value={config.underwater.color.b ?? 0.3} min={0} max={1} step={0.01} onChange={(v) => sendConfig({ underwater: { ...config.underwater, color: { ...(config.underwater?.color || {}), b: v } } })} />
+							</>
+						)}
+						<Slider label="Max Opacity" value={config.underwater?.maxOpacity ?? 0.7} min={0} max={1} step={0.01} onChange={(v) => sendConfig({ underwater: { ...(config.underwater || {}), maxOpacity: v } })} />
+
 						<div className="text-[10px] text-white/30 uppercase tracking-wider mt-3 mb-1">Caustics</div>
 						<div className="flex items-center gap-2 mb-1">
 							<span className="text-[10px] text-white/50 w-[72px]">Enabled</span>

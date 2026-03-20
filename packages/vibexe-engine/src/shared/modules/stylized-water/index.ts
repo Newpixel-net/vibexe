@@ -761,6 +761,13 @@ var DEFAULT_SETTINGS = {
 
   // Buoyancy (Phase 5)
   buoyancyEnabled: true,
+
+  // Underwater overlay
+  underwater: {
+    // color: null = auto (derive from deepColor), or { r, g, b } for manual
+    color: null,
+    maxOpacity: 0.7,
+  },
 };
 
 // ============================================================
@@ -1344,11 +1351,27 @@ StylizedWaterSystem.prototype._updateUnderwaterFog = function() {
     }
   }
 
-  // Camera must be 2+ units below water before overlay starts
-  var submersion = _clamp((waterSurface - camY - 2.0) * 0.5, 0, 1);
+  // Camera submersion: starts at 0.3 units below surface, fully submerged at 3 units
+  var submersion = _clamp((waterSurface - camY - 0.3) * 0.4, 0, 1);
 
-  // Update overlay opacity — max 0.6 for a tinted but not opaque effect
-  this._underwaterOverlayMat.opacity = submersion * 0.6;
+  // Update underwater overlay color: use manual underwaterColor or derive from deep color
+  var uwSettings = this.settings.underwater || {};
+  var uwAutoColor = !uwSettings.color; // auto = derive from deep water color
+  if (uwAutoColor) {
+    var dp = this.settings.deepColor || { r: 0.05, g: 0.15, b: 0.4 };
+    this._underwaterOverlayMat.color.setRGB(dp.r * 0.5, dp.g * 0.5, dp.b * 0.7);
+  } else {
+    var uc = uwSettings.color;
+    this._underwaterOverlayMat.color.setRGB(
+      (uc.r != null ? uc.r : 0.03),
+      (uc.g != null ? uc.g : 0.1),
+      (uc.b != null ? uc.b : 0.3)
+    );
+  }
+
+  // Update overlay opacity — max 0.7 for a tinted but not fully opaque effect
+  var maxOpacity = uwSettings.maxOpacity != null ? uwSettings.maxOpacity : 0.7;
+  this._underwaterOverlayMat.opacity = submersion * maxOpacity;
   this._underwaterOverlay.visible = submersion > 0.001;
 
   // Also update TSL uniform if PostProcessing pipeline exists
