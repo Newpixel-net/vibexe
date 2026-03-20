@@ -643,6 +643,23 @@ function _buildWaterTSLMaterial(u, tex, simplified) {
     cr.assign(cr.clamp(0, 1));
     cg.assign(cg.clamp(0, 1));
     cb.assign(cb.clamp(0, 1));
+    // =================================================================
+    // Water transparency: make terrain visible through water
+    // =================================================================
+    if (simplified) {
+      // Simplified ocean: Fresnel-based transparency
+      // Looking straight down (NdotV≈1, fresnel≈0) → alpha * 0.65 (35% transparent)
+      // Grazing angle (NdotV≈0, fresnel≈1) → alpha * 1.0 (opaque horizon)
+      ca.mulAssign(THREE.float(0.65).add(fresnel.mul(0.35)));
+    } else {
+      // Full depth path: reduce alpha in shallow areas
+      // density: 0=shallow (near shore), 1=deep
+      // At density=0: multiply alpha by 0.45 (55% transparent — see terrain)
+      // At density=1: multiply alpha by 1.0 (unchanged)
+      var shallowFade = THREE.mix(THREE.float(0.45), THREE.float(1.0), density);
+      ca.mulAssign(shallowFade);
+    }
+
     // Apply surface opacity multiplier (user-controlled transparency)
     ca.mulAssign(u.uSurfaceOpacity);
     ca.assign(ca.clamp(0, 1));
