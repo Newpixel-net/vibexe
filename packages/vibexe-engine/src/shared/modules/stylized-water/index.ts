@@ -542,53 +542,39 @@ function _buildWaterTSLMaterial(u, tex, simplified) {
     cb.assign(THREE.mix(cb, u.uIntColor.z, intAmount));
     } // end !simplified intersection foam
 
+    if (!simplified) {
     // =================================================================
-    // Caustics (always runs — simplified uses fixed mask, full uses depth)
+    // Caustics — skip for simplified (5 texture reads too expensive on ocean)
     // =================================================================
-    var caustMask;
-    if (simplified) {
-      // Simplified: no depth buffer available — use fixed moderate caustic mask
-      // Reduced under foam areas for visual consistency
-      caustMask = THREE.float(0.35).mul(u.uCausticsEnabled);
-      caustMask = caustMask.mul(THREE.float(1.0).sub(foamAmount.mul(0.5)).clamp(0, 1));
-    } else {
-      // Full: depth-based caustic mask with geometry detection
-      caustMask = waterDepth.sub(0.1).clamp(0, 1).mul(
-        THREE.float(1.0).sub(waterDepth.div(20.0)).clamp(0, 1)
-      ).mul(u.uCausticsEnabled).mul(hasGeometry);
-      caustMask = caustMask.mul(THREE.float(1.0).sub(foamAmount.mul(0.5)).sub(intAmount.mul(0.5)).clamp(0, 1));
-      caustMask = caustMask.mul(THREE.float(1.0).sub(density.mul(0.5)));
-    }
+    var caustMask = waterDepth.sub(0.1).clamp(0, 1).mul(
+      THREE.float(1.0).sub(waterDepth.div(20.0)).clamp(0, 1)
+    ).mul(u.uCausticsEnabled).mul(hasGeometry);
+    caustMask = caustMask.mul(THREE.float(1.0).sub(foamAmount.mul(0.5)).sub(intAmount.mul(0.5)).clamp(0, 1));
+    caustMask = caustMask.mul(THREE.float(1.0).sub(density.mul(0.5)));
 
     var cTime = u.uTime.mul(u.uCausticsSpeed);
     var cTile = u.uCausticsTiling;
 
-    // Layer 1 UVs
     var cUV1 = THREE.vec2(
       worldUV.x.mul(cTile.mul(10.0)).add(cTime),
       worldUV.y.mul(cTile.mul(10.0)).add(cTime.mul(0.5))
     );
-    // Layer 2 UVs (different scale + reversed)
     var cUV2 = THREE.vec2(
       worldUV.x.mul(cTile.mul(8.0)).sub(cTime),
       worldUV.y.mul(cTile.mul(8.0)).sub(cTime.mul(0.3))
     );
 
-    // Chromatic aberration offset
     var caOff = u.uCausticsDistortion.mul(0.015);
 
-    // Sample caustics: R channel offset, G center, B offset opposite
     var cSamp1 = THREE.texture(tex.caustics, cUV1);
     var cSamp2 = THREE.texture(tex.caustics, cUV2);
     var cSamp1R = THREE.texture(tex.caustics, cUV1.add(THREE.vec2(caOff, caOff.mul(0.5))));
     var cSamp1B = THREE.texture(tex.caustics, cUV1.sub(THREE.vec2(caOff, caOff.mul(0.5))));
 
-    // Min of two layers = "swimming light network"
     var causticR = THREE.min(cSamp1R.r, cSamp2.r).mul(2.0).toVar();
     var causticG = THREE.min(cSamp1.g, cSamp2.g).mul(2.0).toVar();
     var causticB = THREE.min(cSamp1B.b, cSamp2.b).mul(2.0).toVar();
 
-    // Chromance control: mono vs color
     var causticMono = causticR.add(causticG).add(causticB).div(3.0);
     causticR.assign(THREE.mix(causticMono, causticR, u.uCausticsChromance));
     causticG.assign(THREE.mix(causticMono, causticG, u.uCausticsChromance));
@@ -598,6 +584,7 @@ function _buildWaterTSLMaterial(u, tex, simplified) {
     cr.addAssign(causticR.mul(cBright).mul(0.3));
     cg.addAssign(causticG.mul(cBright).mul(0.3));
     cb.addAssign(causticB.mul(cBright).mul(0.25));
+    } // end !simplified caustics
 
     // --- Horizon distance blend ---
     var dCam = THREE.length(worldPos.sub(THREE.cameraPosition));
@@ -1066,11 +1053,11 @@ StylizedWaterSystem.prototype._build = function() {
 
   // Create plane geometry lying flat on XZ
   // GPU TSL shader handles per-pixel depth/Fresnel — low poly is fine.
-  // Cap at 200 segments (40k verts max) for good wave detail on large ocean bodies.
+  // Cap at 160 segments (~25k verts) for good wave detail without GPU overload.
   var segX = Math.round(s.scale * s.resolution);
   var segZ = Math.round(s.scale * s.resolution);
-  segX = _clamp(segX, 8, 200);
-  segZ = _clamp(segZ, 8, 200);
+  segX = _clamp(segX, 8, 160);
+  segZ = _clamp(segZ, 8, 160);
 
   this._geometry = new THREE.PlaneGeometry(s.scale, s.scale, segX, segZ);
   this._geometry.rotateX(-Math.PI / 2);
@@ -1092,7 +1079,7 @@ StylizedWaterSystem.prototype._build = function() {
     };
     this._simplified = (this.settings.scale >= 100);
     this._material = _buildWaterTSLMaterial(this._tslU, this._tslTex, this._simplified);
-    if (this._simplified) console.log('[StylizedWater] Simplified shader (scale >= 100): skip depth buffer + intersection foam + edge fade');
+    if (this._simplified) console.log('[StylizedWater] Simplified shader (scale >= 100): skip depth buffer + intersection foam + caustics + edge fade');
     this._usePBR = false;
     this._usePhysical = false;
     this._useTSL = true;
