@@ -4891,6 +4891,9 @@ if (typeof window !== "undefined") {
           }
         } catch(e) {}
         window.__vibexe_skyWeatherAdvanced = new SkyWeatherAdvancedSystem(scene, settings);
+        // Alias for backwards-compat diagnostics (checks __vibexe_skyWeather)
+        window.__vibexe_skyWeather = window.__vibexe_skyWeatherAdvanced;
+        window.__vibexe_skyWeather._active = true;
 
         // Listen for bridge messages — stored for cleanup on re-inject
         if (window.__vibexe_swaMsgListener) {
