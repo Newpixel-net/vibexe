@@ -1351,10 +1351,12 @@ StylizedWaterSystem.prototype._updateUnderwaterFog = function() {
     }
   }
 
-  // Camera-only submersion: overlay is a fullscreen quad so it MUST only activate
-  // when the camera itself is below water. Character underwater + camera above is
-  // handled by the water surface shader (depth coloring, transparency).
-  var submersion = _clamp((waterSurface - camY - 2.0) * 0.5, 0, 1);
+  // Camera-only submersion: smooth ramp from surface to 2 units deep.
+  // Account for wave height so overlay doesn't flicker at wave troughs.
+  var waveOffset = this.settings.waveHeight || 0.5;
+  var effectiveSurface = waterSurface - waveOffset; // below wave troughs
+  var depth = effectiveSurface - camY;
+  var submersion = depth > 0 ? _clamp(depth / 2.0, 0, 1) : 0;
 
   // Update underwater overlay color: use manual underwaterColor or derive from deep color
   var uwSettings = this.settings.underwater || {};
