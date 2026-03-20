@@ -644,20 +644,21 @@ function _buildWaterTSLMaterial(u, tex, simplified) {
     cg.assign(cg.clamp(0, 1));
     cb.assign(cb.clamp(0, 1));
     // =================================================================
-    // Water transparency: make terrain visible through water
+    // Water transparency: make terrain visible through shallow water
+    // Only applies when shallowAlpha < 0.9 (opaque presets like storm/lava skip this)
     // =================================================================
+    var alphaIsTransparent = u.uShallowAlpha.lessThan(0.9);
     if (simplified) {
       // Simplified ocean: Fresnel-based transparency
-      // Looking straight down (NdotV≈1, fresnel≈0) → alpha * 0.65 (35% transparent)
-      // Grazing angle (NdotV≈0, fresnel≈1) → alpha * 1.0 (opaque horizon)
-      ca.mulAssign(THREE.float(0.65).add(fresnel.mul(0.35)));
+      // Looking straight down: alpha * 0.7 (30% transparent)
+      // Grazing/horizon angle: alpha * 1.0 (opaque)
+      var fresnelAlpha = THREE.float(0.7).add(fresnel.mul(0.3));
+      ca.mulAssign(alphaIsTransparent.select(fresnelAlpha, THREE.float(1.0)));
     } else {
       // Full depth path: reduce alpha in shallow areas
-      // density: 0=shallow (near shore), 1=deep
-      // At density=0: multiply alpha by 0.45 (55% transparent — see terrain)
-      // At density=1: multiply alpha by 1.0 (unchanged)
+      // density 0=shallow → alpha * 0.45 (see terrain), density 1=deep → alpha * 1.0
       var shallowFade = THREE.mix(THREE.float(0.45), THREE.float(1.0), density);
-      ca.mulAssign(shallowFade);
+      ca.mulAssign(alphaIsTransparent.select(shallowFade, THREE.float(1.0)));
     }
 
     // Apply surface opacity multiplier (user-controlled transparency)
@@ -841,25 +842,44 @@ var PRESETS = {
     normalStrength: 0.2, normalSpeed: 0.02,
   },
   frozen: {
-    shallowColor: { r: 0.7, g: 0.85, b: 0.95, a: 0.95 },
-    deepColor: { r: 0.3, g: 0.5, b: 0.7, a: 0.98 },
-    horizonColor: { r: 0.8, g: 0.9, b: 1.0, a: 0.6 },
+    // Frozen lake: thick cracked ice with deep blue undertones
+    shallowColor: { r: 0.75, g: 0.88, b: 0.95, a: 0.97 },
+    deepColor: { r: 0.15, g: 0.25, b: 0.45, a: 0.99 },
+    horizonColor: { r: 0.80, g: 0.88, b: 0.96, a: 0.65 },
     waveHeight: 0.0, waveSpeed: 0, waveSteepness: 0, waveCount: 1,
-    foamEnabled: false,
-    roughness: 0.02, metalness: 0.6,
+    foamEnabled: true,
+    foamColor: { r: 0.90, g: 0.95, b: 1.0, a: 0.9 },
+    foamWaveAmount: 0, foamBaseAmount: 0.35, // frost/crack pattern via foam texture
+    foamClipping: 0.4,
+    roughness: 0.01, metalness: 0.7, // mirror-like ice reflections
     causticsEnabled: false,
-    normalStrength: 0.1, normalSpeed: 0,
+    normalStrength: 0.25, normalSpeed: 0, normalTilingX: 0.3, normalTilingY: 0.3,
+    sunReflectionStrength: 1.5, sunReflectionSize: 0.6, // bright sun glare on ice
+    sparkleIntensity: 0.5, sparkleSize: 0.95, // ice crystal glints
+    translucencyStrength: 0.3, translucencyExp: 4.0,
+    depthVertical: 0.8, colorAbsorption: 0.2,
+    intersectionEnabled: false,
+    edgeFade: 0.5,
   },
   lava: {
-    shallowColor: { r: 1.0, g: 0.4, b: 0.0, a: 0.95 },
-    deepColor: { r: 0.6, g: 0.1, b: 0.0, a: 1.0 },
-    horizonColor: { r: 1.0, g: 0.2, b: 0.0, a: 0.5 },
-    waveHeight: 0.3, waveSpeed: 0.2, waveSteepness: 0.2, waveCount: 3,
-    depthVertical: 2.0, foamEnabled: false,
-    roughness: 0.8, metalness: 0.0,
+    // Molten lava: viscous, glowing orange-red with dark cooled crust
+    shallowColor: { r: 1.0, g: 0.45, b: 0.05, a: 0.98 },
+    deepColor: { r: 0.35, g: 0.04, b: 0.0, a: 1.0 },
+    horizonColor: { r: 0.8, g: 0.15, b: 0.0, a: 0.6 },
+    waveHeight: 0.15, waveSpeed: 0.08, waveSteepness: 0.4, waveCount: 3,
+    depthVertical: 3.0,
+    foamEnabled: true,
+    foamColor: { r: 0.12, g: 0.06, b: 0.02, a: 0.95 }, // dark cooled crust
+    foamWaveAmount: 0.3, foamBaseAmount: 0.15, foamClipping: 0.2,
+    roughness: 0.85, metalness: 0.0,
     causticsEnabled: false,
-    translucencyStrength: 1.5, translucencyExp: 3.0,
-    normalStrength: 0.8, normalSpeed: 0.03,
+    translucencyStrength: 2.5, translucencyExp: 2.0, // strong glow from below
+    normalStrength: 1.0, normalSpeed: 0.015, normalTilingX: 0.3, normalTilingY: 0.3,
+    sunReflectionStrength: 0.0, sunReflectionSize: 0.0, // no sun reflection on lava
+    sparkleIntensity: 0, waveTint: 0.2,
+    colorAbsorption: 0.9,
+    intersectionEnabled: false,
+    edgeFade: 0.3,
   },
   realistic: {
     shallowColor: { r: 0.06, g: 0.28, b: 0.38, a: 0.88 },
@@ -964,6 +984,48 @@ var PRESETS = {
     waveTint: 0.08, colorAbsorption: 0.8,
     intersectionLength: 3.0, edgeFade: 0.8,
     surfaceOpacity: 1.0,
+  },
+  bioluminescent: {
+    // Alien bioluminescent ocean: deep dark water with ethereal cyan/teal glow
+    shallowColor: { r: 0.0, g: 0.25, b: 0.30, a: 0.75 },
+    deepColor: { r: 0.0, g: 0.03, b: 0.08, a: 0.95 },
+    horizonColor: { r: 0.0, g: 0.12, b: 0.18, a: 0.45 },
+    waveHeight: 0.25, waveSpeed: 0.4, waveSteepness: 0.15, waveCount: 3,
+    depthVertical: 0.6, depthHorizontal: 0.8, horizonDistance: 4.0,
+    foamEnabled: true,
+    foamColor: { r: 0.0, g: 0.9, b: 0.8, a: 0.95 }, // glowing cyan foam
+    foamWaveAmount: 0.15, foamBaseAmount: 0.02, foamClipping: 0.1,
+    roughness: 0.08, metalness: 0.5,
+    causticsEnabled: true, causticsBrightness: 3.0, causticsTiling: 0.6,
+    causticsChromance: 0.0, causticsDistortion: 0.2, // mono cyan caustics
+    translucencyStrength: 2.0, translucencyExp: 3.0, // strong glow from below
+    normalStrength: 0.55, normalSpeed: 0.06,
+    sparkleIntensity: 0.4, sparkleSize: 0.92,
+    sunReflectionStrength: 0.3, sunReflectionSize: 0.3,
+    waveTint: 0.15, colorAbsorption: 0.3,
+    intersectionLength: 2.5,
+    intersectionColor: { r: 0.0, g: 0.8, b: 0.7, a: 1.0 }, // glowing shore line
+    edgeFade: 0.8,
+  },
+  'crystal-lagoon': {
+    // Ultra-clear Caribbean lagoon: white sand visible 5m down, turquoise tint
+    shallowColor: { r: 0.12, g: 0.65, b: 0.60, a: 0.30 },
+    deepColor: { r: 0.01, g: 0.10, b: 0.25, a: 0.85 },
+    horizonColor: { r: 0.35, g: 0.65, b: 0.80, a: 0.22 },
+    waveHeight: 0.08, waveSpeed: 0.35, waveSteepness: 0.08, waveCount: 2,
+    depthVertical: 0.25, depthHorizontal: 0.5, horizonDistance: 4.0,
+    foamEnabled: true,
+    foamColor: { r: 1.0, g: 1.0, b: 1.0, a: 0.6 },
+    foamWaveAmount: 0.03, foamBaseAmount: 0.0,
+    roughness: 0.03, metalness: 0.5,
+    causticsEnabled: true, causticsBrightness: 3.5, causticsTiling: 0.9,
+    causticsDistortion: 0.35, causticsChromance: 0.6,
+    translucencyStrength: 0.9, translucencyExp: 4.0,
+    normalStrength: 0.25, normalSpeed: 0.04,
+    sparkleIntensity: 0.35, sparkleSize: 0.88,
+    sunReflectionStrength: 0.9, sunReflectionSize: 0.35,
+    waveTint: 0.02, colorAbsorption: 0.15,
+    intersectionLength: 3.0, edgeFade: 1.5,
   },
 };
 

@@ -150,6 +150,8 @@ const PRESETS = [
 	{ id: "mediterranean", label: "Mediterranean", icon: "⛵" },
 	{ id: "arctic-ocean", label: "Arctic Ocean", icon: "🧊" },
 	{ id: "storm", label: "Storm", icon: "⛈" },
+	{ id: "bioluminescent", label: "Bioluminescent", icon: "✨" },
+	{ id: "crystal-lagoon", label: "Crystal Lagoon", icon: "💎" },
 ] as const;
 
 const NORMAL_MAPS = ["Smooth Waves", "Rough Waves", "Sharp Waves", "Stream Waves"];
