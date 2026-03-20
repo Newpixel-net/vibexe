@@ -2093,14 +2093,14 @@ WaterBodyManager.prototype.handleBridgeMessage = function(type, payload) {
         this._sendBodyList();
         this._sendBodyConfig(sys._bodyId);
         this._requestSave();
-        // Refresh scene hierarchy so new water body appears
-        if (window.parent) {
-          window.parent.postMessage({ type: 'game-editor-request-tree' }, '*');
+        // Refresh scene hierarchy so new water body appears (post to iframe window where bridge listens)
+        setTimeout(function() {
+          window.postMessage({ type: 'game-editor-request-tree' }, '*');
           // Select the new water body in hierarchy
           if (sys._mesh) {
-            window.parent.postMessage({ type: 'game-editor-select-by-uuid', uuid: sys._mesh.uuid, name: sys._mesh.name }, '*');
+            window.postMessage({ type: 'game-editor-select-by-uuid', uuid: sys._mesh.uuid, name: sys._mesh.name }, '*');
           }
-        }
+        }, 100);
       }
       return;
     }
@@ -2113,10 +2113,10 @@ WaterBodyManager.prototype.handleBridgeMessage = function(type, payload) {
       if (this._activeBodyId && this._bodies[this._activeBodyId]) {
         this._sendBodyConfig(this._activeBodyId);
       }
-      // Refresh scene hierarchy so deleted water body disappears
-      if (window.parent) {
-        window.parent.postMessage({ type: 'game-editor-request-tree' }, '*');
-      }
+      // Refresh scene hierarchy so deleted water body disappears (post to iframe window where bridge listens)
+      setTimeout(function() {
+        window.postMessage({ type: 'game-editor-request-tree' }, '*');
+      }, 100);
       return;
     }
     case 'select-body': {
@@ -2126,9 +2126,10 @@ WaterBodyManager.prototype.handleBridgeMessage = function(type, payload) {
         this._sendBodyList();
         this._sendBodyConfig(sid);
         // Tell scene editor to select this water mesh (shows gizmo + highlights in hierarchy)
+        // Post to iframe window (where bridge listens), not window.parent
         var selMesh = this._bodies[sid]._mesh;
-        if (selMesh && window.parent) {
-          window.parent.postMessage({ type: 'game-editor-select-by-uuid', uuid: selMesh.uuid, name: selMesh.name }, '*');
+        if (selMesh) {
+          window.postMessage({ type: 'game-editor-select-by-uuid', uuid: selMesh.uuid, name: selMesh.name }, '*');
         }
       }
       return;
