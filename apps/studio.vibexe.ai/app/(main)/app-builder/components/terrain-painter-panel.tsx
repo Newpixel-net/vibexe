@@ -326,10 +326,6 @@ export function TerrainPainterPanel({
 	const [sculptBrushSize, setSculptBrushSize] = useState(10);
 	const [sculptBrushStrength, setSculptBrushStrength] = useState(0.3);
 	const [sculptBrushFalloff, setSculptBrushFalloff] = useState<"gaussian" | "linear" | "flat">("gaussian");
-	const [sculptBrushHardness, setSculptBrushHardness] = useState(0.5);
-	const [sculptBrushOpacity, setSculptBrushOpacity] = useState(1.0);
-	const [sculptBrushSpacing, setSculptBrushSpacing] = useState(0.25);
-	const [sculptBrushJitter, setSculptBrushJitter] = useState(0.0);
 	const [sculptActive, setSculptActive] = useState(false);
 
 	// Preset browser state — restore from saved config if biome was persisted
@@ -346,26 +342,6 @@ export function TerrainPainterPanel({
 		initialConfig?.seed ?? Math.floor(Math.random() * 999999)
 	);
 
-	// Convert raw selectedLayer index to enabled-layer index for the bridge
-	const getEnabledLayerIndex = useCallback((rawIndex: number) => {
-		let enabledIdx = 0;
-		for (let i = 0; i < rawIndex; i++) {
-			if (layers[i]?.enabled) enabledIdx++;
-		}
-		return layers[rawIndex]?.enabled ? enabledIdx : 0;
-	}, [layers]);
-
-	const getPaintLayerColor = useCallback((rawIndex: number) => {
-		const layer = layers[rawIndex];
-		if (!layer) return [0.5, 0.5, 0.5];
-		const pc = layer.previewColor || "#808080";
-		return [
-			parseInt(pc.slice(1, 3), 16) / 255,
-			parseInt(pc.slice(3, 5), 16) / 255,
-			parseInt(pc.slice(5, 7), 16) / 255,
-		];
-	}, [layers]);
-
 	// Sculpt activation/deactivation on tab change
 	useEffect(() => {
 		if (activeTab === "sculpt") {
@@ -375,12 +351,7 @@ export function TerrainPainterPanel({
 				brushSize: sculptBrushSize,
 				brushStrength: sculptBrushStrength,
 				brushFalloff: sculptBrushFalloff,
-				brushHardness: sculptBrushHardness,
-				brushOpacity: sculptBrushOpacity,
-				brushSpacing: sculptBrushSpacing,
-				brushJitter: sculptBrushJitter,
-				paintLayerIndex: getEnabledLayerIndex(selectedLayer),
-				paintLayerColor: getPaintLayerColor(selectedLayer),
+				paintLayerIndex: selectedLayer,
 			});
 			setSculptActive(true);
 		} else if (sculptActive) {
@@ -407,15 +378,10 @@ export function TerrainPainterPanel({
 				brushSize: sculptBrushSize,
 				brushStrength: sculptBrushStrength,
 				brushFalloff: sculptBrushFalloff,
-				brushHardness: sculptBrushHardness,
-				brushOpacity: sculptBrushOpacity,
-				brushSpacing: sculptBrushSpacing,
-				brushJitter: sculptBrushJitter,
-				paintLayerIndex: getEnabledLayerIndex(selectedLayer),
-				paintLayerColor: getPaintLayerColor(selectedLayer),
+				paintLayerIndex: selectedLayer,
 			});
 		}
-	}, [sculptBrushType, sculptBrushSize, sculptBrushStrength, sculptBrushFalloff, sculptBrushHardness, sculptBrushOpacity, sculptBrushSpacing, sculptBrushJitter, sculptActive, selectedLayer, sendToIframe, getEnabledLayerIndex, getPaintLayerColor]);
+	}, [sculptBrushType, sculptBrushSize, sculptBrushStrength, sculptBrushFalloff, sculptActive, selectedLayer, sendToIframe]);
 
 	// Auto-repaint after terrain generation or heatmap toggle-off — listen for bridge callbacks
 	const layersRef = useRef(layers);
@@ -620,7 +586,6 @@ export function TerrainPainterPanel({
 
 	const addLayer = useCallback(() => {
 		setLayers((prev) => {
-			if (prev.length >= 8) return prev;
 			const newLayer: LayerData = {
 				name: `Layer ${prev.length + 1}`,
 				enabled: true,
@@ -977,52 +942,6 @@ export function TerrainPainterPanel({
 							</div>
 						</div>
 
-						{/* Hardness */}
-						<div>
-							<label className="text-[10px] text-white/50 uppercase tracking-wider">
-								Hardness: {sculptBrushHardness.toFixed(2)}
-							</label>
-							<input type="range" min={0} max={1} step={0.01}
-								value={sculptBrushHardness}
-								onChange={e => setSculptBrushHardness(Number(e.target.value))}
-								className="w-full accent-green-500 mt-1" />
-						</div>
-
-						{/* Opacity — only for paint/erase */}
-						{(sculptBrushType === "paint" || sculptBrushType === "erase") && (
-							<div>
-								<label className="text-[10px] text-white/50 uppercase tracking-wider">
-									Opacity: {sculptBrushOpacity.toFixed(2)}
-								</label>
-								<input type="range" min={0.01} max={1} step={0.01}
-									value={sculptBrushOpacity}
-									onChange={e => setSculptBrushOpacity(Number(e.target.value))}
-									className="w-full accent-blue-500 mt-1" />
-							</div>
-						)}
-
-						{/* Spacing */}
-						<div>
-							<label className="text-[10px] text-white/50 uppercase tracking-wider">
-								Spacing: {sculptBrushSpacing.toFixed(2)}
-							</label>
-							<input type="range" min={0.1} max={2} step={0.05}
-								value={sculptBrushSpacing}
-								onChange={e => setSculptBrushSpacing(Number(e.target.value))}
-								className="w-full accent-green-500 mt-1" />
-						</div>
-
-						{/* Jitter */}
-						<div>
-							<label className="text-[10px] text-white/50 uppercase tracking-wider">
-								Jitter: {sculptBrushJitter.toFixed(2)}
-							</label>
-							<input type="range" min={0} max={1} step={0.01}
-								value={sculptBrushJitter}
-								onChange={e => setSculptBrushJitter(Number(e.target.value))}
-								className="w-full accent-green-500 mt-1" />
-						</div>
-
 						{/* Terrain Presets */}
 						<div className="pt-3 border-t border-white/10">
 							<label className="text-[10px] text-white/50 uppercase tracking-wider mb-2 block">
@@ -1361,16 +1280,10 @@ function LayersTab({
 				<div className="flex-1" />
 				<button
 					onClick={onAddLayer}
-					disabled={layers.length >= 8}
-					className={`flex items-center gap-1 px-2 py-1 rounded text-[10px] transition-colors ${
-						layers.length >= 8
-							? "bg-white/5 text-white/20 cursor-not-allowed"
-							: "bg-white/5 hover:bg-white/10 text-white/60 hover:text-white/80"
-					}`}
-					title={layers.length >= 8 ? "Maximum 8 layers" : "Add Layer"}
+					className="flex items-center gap-1 px-2 py-1 rounded bg-white/5 hover:bg-white/10 text-[10px] text-white/60 hover:text-white/80 transition-colors"
 				>
 					<Plus className="w-3 h-3" />
-					Add Layer{layers.length >= 8 ? " (max)" : ""}
+					Add Layer
 				</button>
 			</div>
 
