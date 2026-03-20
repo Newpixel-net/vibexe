@@ -999,6 +999,14 @@ export function getVisualEditBridgeScript(): string {
       if (obj.penumbra != null) msg._lightPenumbra = obj.penumbra;
     }
     window.parent.postMessage(msg, "*");
+
+    // When a water mesh is selected, tell water panel to switch to that body
+    if (obj.userData && obj.userData.__isWater && obj.userData.__waterBodyId) {
+      window.parent.postMessage({
+        type: "stylized-water-body-selected-from-scene",
+        bodyId: obj.userData.__waterBodyId
+      }, "*");
+    }
   }
 
   // ---- Selection ----

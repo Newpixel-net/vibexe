@@ -206,6 +206,14 @@ export function getGameEditorBridgeScript(): string {
       }
     }
     window.parent.postMessage(msg, "*");
+
+    // When a water mesh is selected in the editor, tell the water panel to switch to that body
+    if (obj.userData && obj.userData.__isWater && obj.userData.__waterBodyId) {
+      window.parent.postMessage({
+        type: "stylized-water-body-selected-from-scene",
+        bodyId: obj.userData.__waterBodyId
+      }, "*");
+    }
   }
 
   // ===== Selection =====

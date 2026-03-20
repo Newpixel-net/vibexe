@@ -206,6 +206,13 @@ export function WaterPanel({ sendToIframe, onClose, settings, onChange, onSave }
 			if (ev.data.type === "stylized-water-body-list") {
 				setBodies(ev.data.bodies || []);
 				if (ev.data.activeId) setActiveBodyId(ev.data.activeId);
+			} else if (ev.data.type === "stylized-water-body-selected-from-scene") {
+				// Scene editor selected a water mesh → switch water panel to that body
+				if (ev.data.bodyId) {
+					setActiveBodyId(ev.data.bodyId);
+					sendToIframe({ type: "stylized-water-select-body", bodyId: ev.data.bodyId });
+					sendToIframe({ type: "stylized-water-get-body-config", bodyId: ev.data.bodyId });
+				}
 			} else if (ev.data.type === "stylized-water-body-config") {
 				const incoming = ev.data.config || {};
 				const merged = { ...DEFAULTS, ...incoming };

@@ -2109,6 +2109,11 @@ WaterBodyManager.prototype.handleBridgeMessage = function(type, payload) {
         this._activeBodyId = sid;
         this._sendBodyList();
         this._sendBodyConfig(sid);
+        // Tell scene editor to select this water mesh (shows gizmo + highlights in hierarchy)
+        var selMesh = this._bodies[sid]._mesh;
+        if (selMesh && window.parent) {
+          window.parent.postMessage({ type: 'game-editor-select-by-uuid', uuid: selMesh.uuid, name: selMesh.name }, '*');
+        }
       }
       return;
     }
