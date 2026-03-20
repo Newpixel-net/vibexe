@@ -897,7 +897,8 @@ export function getVisualEditBridgeScript(): string {
         // a confusing green BoxHelper around the viewport) and water meshes
         // (managed by the water panel, not the scene hierarchy)
         if (child.isCamera) continue;
-        if (child.name && (child.name.indexOf("StylizedWater") === 0 || child.name.indexOf("__water") === 0)) continue;
+        // Skip water internal helpers but show main water bodies in hierarchy
+        if (child.name && child.name.indexOf("__water") === 0) continue;
         var s = serializeNode(child);
         if (s) children.push(s);
       }
@@ -1063,8 +1064,8 @@ export function getVisualEditBridgeScript(): string {
     if (_n.indexOf("pop_") === 0) return;
     // Block infrastructure (__xxx) selection only from viewport clicks, not from hierarchy
     if (!fromHierarchy && _n.indexOf("__") === 0) return;
-    // Never select water meshes or cameras — managed by their own panels
-    if (_n.indexOf("StylizedWater") === 0 || _n.indexOf("__water") === 0) return;
+    // Skip water internal helpers but allow main water body selection
+    if (_n.indexOf("__water") === 0) return;
     if (obj.isCamera) return;
     // Never attach TransformControls to the scene root — causes infinite recursion in updateMatrixWorld
     // Triple-check: reference equality, type check, AND parent check (scene root has no parent)

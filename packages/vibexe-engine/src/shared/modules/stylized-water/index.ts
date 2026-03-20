@@ -1170,7 +1170,7 @@ StylizedWaterSystem.prototype._build = function() {
 
   // Create mesh — use non-__ name so editor gizmo can select it
   this._mesh = new THREE.Mesh(this._geometry, this._material);
-  this._mesh.name = this._bodyId ? ('StylizedWater_' + this._bodyId) : 'StylizedWater';
+  this._mesh.name = this._displayName ? ('StylizedWater_' + this._displayName) : (this._bodyId ? ('StylizedWater_' + this._bodyId) : 'StylizedWater');
   this._mesh.userData.__isWater = true;
   this._mesh.userData.__waterBodyId = this._bodyId || '';
   this._mesh.userData.__waterSystem = this;
