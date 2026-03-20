@@ -318,8 +318,8 @@ var sw=W.__vibexe_skyWeather;
 var swStatus='off';var swDetails=null;
 if(sw){
   var _swState=null;try{_swState=sw.getState?sw.getState():null;}catch(e){}
-  var _swCfg=sw.config||{};var _swTime=_swCfg.time||{};
-  var _st=+(sw.solarTime||0).toFixed(4);
+  var _swCfg=sw.config||sw.settings||{};var _swTime=_swCfg.time||{};
+  var _st=+(_swTime.solarTime!=null?_swTime.solarTime:(sw.solarTime||0)).toFixed(4);
   var _autoAdv=!!_swTime.autoAdvance;
   var _cycleLen=_swTime.cycleLengthMinutes||0;
   var _timeLabel='unknown';
