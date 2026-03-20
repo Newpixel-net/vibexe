@@ -5928,58 +5928,12 @@ export function getVisualEditBridgeScript(): string {
               var _a_uv = _rpTHREE.uv();
               var _a_wA = _rpTHREE.attribute("weightsA", "vec4");
               var _a_wB = _rpTHREE.attribute("weightsB", "vec4");
-              // === DIAGNOSTIC: log buffer data + test multiple extraction methods ===
-              var _diagWA = _rpGeo.attributes.weightsA;
-              if (_diagWA) {
-                console.log("[TerrainDiag] weightsA buffer exists, itemSize:", _diagWA.itemSize, "count:", _diagWA.count);
-                console.log("[TerrainDiag] weightsA vertex 0:", _diagWA.getX(0), _diagWA.getY(0), _diagWA.getZ(0), _diagWA.getW(0));
-                console.log("[TerrainDiag] weightsA vertex 100:", _diagWA.getX(100), _diagWA.getY(100), _diagWA.getZ(100), _diagWA.getW(100));
-                console.log("[TerrainDiag] weightsA vertex 8000:", _diagWA.getX(8000), _diagWA.getY(8000), _diagWA.getZ(8000), _diagWA.getW(8000));
-              } else {
-                console.log("[TerrainDiag] weightsA buffer MISSING!");
-              }
-              // Enable diagnostic mode
-              window.__TERRAIN_DIAG_WEIGHTS__ = true;
-
-              // Try multiple extraction methods and log which ones exist
-              console.log("[TerrainDiag] _a_wA type:", typeof _a_wA, "keys:", Object.keys(_a_wA || {}).slice(0, 20).join(","));
-              console.log("[TerrainDiag] _a_wA.x exists:", typeof (_a_wA && _a_wA.x));
-              console.log("[TerrainDiag] _a_wA.r exists:", typeof (_a_wA && _a_wA.r));
-              console.log("[TerrainDiag] _a_wA.element exists:", typeof (_a_wA && _a_wA.element));
-
-              // Method 1: .x/.y/.z/.w swizzle
-              var _method1 = [_a_wA.x, _a_wA.y, _a_wA.z, _a_wA.w, _a_wB.x, _a_wB.y, _a_wB.z, _a_wB.w];
-              console.log("[TerrainDiag] Method1 (.xyzw):", _method1.map(function(m) { return typeof m; }).join(","));
-
-              // Method 2: dot product
-              var _unitX = _rpTHREE.vec4(1, 0, 0, 0);
-              var _unitY = _rpTHREE.vec4(0, 1, 0, 0);
-              var _unitZ = _rpTHREE.vec4(0, 0, 1, 0);
-              var _unitW = _rpTHREE.vec4(0, 0, 0, 1);
-              var _method2 = [
-                _rpTHREE.dot(_a_wA, _unitX), _rpTHREE.dot(_a_wA, _unitY),
-                _rpTHREE.dot(_a_wA, _unitZ), _rpTHREE.dot(_a_wA, _unitW),
-                _rpTHREE.dot(_a_wB, _unitX), _rpTHREE.dot(_a_wB, _unitY),
-                _rpTHREE.dot(_a_wB, _unitZ), _rpTHREE.dot(_a_wB, _unitW)
-              ];
-              console.log("[TerrainDiag] Method2 (dot):", _method2.map(function(m) { return typeof m; }).join(","));
-
-              // Use method 1 (.xyzw) as primary — diagnostic will show if it works
-              var _allWeights = _method1;
+              // Extract components via .xyzw swizzle (confirmed working via diagnostic)
+              var _allWeights = [_a_wA.x, _a_wA.y, _a_wA.z, _a_wA.w, _a_wB.x, _a_wB.y, _a_wB.z, _a_wB.w];
               var _tWeights = [];
               for (var _twi = 0; _twi < _rpNumLayers; _twi++) {
                 _tWeights[_twi] = _allWeights[_twi];
               }
-
-              // === DIAGNOSTIC: visualize raw weights as RGB ===
-              // w0=red, w1=green, w2=blue. If terrain is BLACK = all weights 0 (vec4 read broken)
-              // If terrain shows color variation = weights working correctly
-              // REMOVE THIS BLOCK after debugging!
-              if (window.__TERRAIN_DIAG_WEIGHTS__) {
-                _rpMat.colorNode = _rpTHREE.vec3(_tWeights[0] || _rpTHREE.float(0), _tWeights[1] || _rpTHREE.float(0), _tWeights[2] || _rpTHREE.float(0));
-                console.log("[TerrainDiag] Weight diagnostic mode ON — R=w0 G=w1 B=w2");
-              }
-              // === END DIAGNOSTIC ===
 
               // Read per-layer parameters from computed uniforms
               var _tScale = [];
