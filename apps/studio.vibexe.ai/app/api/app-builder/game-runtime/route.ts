@@ -285,7 +285,7 @@ window.addEventListener('unhandledrejection', function(e) {
         window.__rapierErrorLogged = null;
         // Clean up module globals to prevent stale handlers/timers on reload
         window.__vibexe_modules__ = {};
-        // Sky-weather cleanup: destroy instance + clear init timer
+        // Sky-weather cleanup: destroy instance + clear init timer (both old and advanced)
         if (window.__vibexe_skyWeather) {
           try { window.__vibexe_skyWeather.destroy(); } catch(e) {}
         }
@@ -294,6 +294,18 @@ window.addEventListener('unhandledrejection', function(e) {
         if (window.__skyWeather_autoInitInterval) {
           clearInterval(window.__skyWeather_autoInitInterval);
           window.__skyWeather_autoInitInterval = null;
+        }
+        if (window.__vibexe_skyWeatherAdvanced) {
+          try { window.__vibexe_skyWeatherAdvanced.destroy(); } catch(e) {}
+        }
+        window.__vibexe_skyWeatherAdvanced = null;
+        if (window.__swa_autoInitInterval) {
+          clearInterval(window.__swa_autoInitInterval);
+          window.__swa_autoInitInterval = null;
+        }
+        if (window.__vibexe_swaMsgListener) {
+          window.removeEventListener('message', window.__vibexe_swaMsgListener);
+          window.__vibexe_swaMsgListener = null;
         }
         // Character system cleanup
         window.__vibexe_characterSystem = null;

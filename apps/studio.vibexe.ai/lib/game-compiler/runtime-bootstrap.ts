@@ -61,11 +61,15 @@ export function generateRuntimeBootstrap(opts: BootstrapSettings): string {
 function generateSettingsOverride(gs: Record<string, unknown>, enabledModuleIds: string[]): string {
 	// Check if sky-weather module is active — authoritative source is enabledModuleIds,
 	// fallback to game settings structure for backward compatibility
-	const hasSkyWeather = enabledModuleIds.includes("sky-weather") || !!(
+	const hasSkyWeather = enabledModuleIds.includes("sky-weather") || enabledModuleIds.includes("sky-weather-advanced") || !!(
 		gs.modules &&
 		(gs.modules as Record<string, unknown>).installed &&
-		((gs.modules as Record<string, unknown>).installed as Record<string, unknown>)["sky-weather"] &&
-		(((gs.modules as Record<string, unknown>).installed as Record<string, unknown>)["sky-weather"] as Record<string, unknown>).enabled
+		(
+			(((gs.modules as Record<string, unknown>).installed as Record<string, unknown>)["sky-weather"] &&
+			(((gs.modules as Record<string, unknown>).installed as Record<string, unknown>)["sky-weather"] as Record<string, unknown>).enabled) ||
+			(((gs.modules as Record<string, unknown>).installed as Record<string, unknown>)["sky-weather-advanced"] &&
+			(((gs.modules as Record<string, unknown>).installed as Record<string, unknown>)["sky-weather-advanced"] as Record<string, unknown>).enabled)
+		)
 	);
 
 	return `(function(){
@@ -80,7 +84,7 @@ var T=window.THREE;var s=window.__vibexe_scene__;var c=window.__vibexe_camera__;
 if(!T||!s)return;
 clearInterval(_t);
 var e=_gs.environment||{};
-var _swActive=${hasSkyWeather ? 'true' : 'false'}||!!window.__skyWeather_active;
+var _swActive=${hasSkyWeather ? 'true' : 'false'}||!!window.__skyWeather_active||!!window.__vibexe_skyWeatherAdvanced;
 if(!_swActive){
 if(e.backgroundColor){try{s.background=new T.Color(e.backgroundColor)}catch(x){}}
 if(e.fogEnabled){try{s.fog=new T.Fog(e.fogColor||e.backgroundColor||'#87CEEB',e.fogNear||30,e.fogFar||100)}catch(x){}}

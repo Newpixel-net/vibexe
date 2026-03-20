@@ -1882,8 +1882,8 @@ export function convertToSandpackFiles(files: AppFile[], langConfig?: SandpackLa
 			"}",
 
 			// Sky & Weather
-			"var sw=W.__vibexe_skyWeather;",
-			"r.push({system:'Sky & Weather',status:sw&&sw._active?'ok':(sw?'inactive':'off'),details:sw?{time:+(sw.solarTime||0).toFixed(3),fog:sw.config.fog.enabled,auto:sw.config.time.autoAdvance}:null});",
+			"var sw=W.__vibexe_skyWeather||W.__vibexe_skyWeatherAdvanced;",
+			"r.push({system:'Sky & Weather',status:sw?(sw._active!==false?'ok':'inactive'):'off',details:sw?{time:+(sw.solarTime||sw._time||0).toFixed(3),fog:sw.config?(sw.config.fog||{}).enabled:false,auto:sw.config?(sw.config.time||{}).autoAdvance:((sw.settings||{}).time||{}).autoAdvance}:null});",
 
 			// Adaptive Quality (full state from bridge AQ system)
 			"var aq=W.__vibexe_adaptive_quality__;",

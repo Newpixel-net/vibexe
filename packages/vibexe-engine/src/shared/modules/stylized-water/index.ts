@@ -245,7 +245,7 @@ function _createWaterTSLUniforms(s) {
 }
 
 /** Build MeshBasicMaterial with GPU TSL positionNode + colorNode */
-function _buildWaterTSLMaterial(u, tex) {
+function _buildWaterTSLMaterial(u, tex, simplified) {
   var _Fn = THREE.Fn || THREE.tslFn;
 
   var mat = new THREE.MeshBasicMaterial({
@@ -337,35 +337,53 @@ function _buildWaterTSLMaterial(u, tex) {
     var viewDir = THREE.normalize(THREE.cameraPosition.sub(worldPos));
 
     // --- Depth via viewport depth texture ---
-    // Three.js viewportDepthTexture returns perspective depth in [0,1] on BOTH
-    // WebGL and WebGPU (neither uses reversed depth in Three.js r170+).
-    // Standard linearization: viewZ = near*far / (far - depth*(far-near))
-    var rawDepth = THREE.viewportDepthTexture(THREE.screenUV);
-    var near = THREE.cameraNear;
-    var far = THREE.cameraFar;
-    var diff = far.sub(near);
-    // Prevent division by zero when rawDepth=1.0 (far plane / no geometry behind)
-    var denom = THREE.max(far.sub(rawDepth.mul(diff)), THREE.float(0.001));
-    var sceneLinZ = near.mul(far).div(denom);
-    // Clamp to valid range to handle edge cases (sky, no geometry behind water)
-    sceneLinZ = sceneLinZ.clamp(near, far);
-    var fragLinZ = THREE.positionView.z.negate();
-    var rawWaterDepth = THREE.max(sceneLinZ.sub(fragLinZ), THREE.float(0.0));
-    rawWaterDepth = THREE.min(rawWaterDepth, THREE.float(50.0));
-    // Small floor prevents depth instability at exact shore edge
-    var waterDepth = THREE.max(rawWaterDepth, THREE.float(0.05));
+    var rawWaterDepth, waterDepth, density, hasGeometry;
+    var cr, cg, cb, ca;
 
-    // --- Depth-based color ---
-    var depthAtten = THREE.float(1.0).sub(THREE.exp(waterDepth.negate().mul(u.uDepthVert).mul(0.25)));
-    var density = depthAtten.clamp(0, 1).toVar();
-    var absorb = THREE.float(1.0).sub(THREE.exp(waterDepth.negate().mul(u.uColorAbsorption).mul(0.2)));
-    density.assign(THREE.max(density, absorb).clamp(0, 1));
+    if (simplified) {
+      // Simplified path: skip viewportDepthTexture entirely — assume deep water everywhere.
+      // Saves the most expensive per-pixel operation (full depth buffer read).
+      rawWaterDepth = THREE.float(20.0);
+      waterDepth = THREE.float(20.0);
+      density = THREE.float(1.0).toVar();
+      hasGeometry = THREE.float(0.0); // no intersection effects
+      cr = u.uDeepColor.x.toVar();
+      cg = u.uDeepColor.y.toVar();
+      cb = u.uDeepColor.z.toVar();
+      ca = u.uDeepAlpha.toVar();
+    } else {
+      // Three.js viewportDepthTexture returns perspective depth in [0,1] on BOTH
+      // WebGL and WebGPU (neither uses reversed depth in Three.js r170+).
+      // Standard linearization: viewZ = near*far / (far - depth*(far-near))
+      var rawDepth = THREE.viewportDepthTexture(THREE.screenUV);
+      var near = THREE.cameraNear;
+      var far = THREE.cameraFar;
+      var diff = far.sub(near);
+      // Prevent division by zero when rawDepth=1.0 (far plane / no geometry behind)
+      var denom = THREE.max(far.sub(rawDepth.mul(diff)), THREE.float(0.001));
+      var sceneLinZ = near.mul(far).div(denom);
+      // Clamp to valid range to handle edge cases (sky, no geometry behind water)
+      sceneLinZ = sceneLinZ.clamp(near, far);
+      var fragLinZ = THREE.positionView.z.negate();
+      rawWaterDepth = THREE.max(sceneLinZ.sub(fragLinZ), THREE.float(0.0));
+      rawWaterDepth = THREE.min(rawWaterDepth, THREE.float(50.0));
+      // Small floor prevents depth instability at exact shore edge
+      waterDepth = THREE.max(rawWaterDepth, THREE.float(0.05));
 
-    // Shallow -> Deep blend
-    var cr = THREE.mix(u.uShallowColor.x, u.uDeepColor.x, density).toVar();
-    var cg = THREE.mix(u.uShallowColor.y, u.uDeepColor.y, density).toVar();
-    var cb = THREE.mix(u.uShallowColor.z, u.uDeepColor.z, density).toVar();
-    var ca = THREE.mix(u.uShallowAlpha, u.uDeepAlpha, density).toVar();
+      // --- Depth-based color ---
+      var depthAtten = THREE.float(1.0).sub(THREE.exp(waterDepth.negate().mul(u.uDepthVert).mul(0.25)));
+      density = depthAtten.clamp(0, 1).toVar();
+      var absorb = THREE.float(1.0).sub(THREE.exp(waterDepth.negate().mul(u.uColorAbsorption).mul(0.2)));
+      density.assign(THREE.max(density, absorb).clamp(0, 1));
+    }
+
+    if (!simplified) {
+      // Shallow -> Deep blend
+      cr = THREE.mix(u.uShallowColor.x, u.uDeepColor.x, density).toVar();
+      cg = THREE.mix(u.uShallowColor.y, u.uDeepColor.y, density).toVar();
+      cb = THREE.mix(u.uShallowColor.z, u.uDeepColor.z, density).toVar();
+      ca = THREE.mix(u.uShallowAlpha, u.uDeepAlpha, density).toVar();
+    }
 
     // =================================================================
     // Phase 3: Dual scrolling normal maps with RNM blend
@@ -375,6 +393,16 @@ function _buildWaterTSLMaterial(u, tex) {
     var meshOff = THREE.vec2(u.uMeshPosX.div(u.uScale), u.uMeshPosZ.div(u.uScale));
     var worldUV = baseUV.add(meshOff);
 
+    // Declare N (perturbed normal) — simplified uses analytical wave normal only
+    var N;
+
+    if (simplified) {
+      // Simplified: use analytical wave normal only (no texture reads)
+      N = THREE.normalize(_vWN).toVar();
+      N.assign(THREE.normalize(THREE.vec3(N.x, THREE.max(N.y, THREE.float(0.1)), N.z)));
+    }
+
+    if (!simplified) {
     // Primary normal map UV — scroll in one direction
     var nScroll1 = THREE.vec2(u.uTime.mul(u.uNormalSpeed), u.uTime.mul(u.uNormalSpeed).mul(0.7));
     var nUV1 = worldUV.mul(u.uNormalTiling).add(nScroll1);
@@ -416,7 +444,7 @@ function _buildWaterTSLMaterial(u, tex) {
     // Perturb wave normal with blended normal map
     // N = normalize(waveNormal + vec3(rnm.x * strength, 0, rnm.y * strength))
     var waveN = _vWN;
-    var N = THREE.normalize(THREE.vec3(
+    N = THREE.normalize(THREE.vec3(
       waveN.x.add(rnmResult.x.mul(u.uNormalStrength)),
       waveN.y,
       waveN.z.add(rnmResult.y.mul(u.uNormalStrength))
@@ -424,6 +452,7 @@ function _buildWaterTSLMaterial(u, tex) {
 
     // Clamp normal Y to be positive — water surface normal should always point upward
     N.assign(THREE.normalize(THREE.vec3(N.x, THREE.max(N.y, THREE.float(0.1)), N.z)));
+    } // end !simplified normal maps
 
     // --- Fresnel (Schlick) using perturbed normal ---
     var NdotV = THREE.dot(N, viewDir).clamp(0, 1);
@@ -446,6 +475,9 @@ function _buildWaterTSLMaterial(u, tex) {
     // Phase 3: Wave crest foam with dual-layer texture sampling + dissolve
     // =================================================================
     var foamAmount = THREE.float(0.0).toVar();
+    var intAmount = THREE.float(0.0).toVar();
+
+    if (!simplified) {
 
     // Only compute foam when enabled (uFoamEnabled > 0.5)
     // Wave crest foam: height-based + base amount
@@ -484,7 +516,6 @@ function _buildWaterTSLMaterial(u, tex) {
     // =================================================================
     // Phase 4: Shore intersection foam using waterDepth + texture
     // =================================================================
-    var intAmount = THREE.float(0.0).toVar();
 
     // Detect real geometry behind water (works with both standard AND reverse depth buffers)
     // rawWaterDepth is linearized: 0 = no depth / sky, 0.01-40 = actual geometry, 50 = capped far
@@ -570,6 +601,7 @@ function _buildWaterTSLMaterial(u, tex) {
     cr.addAssign(causticR.mul(cBright).mul(0.3));
     cg.addAssign(causticG.mul(cBright).mul(0.3));
     cb.addAssign(causticB.mul(cBright).mul(0.25));
+    } // end !simplified (foam + intersection + caustics)
 
     // --- Horizon distance blend ---
     var dCam = THREE.length(worldPos.sub(THREE.cameraPosition));
@@ -579,6 +611,7 @@ function _buildWaterTSLMaterial(u, tex) {
     cg.assign(THREE.mix(cg, u.uHorizonColor.y, hT.mul(u.uHorizonAlpha)));
     cb.assign(THREE.mix(cb, u.uHorizonColor.z, hT.mul(u.uHorizonAlpha)));
 
+    if (!simplified) {
     // --- Edge fade (alpha near shore via depth buffer) ---
     // Use rawWaterDepth (pre-floor) so edges still fade properly at depth < 0.3
     var edgeA = rawWaterDepth.div(u.uEdgeFade.mul(0.5).add(0.001)).clamp(0, 1);
@@ -589,6 +622,7 @@ function _buildWaterTSLMaterial(u, tex) {
     // --- Sky transparency: water with only sky behind it becomes invisible ---
     // Prevents large water planes from acting as dark overlays on the sky dome
     ca.mulAssign(hasGeometry);
+    } // end !simplified edge fade
 
     // --- Sun specular (Blinn-Phong) using perturbed normal ---
     var H = THREE.normalize(u.uSunDir.add(viewDir));
@@ -1053,7 +1087,9 @@ StylizedWaterSystem.prototype._build = function() {
       noise: _createPlaceholderTex(),
       intFoam: _createPlaceholderTex(),
     };
-    this._material = _buildWaterTSLMaterial(this._tslU, this._tslTex);
+    this._simplified = (this.settings.scale >= 100);
+    this._material = _buildWaterTSLMaterial(this._tslU, this._tslTex, this._simplified);
+    if (this._simplified) console.log('[StylizedWater] Using simplified shader (scale >= 100)');
     this._usePBR = false;
     this._usePhysical = false;
     this._useTSL = true;
