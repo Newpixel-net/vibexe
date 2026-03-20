@@ -561,9 +561,15 @@ export function getVisualEditBridgeScript(): string {
   var _sculptMouseDown = false;
   var _sculptBrushMesh = null;
   var _sculptTargetHeight = 0;
+  var _sculptBrushHardness = 0.5; // 0=soft edge, 1=hard edge
+  var _sculptBrushOpacity = 1.0;  // multiplier on paint strength
+  var _sculptBrushSpacing = 0.25; // distance-based stamp spacing (fraction of brush size)
+  var _sculptBrushJitter = 0.0;   // random offset as fraction of brush size
+  var _sculptLastStampPos = null;  // {x,z} for distance-based stamping
+  var _sculptBrushColor = null;   // hex color for brush ring in paint mode
   // Weight painting state — per-vertex painted weights override modifier-computed weights
-  var _paintLayerIndex = 0; // which layer index to paint (0-3)
-  var _paintedWeights = null; // Float32Array[vertexCount * 4] or null if no painting done
+  var _paintLayerIndex = 0; // which layer index to paint (0-7)
+  var _paintedWeights = null; // Float32Array[vertexCount * 8] or null if no painting done
 
   function applySculptBrush(wx, wz) {
     var terrain = editor.scene.getObjectByName("__terrain__");
@@ -596,6 +602,10 @@ export function getVisualEditBridgeScript(): string {
         var t = dist / R;
         alpha = Math.exp(-t * t * 3.0);
       }
+      // Apply hardness: lerp between soft falloff and hard (flat) edge
+      alpha = alpha + (1.0 - alpha) * _sculptBrushHardness;
+      // Apply opacity multiplier
+      alpha *= _sculptBrushOpacity;
 
       var curY = pos.getY(vi);
 
@@ -603,32 +613,37 @@ export function getVisualEditBridgeScript(): string {
       if (_sculptBrushType === "paint" || _sculptBrushType === "erase") {
         // Initialize painted weights array on first paint
         if (!_paintedWeights) {
-          _paintedWeights = new Float32Array(pos.count * 4);
-          // Pre-fill with -1 to indicate "not painted" (use modifier weights)
+          _paintedWeights = new Float32Array(pos.count * 8);
           for (var pw = 0; pw < _paintedWeights.length; pw++) _paintedWeights[pw] = -1;
         }
-        var baseIdx = vi * 4;
-        // If this vertex hasn't been painted yet, initialize from current shader weights
+        var baseIdx = vi * 8;
+        // If this vertex hasn't been painted yet, initialize from current weightsA/weightsB
         if (_paintedWeights[baseIdx] < 0) {
-          var wAttrs = [geo.attributes.w0, geo.attributes.w1, geo.attributes.w2, geo.attributes.w3];
-          for (var ci = 0; ci < 4; ci++) {
-            _paintedWeights[baseIdx + ci] = wAttrs[ci] ? wAttrs[ci].getX(vi) : (ci === 0 ? 1 : 0);
-          }
+          var wAttrA = geo.attributes.weightsA;
+          var wAttrB = geo.attributes.weightsB;
+          _paintedWeights[baseIdx]     = wAttrA ? wAttrA.getX(vi) : 1;
+          _paintedWeights[baseIdx + 1] = wAttrA ? wAttrA.getY(vi) : 0;
+          _paintedWeights[baseIdx + 2] = wAttrA ? wAttrA.getZ(vi) : 0;
+          _paintedWeights[baseIdx + 3] = wAttrA ? wAttrA.getW(vi) : 0;
+          _paintedWeights[baseIdx + 4] = wAttrB ? wAttrB.getX(vi) : 0;
+          _paintedWeights[baseIdx + 5] = wAttrB ? wAttrB.getY(vi) : 0;
+          _paintedWeights[baseIdx + 6] = wAttrB ? wAttrB.getZ(vi) : 0;
+          _paintedWeights[baseIdx + 7] = wAttrB ? wAttrB.getW(vi) : 0;
         }
         // Add to target layer, reduce others
         var paintDelta = alpha * str * (_sculptBrushType === "erase" ? -1 : 1);
         _paintedWeights[baseIdx + _paintLayerIndex] = Math.max(0, Math.min(1, _paintedWeights[baseIdx + _paintLayerIndex] + paintDelta));
-        // Renormalize so all 4 weights sum to 1
+        // Renormalize so all 8 weights sum to 1
         var wSum2 = 0;
-        for (var ni2 = 0; ni2 < 4; ni2++) wSum2 += Math.max(0, _paintedWeights[baseIdx + ni2]);
+        for (var ni2 = 0; ni2 < 8; ni2++) wSum2 += Math.max(0, _paintedWeights[baseIdx + ni2]);
         if (wSum2 > 0.001) {
-          for (var ni3 = 0; ni3 < 4; ni3++) _paintedWeights[baseIdx + ni3] = Math.max(0, _paintedWeights[baseIdx + ni3]) / wSum2;
+          for (var ni3 = 0; ni3 < 8; ni3++) _paintedWeights[baseIdx + ni3] = Math.max(0, _paintedWeights[baseIdx + ni3]) / wSum2;
         }
-        // Write directly to shader weight attributes
-        var wAttrs2 = [geo.attributes.w0, geo.attributes.w1, geo.attributes.w2, geo.attributes.w3];
-        for (var wi = 0; wi < 4; wi++) {
-          if (wAttrs2[wi]) wAttrs2[wi].setX(vi, _paintedWeights[baseIdx + wi]);
-        }
+        // Write directly to weightsA/weightsB vec4 attributes
+        var wAttrAw = geo.attributes.weightsA;
+        var wAttrBw = geo.attributes.weightsB;
+        if (wAttrAw) wAttrAw.setXYZW(vi, _paintedWeights[baseIdx], _paintedWeights[baseIdx+1], _paintedWeights[baseIdx+2], _paintedWeights[baseIdx+3]);
+        if (wAttrBw) wAttrBw.setXYZW(vi, _paintedWeights[baseIdx+4], _paintedWeights[baseIdx+5], _paintedWeights[baseIdx+6], _paintedWeights[baseIdx+7]);
         modified = true;
       } else {
         // Regular sculpt modes (raise/lower/flatten/smooth) — modify height
@@ -674,8 +689,8 @@ export function getVisualEditBridgeScript(): string {
     if (modified) {
       // For paint mode, only update weight attributes (no geometry/physics changes)
       if (_sculptBrushType === "paint" || _sculptBrushType === "erase") {
-        var wAttrs3 = [geo.attributes.w0, geo.attributes.w1, geo.attributes.w2, geo.attributes.w3];
-        for (var wa = 0; wa < 4; wa++) { if (wAttrs3[wa]) wAttrs3[wa].needsUpdate = true; }
+        if (geo.attributes.weightsA) geo.attributes.weightsA.needsUpdate = true;
+        if (geo.attributes.weightsB) geo.attributes.weightsB.needsUpdate = true;
         return; // Skip height/normal/physics updates
       }
       pos.needsUpdate = true;
@@ -5315,7 +5330,7 @@ export function getVisualEditBridgeScript(): string {
 
         var _rpCount = _rpHAttr.count;
         var _rpEnabledLayers = _rpLayers.filter(function(l) { return l.enabled; });
-        var _rpNumLayers = Math.min(_rpEnabledLayers.length, 4); // max 4 for vertex color packing
+        var _rpNumLayers = Math.min(_rpEnabledLayers.length, 8); // max 8 with vec4 weight packing
 
         console.log("[TerrainPainter] Repainting with", _rpNumLayers, "enabled layers");
 
@@ -5425,6 +5440,13 @@ export function getVisualEditBridgeScript(): string {
               else if (mod.blendMode === "Max") { weight = Math.max(weight, mask); }
             }
 
+            // Layers with no active modifiers AND index > 0 are paint-only (weight=0)
+            // Layer 0 always keeps weight=1 as the base layer
+            var _hasActiveMod = false;
+            for (var _ami = 0; _ami < layer.modifiers.length; _ami++) {
+              if (layer.modifiers[_ami].enabled) { _hasActiveMod = true; break; }
+            }
+            if (!_hasActiveMod && li2 > 0) weight = 0;
             _rpWeights[li2][vi] = Math.max(0, Math.min(1, weight));
           }
         }
@@ -5516,91 +5538,49 @@ export function getVisualEditBridgeScript(): string {
 
           function _rpApplyShaderMaterial() {
             // Pack weights into vertex attributes
-            var _w0 = new Float32Array(_rpCount);
-            var _w1 = new Float32Array(_rpCount);
-            var _w2 = new Float32Array(_rpCount);
-            var _w3 = new Float32Array(_rpCount);
+            // Pack weights into 2 vec4 attributes (weightsA = layers 0-3, weightsB = layers 4-7)
+            // Using vec4 instead of 4+ separate float attributes avoids WebGPU buffer limit
+            var _wA = new Float32Array(_rpCount * 4);
+            var _wB = new Float32Array(_rpCount * 4);
             for (var v = 0; v < _rpCount; v++) {
-              _w0[v] = _rpNumLayers > 0 ? _rpWeights[0][v] : 0;
-              _w1[v] = _rpNumLayers > 1 ? _rpWeights[1][v] : 0;
-              _w2[v] = _rpNumLayers > 2 ? _rpWeights[2][v] : 0;
-              _w3[v] = _rpNumLayers > 3 ? _rpWeights[3][v] : 0;
+              _wA[v * 4]     = _rpNumLayers > 0 ? _rpWeights[0][v] : 0;
+              _wA[v * 4 + 1] = _rpNumLayers > 1 ? _rpWeights[1][v] : 0;
+              _wA[v * 4 + 2] = _rpNumLayers > 2 ? _rpWeights[2][v] : 0;
+              _wA[v * 4 + 3] = _rpNumLayers > 3 ? _rpWeights[3][v] : 0;
+              _wB[v * 4]     = _rpNumLayers > 4 ? _rpWeights[4][v] : 0;
+              _wB[v * 4 + 1] = _rpNumLayers > 5 ? _rpWeights[5][v] : 0;
+              _wB[v * 4 + 2] = _rpNumLayers > 6 ? _rpWeights[6][v] : 0;
+              _wB[v * 4 + 3] = _rpNumLayers > 7 ? _rpWeights[7][v] : 0;
             }
-            _rpGeo.setAttribute("w0", new _rpTHREE.BufferAttribute(_w0, 1));
-            _rpGeo.setAttribute("w1", new _rpTHREE.BufferAttribute(_w1, 1));
-            _rpGeo.setAttribute("w2", new _rpTHREE.BufferAttribute(_w2, 1));
-            _rpGeo.setAttribute("w3", new _rpTHREE.BufferAttribute(_w3, 1));
+            _rpGeo.setAttribute("weightsA", new _rpTHREE.BufferAttribute(_wA, 4));
+            _rpGeo.setAttribute("weightsB", new _rpTHREE.BufferAttribute(_wB, 4));
 
+            // Generate per-layer uniforms dynamically (supports up to 8 layers)
             var _rpUniforms = {
-              uTex0: { value: _rpTextures[0] || null },
-              uTex1: { value: _rpTextures[1] || null },
-              uTex2: { value: _rpTextures[2] || null },
-              uTex3: { value: _rpTextures[3] || null },
-              uNormal0: { value: _rpNormalTextures[0] || null },
-              uNormal1: { value: _rpNormalTextures[1] || null },
-              uNormal2: { value: _rpNormalTextures[2] || null },
-              uNormal3: { value: _rpNormalTextures[3] || null },
-              uHasTex0: { value: _rpTextures[0] ? 1.0 : 0.0 },
-              uHasTex1: { value: _rpTextures[1] ? 1.0 : 0.0 },
-              uHasTex2: { value: _rpTextures[2] ? 1.0 : 0.0 },
-              uHasTex3: { value: _rpTextures[3] ? 1.0 : 0.0 },
-              uHasNormal0: { value: _rpNormalTextures[0] ? 1.0 : 0.0 },
-              uHasNormal1: { value: _rpNormalTextures[1] ? 1.0 : 0.0 },
-              uHasNormal2: { value: _rpNormalTextures[2] ? 1.0 : 0.0 },
-              uHasNormal3: { value: _rpNormalTextures[3] ? 1.0 : 0.0 },
-              uRoughMap0: { value: _rpRoughnessTextures[0] || null },
-              uRoughMap1: { value: _rpRoughnessTextures[1] || null },
-              uRoughMap2: { value: _rpRoughnessTextures[2] || null },
-              uRoughMap3: { value: _rpRoughnessTextures[3] || null },
-              uHasRoughMap0: { value: _rpRoughnessTextures[0] ? 1.0 : 0.0 },
-              uHasRoughMap1: { value: _rpRoughnessTextures[1] ? 1.0 : 0.0 },
-              uHasRoughMap2: { value: _rpRoughnessTextures[2] ? 1.0 : 0.0 },
-              uHasRoughMap3: { value: _rpRoughnessTextures[3] ? 1.0 : 0.0 },
-              uAOMap0: { value: _rpAOTextures[0] || null },
-              uAOMap1: { value: _rpAOTextures[1] || null },
-              uAOMap2: { value: _rpAOTextures[2] || null },
-              uAOMap3: { value: _rpAOTextures[3] || null },
-              uHasAOMap0: { value: _rpAOTextures[0] ? 1.0 : 0.0 },
-              uHasAOMap1: { value: _rpAOTextures[1] ? 1.0 : 0.0 },
-              uHasAOMap2: { value: _rpAOTextures[2] ? 1.0 : 0.0 },
-              uHasAOMap3: { value: _rpAOTextures[3] ? 1.0 : 0.0 },
-              uIsEmissive0: { value: 0.0 },
-              uIsEmissive1: { value: 0.0 },
-              uIsEmissive2: { value: 0.0 },
-              uIsEmissive3: { value: 0.0 },
-              uEmissionIntensity0: { value: 0.0 },
-              uEmissionIntensity1: { value: 0.0 },
-              uEmissionIntensity2: { value: 0.0 },
-              uEmissionIntensity3: { value: 0.0 },
-              uColor0: { value: new _rpTHREE.Vector3(_rpColors[0] ? _rpColors[0][0] : 0.5, _rpColors[0] ? _rpColors[0][1] : 0.5, _rpColors[0] ? _rpColors[0][2] : 0.5) },
-              uColor1: { value: new _rpTHREE.Vector3(_rpColors[1] ? _rpColors[1][0] : 0.5, _rpColors[1] ? _rpColors[1][1] : 0.5, _rpColors[1] ? _rpColors[1][2] : 0.5) },
-              uColor2: { value: new _rpTHREE.Vector3(_rpColors[2] ? _rpColors[2][0] : 0.5, _rpColors[2] ? _rpColors[2][1] : 0.5, _rpColors[2] ? _rpColors[2][2] : 0.5) },
-              uColor3: { value: new _rpTHREE.Vector3(_rpColors[3] ? _rpColors[3][0] : 0.5, _rpColors[3] ? _rpColors[3][1] : 0.5, _rpColors[3] ? _rpColors[3][2] : 0.5) },
               uNumLayers: { value: _rpNumLayers },
-              uTexScale0: { value: 50.0 },
-              uTexScale1: { value: 50.0 },
-              uTexScale2: { value: 1.5 },
-              uTexScale3: { value: 100.0 },
-              uRoughness0: { value: 0.85 },
-              uRoughness1: { value: 0.75 },
-              uRoughness2: { value: 0.92 },
-              uRoughness3: { value: 0.3 },
-              uNormalIntensity0: { value: 1.0 },
-              uNormalIntensity1: { value: 1.0 },
-              uNormalIntensity2: { value: 1.0 },
-              uNormalIntensity3: { value: 1.0 },
-              uMetallic0: { value: 0.0 },
-              uMetallic1: { value: 0.0 },
-              uMetallic2: { value: 0.0 },
-              uMetallic3: { value: 0.0 },
-              uOpacity0: { value: 1.0 },
-              uOpacity1: { value: 1.0 },
-              uOpacity2: { value: 1.0 },
-              uOpacity3: { value: 1.0 },
               uFogColor: { value: new _rpTHREE.Vector3(0.62, 0.68, 0.80) },
               uFogFar: { value: 300.0 },
               uFogMaxAmt: { value: 0.5 }
             };
+            for (var _ui = 0; _ui < 8; _ui++) {
+              _rpUniforms["uTex" + _ui] = { value: _rpTextures[_ui] || null };
+              _rpUniforms["uNormal" + _ui] = { value: _rpNormalTextures[_ui] || null };
+              _rpUniforms["uHasTex" + _ui] = { value: _rpTextures[_ui] ? 1.0 : 0.0 };
+              _rpUniforms["uHasNormal" + _ui] = { value: _rpNormalTextures[_ui] ? 1.0 : 0.0 };
+              _rpUniforms["uRoughMap" + _ui] = { value: _rpRoughnessTextures[_ui] || null };
+              _rpUniforms["uHasRoughMap" + _ui] = { value: _rpRoughnessTextures[_ui] ? 1.0 : 0.0 };
+              _rpUniforms["uAOMap" + _ui] = { value: _rpAOTextures[_ui] || null };
+              _rpUniforms["uHasAOMap" + _ui] = { value: _rpAOTextures[_ui] ? 1.0 : 0.0 };
+              _rpUniforms["uIsEmissive" + _ui] = { value: 0.0 };
+              _rpUniforms["uEmissionIntensity" + _ui] = { value: 0.0 };
+              var _cc = _rpColors[_ui];
+              _rpUniforms["uColor" + _ui] = { value: new _rpTHREE.Vector3(_cc ? _cc[0] : 0.5, _cc ? _cc[1] : 0.5, _cc ? _cc[2] : 0.5) };
+              _rpUniforms["uTexScale" + _ui] = { value: 50.0 };
+              _rpUniforms["uRoughness" + _ui] = { value: 0.8 };
+              _rpUniforms["uNormalIntensity" + _ui] = { value: 1.0 };
+              _rpUniforms["uMetallic" + _ui] = { value: 0.0 };
+              _rpUniforms["uOpacity" + _ui] = { value: 1.0 };
+            }
 
             // Compute per-layer texture scales and read PBR params from layer data
             var _rpTerrainW = _rpTerrain.userData.__terrainWidth || 200;
@@ -5621,10 +5601,7 @@ export function getVisualEditBridgeScript(): string {
             }
 
             var _rpVertShader = [
-              "attribute float w0;",
-              "attribute float w1;",
-              "attribute float w2;",
-              "attribute float w3;",
+              "attribute vec4 weightsA;",
               "attribute float terrainHeight;",
               "varying vec2 vUv;",
               "varying vec3 vNormal;",
@@ -5639,7 +5616,7 @@ export function getVisualEditBridgeScript(): string {
               "  vNormal = normalize(mat3(modelMatrix) * normal);",
               "  vWorldPos = (modelMatrix * vec4(position, 1.0)).xyz;",
               "  vHeight = terrainHeight;",
-              "  vW0 = w0; vW1 = w1; vW2 = w2; vW3 = w3;",
+              "  vW0 = weightsA.x; vW1 = weightsA.y; vW2 = weightsA.z; vW3 = weightsA.w;",
               "  gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);",
               "}"
             ].join("\\n");
@@ -5947,19 +5924,17 @@ export function getVisualEditBridgeScript(): string {
             });
 
             if (_rpFn) {
-              // Read splatmap weights from vertex attributes
-              var _a_w0 = _rpTHREE.attribute("w0");
-              var _a_w1 = _rpTHREE.attribute("w1");
-              var _a_w2 = _rpTHREE.attribute("w2");
-              var _a_w3 = _rpTHREE.attribute("w3");
+              // Read splatmap weights from vec4 vertex attributes
+              var _a_wA = _rpTHREE.attribute("weightsA", "vec4");
+              var _a_wB = _rpTHREE.attribute("weightsB", "vec4");
               var _a_uv = _rpTHREE.uv();
-              var _tWeights = [_a_w0, _a_w1, _a_w2, _a_w3];
+              var _tWeights = [_a_wA.x, _a_wA.y, _a_wA.z, _a_wA.w, _a_wB.x, _a_wB.y, _a_wB.z, _a_wB.w];
 
               // Read per-layer parameters from computed uniforms
               var _tScale = [];
               var _tRough = [];
               var _tMetal = [];
-              for (var _pli = 0; _pli < 4; _pli++) {
+              for (var _pli = 0; _pli < _rpNumLayers; _pli++) {
                 _tScale[_pli] = _rpUniforms["uTexScale" + _pli].value;
                 _tRough[_pli] = _rpUniforms["uRoughness" + _pli].value;
                 _tMetal[_pli] = _rpUniforms["uMetallic" + _pli].value;
@@ -5967,8 +5942,8 @@ export function getVisualEditBridgeScript(): string {
 
               // Sample diffuse textures (or fallback colors) for each layer
               var _tDiffuse = [];
-              for (var _pli = 0; _pli < 4; _pli++) {
-                if (_pli < _rpNumLayers && _rpTextures[_pli]) {
+              for (var _pli = 0; _pli < _rpNumLayers; _pli++) {
+                if (_rpTextures[_pli]) {
                   _tDiffuse[_pli] = _rpTHREE.texture(_rpTextures[_pli], _a_uv.mul(_tScale[_pli])).rgb;
                 } else {
                   var _fc = _rpUniforms["uColor" + _pli].value;
@@ -5983,25 +5958,27 @@ export function getVisualEditBridgeScript(): string {
 
               // hb[i] = roughness[i] * 0.08 + weight[i]
               var _hb = [];
-              for (var _pli = 0; _pli < 4; _pli++) {
-                if (_pli < _rpNumLayers) {
-                  _hb[_pli] = _rpTHREE.float(_tRough[_pli]).mul(_hScale).add(_tWeights[_pli]);
-                } else {
-                  _hb[_pli] = _rpTHREE.float(0);
-                }
+              for (var _pli = 0; _pli < _rpNumLayers; _pli++) {
+                _hb[_pli] = _rpTHREE.float(_tRough[_pli]).mul(_hScale).add(_tWeights[_pli]);
               }
 
-              // hbMax = max(all 4)
-              var _hbMax = _rpTHREE.max(_rpTHREE.max(_hb[0], _hb[1]), _rpTHREE.max(_hb[2], _hb[3]));
+              // hbMax = max(all active layers)
+              var _hbMax = _hb[0];
+              for (var _pli = 1; _pli < _rpNumLayers; _pli++) {
+                _hbMax = _rpTHREE.max(_hbMax, _hb[_pli]);
+              }
 
               // Normalize: hb = max(hb - hbMax + depth, 0) / sum
               var _hn = [];
-              for (var _pli = 0; _pli < 4; _pli++) {
+              for (var _pli = 0; _pli < _rpNumLayers; _pli++) {
                 _hn[_pli] = _rpTHREE.max(_hb[_pli].sub(_hbMax).add(_hDepth), _rpTHREE.float(0));
               }
-              var _hSum = _hn[0].add(_hn[1]).add(_hn[2]).add(_hn[3]).add(_rpTHREE.float(0.001));
+              var _hSum = _rpTHREE.float(0.001);
+              for (var _pli = 0; _pli < _rpNumLayers; _pli++) {
+                _hSum = _hSum.add(_hn[_pli]);
+              }
               var _hFinal = [];
-              for (var _pli = 0; _pli < 4; _pli++) {
+              for (var _pli = 0; _pli < _rpNumLayers; _pli++) {
                 _hFinal[_pli] = _hn[_pli].div(_hSum);
               }
 
@@ -6065,7 +6042,8 @@ export function getVisualEditBridgeScript(): string {
 
               console.log("[TerrainPainter] TSL material applied with", _rpNumLayers, "layers, height-depth blending, normals:", _hasAnyNormal);
             } else {
-              // Fallback: TSL not available — apply dominant texture only
+              // Fallback: TSL not available — apply dominant texture only (max 4 layers on WebGL)
+              if (_rpNumLayers > 4) console.warn("[TerrainPainter] WebGL fallback limited to 4 layers — enable WebGPU for 8-layer support");
               var _rpDomTex = _rpTextures[0] || _rpTextures[1] || _rpTextures[2] || _rpTextures[3];
               if (_rpDomTex) _rpMat.map = _rpDomTex;
               var _rpDomNorm = _rpNormalTextures[0] || _rpNormalTextures[1] || _rpNormalTextures[2] || _rpNormalTextures[3];
@@ -6358,6 +6336,11 @@ export function getVisualEditBridgeScript(): string {
         _sculptBrushStrength = d.brushStrength || 0.3;
         _sculptBrushFalloff = d.brushFalloff || "gaussian";
         if (d.paintLayerIndex != null) _paintLayerIndex = d.paintLayerIndex;
+        if (d.brushHardness !== undefined) _sculptBrushHardness = d.brushHardness;
+        if (d.brushOpacity !== undefined) _sculptBrushOpacity = d.brushOpacity;
+        if (d.brushSpacing !== undefined) _sculptBrushSpacing = d.brushSpacing;
+        if (d.brushJitter !== undefined) _sculptBrushJitter = d.brushJitter;
+        if (d.paintLayerColor !== undefined) _sculptBrushColor = d.paintLayerColor;
 
         // Deselect any currently selected object to avoid gizmo interference
         deselectObject();
@@ -6366,8 +6349,15 @@ export function getVisualEditBridgeScript(): string {
           var _sTHREE = window.THREE;
           var ringGeo = new _sTHREE.RingGeometry(_sculptBrushSize * 0.9, _sculptBrushSize, 64);
           ringGeo.rotateX(-Math.PI / 2);
+          // Use paint layer color for brush ring in paint/erase mode
+          var _ringColor = 0x00ff88;
+          if ((_sculptBrushType === "paint" || _sculptBrushType === "erase") && _sculptBrushColor) {
+            _ringColor = parseInt(_sculptBrushColor.replace("#", ""), 16) || 0x4488ff;
+          } else if (_sculptBrushType === "erase") {
+            _ringColor = 0xff4444;
+          }
           var ringMat = new _sTHREE.MeshBasicMaterial({
-            color: 0x00ff88, side: _sTHREE.DoubleSide,
+            color: _ringColor, side: _sTHREE.DoubleSide,
             transparent: true, opacity: 0.6, depthTest: false
           });
           _sculptBrushMesh = new _sTHREE.Mesh(ringGeo, ringMat);
@@ -6379,7 +6369,6 @@ export function getVisualEditBridgeScript(): string {
         // Reusable raycaster + mouse vector (avoid allocation per frame)
         var _sculptRC = new (window.THREE).Raycaster();
         var _sculptMV = new (window.THREE).Vector2();
-        var _sculptLastApply = 0; // throttle timestamp
 
         window.__sculptMouseMove = function(ev) {
           if (!_sculptActive || !editor) return;
@@ -6397,11 +6386,24 @@ export function getVisualEditBridgeScript(): string {
               _sculptBrushMesh.position.set(pt.x, pt.y + 0.3, pt.z);
             }
             if (_sculptMouseDown) {
-              // Throttle to ~30fps to avoid performance issues
-              var now = performance.now();
-              if (now - _sculptLastApply > 33) {
-                _sculptLastApply = now;
-                applySculptBrush(pt.x, pt.z);
+              // Distance-based stamp spacing (replaces time-throttle)
+              var stampDist = _sculptBrushSize * Math.max(0.05, _sculptBrushSpacing);
+              var shouldStamp = true;
+              if (_sculptLastStampPos) {
+                var sdx = pt.x - _sculptLastStampPos.x;
+                var sdz = pt.z - _sculptLastStampPos.z;
+                if (sdx * sdx + sdz * sdz < stampDist * stampDist) shouldStamp = false;
+              }
+              if (shouldStamp) {
+                // Apply jitter offset
+                var jx = pt.x, jz = pt.z;
+                if (_sculptBrushJitter > 0) {
+                  var jAmt = _sculptBrushSize * _sculptBrushJitter;
+                  jx += (Math.random() - 0.5) * 2 * jAmt;
+                  jz += (Math.random() - 0.5) * 2 * jAmt;
+                }
+                _sculptLastStampPos = { x: pt.x, z: pt.z };
+                applySculptBrush(jx, jz);
               }
             }
           } else {
@@ -6422,7 +6424,7 @@ export function getVisualEditBridgeScript(): string {
           if (hits.length > 0) {
             _sculptMouseDown = true;
             _sculptTargetHeight = hits[0].point.y;
-            _sculptLastApply = performance.now();
+            _sculptLastStampPos = { x: hits[0].point.x, z: hits[0].point.z };
             applySculptBrush(hits[0].point.x, hits[0].point.z);
             ev.stopPropagation();
             ev.preventDefault();
@@ -6437,7 +6439,7 @@ export function getVisualEditBridgeScript(): string {
           ev.stopImmediatePropagation();
         };
 
-        window.__sculptMouseUp = function() { _sculptMouseDown = false; };
+        window.__sculptMouseUp = function() { _sculptMouseDown = false; _sculptLastStampPos = null; };
 
         window.addEventListener("mousemove", window.__sculptMouseMove, true);
         window.addEventListener("mousedown", window.__sculptMouseDown, true);
@@ -6505,6 +6507,23 @@ export function getVisualEditBridgeScript(): string {
         if (d.brushStrength !== undefined) _sculptBrushStrength = d.brushStrength;
         if (d.brushFalloff !== undefined) _sculptBrushFalloff = d.brushFalloff;
         if (d.paintLayerIndex != null) _paintLayerIndex = d.paintLayerIndex;
+        if (d.brushHardness !== undefined) _sculptBrushHardness = d.brushHardness;
+        if (d.brushOpacity !== undefined) _sculptBrushOpacity = d.brushOpacity;
+        if (d.brushSpacing !== undefined) _sculptBrushSpacing = d.brushSpacing;
+        if (d.brushJitter !== undefined) _sculptBrushJitter = d.brushJitter;
+        if (d.paintLayerColor !== undefined) {
+          _sculptBrushColor = d.paintLayerColor;
+          // Update brush ring color live
+          if (_sculptBrushMesh && _sculptBrushMesh.material) {
+            var _newBrushColor = 0x00ff88;
+            if ((_sculptBrushType === "paint" || _sculptBrushType === "erase") && _sculptBrushColor) {
+              _newBrushColor = parseInt(_sculptBrushColor.replace("#", ""), 16) || 0x4488ff;
+            } else if (_sculptBrushType === "erase") {
+              _newBrushColor = 0xff4444;
+            }
+            _sculptBrushMesh.material.color.setHex(_newBrushColor);
+          }
+        }
         break;
       }
 

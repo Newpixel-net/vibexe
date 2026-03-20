@@ -326,6 +326,10 @@ export function TerrainPainterPanel({
 	const [sculptBrushSize, setSculptBrushSize] = useState(10);
 	const [sculptBrushStrength, setSculptBrushStrength] = useState(0.3);
 	const [sculptBrushFalloff, setSculptBrushFalloff] = useState<"gaussian" | "linear" | "flat">("gaussian");
+	const [sculptBrushHardness, setSculptBrushHardness] = useState(0.5);
+	const [sculptBrushOpacity, setSculptBrushOpacity] = useState(1.0);
+	const [sculptBrushSpacing, setSculptBrushSpacing] = useState(0.25);
+	const [sculptBrushJitter, setSculptBrushJitter] = useState(0.0);
 	const [sculptActive, setSculptActive] = useState(false);
 
 	// Preset browser state — restore from saved config if biome was persisted
@@ -342,6 +346,21 @@ export function TerrainPainterPanel({
 		initialConfig?.seed ?? Math.floor(Math.random() * 999999)
 	);
 
+	// Map raw layer index to enabled-layer index for paint
+	const getEnabledLayerIndex = useCallback((rawIndex: number) => {
+		let enabledIdx = 0;
+		for (let i = 0; i < rawIndex && i < layers.length; i++) {
+			if (layers[i].enabled) enabledIdx++;
+		}
+		return layers[rawIndex]?.enabled ? enabledIdx : 0;
+	}, [layers]);
+
+	// Get the preview color of the selected paint layer
+	const getPaintLayerColor = useCallback(() => {
+		const layer = layers[selectedLayer];
+		return layer?.previewColor || "#808080";
+	}, [layers, selectedLayer]);
+
 	// Sculpt activation/deactivation on tab change
 	useEffect(() => {
 		if (activeTab === "sculpt") {
@@ -351,7 +370,12 @@ export function TerrainPainterPanel({
 				brushSize: sculptBrushSize,
 				brushStrength: sculptBrushStrength,
 				brushFalloff: sculptBrushFalloff,
-				paintLayerIndex: selectedLayer,
+				paintLayerIndex: getEnabledLayerIndex(selectedLayer),
+				brushHardness: sculptBrushHardness,
+				brushOpacity: sculptBrushOpacity,
+				brushSpacing: sculptBrushSpacing,
+				brushJitter: sculptBrushJitter,
+				paintLayerColor: getPaintLayerColor(),
 			});
 			setSculptActive(true);
 		} else if (sculptActive) {
@@ -378,10 +402,15 @@ export function TerrainPainterPanel({
 				brushSize: sculptBrushSize,
 				brushStrength: sculptBrushStrength,
 				brushFalloff: sculptBrushFalloff,
-				paintLayerIndex: selectedLayer,
+				paintLayerIndex: getEnabledLayerIndex(selectedLayer),
+				brushHardness: sculptBrushHardness,
+				brushOpacity: sculptBrushOpacity,
+				brushSpacing: sculptBrushSpacing,
+				brushJitter: sculptBrushJitter,
+				paintLayerColor: getPaintLayerColor(),
 			});
 		}
-	}, [sculptBrushType, sculptBrushSize, sculptBrushStrength, sculptBrushFalloff, sculptActive, selectedLayer, sendToIframe]);
+	}, [sculptBrushType, sculptBrushSize, sculptBrushStrength, sculptBrushFalloff, sculptBrushHardness, sculptBrushOpacity, sculptBrushSpacing, sculptBrushJitter, sculptActive, selectedLayer, getEnabledLayerIndex, getPaintLayerColor, sendToIframe]);
 
 	// Auto-repaint after terrain generation or heatmap toggle-off — listen for bridge callbacks
 	const layersRef = useRef(layers);
@@ -942,6 +971,50 @@ export function TerrainPainterPanel({
 							</div>
 						</div>
 
+						{/* Hardness */}
+						<div>
+							<label className="text-[10px] text-white/50 uppercase tracking-wider">
+								Hardness: {sculptBrushHardness.toFixed(2)}
+							</label>
+							<input type="range" min={0} max={1} step={0.01}
+								value={sculptBrushHardness}
+								onChange={e => setSculptBrushHardness(Number(e.target.value))}
+								className="w-full accent-green-500 mt-1" />
+						</div>
+
+						{/* Opacity */}
+						<div>
+							<label className="text-[10px] text-white/50 uppercase tracking-wider">
+								Opacity: {sculptBrushOpacity.toFixed(2)}
+							</label>
+							<input type="range" min={0.01} max={1} step={0.01}
+								value={sculptBrushOpacity}
+								onChange={e => setSculptBrushOpacity(Number(e.target.value))}
+								className="w-full accent-green-500 mt-1" />
+						</div>
+
+						{/* Spacing */}
+						<div>
+							<label className="text-[10px] text-white/50 uppercase tracking-wider">
+								Spacing: {sculptBrushSpacing.toFixed(2)}
+							</label>
+							<input type="range" min={0.05} max={1} step={0.01}
+								value={sculptBrushSpacing}
+								onChange={e => setSculptBrushSpacing(Number(e.target.value))}
+								className="w-full accent-green-500 mt-1" />
+						</div>
+
+						{/* Jitter */}
+						<div>
+							<label className="text-[10px] text-white/50 uppercase tracking-wider">
+								Jitter: {sculptBrushJitter.toFixed(2)}
+							</label>
+							<input type="range" min={0} max={1} step={0.01}
+								value={sculptBrushJitter}
+								onChange={e => setSculptBrushJitter(Number(e.target.value))}
+								className="w-full accent-green-500 mt-1" />
+						</div>
+
 						{/* Terrain Presets */}
 						<div className="pt-3 border-t border-white/10">
 							<label className="text-[10px] text-white/50 uppercase tracking-wider mb-2 block">
@@ -1280,10 +1353,15 @@ function LayersTab({
 				<div className="flex-1" />
 				<button
 					onClick={onAddLayer}
-					className="flex items-center gap-1 px-2 py-1 rounded bg-white/5 hover:bg-white/10 text-[10px] text-white/60 hover:text-white/80 transition-colors"
+					disabled={layers.length >= 8}
+					className={`flex items-center gap-1 px-2 py-1 rounded text-[10px] transition-colors ${
+						layers.length >= 8
+							? "bg-white/5 text-white/20 cursor-not-allowed"
+							: "bg-white/5 hover:bg-white/10 text-white/60 hover:text-white/80"
+					}`}
 				>
 					<Plus className="w-3 h-3" />
-					Add Layer
+					Add Layer ({layers.length}/8)
 				</button>
 			</div>
 
