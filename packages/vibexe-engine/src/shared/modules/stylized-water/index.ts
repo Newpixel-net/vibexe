@@ -393,16 +393,9 @@ function _buildWaterTSLMaterial(u, tex, simplified) {
     var meshOff = THREE.vec2(u.uMeshPosX.div(u.uScale), u.uMeshPosZ.div(u.uScale));
     var worldUV = baseUV.add(meshOff);
 
-    // Declare N (perturbed normal) — simplified uses analytical wave normal only
+    // Declare N (perturbed normal) — always use dual normal maps for quality
     var N;
 
-    if (simplified) {
-      // Simplified: use analytical wave normal only (no texture reads)
-      N = THREE.normalize(_vWN).toVar();
-      N.assign(THREE.normalize(THREE.vec3(N.x, THREE.max(N.y, THREE.float(0.1)), N.z)));
-    }
-
-    if (!simplified) {
     // Primary normal map UV — scroll in one direction
     var nScroll1 = THREE.vec2(u.uTime.mul(u.uNormalSpeed), u.uTime.mul(u.uNormalSpeed).mul(0.7));
     var nUV1 = worldUV.mul(u.uNormalTiling).add(nScroll1);
@@ -452,7 +445,6 @@ function _buildWaterTSLMaterial(u, tex, simplified) {
 
     // Clamp normal Y to be positive — water surface normal should always point upward
     N.assign(THREE.normalize(THREE.vec3(N.x, THREE.max(N.y, THREE.float(0.1)), N.z)));
-    } // end !simplified normal maps
 
     // --- Fresnel (Schlick) using perturbed normal ---
     var NdotV = THREE.dot(N, viewDir).clamp(0, 1);
@@ -477,9 +469,9 @@ function _buildWaterTSLMaterial(u, tex, simplified) {
     var foamAmount = THREE.float(0.0).toVar();
     var intAmount = THREE.float(0.0).toVar();
 
-    if (!simplified) {
-
-    // Only compute foam when enabled (uFoamEnabled > 0.5)
+    // =================================================================
+    // Wave crest foam (always runs — no depth buffer dependency)
+    // =================================================================
     // Wave crest foam: height-based + base amount
     var crest = wH.mul(2.0).clamp(0, 1).mul(u.uFoamWaveAmount);
     var rawFoam = crest.add(u.uFoamBaseAmount);
@@ -513,13 +505,12 @@ function _buildWaterTSLMaterial(u, tex, simplified) {
     cg.assign(THREE.mix(cg, u.uFoamColor.y, foamAmount));
     cb.assign(THREE.mix(cb, u.uFoamColor.z, foamAmount));
 
+    if (!simplified) {
     // =================================================================
-    // Phase 4: Shore intersection foam using waterDepth + texture
+    // Shore intersection foam — requires depth buffer (skip for simplified)
     // =================================================================
 
-    // Detect real geometry behind water (works with both standard AND reverse depth buffers)
-    // rawWaterDepth is linearized: 0 = no depth / sky, 0.01-40 = actual geometry, 50 = capped far
-    // hasGeometry = 1 when depth is in valid range (0.02..40), 0 when sky/no geometry
+    // Detect real geometry behind water
     var geoMin = THREE.step(THREE.float(0.02), rawWaterDepth);
     var geoMax = THREE.float(1.0).sub(THREE.step(THREE.float(40.0), rawWaterDepth));
     var hasGeometry = geoMin.mul(geoMax);
@@ -543,25 +534,31 @@ function _buildWaterTSLMaterial(u, tex, simplified) {
 
     // Smooth intersection: noise * foamTex * (1-dist)^2
     var intVal = noiseSamp.r.mul(intFoamSamp.r).add(intMask).clamp(0, 1).mul(intMask).mul(intMask);
-    // Reduce intersection foam dominance (was making shallow areas look beige/tan)
     intAmount.assign(intVal.clamp(0, 1).mul(0.6).mul(u.uIntEnabled));
 
     // Blend intersection color
     cr.assign(THREE.mix(cr, u.uIntColor.x, intAmount));
     cg.assign(THREE.mix(cg, u.uIntColor.y, intAmount));
     cb.assign(THREE.mix(cb, u.uIntColor.z, intAmount));
+    } // end !simplified intersection foam
 
     // =================================================================
-    // Phase 4: Caustics (dual-layer min blend + chromatic aberration)
+    // Caustics (always runs — simplified uses fixed mask, full uses depth)
     // =================================================================
-    // Only where depth > 0.1 and < 20, caustics enabled, and actual geometry behind
-    var caustMask = waterDepth.sub(0.1).clamp(0, 1).mul(
-      THREE.float(1.0).sub(waterDepth.div(20.0)).clamp(0, 1)
-    ).mul(u.uCausticsEnabled).mul(hasGeometry);
-
-    // Reduce caustics under foam/intersection
-    caustMask = caustMask.mul(THREE.float(1.0).sub(foamAmount.mul(0.5)).sub(intAmount.mul(0.5)).clamp(0, 1));
-    caustMask = caustMask.mul(THREE.float(1.0).sub(density.mul(0.5)));
+    var caustMask;
+    if (simplified) {
+      // Simplified: no depth buffer available — use fixed moderate caustic mask
+      // Reduced under foam areas for visual consistency
+      caustMask = THREE.float(0.35).mul(u.uCausticsEnabled);
+      caustMask = caustMask.mul(THREE.float(1.0).sub(foamAmount.mul(0.5)).clamp(0, 1));
+    } else {
+      // Full: depth-based caustic mask with geometry detection
+      caustMask = waterDepth.sub(0.1).clamp(0, 1).mul(
+        THREE.float(1.0).sub(waterDepth.div(20.0)).clamp(0, 1)
+      ).mul(u.uCausticsEnabled).mul(hasGeometry);
+      caustMask = caustMask.mul(THREE.float(1.0).sub(foamAmount.mul(0.5)).sub(intAmount.mul(0.5)).clamp(0, 1));
+      caustMask = caustMask.mul(THREE.float(1.0).sub(density.mul(0.5)));
+    }
 
     var cTime = u.uTime.mul(u.uCausticsSpeed);
     var cTile = u.uCausticsTiling;
@@ -601,7 +598,6 @@ function _buildWaterTSLMaterial(u, tex, simplified) {
     cr.addAssign(causticR.mul(cBright).mul(0.3));
     cg.addAssign(causticG.mul(cBright).mul(0.3));
     cb.addAssign(causticB.mul(cBright).mul(0.25));
-    } // end !simplified (foam + intersection + caustics)
 
     // --- Horizon distance blend ---
     var dCam = THREE.length(worldPos.sub(THREE.cameraPosition));
@@ -1070,11 +1066,11 @@ StylizedWaterSystem.prototype._build = function() {
 
   // Create plane geometry lying flat on XZ
   // GPU TSL shader handles per-pixel depth/Fresnel — low poly is fine.
-  // Cap at 128 segments (16k verts max) to keep triangle count under control.
+  // Cap at 200 segments (40k verts max) for good wave detail on large ocean bodies.
   var segX = Math.round(s.scale * s.resolution);
   var segZ = Math.round(s.scale * s.resolution);
-  segX = _clamp(segX, 8, 128);
-  segZ = _clamp(segZ, 8, 128);
+  segX = _clamp(segX, 8, 200);
+  segZ = _clamp(segZ, 8, 200);
 
   this._geometry = new THREE.PlaneGeometry(s.scale, s.scale, segX, segZ);
   this._geometry.rotateX(-Math.PI / 2);
@@ -1096,7 +1092,7 @@ StylizedWaterSystem.prototype._build = function() {
     };
     this._simplified = (this.settings.scale >= 100);
     this._material = _buildWaterTSLMaterial(this._tslU, this._tslTex, this._simplified);
-    if (this._simplified) console.log('[StylizedWater] Using simplified shader (scale >= 100)');
+    if (this._simplified) console.log('[StylizedWater] Simplified shader (scale >= 100): skip depth buffer + intersection foam + edge fade');
     this._usePBR = false;
     this._usePhysical = false;
     this._useTSL = true;
@@ -1354,10 +1350,9 @@ StylizedWaterSystem.prototype._updateUnderwaterFog = function() {
   }
 
   // Camera-only submersion: smooth ramp from surface to 2 units deep.
-  // Account for wave height so overlay doesn't flicker at wave troughs.
-  var waveOffset = this.settings.waveHeight || 0.5;
-  var effectiveSurface = waterSurface - waveOffset; // below wave troughs
-  var depth = effectiveSurface - camY;
+  // Use raw mesh Y — no wave offset (waveHeight varies per body and caused
+  // the overlay to activate too early, e.g. 1.9 units above the actual mesh).
+  var depth = waterSurface - camY;
   var submersion = depth > 0 ? _clamp(depth / 2.0, 0, 1) : 0;
 
   // Update underwater overlay color: use manual underwaterColor or derive from deep color
@@ -1718,8 +1713,8 @@ StylizedWaterSystem.prototype._rebuildGeometry = function() {
   var s = this.settings;
   if (this._geometry) this._geometry.dispose();
 
-  var segX = _clamp(Math.round(s.scale * s.resolution), 8, 128);
-  var segZ = _clamp(Math.round(s.scale * s.resolution), 8, 128);
+  var segX = _clamp(Math.round(s.scale * s.resolution), 8, 200);
+  var segZ = _clamp(Math.round(s.scale * s.resolution), 8, 200);
 
   this._geometry = new THREE.PlaneGeometry(s.scale, s.scale, segX, segZ);
   this._geometry.rotateX(-Math.PI / 2);

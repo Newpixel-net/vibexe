@@ -4156,9 +4156,9 @@ function SkyWeatherAdvancedSystem(scene, settings) {
   this._time = 0;
   this._lastUpdate = Date.now();
   this._skyUpdateTimer = 0;
-  this._skyUpdateInterval = 4.0; // Recompute sky colors every 4 seconds (was 2s — halved frequency)
+  this._skyUpdateInterval = 3.0; // Recompute sky colors every 3 seconds
   this._cloudUpdateTimer = 0;
-  this._cloudUpdateInterval = 10.0; // Recompute cloud noise every 10 seconds (wind UV offset still per-frame)
+  this._cloudUpdateInterval = 5.0; // Recompute cloud noise every 5 seconds (wind UV offset still per-frame)
   this._cloudTextureDirty = true; // Only regenerate when settings change or on first load
 
   // Skybox theme state
