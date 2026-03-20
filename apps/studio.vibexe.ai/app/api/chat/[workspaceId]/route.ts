@@ -9,6 +9,7 @@ import { and, eq } from "drizzle-orm";
 import { db } from "@/db";
 import { agents, chatMessages, chatSessions } from "@/db/schema";
 import { vibexe } from "@/app/vibexe";
+import { checkRateLimit } from "@/lib/rate-limiter";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 120;
@@ -24,6 +25,13 @@ export async function POST(
 	{ params }: { params: Promise<{ workspaceId: string }> },
 ) {
 	const { workspaceId: workspaceIdStr } = await params;
+
+	// Rate limit: 15 requests per minute per workspace+IP to prevent credit exhaustion
+	const ip = request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "unknown";
+	const rl = checkRateLimit("chat", `${workspaceIdStr}:${ip}`, 15, 60_000);
+	if (!rl.allowed) {
+		return Response.json({ error: "Too many requests" }, { status: 429 });
+	}
 
 	const parseResult = WorkspaceId.safeParse(workspaceIdStr);
 	if (!parseResult.success) {

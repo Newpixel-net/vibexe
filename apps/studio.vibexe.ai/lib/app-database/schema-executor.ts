@@ -224,7 +224,9 @@ function buildColumnDef(
 	if (field.type === "relation" && field.relationTo) {
 		const targetEntity = allEntities.find((e) => e.name === field.relationTo);
 		if (targetEntity) {
-			const onDelete = field.onDelete ?? "SET NULL";
+			const VALID_ON_DELETE = new Set(["CASCADE", "SET NULL", "RESTRICT", "NO ACTION", "SET DEFAULT"]);
+			const rawOnDelete = (field.onDelete ?? "SET NULL").toUpperCase();
+			const onDelete = VALID_ON_DELETE.has(rawOnDelete) ? rawOnDelete : "SET NULL";
 			parts.push(`REFERENCES "${targetEntity.tableName}"(id) ON DELETE ${onDelete}`);
 		}
 	}

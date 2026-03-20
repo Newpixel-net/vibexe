@@ -614,6 +614,7 @@ function loadCharacterGLB(scene, url, position, charName, modelFileName) {
         tempMixer.clipAction(tempClips[0]).play();
         tempMixer.update(0);
         tempMixer.stopAllAction();
+        tempMixer.uncacheRoot(inner);
       }
 
       // After measurement is done below, we will reset bones to bind pose.
@@ -3415,7 +3416,12 @@ function swapCharacter(scene, characterId) {
 
 // ===== MESSAGE HANDLERS =====
 if (typeof window !== "undefined") {
-  window.addEventListener("message", function(ev) {
+  // Cleanup stale listener from prior bundle injection
+  if (window.__vibexe_charMsgListener) {
+    window.removeEventListener("message", window.__vibexe_charMsgListener);
+    window.__vibexe_charMsgListener = null;
+  }
+  window.__vibexe_charMsgListener = function(ev) {
     if (!ev.data) return;
     // X9 fix: validate message origin — accept same-origin, parent origin, or localhost (dev)
     var evOrigin = ev.origin || "";
@@ -3606,7 +3612,8 @@ if (typeof window !== "undefined") {
         }
       }
     }
-  });
+  };
+  window.addEventListener("message", window.__vibexe_charMsgListener);
 }
 
 // ===== AUTO-INIT =====

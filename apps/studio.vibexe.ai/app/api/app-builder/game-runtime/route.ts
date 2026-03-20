@@ -411,8 +411,10 @@ window.addEventListener('unhandledrejection', function(e) {
             function finalize() {
               // Chain FXAA + vignette + saturation after bloom (Tier 3 quality)
               var output = pp.outputNode;
-              // FXAA: smooth jagged edges (cheaper than MSAA, works with post-processing)
-              if (T.fxaa) {
+              // FXAA: smooth jagged edges — skip for subtle preset (saves GPU on default config)
+              var ppEnable = (window.__VIBEXE_GAME_SETTINGS__ || {}).postProcessing || {};
+              var fxaaEnabled = ppEnable.fxaa !== false && preset !== 'subtle';
+              if (T.fxaa && fxaaEnabled) {
                 try { output = T.fxaa(output); console.log("[PostFX] FXAA enabled"); } catch(_e) {}
               }
               // Vignette: darken edges for cinematic focus (TSL inline — extremely cheap)

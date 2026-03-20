@@ -4156,9 +4156,10 @@ function SkyWeatherAdvancedSystem(scene, settings) {
   this._time = 0;
   this._lastUpdate = Date.now();
   this._skyUpdateTimer = 0;
-  this._skyUpdateInterval = 2.0; // Recompute sky colors every 2 seconds
+  this._skyUpdateInterval = 4.0; // Recompute sky colors every 4 seconds (was 2s — halved frequency)
   this._cloudUpdateTimer = 0;
-  this._cloudUpdateInterval = 3.0; // Recompute cloud noise every 3 seconds (wind UV offset still per-frame)
+  this._cloudUpdateInterval = 10.0; // Recompute cloud noise every 10 seconds (wind UV offset still per-frame)
+  this._cloudTextureDirty = true; // Only regenerate when settings change or on first load
 
   // Skybox theme state
   this._themeTexture = null;      // THREE.Texture (loaded panoramic)
@@ -4435,8 +4436,9 @@ SkyWeatherAdvancedSystem.prototype._tick = function(dt) {
   // Clouds
   this.clouds.update(dt, camera, this.orbital.sunDirection, this.settings.clouds || {}, this.orbital.moonDirection, this.orbital.moonPhase);
   this._cloudUpdateTimer += dt;
-  if (this._cloudUpdateTimer >= this._cloudUpdateInterval) {
+  if (this._cloudTextureDirty && this._cloudUpdateTimer >= this._cloudUpdateInterval) {
     this._cloudUpdateTimer = 0;
+    this._cloudTextureDirty = false;
     this.clouds.updateTexture(this.atmosphere);
   }
 
@@ -4575,6 +4577,7 @@ SkyWeatherAdvancedSystem.prototype.updateSettings = function(patch) {
   // Force immediate sky recompute on settings change
   this._skyUpdateTimer = this._skyUpdateInterval;
   this._cloudUpdateTimer = this._cloudUpdateInterval;
+  this._cloudTextureDirty = true;
 };
 
 SkyWeatherAdvancedSystem.prototype.destroy = function() {
@@ -4843,9 +4846,14 @@ if (typeof window !== "undefined") {
   };
 
   // Auto-init when scene becomes available
+  // Cleanup from prior bundle injection: clear old interval + message listener
   if (window.__swa_autoInitInterval) {
     clearInterval(window.__swa_autoInitInterval);
     window.__swa_autoInitInterval = null;
+  }
+  if (window.__vibexe_swaMsgListener) {
+    window.removeEventListener("message", window.__vibexe_swaMsgListener);
+    window.__vibexe_swaMsgListener = null;
   }
   (function() {
     var attempts = 0;
@@ -4884,15 +4892,19 @@ if (typeof window !== "undefined") {
         } catch(e) {}
         window.__vibexe_skyWeatherAdvanced = new SkyWeatherAdvancedSystem(scene, settings);
 
-        // Listen for bridge messages
-        window.addEventListener("message", function(ev) {
+        // Listen for bridge messages — stored for cleanup on re-inject
+        if (window.__vibexe_swaMsgListener) {
+          window.removeEventListener("message", window.__vibexe_swaMsgListener);
+        }
+        window.__vibexe_swaMsgListener = function(ev) {
           if (!ev.data || !ev.data.type) return;
           var sys = window.__vibexe_skyWeatherAdvanced;
           if (!sys) return;
           if (ev.data.type.indexOf("sky-weather-") === 0) {
             sys.handleBridgeMessage(ev.data.type, ev.data.payload || ev.data);
           }
-        });
+        };
+        window.addEventListener("message", window.__vibexe_swaMsgListener);
       }
       if (attempts >= 100) {
         clearInterval(timer);

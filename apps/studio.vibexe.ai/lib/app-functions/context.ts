@@ -163,6 +163,12 @@ export function buildFunctionContext(opts: BuildContextOpts): FunctionContext {
 
 	const dbHelpers: FunctionContext["db"] = {
 		async query<T = Record<string, unknown>>(sql: string, params: unknown[] = []): Promise<T[]> {
+			// Block DDL statements to prevent schema destruction from user functions
+			const firstWord = sql.trim().split(/\s/)[0]?.toUpperCase();
+			const BLOCKED_DDL = new Set(["DROP", "ALTER", "CREATE", "GRANT", "REVOKE", "TRUNCATE", "COMMENT", "REASSIGN"]);
+			if (firstWord && BLOCKED_DDL.has(firstWord)) {
+				throw new Error(`DDL statement "${firstWord}" is not allowed in user functions`);
+			}
 			return executeQuery<T & Record<string, unknown>>(databaseName, sql, params) as Promise<T[]>;
 		},
 

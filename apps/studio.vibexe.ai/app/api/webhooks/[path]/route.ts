@@ -4,6 +4,7 @@ import { db } from "@/db";
 import { agents, webhookEndpoints, webhookRequestLogs } from "@/db/schema";
 import { vibexe } from "@/app/vibexe";
 import { eq, and, lt, desc } from "drizzle-orm";
+import { checkRateLimit } from "@/lib/rate-limiter";
 
 export const dynamic = "force-dynamic";
 
@@ -63,6 +64,13 @@ export async function POST(
 	{ params }: { params: Promise<{ path: string }> },
 ) {
 	const { path } = await params;
+
+	// Rate limit: 30 webhook calls per minute per path+IP
+	const ip = request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "unknown";
+	const rl = checkRateLimit("webhook", `${path}:${ip}`, 30, 60_000);
+	if (!rl.allowed) {
+		return Response.json({ error: "Too many requests" }, { status: 429 });
+	}
 
 	try {
 		// Look up the webhook endpoint (filter by POST method)

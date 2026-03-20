@@ -5,6 +5,7 @@ import {
 	isOperationNode,
 } from "@vibexe-ai/protocol";
 import { vibexe } from "@/app/vibexe";
+import { getUser } from "@/lib/auth/get-user";
 
 export const dynamic = "force-dynamic";
 
@@ -17,6 +18,8 @@ export const dynamic = "force-dynamic";
  *
  * POST /api/mcp/[workspaceId]
  *
+ * Authentication: Session cookie (vibexe-auth) or Bearer token.
+ *
  * JSON-RPC methods supported:
  * - initialize: server capabilities & info
  * - tools/list: list available tools (workflow nodes)
@@ -26,6 +29,13 @@ export async function POST(
 	request: NextRequest,
 	{ params }: { params: Promise<{ workspaceId: string }> },
 ) {
+	// Auth: require session cookie or Bearer token
+	try {
+		await getUser();
+	} catch {
+		return jsonRpcError(null, -32000, "Authentication required");
+	}
+
 	const { workspaceId: workspaceIdStr } = await params;
 
 	const parseResult = WorkspaceId.safeParse(workspaceIdStr);

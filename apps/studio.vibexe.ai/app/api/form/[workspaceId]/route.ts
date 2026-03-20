@@ -1,6 +1,7 @@
 import type { NextRequest } from "next/server";
 import { NodeId, WorkspaceId, isOperationNode } from "@vibexe-ai/protocol";
 import { vibexe } from "@/app/vibexe";
+import { checkRateLimit } from "@/lib/rate-limiter";
 
 export const dynamic = "force-dynamic";
 
@@ -86,6 +87,13 @@ export async function POST(
 	{ params }: { params: Promise<{ workspaceId: string }> },
 ) {
 	const { workspaceId: workspaceIdStr } = await params;
+
+	// Rate limit: 10 form submissions per minute per workspace+IP
+	const ip = request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "unknown";
+	const rl = checkRateLimit("form", `${workspaceIdStr}:${ip}`, 10, 60_000);
+	if (!rl.allowed) {
+		return Response.json({ error: "Too many requests" }, { status: 429 });
+	}
 
 	const parseResult = WorkspaceId.safeParse(workspaceIdStr);
 	if (!parseResult.success) {

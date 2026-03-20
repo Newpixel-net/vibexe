@@ -5285,6 +5285,12 @@ export function getVisualEditBridgeScript(): string {
       }
 
       case "terrain-painter-repaint": {
+        // BUG 7 fix: prevent double repaint
+        if (window.__vibexe_terrainRepaintInProgress) {
+          console.log("[TerrainPainter] REPAINT SKIPPED — already in progress");
+          break;
+        }
+        window.__vibexe_terrainRepaintInProgress = true;
         var _rpScene = (editor && editor.scene) ? editor.scene : window.__vibexe_scene__;
         console.log("[TerrainPainter] REPAINT CASE HIT. editor=", !!editor, "scene=", !!_rpScene);
         var _rpTHREE = window.THREE;
@@ -6084,6 +6090,7 @@ export function getVisualEditBridgeScript(): string {
             window.__vibexe_terrainSurfaceOffset = _soMax;
             console.log("[TerrainModule] Surface offset:", _soMax, "from", _rpNumLayers, "active layers");
 
+            window.__vibexe_terrainRepaintInProgress = false;
             window.parent.postMessage({ type: "terrain-painter-repainted" }, "*");
           }
 
@@ -6109,6 +6116,8 @@ export function getVisualEditBridgeScript(): string {
                 tex.minFilter = _rpTHREE.LinearMipmapLinearFilter;
                 tex.anisotropy = 4;
                 tex.colorSpace = _rpTHREE.SRGBColorSpace;
+                // Dispose previous texture to prevent GPU memory leak
+                if (_rpTextures[idx] && _rpTextures[idx].dispose) _rpTextures[idx].dispose();
                 _rpTextures[idx] = tex;
                 _rpLoaded++;
                 console.log("[TerrainPainter] Diffuse[" + idx + "] loaded OK (" + _rpLoaded + "/" + _rpTotal + ")");
@@ -6142,6 +6151,7 @@ export function getVisualEditBridgeScript(): string {
                 ntex.minFilter = _rpTHREE.LinearMipmapLinearFilter;
                 ntex.anisotropy = 4;
                 ntex.colorSpace = _rpTHREE.NoColorSpace;
+                if (_rpNormalTextures[idx] && _rpNormalTextures[idx].dispose) _rpNormalTextures[idx].dispose();
                 _rpNormalTextures[idx] = ntex;
                 _rpLoaded++;
                 console.log("[TerrainPainter] Normal[" + idx + "] loaded OK (" + _rpLoaded + "/" + _rpTotal + ")");
@@ -6174,6 +6184,7 @@ export function getVisualEditBridgeScript(): string {
                 rtex.minFilter = _rpTHREE.LinearMipmapLinearFilter;
                 rtex.anisotropy = 4;
                 rtex.colorSpace = _rpTHREE.NoColorSpace;
+                if (_rpRoughnessTextures[idx] && _rpRoughnessTextures[idx].dispose) _rpRoughnessTextures[idx].dispose();
                 _rpRoughnessTextures[idx] = rtex;
                 _rpLoaded++;
                 console.log("[TerrainPainter] Roughness[" + idx + "] loaded OK (" + _rpLoaded + "/" + _rpTotal + ")");
@@ -6205,6 +6216,7 @@ export function getVisualEditBridgeScript(): string {
                 atex.minFilter = _rpTHREE.LinearMipmapLinearFilter;
                 atex.anisotropy = 4;
                 atex.colorSpace = _rpTHREE.NoColorSpace;
+                if (_rpAOTextures[idx] && _rpAOTextures[idx].dispose) _rpAOTextures[idx].dispose();
                 _rpAOTextures[idx] = atex;
                 _rpLoaded++;
                 console.log("[TerrainPainter] AO[" + idx + "] loaded OK (" + _rpLoaded + "/" + _rpTotal + ")");
@@ -6232,7 +6244,8 @@ export function getVisualEditBridgeScript(): string {
             // If terrain already has a TSL material (from a prior textured repaint), keep it entirely
             if (_rpTerrain.material && _rpTerrain.material.colorNode) {
               console.log("[TerrainPainter] Keeping TSL material from prior repaint (has colorNode)");
-              window.parent.postMessage({ type: "terrain-painter-repainted" }, "*");
+              window.__vibexe_terrainRepaintInProgress = false;
+            window.parent.postMessage({ type: "terrain-painter-repainted" }, "*");
               break;
             }
           } else {

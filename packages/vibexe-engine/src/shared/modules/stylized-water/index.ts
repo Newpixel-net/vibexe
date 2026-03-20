@@ -715,9 +715,7 @@ var DEFAULT_SETTINGS = {
   sparkleSize: 0.9,
 
   // Refraction (Phase 3) — opt-in due to perf cost (~viewportSharedTexture per body)
-  refractionEnabled: false,
-  refractionStrength: 0.3,
-  refractionThickness: 2.0,
+  // refraction removed — viewportSharedTexture killed FPS (see commit 5132cda09)
 
   // River mode (Phase 5)
   riverMode: false,
@@ -752,7 +750,6 @@ var PRESETS = {
     waveTint: 0.05, colorAbsorption: 0.7,
     sunReflectionStrength: 0.6, sunReflectionSize: 0.4,
     edgeFade: 1.5,
-    refractionEnabled: true, refractionThickness: 2.5,
   },
   'clear-pool': {
     shallowColor: { r: 0.15, g: 0.55, b: 0.65, a: 0.55 },
@@ -768,7 +765,6 @@ var PRESETS = {
     sparkleIntensity: 0.08, intersectionLength: 1.5,
     sunReflectionStrength: 0.5, sunReflectionSize: 0.3,
     colorAbsorption: 0.3,
-    refractionEnabled: true, refractionThickness: 1.0, refractionStrength: 0.4,
   },
   river: {
     shallowColor: { r: 0.35, g: 0.7, b: 0.65, a: 0.75 },
@@ -779,7 +775,6 @@ var PRESETS = {
     intersectionLength: 2.0,
     normalSpeed: 0.15, normalStrength: 0.7, normalMapIndex: 3,
     causticsEnabled: true, causticsBrightness: 1.2,
-    refractionEnabled: true, refractionThickness: 2.0,
     riverMode: true, riverDirection: 90, riverSpeed: 1.5,
   },
   cartoon: {
@@ -792,7 +787,6 @@ var PRESETS = {
     roughness: 0.3, metalness: 0.1,
     causticsEnabled: false,
     normalStrength: 0.5,
-    refractionEnabled: false,
   },
   swamp: {
     shallowColor: { r: 0.25, g: 0.35, b: 0.15, a: 0.92 },
@@ -804,7 +798,6 @@ var PRESETS = {
     causticsEnabled: false,
     translucencyStrength: 0.1,
     normalStrength: 0.2, normalSpeed: 0.02,
-    refractionEnabled: false,
   },
   frozen: {
     shallowColor: { r: 0.7, g: 0.85, b: 0.95, a: 0.95 },
@@ -815,7 +808,6 @@ var PRESETS = {
     roughness: 0.02, metalness: 0.6,
     causticsEnabled: false,
     normalStrength: 0.1, normalSpeed: 0,
-    refractionEnabled: false,
   },
   lava: {
     shallowColor: { r: 1.0, g: 0.4, b: 0.0, a: 0.95 },
@@ -827,7 +819,6 @@ var PRESETS = {
     causticsEnabled: false,
     translucencyStrength: 1.5, translucencyExp: 3.0,
     normalStrength: 0.8, normalSpeed: 0.03,
-    refractionEnabled: false,
   },
   realistic: {
     shallowColor: { r: 0.06, g: 0.28, b: 0.38, a: 0.88 },
@@ -844,7 +835,6 @@ var PRESETS = {
     sunReflectionStrength: 0.7, sunReflectionSize: 0.45,
     waveTint: 0.04, colorAbsorption: 0.6,
     edgeFade: 1.2,
-    refractionEnabled: true, refractionThickness: 2.0,
   },
   murky: {
     shallowColor: { r: 0.3, g: 0.3, b: 0.2, a: 0.92 },
@@ -856,7 +846,6 @@ var PRESETS = {
     causticsEnabled: false,
     translucencyStrength: 0.1,
     normalStrength: 0.3,
-    refractionEnabled: false,
   },
   'low-poly': {
     shallowColor: { r: 0.3, g: 0.75, b: 0.85, a: 0.85 },
@@ -867,7 +856,6 @@ var PRESETS = {
     roughness: 0.3, metalness: 0.2,
     causticsEnabled: false,
     normalStrength: 0.0,
-    refractionEnabled: false,
   },
   tropical: {
     shallowColor: { r: 0.08, g: 0.55, b: 0.50, a: 0.50 },
@@ -884,7 +872,6 @@ var PRESETS = {
     sunReflectionStrength: 0.8, sunReflectionSize: 0.35,
     waveTint: 0.03, colorAbsorption: 0.3,
     intersectionLength: 2.0, edgeFade: 1.0,
-    refractionEnabled: true, refractionThickness: 1.2, refractionStrength: 0.4,
   },
   mediterranean: {
     shallowColor: { r: 0.04, g: 0.35, b: 0.48, a: 0.70 },
@@ -901,7 +888,6 @@ var PRESETS = {
     sunReflectionStrength: 0.85, sunReflectionSize: 0.5,
     waveTint: 0.05, colorAbsorption: 0.4,
     intersectionLength: 2.5, edgeFade: 1.0,
-    refractionEnabled: true, refractionThickness: 1.5, refractionStrength: 0.35,
   },
   'arctic-ocean': {
     shallowColor: { r: 0.04, g: 0.14, b: 0.18, a: 0.94 },
@@ -919,7 +905,6 @@ var PRESETS = {
     sunReflectionStrength: 0.35, sunReflectionSize: 0.3,
     waveTint: 0.06, colorAbsorption: 0.75,
     intersectionLength: 3.0, edgeFade: 1.5,
-    refractionEnabled: false,
   },
   storm: {
     shallowColor: { r: 0.08, g: 0.10, b: 0.10, a: 0.96 },
@@ -938,7 +923,6 @@ var PRESETS = {
     waveTint: 0.08, colorAbsorption: 0.8,
     intersectionLength: 3.0, edgeFade: 0.8,
     surfaceOpacity: 1.0,
-    refractionEnabled: false,
   },
 };
 
@@ -1030,9 +1014,8 @@ function StylizedWaterSystem(scene, camera, settings, bodyId, displayName) {
     }
   }
 
-  // Start animation
+  // Bind animation update (manager drives the loop — no per-body RAF)
   this._animLoop = this._animLoop.bind(this);
-  this._animFrameId = requestAnimationFrame(this._animLoop);
 
   var _vertCount = this._geometry ? this._geometry.attributes.position.count : 0;
   console.log('[StylizedWater] v3.0.0 initialized — scale:' + this.settings.scale +
@@ -1235,7 +1218,7 @@ StylizedWaterSystem.prototype._animLoop = function() {
     this._updateBuoyancy();
   }
 
-  this._animFrameId = requestAnimationFrame(this._animLoop);
+  // No per-body RAF — WaterBodyManager._tick() calls this
 };
 
 
@@ -1311,6 +1294,25 @@ StylizedWaterSystem.prototype._updateUnderwaterFog = function() {
 
   var camY = this.camera.position.y;
   var waterSurface = this._mesh ? this._mesh.position.y : this.settings.waterLevel;
+
+  // Only the nearest submerged body shows its overlay (prevent 3 overlapping quads)
+  var bodies = window.__vibexe_waterBodies || [];
+  if (bodies.length > 1) {
+    var nearestDist = Infinity;
+    var nearestBody = null;
+    for (var ub = 0; ub < bodies.length; ub++) {
+      var bSurf = bodies[ub]._mesh ? bodies[ub]._mesh.position.y : bodies[ub].settings.waterLevel;
+      if (camY < bSurf) {
+        var d = bSurf - camY;
+        if (d < nearestDist) { nearestDist = d; nearestBody = bodies[ub]; }
+      }
+    }
+    if (nearestBody && nearestBody !== this) {
+      if (this._underwaterOverlayMat) this._underwaterOverlayMat.opacity = 0;
+      return;
+    }
+  }
+
   // Camera must be 2+ units below water before overlay starts
   var submersion = _clamp((waterSurface - camY - 2.0) * 0.5, 0, 1);
 
@@ -1536,9 +1538,11 @@ StylizedWaterSystem.prototype.updateSettings = function(patch) {
     this._loadTextures();
   }
 
-  // Rebuild geometry if scale/resolution changed
+  // Rebuild geometry if scale/resolution changed (debounced to avoid rapid recompile)
   if (this.settings.scale !== oldScale || this.settings.resolution !== oldRes) {
-    this._rebuildGeometry();
+    if (this._rebuildTimer) clearTimeout(this._rebuildTimer);
+    var self = this;
+    this._rebuildTimer = setTimeout(function() { self._rebuildTimer = null; self._rebuildGeometry(); }, 200);
   }
 
   // Update water level
@@ -1748,7 +1752,8 @@ StylizedWaterSystem.prototype._applyPreset = function(presetId) {
 
 StylizedWaterSystem.prototype.dispose = function() {
   this._disposed = true;
-  if (this._animFrameId) cancelAnimationFrame(this._animFrameId);
+  // Per-body RAF removed — manager owns the loop. Keep cancel as safety net.
+  if (this._animFrameId) { cancelAnimationFrame(this._animFrameId); this._animFrameId = null; }
 
   if (this._mesh && this.scene) this.scene.remove(this._mesh);
   if (this._underwaterMesh && this.scene) {
@@ -1815,7 +1820,34 @@ function WaterBodyManager(scene, camera) {
   this._bodyOrder = [];
   this._activeBodyId = null;
   this._maxBodies = 4;
+  this._animFrameId = null;
+  // Start single shared animation loop for all bodies
+  this._startLoop();
 }
+
+WaterBodyManager.prototype._startLoop = function() {
+  var self = this;
+  function loop() {
+    self._animFrameId = requestAnimationFrame(loop);
+    for (var i = 0; i < self._bodyOrder.length; i++) {
+      var body = self._bodies[self._bodyOrder[i]];
+      if (body && !body._disposed) body._animLoop();
+    }
+  }
+  this._animFrameId = requestAnimationFrame(loop);
+};
+
+WaterBodyManager.prototype.dispose = function() {
+  if (this._animFrameId) {
+    cancelAnimationFrame(this._animFrameId);
+    this._animFrameId = null;
+  }
+  for (var i = this._bodyOrder.length - 1; i >= 0; i--) {
+    try { this._bodies[this._bodyOrder[i]].dispose(); } catch(e) {}
+  }
+  this._bodies = {};
+  this._bodyOrder = [];
+};
 
 WaterBodyManager.prototype.createBody = function(config, id, name) {
   if (this._bodyOrder.length >= this._maxBodies) {
@@ -2019,6 +2051,16 @@ if (typeof window !== 'undefined') {
     WaterBodyManager: WaterBodyManager,
   };
 
+  // Cleanup from prior bundle injection: clear old interval + message listener
+  if (window.__vibexe_waterAutoInitInterval) {
+    clearInterval(window.__vibexe_waterAutoInitInterval);
+    window.__vibexe_waterAutoInitInterval = null;
+  }
+  if (window.__vibexe_waterMsgListener) {
+    window.removeEventListener('message', window.__vibexe_waterMsgListener);
+    window.__vibexe_waterMsgListener = null;
+  }
+
   (function() {
     var attempts = 0;
     var timer = setInterval(function() {
@@ -2029,18 +2071,14 @@ if (typeof window !== 'undefined') {
       if (scene && window.__vibexe_waterManager &&
           window.__vibexe_waterManager.scene !== scene) {
         console.log('[StylizedWater] Scene changed, re-initializing');
-        try {
-          var oldMgr = window.__vibexe_waterManager;
-          for (var oi = oldMgr._bodyOrder.length - 1; oi >= 0; oi--) {
-            try { oldMgr._bodies[oldMgr._bodyOrder[oi]].dispose(); } catch(e) {}
-          }
-        } catch(e) {}
+        try { window.__vibexe_waterManager.dispose(); } catch(e) {}
         window.__vibexe_waterManager = null;
         window.__vibexe_stylizedWater = null;
       }
 
       if (scene && typeof THREE !== 'undefined' && !window.__vibexe_waterManager) {
         clearInterval(timer);
+        window.__vibexe_waterAutoInitInterval = null;
 
         var camera = window.__vibexe_camera__ || null;
         if (!camera) {
@@ -2093,8 +2131,11 @@ if (typeof window !== 'undefined') {
         // Backwards compat: point singleton at first body
         window.__vibexe_stylizedWater = manager.getActiveBody();
 
-        // Bridge message listener — route through manager
-        window.addEventListener('message', function(ev) {
+        // Bridge message listener — stored for cleanup on re-inject
+        if (window.__vibexe_waterMsgListener) {
+          window.removeEventListener('message', window.__vibexe_waterMsgListener);
+        }
+        window.__vibexe_waterMsgListener = function(ev) {
           if (!ev.data || !ev.data.type) return;
           var mgr = window.__vibexe_waterManager;
           if (!mgr) return;
@@ -2103,14 +2144,17 @@ if (typeof window !== 'undefined') {
             // Keep singleton ref in sync with active body
             window.__vibexe_stylizedWater = mgr.getActiveBody();
           }
-        });
+        };
+        window.addEventListener('message', window.__vibexe_waterMsgListener);
       }
 
       if (attempts >= 100) {
         clearInterval(timer);
+        window.__vibexe_waterAutoInitInterval = null;
         console.warn('[StylizedWater] Scene not found after 10s');
       }
     }, 100);
+    window.__vibexe_waterAutoInitInterval = timer;
   })();
 }
 
