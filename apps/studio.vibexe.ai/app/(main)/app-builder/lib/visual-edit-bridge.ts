@@ -5924,11 +5924,21 @@ export function getVisualEditBridgeScript(): string {
             });
 
             if (_rpFn) {
-              // Read splatmap weights from packed vec4 attributes (must specify "vec4" type!)
+              // Read splatmap weights from packed vec4 attributes
               var _a_uv = _rpTHREE.uv();
-              var _a_wA = _rpTHREE.attribute("weightsA", "vec4"); // vec4: w0,w1,w2,w3
-              var _a_wB = _rpTHREE.attribute("weightsB", "vec4"); // vec4: w4,w5,w6,w7
-              var _allWeights = [_a_wA.x, _a_wA.y, _a_wA.z, _a_wA.w, _a_wB.x, _a_wB.y, _a_wB.z, _a_wB.w];
+              var _a_wA = _rpTHREE.attribute("weightsA", "vec4");
+              var _a_wB = _rpTHREE.attribute("weightsB", "vec4");
+              // Extract components using dot product with unit vectors (works in all TSL backends)
+              var _unitX = _rpTHREE.vec4(1, 0, 0, 0);
+              var _unitY = _rpTHREE.vec4(0, 1, 0, 0);
+              var _unitZ = _rpTHREE.vec4(0, 0, 1, 0);
+              var _unitW = _rpTHREE.vec4(0, 0, 0, 1);
+              var _allWeights = [
+                _rpTHREE.dot(_a_wA, _unitX), _rpTHREE.dot(_a_wA, _unitY),
+                _rpTHREE.dot(_a_wA, _unitZ), _rpTHREE.dot(_a_wA, _unitW),
+                _rpTHREE.dot(_a_wB, _unitX), _rpTHREE.dot(_a_wB, _unitY),
+                _rpTHREE.dot(_a_wB, _unitZ), _rpTHREE.dot(_a_wB, _unitW)
+              ];
               var _tWeights = [];
               for (var _twi = 0; _twi < _rpNumLayers; _twi++) {
                 _tWeights[_twi] = _allWeights[_twi];
