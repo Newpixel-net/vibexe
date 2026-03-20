@@ -619,11 +619,16 @@ export function getVisualEditBridgeScript(): string {
         var baseIdx = vi * 8;
         // If this vertex hasn't been painted yet, initialize from current shader weights
         if (_paintedWeights[baseIdx] < 0) {
-          var wNames = ["w0","w1","w2","w3","w4","w5","w6","w7"];
-          for (var ci = 0; ci < 8; ci++) {
-            var wA = geo.attributes[wNames[ci]];
-            _paintedWeights[baseIdx + ci] = wA ? wA.getX(vi) : (ci === 0 ? 1 : 0);
-          }
+          var wAAttr = geo.attributes.weightsA;
+          var wBAttr = geo.attributes.weightsB;
+          _paintedWeights[baseIdx + 0] = wAAttr ? wAAttr.getX(vi) : 1;
+          _paintedWeights[baseIdx + 1] = wAAttr ? wAAttr.getY(vi) : 0;
+          _paintedWeights[baseIdx + 2] = wAAttr ? wAAttr.getZ(vi) : 0;
+          _paintedWeights[baseIdx + 3] = wAAttr ? wAAttr.getW(vi) : 0;
+          _paintedWeights[baseIdx + 4] = wBAttr ? wBAttr.getX(vi) : 0;
+          _paintedWeights[baseIdx + 5] = wBAttr ? wBAttr.getY(vi) : 0;
+          _paintedWeights[baseIdx + 6] = wBAttr ? wBAttr.getZ(vi) : 0;
+          _paintedWeights[baseIdx + 7] = wBAttr ? wBAttr.getW(vi) : 0;
         }
         // Add to target layer, reduce others
         var paintDelta = alpha * str * (_sculptBrushType === "erase" ? -1 : 1);
@@ -637,12 +642,11 @@ export function getVisualEditBridgeScript(): string {
         if (wSum2 > 0.001) {
           for (var ni3 = 0; ni3 < 8; ni3++) _paintedWeights[baseIdx + ni3] = Math.max(0, _paintedWeights[baseIdx + ni3]) / wSum2;
         }
-        // Write directly to shader weight attributes
-        var wNames2 = ["w0","w1","w2","w3","w4","w5","w6","w7"];
-        for (var wi = 0; wi < 8; wi++) {
-          var wA2 = geo.attributes[wNames2[wi]];
-          if (wA2) wA2.setX(vi, _paintedWeights[baseIdx + wi]);
-        }
+        // Write directly to packed weight attributes (vec4 each)
+        var wAAttr2 = geo.attributes.weightsA;
+        var wBAttr2 = geo.attributes.weightsB;
+        if (wAAttr2) wAAttr2.setXYZW(vi, _paintedWeights[baseIdx+0], _paintedWeights[baseIdx+1], _paintedWeights[baseIdx+2], _paintedWeights[baseIdx+3]);
+        if (wBAttr2) wBAttr2.setXYZW(vi, _paintedWeights[baseIdx+4], _paintedWeights[baseIdx+5], _paintedWeights[baseIdx+6], _paintedWeights[baseIdx+7]);
         modified = true;
       } else {
         // Regular sculpt modes (raise/lower/flatten/smooth) — modify height
@@ -688,8 +692,8 @@ export function getVisualEditBridgeScript(): string {
     if (modified) {
       // For paint mode, only update weight attributes (no geometry/physics changes)
       if (_sculptBrushType === "paint" || _sculptBrushType === "erase") {
-        var wNames3 = ["w0","w1","w2","w3","w4","w5","w6","w7"];
-        for (var wa = 0; wa < 8; wa++) { var wA3 = geo.attributes[wNames3[wa]]; if (wA3) wA3.needsUpdate = true; }
+        if (geo.attributes.weightsA) geo.attributes.weightsA.needsUpdate = true;
+        if (geo.attributes.weightsB) geo.attributes.weightsB.needsUpdate = true;
         return; // Skip height/normal/physics updates
       }
       pos.needsUpdate = true;
@@ -5529,15 +5533,24 @@ export function getVisualEditBridgeScript(): string {
           }
 
           function _rpApplyShaderMaterial() {
-            // Pack weights into vertex attributes (up to 8 layers)
-            var _wArrays = [];
-            for (var wi = 0; wi < 8; wi++) {
-              var _wArr = new Float32Array(_rpCount);
-              if (wi < _rpNumLayers) {
-                for (var v = 0; v < _rpCount; v++) _wArr[v] = _rpWeights[wi][v];
-              }
-              _wArrays.push(_wArr);
-              _rpGeo.setAttribute("w" + wi, new _rpTHREE.BufferAttribute(_wArr, 1));
+            // Pack weights into 2 vec4 attributes (avoids WebGPU 8-buffer limit)
+            var _wA = new Float32Array(_rpCount * 4);
+            var _wB = new Float32Array(_rpCount * 4);
+            for (var v = 0; v < _rpCount; v++) {
+              _wA[v*4]   = _rpNumLayers > 0 ? _rpWeights[0][v] : 0;
+              _wA[v*4+1] = _rpNumLayers > 1 ? _rpWeights[1][v] : 0;
+              _wA[v*4+2] = _rpNumLayers > 2 ? _rpWeights[2][v] : 0;
+              _wA[v*4+3] = _rpNumLayers > 3 ? _rpWeights[3][v] : 0;
+              _wB[v*4]   = _rpNumLayers > 4 ? _rpWeights[4][v] : 0;
+              _wB[v*4+1] = _rpNumLayers > 5 ? _rpWeights[5][v] : 0;
+              _wB[v*4+2] = _rpNumLayers > 6 ? _rpWeights[6][v] : 0;
+              _wB[v*4+3] = _rpNumLayers > 7 ? _rpWeights[7][v] : 0;
+            }
+            _rpGeo.setAttribute("weightsA", new _rpTHREE.BufferAttribute(_wA, 4));
+            _rpGeo.setAttribute("weightsB", new _rpTHREE.BufferAttribute(_wB, 4));
+            // Remove old individual weight attributes if present
+            for (var _rwi = 0; _rwi < 8; _rwi++) {
+              if (_rpGeo.attributes["w" + _rwi]) _rpGeo.deleteAttribute("w" + _rwi);
             }
 
             var _rpUniforms = {
@@ -5586,10 +5599,7 @@ export function getVisualEditBridgeScript(): string {
             }
 
             var _rpVertShader = [
-              "attribute float w0;",
-              "attribute float w1;",
-              "attribute float w2;",
-              "attribute float w3;",
+              "attribute vec4 weightsA;",
               "attribute float terrainHeight;",
               "varying vec2 vUv;",
               "varying vec3 vNormal;",
@@ -5604,7 +5614,7 @@ export function getVisualEditBridgeScript(): string {
               "  vNormal = normalize(mat3(modelMatrix) * normal);",
               "  vWorldPos = (modelMatrix * vec4(position, 1.0)).xyz;",
               "  vHeight = terrainHeight;",
-              "  vW0 = w0; vW1 = w1; vW2 = w2; vW3 = w3;",
+              "  vW0 = weightsA.x; vW1 = weightsA.y; vW2 = weightsA.z; vW3 = weightsA.w;",
               "  gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);",
               "}"
             ].join("\\n");
@@ -5912,11 +5922,14 @@ export function getVisualEditBridgeScript(): string {
             });
 
             if (_rpFn) {
-              // Read splatmap weights from vertex attributes (up to 8)
+              // Read splatmap weights from packed vec4 attributes
               var _a_uv = _rpTHREE.uv();
+              var _a_wA = _rpTHREE.attribute("weightsA"); // vec4: w0,w1,w2,w3
+              var _a_wB = _rpTHREE.attribute("weightsB"); // vec4: w4,w5,w6,w7
+              var _allWeights = [_a_wA.x, _a_wA.y, _a_wA.z, _a_wA.w, _a_wB.x, _a_wB.y, _a_wB.z, _a_wB.w];
               var _tWeights = [];
               for (var _twi = 0; _twi < _rpNumLayers; _twi++) {
-                _tWeights[_twi] = _rpTHREE.attribute("w" + _twi);
+                _tWeights[_twi] = _allWeights[_twi];
               }
 
               // Read per-layer parameters from computed uniforms
