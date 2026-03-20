@@ -2093,6 +2093,14 @@ WaterBodyManager.prototype.handleBridgeMessage = function(type, payload) {
         this._sendBodyList();
         this._sendBodyConfig(sys._bodyId);
         this._requestSave();
+        // Refresh scene hierarchy so new water body appears
+        if (window.parent) {
+          window.parent.postMessage({ type: 'game-editor-request-tree' }, '*');
+          // Select the new water body in hierarchy
+          if (sys._mesh) {
+            window.parent.postMessage({ type: 'game-editor-select-by-uuid', uuid: sys._mesh.uuid, name: sys._mesh.name }, '*');
+          }
+        }
       }
       return;
     }
@@ -2101,6 +2109,14 @@ WaterBodyManager.prototype.handleBridgeMessage = function(type, payload) {
       if (this._bodyOrder.length <= 1) return;
       this.removeBody(rid);
       this._requestSave();
+      this._sendBodyList();
+      if (this._activeBodyId && this._bodies[this._activeBodyId]) {
+        this._sendBodyConfig(this._activeBodyId);
+      }
+      // Refresh scene hierarchy so deleted water body disappears
+      if (window.parent) {
+        window.parent.postMessage({ type: 'game-editor-request-tree' }, '*');
+      }
       return;
     }
     case 'select-body': {
