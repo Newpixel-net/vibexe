@@ -1028,10 +1028,12 @@ StylizedWaterSystem.prototype._build = function() {
   var s = this.settings;
 
   // Create plane geometry lying flat on XZ
+  // GPU TSL shader handles per-pixel depth/Fresnel — low poly is fine.
+  // Cap at 128 segments (16k verts max) to keep triangle count under control.
   var segX = Math.round(s.scale * s.resolution);
   var segZ = Math.round(s.scale * s.resolution);
-  segX = _clamp(segX, 8, 400);
-  segZ = _clamp(segZ, 8, 400);
+  segX = _clamp(segX, 8, 128);
+  segZ = _clamp(segZ, 8, 128);
 
   this._geometry = new THREE.PlaneGeometry(s.scale, s.scale, segX, segZ);
   this._geometry.rotateX(-Math.PI / 2);
@@ -1658,8 +1660,8 @@ StylizedWaterSystem.prototype._rebuildGeometry = function() {
   var s = this.settings;
   if (this._geometry) this._geometry.dispose();
 
-  var segX = _clamp(Math.round(s.scale * s.resolution), 8, 400);
-  var segZ = _clamp(Math.round(s.scale * s.resolution), 8, 400);
+  var segX = _clamp(Math.round(s.scale * s.resolution), 8, 128);
+  var segZ = _clamp(Math.round(s.scale * s.resolution), 8, 128);
 
   this._geometry = new THREE.PlaneGeometry(s.scale, s.scale, segX, segZ);
   this._geometry.rotateX(-Math.PI / 2);
