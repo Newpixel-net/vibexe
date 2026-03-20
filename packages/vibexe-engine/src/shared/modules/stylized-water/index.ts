@@ -1193,12 +1193,15 @@ StylizedWaterSystem.prototype._animLoop = function() {
     this._currentFPS = Math.round(this._fpsFrames / (fpsElapsed / 1000));
     this._fpsFrames = 0;
     this._fpsTime = now;
-    if (this._currentFPS < 90 && !this._fpsWarnLogged) {
+    if (this._currentFPS < 30 && !this._fpsWarnLogged) {
       this._fpsWarnLogged = true;
-      console.warn('[StylizedWater] FPS: ' + this._currentFPS + ' (target: 90+)');
-    } else if (this._currentFPS >= 90 && !this._fpsOkLogged) {
-      this._fpsOkLogged = true;
-      console.log('[StylizedWater] FPS: ' + this._currentFPS + ' — target met');
+      console.warn('[StylizedWater] FPS: ' + this._currentFPS + ' (critically low)');
+    } else if (this._currentFPS >= 30) {
+      // Log FPS as info, not warning — 30+ is acceptable
+      if (!this._fpsOkLogged) {
+        this._fpsOkLogged = true;
+        console.log('[StylizedWater] FPS: ' + this._currentFPS);
+      }
     }
   }
 
