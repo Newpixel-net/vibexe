@@ -5360,7 +5360,9 @@ export function getVisualEditBridgeScript(): string {
 
           for (var li2 = 0; li2 < _rpNumLayers; li2++) {
             var layer = _rpEnabledLayers[li2];
-            var weight = 1.0;
+            // Layers with no modifiers get weight=0 (paint-only layers, won't auto-fill terrain)
+            // Exception: layer 0 (base layer) with no modifiers gets weight=1 as terrain base
+            var weight = (layer.modifiers.length === 0 && li2 > 0) ? 0.0 : 1.0;
 
             for (var mi = 0; mi < layer.modifiers.length; mi++) {
               var mod = layer.modifiers[mi];
