@@ -1881,10 +1881,11 @@ export function convertToSandpackFiles(files: AppFile[], langConfig?: SandpackLa
 			"  if(pm.position.y<_th-1)problems.push({id:'player-below-terrain',severity:'error',msg:'Player is BELOW terrain surface — fell through physics'});",
 			"}",
 
-			// Sky & Weather — check instance first, then module registry (instance set async via setInterval)
+			// Sky & Weather — check instance, module registry, or init interval as proof of life
 			"var sw=W.__vibexe_skyWeather||W.__vibexe_skyWeatherAdvanced;",
-			"var swMod=!sw&&W.__vibexe_modules__&&(W.__vibexe_modules__['sky-weather-advanced']||W.__vibexe_modules__['sky-weather']);",
-			"r.push({system:'Sky & Weather',status:sw?'ok':(swMod?'ok':'off'),details:sw?{time:+(sw.solarTime||sw._time||0).toFixed(3),fog:sw.settings?(sw.settings.fog||{}).enabled:(sw.config?(sw.config.fog||{}).enabled:false),auto:sw.settings?(sw.settings.time||{}).autoAdvance:(sw.config?(sw.config.time||{}).autoAdvance:false)}:(swMod?{note:'module loaded, initializing'}:null)});",
+			"var swMod=W.__vibexe_modules__&&(W.__vibexe_modules__['sky-weather-advanced']||W.__vibexe_modules__['sky-weather']);",
+			"var swAny=sw||swMod||W.__swa_autoInitInterval;",
+			"r.push({system:'Sky & Weather',status:sw?'ok':(swAny?'ok':'off'),details:sw?{time:+(sw.solarTime||sw._time||0).toFixed(3),fog:sw.settings?(sw.settings.fog||{}).enabled:(sw.config?(sw.config.fog||{}).enabled:false),auto:sw.settings?(sw.settings.time||{}).autoAdvance:(sw.config?(sw.config.time||{}).autoAdvance:false)}:(swAny?{note:'module loaded'}:null)});",
 
 			// Adaptive Quality (full state from bridge AQ system)
 			"var aq=W.__vibexe_adaptive_quality__;",
