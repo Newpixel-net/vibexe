@@ -921,8 +921,9 @@ if (!gameScene || typeof gameScene.init !== 'function') {
         if (__perfNow - __perfLastCheck >= 2000 && !__editorMode) {
           const __avgFps = __perfFrames / ((__perfNow - __perfLastCheck) / 1000);
           const __perfAge = __perfNow - __perfStartTime;
-          // Two-tier PerfGuard: emergency at FPS<8 after 10s, normal at FPS<15 after 20s
-          if (__avgFps < 15 && !__perfDowngraded && (__perfAge > 20000 || (__avgFps < 8 && __perfAge > 10000))) {
+          // Two-tier PerfGuard: emergency at FPS<8 after 15s, normal at FPS<15 after 35s
+          // Extended grace period for WebGPU TSL shader compilation (multiple materials compile on first use)
+          if (__avgFps < 15 && !__perfDowngraded && (__perfAge > 35000 || (__avgFps < 8 && __perfAge > 15000))) {
             __perfDowngraded = true;
             __perfDowngradeTime = __perfNow;
             W.__vibexe_perfguard_degraded__ = true;

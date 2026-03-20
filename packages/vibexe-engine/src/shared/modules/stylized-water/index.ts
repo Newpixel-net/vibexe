@@ -1168,27 +1168,21 @@ StylizedWaterSystem.prototype._loadTextures = function() {
   // ── GPU TSL path: load textures into placeholder objects for shader sampling ──
   _loadTexture(normalName1, function(tex) {
     _updatePlaceholder(self._tslTex.normal1, tex);
-    console.log('[StylizedWater] TSL normal1 loaded: ' + normalName1);
   });
   _loadTexture(normalName2, function(tex) {
     _updatePlaceholder(self._tslTex.normal2, tex);
-    console.log('[StylizedWater] TSL normal2 loaded: ' + normalName2);
   });
   _loadTexture(foamName, function(tex) {
     _updatePlaceholder(self._tslTex.foam, tex);
-    console.log('[StylizedWater] TSL foam loaded: ' + foamName);
   });
   _loadTexture('Caustics_1', function(tex) {
     _updatePlaceholder(self._tslTex.caustics, tex);
-    console.log('[StylizedWater] TSL caustics loaded');
   });
   _loadTexture('IntersectionNoise', function(tex) {
     _updatePlaceholder(self._tslTex.noise, tex);
-    console.log('[StylizedWater] TSL intersection noise loaded');
   });
   _loadTexture('Intersection_Foam', function(tex) {
     _updatePlaceholder(self._tslTex.intFoam, tex);
-    console.log('[StylizedWater] TSL intersection foam loaded');
   });
 };
 
@@ -1320,7 +1314,6 @@ StylizedWaterSystem.prototype._createUnderwaterOverlay = function() {
     this.scene.add(this.camera);
   }
 
-  console.log('[StylizedWater] Underwater overlay created');
 };
 
 StylizedWaterSystem.prototype._updateUnderwaterFog = function() {
