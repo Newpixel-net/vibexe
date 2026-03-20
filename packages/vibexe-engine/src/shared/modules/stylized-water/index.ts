@@ -1333,20 +1333,22 @@ StylizedWaterSystem.prototype._updateUnderwaterFog = function() {
   var camY = this.camera.position.y;
   var waterSurface = this._mesh ? this._mesh.position.y : this.settings.waterLevel;
 
-  // Only the nearest submerged body shows its overlay (prevent 3 overlapping quads)
+  // Only the body with the HIGHEST surface above camera shows its overlay.
+  // When camera is below multiple bodies, the highest surface = deepest submersion = strongest effect.
   var bodies = window.__vibexe_waterBodies || [];
   if (bodies.length > 1) {
-    var nearestDist = Infinity;
-    var nearestBody = null;
+    var highestSurf = -Infinity;
+    var highestBody = null;
     for (var ub = 0; ub < bodies.length; ub++) {
       var bSurf = bodies[ub]._mesh ? bodies[ub]._mesh.position.y : bodies[ub].settings.waterLevel;
-      if (camY < bSurf) {
-        var d = bSurf - camY;
-        if (d < nearestDist) { nearestDist = d; nearestBody = bodies[ub]; }
+      if (camY < bSurf && bSurf > highestSurf) {
+        highestSurf = bSurf;
+        highestBody = bodies[ub];
       }
     }
-    if (nearestBody && nearestBody !== this) {
+    if (highestBody && highestBody !== this) {
       if (this._underwaterOverlayMat) this._underwaterOverlayMat.opacity = 0;
+      this._underwaterOverlay.visible = false;
       return;
     }
   }
