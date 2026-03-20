@@ -1351,8 +1351,22 @@ StylizedWaterSystem.prototype._updateUnderwaterFog = function() {
     }
   }
 
-  // Camera submersion: starts at 0.3 units below surface, fully submerged at 3 units
-  var submersion = _clamp((waterSurface - camY - 0.3) * 0.4, 0, 1);
+  // Dual submersion check:
+  // 1. Camera submersion: full overlay when camera is 2+ units below water (original threshold)
+  // 2. Character submersion: partial overlay when the player character is underwater
+  //    but orbit camera stays above — this is the common case in third-person games
+  var camSubmersion = _clamp((waterSurface - camY - 2.0) * 0.5, 0, 1);
+
+  var charSubmersion = 0;
+  var playerMesh = window.__vibexe_playerMesh__;
+  if (playerMesh) {
+    var charY = playerMesh.position.y;
+    // Character is considered underwater when 0.5+ units below surface
+    charSubmersion = _clamp((waterSurface - charY - 0.5) * 0.4, 0, 0.6);
+  }
+
+  // Use whichever is stronger — camera deep = full effect, character underwater = partial tint
+  var submersion = Math.max(camSubmersion, charSubmersion);
 
   // Update underwater overlay color: use manual underwaterColor or derive from deep color
   var uwSettings = this.settings.underwater || {};
