@@ -758,20 +758,20 @@ SunDiskRenderer.prototype.build = function(scene) {
   this._group.name = "__swa_sun_disk__";
   this._group.renderOrder = -998;
 
-  // Sun disk — bright white/yellow circle with hard edge (Tenkoku BRDF sun)
-  // NormalBlending so it's visible against bright sky (additive = invisible on white)
+  // Sun disk — intense bright core with hot white center (triggers bloom)
   var diskGeo = new THREE.PlaneGeometry(20, 20);
   var diskCanvas = document.createElement("canvas");
   diskCanvas.width = 256; diskCanvas.height = 256;
   var dCtx = diskCanvas.getContext("2d");
-  // Hard-edge sun disk with soft corona fringe
+  // Hard bright core with tight corona fringe
   var grad = dCtx.createRadialGradient(128, 128, 0, 128, 128, 128);
-  grad.addColorStop(0, "rgba(255,255,245,1.0)");
-  grad.addColorStop(0.35, "rgba(255,252,235,1.0)");
-  grad.addColorStop(0.5, "rgba(255,245,210,0.95)");
-  grad.addColorStop(0.7, "rgba(255,230,170,0.5)");
-  grad.addColorStop(0.85, "rgba(255,210,130,0.15)");
-  grad.addColorStop(1.0, "rgba(255,200,100,0.0)");
+  grad.addColorStop(0, "rgba(255,255,255,1.0)");   // pure white core
+  grad.addColorStop(0.25, "rgba(255,255,250,1.0)"); // near-white
+  grad.addColorStop(0.4, "rgba(255,250,230,0.98)"); // warm white edge
+  grad.addColorStop(0.55, "rgba(255,240,200,0.7)"); // corona start
+  grad.addColorStop(0.7, "rgba(255,220,150,0.25)"); // corona fade
+  grad.addColorStop(0.85, "rgba(255,200,100,0.06)");
+  grad.addColorStop(1.0, "rgba(255,180,60,0.0)");
   dCtx.fillStyle = grad;
   dCtx.fillRect(0, 0, 256, 256);
   var diskTex = new THREE.CanvasTexture(diskCanvas);
@@ -779,21 +779,24 @@ SunDiskRenderer.prototype.build = function(scene) {
     map: diskTex, transparent: true, depthWrite: false, depthTest: false, fog: false,
     side: THREE.DoubleSide, toneMapped: false,
   });
+  // Bright color multiplier — values > 1.0 trigger bloom in HDR pipeline
+  diskMat.color.setRGB(2.5, 2.4, 2.2);
   this._diskMesh = new THREE.Mesh(diskGeo, diskMat);
   this._group.add(this._diskMesh);
 
-  // Glow halo — larger atmospheric bloom around the sun
+  // Glow halo — wide atmospheric scattering around the sun
   var glowGeo = new THREE.PlaneGeometry(80, 80);
   var glowCanvas = document.createElement("canvas");
   glowCanvas.width = 256; glowCanvas.height = 256;
   var gCtx = glowCanvas.getContext("2d");
   var gGrad = gCtx.createRadialGradient(128, 128, 0, 128, 128, 128);
-  gGrad.addColorStop(0, "rgba(255,245,220,1.0)");
-  gGrad.addColorStop(0.1, "rgba(255,240,200,0.85)");
-  gGrad.addColorStop(0.25, "rgba(255,225,170,0.45)");
-  gGrad.addColorStop(0.45, "rgba(255,210,130,0.15)");
-  gGrad.addColorStop(0.7, "rgba(255,190,100,0.04)");
-  gGrad.addColorStop(1.0, "rgba(255,170,70,0.0)");
+  gGrad.addColorStop(0, "rgba(255,250,235,1.0)");   // bright warm center
+  gGrad.addColorStop(0.08, "rgba(255,245,220,0.95)");
+  gGrad.addColorStop(0.18, "rgba(255,235,190,0.65)"); // strong inner glow
+  gGrad.addColorStop(0.35, "rgba(255,220,150,0.3)");  // visible mid glow
+  gGrad.addColorStop(0.55, "rgba(255,200,120,0.1)");   // subtle outer
+  gGrad.addColorStop(0.75, "rgba(255,180,90,0.03)");
+  gGrad.addColorStop(1.0, "rgba(255,160,60,0.0)");
   gCtx.fillStyle = gGrad;
   gCtx.fillRect(0, 0, 256, 256);
   var glowTex = new THREE.CanvasTexture(glowCanvas);
@@ -835,8 +838,8 @@ SunDiskRenderer.prototype.update = function(camera, sunDir, sunAltDeg, settings)
   var horizInflation = sunAltDeg < 15 ? _lerp(1.15, 1.0, _clamp(sunAltDeg / 15, 0, 1)) : 1.0;
   diskScale *= horizInflation;
   if (this._diskMesh) this._diskMesh.scale.setScalar(diskScale);
-  // Glow halo: 3.5x disk scale (was 10x — way too large, covered 1/4 of screen)
-  if (this._glowMesh) this._glowMesh.scale.setScalar(diskScale * 3.5);
+  // Glow halo: 5x disk scale for visible atmospheric scattering
+  if (this._glowMesh) this._glowMesh.scale.setScalar(diskScale * 5.0);
 
   // Hide when sun below horizon
   this._group.visible = sunAltDeg > -2;
@@ -848,22 +851,30 @@ SunDiskRenderer.prototype.update = function(camera, sunDir, sunAltDeg, settings)
   var glowOpacity = sunAltDeg < 20 ? horizFade * 1.0 : horizFade * 0.85;
   if (this._glowMesh && this._glowMesh.material) this._glowMesh.material.opacity = glowOpacity;
 
-  // Warm sun color at low angles (orange-gold sunrise/sunset)
+  // Warm sun color at low angles (orange-gold sunrise/sunset) — HDR brightness
   if (this._diskMesh && this._diskMesh.material) {
     if (sunAltDeg < 20) {
       var warmT = _clamp(1 - sunAltDeg / 20, 0, 1);
-      this._diskMesh.material.color.setRGB(1, _lerp(1, 0.7, warmT), _lerp(0.96, 0.25, warmT));
+      this._diskMesh.material.color.setRGB(
+        _lerp(2.5, 2.0, warmT),
+        _lerp(2.4, 1.2, warmT),
+        _lerp(2.2, 0.5, warmT)
+      );
     } else {
-      this._diskMesh.material.color.setRGB(1, 1, 0.96);
+      this._diskMesh.material.color.setRGB(2.5, 2.4, 2.2);
     }
   }
-  // Glow color follows disk but softer
+  // Glow color follows disk but softer (HDR for bloom pickup)
   if (this._glowMesh && this._glowMesh.material) {
     if (sunAltDeg < 20) {
       var warmT2 = _clamp(1 - sunAltDeg / 20, 0, 1);
-      this._glowMesh.material.color.setRGB(1, _lerp(1, 0.75, warmT2), _lerp(0.9, 0.3, warmT2));
+      this._glowMesh.material.color.setRGB(
+        _lerp(1.4, 1.2, warmT2),
+        _lerp(1.3, 0.8, warmT2),
+        _lerp(1.1, 0.35, warmT2)
+      );
     } else {
-      this._glowMesh.material.color.setRGB(1, 1, 0.9);
+      this._glowMesh.material.color.setRGB(1.4, 1.3, 1.1);
     }
   }
 };
