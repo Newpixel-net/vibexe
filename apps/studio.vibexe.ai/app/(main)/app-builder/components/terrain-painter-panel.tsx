@@ -468,6 +468,7 @@ export function TerrainPainterPanel({
 					metallic: l.metallic,
 					modifiers: l.modifiers,
 					materialId: l.materialId,
+					previewColor: l.previewColor,
 					emissionUrl: l.emissionUrl,
 					emissionIntensity: l.emissionIntensity,
 				})),
@@ -606,6 +607,9 @@ export function TerrainPainterPanel({
 					metallic: l.metallic,
 					modifiers: l.modifiers,
 					materialId: l.materialId,
+					previewColor: l.previewColor,
+					emissionUrl: l.emissionUrl,
+					emissionIntensity: l.emissionIntensity,
 				})),
 				resolution: settings.splatmapResolution,
 			});
