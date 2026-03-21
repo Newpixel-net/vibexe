@@ -2013,16 +2013,38 @@ export function getVisualEditBridgeScript(): string {
       var _spMx = ((clientX - _spRect.left) / _spRect.width) * 2 - 1;
       var _spMy = -((clientY - _spRect.top) / _spRect.height) * 2 + 1;
       raycaster.setFromCamera(new _spTHREE.Vector2(_spMx, _spMy), editor.camera);
-      var _spHits = raycaster.intersectObjects(editor.scene.children, true);
+      // Only raycast against solid surfaces: terrain, spawned objects, ground
+      var _spMeshes = [];
+      editor.scene.traverse(function(child) {
+        if (!child.isMesh) return;
+        if (!child.visible) return;
+        var n = child.name || "";
+        // Skip sky/weather domes, water, editor objects, lights, cameras
+        if (n.indexOf("__swa_") === 0) return;
+        if (n.indexOf("__editor_") === 0) return;
+        if (n.indexOf("StylizedWater") === 0) return;
+        if (n.indexOf("pop_") === 0) return;
+        if (child.type === "TransformControlsGizmo") return;
+        if (child.type === "TransformControlsPlane") return;
+        if (child === boxHelper) return;
+        _spMeshes.push(child);
+      });
+      var _spHits = raycaster.intersectObjects(_spMeshes, false);
       var _spPos = { x: 0, y: 2, z: 0 };
+      var _spFound = false;
       for (var _spi = 0; _spi < _spHits.length; _spi++) {
-        var _spo = _spHits[_spi].object;
-        if (_spo.name && _spo.name.indexOf("__editor_") === 0) continue;
-        if (_spo.isTransformControls) continue;
-        _spPos = { x: +_spHits[_spi].point.x.toFixed(2), y: +(_spHits[_spi].point.y + 0.5).toFixed(2), z: +_spHits[_spi].point.z.toFixed(2) };
+        var pt = _spHits[_spi].point;
+        _spPos = { x: +pt.x.toFixed(2), y: +pt.y.toFixed(2), z: +pt.z.toFixed(2) };
+        _spFound = true;
         break;
       }
-      showDebug("SPAWN at (" + _spPos.x + ", " + _spPos.y + ", " + _spPos.z + ")");
+      if (!_spFound) {
+        // Fallback: project 20 units from camera along click ray
+        var _spDir = new _spTHREE.Vector3(_spMx, _spMy, 0.5).unproject(editor.camera).sub(editor.camera.position).normalize();
+        var _spPt = editor.camera.position.clone().add(_spDir.multiplyScalar(20));
+        _spPos = { x: +_spPt.x.toFixed(2), y: +Math.max(0, _spPt.y).toFixed(2), z: +_spPt.z.toFixed(2) };
+      }
+      showDebug("SPAWN at (" + _spPos.x + ", " + _spPos.y + ", " + _spPos.z + ") hit=" + _spFound);
       window.parent.postMessage({ type: "game-editor-do-spawn", factory: window.__vibexe_spawn_factory__, args: window.__vibexe_spawn_args__ || {}, position: _spPos }, "*");
       return;
     }
@@ -3615,23 +3637,9 @@ export function getVisualEditBridgeScript(): string {
           if (!active || !editor) return;
           if (panToolActive) return; // Pan mode: don't select objects
           // If spawn mode is active, spawn object at click position instead of selecting
+          // (viewport-click path is a backup — handleClick usually handles this first)
           if (window.__vibexe_spawn_mode__ && window.__vibexe_spawn_factory__) {
-            var THREE2 = window.THREE;
-            var rect2 = editor.renderer.domElement.getBoundingClientRect();
-            var mx2 = ((d.clientX - rect2.left) / rect2.width) * 2 - 1;
-            var my2 = -((d.clientY - rect2.top) / rect2.height) * 2 + 1;
-            raycaster.setFromCamera(new THREE2.Vector2(mx2, my2), editor.camera);
-            var hits2 = raycaster.intersectObjects(editor.scene.children, true);
-            var spawnPos = { x: 0, y: 2, z: 0 };
-            for (var hi = 0; hi < hits2.length; hi++) {
-              var ho = hits2[hi].object;
-              if (ho.name && ho.name.indexOf("__editor_") === 0) continue;
-              if (ho.isTransformControls) continue;
-              spawnPos = { x: +hits2[hi].point.x.toFixed(2), y: +(hits2[hi].point.y + 0.5).toFixed(2), z: +hits2[hi].point.z.toFixed(2) };
-              break;
-            }
-            window.parent.postMessage({ type: "game-editor-do-spawn", factory: window.__vibexe_spawn_factory__, args: window.__vibexe_spawn_args__ || {}, position: spawnPos }, "*");
-            return;
+            return; // Already handled by handleClick's spawn mode
           }
           var cx = d.clientX, cy = d.clientY;
           if (transformControls && transformControls.dragging) return;

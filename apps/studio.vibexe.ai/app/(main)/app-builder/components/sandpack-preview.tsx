@@ -2784,12 +2784,21 @@ export function SandpackPreview({
 					/* Standard browser mode */
 					<div
 						ref={iframeContainerRef}
-						className="bg-background rounded-lg shadow-lg overflow-hidden flex-1 min-h-0 transition-all duration-200 mx-auto relative"
+						className={`bg-background rounded-lg shadow-lg overflow-hidden flex-1 min-h-0 transition-all duration-200 mx-auto relative ${gameEditor.activePrefab ? "cursor-crosshair" : ""}`}
 						style={{
 							width: device === "desktop" ? "100%" : previewWidth,
 							maxWidth: "100%",
 						}}
 					>
+						{/* Spawn mode indicator overlay */}
+						{gameEditor.activePrefab && gameEditor.enabled && (
+							<div className="absolute top-2 left-1/2 -translate-x-1/2 z-40 pointer-events-none">
+								<div className="bg-emerald-600/90 text-white text-xs font-medium px-4 py-1.5 rounded-full shadow-lg backdrop-blur-sm flex items-center gap-2 animate-pulse">
+									<span className="w-2 h-2 rounded-full bg-white animate-ping" />
+									Click on map to place: {gameEditor.activePrefab.displayName}
+								</div>
+							</div>
+						)}
 						{useLightweightRuntime ? (
 							<GameRuntimeIframe
 								appId={appId}
