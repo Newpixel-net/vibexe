@@ -2683,7 +2683,7 @@ export function SandpackPreview({
 			</div>
 
 			{/* Sandpack container - fills remaining space */}
-			<div className={`sandpack-container relative flex-1 flex flex-col min-h-0 overflow-hidden bg-muted/20 p-2 ${isGameMode && gameEditor.maximizeOnPlay ? "fixed inset-0 z-[100] p-0" : ""}`}
+			<div className={`sandpack-container relative flex-1 flex flex-col min-h-0 overflow-hidden bg-muted/20 p-2 ${isGameMode && gameEditor.maximizeOnPlay ? "fixed inset-0 z-[100] p-0" : ""}`}>
 				{isMobileFrame ? (
 					/* Mobile frame mode: phone frame (left) + publish panel (right) */
 					<div className="flex items-center justify-center gap-6 w-full h-full">
