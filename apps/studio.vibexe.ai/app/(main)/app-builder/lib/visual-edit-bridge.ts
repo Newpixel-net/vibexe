@@ -2029,7 +2029,7 @@ export function getVisualEditBridgeScript(): string {
         if (child === boxHelper) return;
         _spMeshes.push(child);
       });
-      var _spHits = raycaster.intersectObjects(_spMeshes, false);
+      var _spHits = raycaster.intersectObjects(_spMeshes, true);
       var _spPos = { x: 0, y: 2, z: 0 };
       var _spFound = false;
       for (var _spi = 0; _spi < _spHits.length; _spi++) {
@@ -2044,7 +2044,7 @@ export function getVisualEditBridgeScript(): string {
         var _spPt = editor.camera.position.clone().add(_spDir.multiplyScalar(20));
         _spPos = { x: +_spPt.x.toFixed(2), y: +Math.max(0, _spPt.y).toFixed(2), z: +_spPt.z.toFixed(2) };
       }
-      showDebug("SPAWN at (" + _spPos.x + ", " + _spPos.y + ", " + _spPos.z + ") hit=" + _spFound);
+      showDebug("SPAWN at (" + _spPos.x + ", " + _spPos.y + ", " + _spPos.z + ") hit=" + _spFound + " meshes=" + _spMeshes.length + " ndc=(" + _spMx.toFixed(2) + "," + _spMy.toFixed(2) + ")");
       window.parent.postMessage({ type: "game-editor-do-spawn", factory: window.__vibexe_spawn_factory__, args: window.__vibexe_spawn_args__ || {}, position: _spPos }, "*");
       return;
     }
