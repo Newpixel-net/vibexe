@@ -5951,7 +5951,7 @@ export function getVisualEditBridgeScript(): string {
                   _tDiffuse[_pli] = _rpTHREE.texture(_rpTextures[_pli], _a_uv.mul(_tScale[_pli])).rgb;
                 } else {
                   var _fc = _rpUniforms["uColor" + _pli].value;
-                  _tDiffuse[_pli] = _rpTHREE.vec3(_fc.x, _fc.y, _fc.z);
+                  _tDiffuse[_pli] = _rpTHREE.vec3(_rpTHREE.float(_fc.x), _rpTHREE.float(_fc.y), _rpTHREE.float(_fc.z));
                 }
               }
 
@@ -6014,7 +6014,7 @@ export function getVisualEditBridgeScript(): string {
               }
               if (_hasAnyNormal) {
                 // Default flat normal in tangent space (no perturbation)
-                var _flatNormal = _rpTHREE.vec3(0, 0, 1);
+                var _flatNormal = _rpTHREE.vec3(_rpTHREE.float(0), _rpTHREE.float(0), _rpTHREE.float(1));
                 var _blendNorm = null;
                 for (var _pli = 0; _pli < _rpNumLayers; _pli++) {
                   var _nWeighted;
