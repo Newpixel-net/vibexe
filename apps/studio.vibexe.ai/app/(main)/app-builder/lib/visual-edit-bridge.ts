@@ -6013,17 +6013,24 @@ export function getVisualEditBridgeScript(): string {
                 if (_rpNormalTextures[_pli]) { _hasAnyNormal = true; break; }
               }
               if (_hasAnyNormal) {
+                // Default flat normal in tangent space (no perturbation)
+                var _flatNormal = _rpTHREE.vec3(0, 0, 1);
                 var _blendNorm = null;
                 for (var _pli = 0; _pli < _rpNumLayers; _pli++) {
+                  var _nWeighted;
                   if (_rpNormalTextures[_pli]) {
                     var _nSamp = _rpTHREE.texture(_rpNormalTextures[_pli], _a_uv.mul(_tScale[_pli]));
                     // Decode tangent-space normal: rgb * 2 - 1, scale xy by intensity
                     var _nInt = _rpUniforms["uNormalIntensity" + _pli].value;
                     var _nDecoded = _nSamp.rgb.mul(2.0).sub(1.0);
                     var _nScaled = _rpTHREE.vec3(_nDecoded.x.mul(_nInt), _nDecoded.y.mul(_nInt), _nDecoded.z);
-                    var _nWeighted = _nScaled.mul(_hFinal[_pli]);
-                    _blendNorm = _blendNorm ? _blendNorm.add(_nWeighted) : _nWeighted;
+                    _nWeighted = _nScaled.mul(_hFinal[_pli]);
+                  } else {
+                    // Layers without normal maps contribute flat normal weighted by their blend
+                    // Prevents normalize(vec3(0)) = NaN when a no-normal layer dominates
+                    _nWeighted = _flatNormal.mul(_hFinal[_pli]);
                   }
+                  _blendNorm = _blendNorm ? _blendNorm.add(_nWeighted) : _nWeighted;
                 }
                 if (_blendNorm) {
                   _rpMat.normalNode = _rpTHREE.normalize(_blendNorm);
