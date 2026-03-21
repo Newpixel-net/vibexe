@@ -3938,8 +3938,8 @@ export function getVisualEditBridgeScript(): string {
             if (_perfS.pixelRatio != null) {
               var _dpr = (typeof devicePixelRatio !== "undefined") ? devicePixelRatio : 1;
               // If saved value is 1 but device has higher DPR, use DPR (legacy migration)
-              var _targetPR = (_perfS.pixelRatio <= 1 && _dpr > 1) ? _dpr : _perfS.pixelRatio;
-              _perfRenderer.setPixelRatio(Math.max(0.5, Math.min(2.0, _targetPR)));
+              var _targetPR = (_perfS.pixelRatio <= 1 && _dpr > 1) ? Math.min(_dpr, 1.5) : _perfS.pixelRatio;
+              _perfRenderer.setPixelRatio(Math.max(0.5, Math.min(1.5, _targetPR)));
             }
             // Shadow quality based on preset
             if (_perfS.qualityPreset === "low") {
