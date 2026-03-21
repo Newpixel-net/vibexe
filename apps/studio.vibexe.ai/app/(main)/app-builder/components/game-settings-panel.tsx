@@ -280,7 +280,7 @@ export function GameSettingsContent({ settings, onChange, onSave, pickSpawnActiv
 		low: { antialias: false, pixelRatio: 0.5, maxFPS: 30 },
 		medium: { antialias: true, pixelRatio: 0.75, maxFPS: 60 },
 		high: { antialias: true, pixelRatio: 1, maxFPS: 60 },
-		ultra: { antialias: true, pixelRatio: 2, maxFPS: 120 },
+		ultra: { antialias: true, pixelRatio: 1.5, maxFPS: 120 },
 	};
 
 	const applyPreset = (preset: QualityPreset) => {
