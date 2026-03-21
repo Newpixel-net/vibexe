@@ -14,7 +14,7 @@ import { generateRuntimeBootstrap } from "./runtime-bootstrap";
 
 // Bump this when generateGameEntry() or the compiler wrapper changes
 // so esbuild cache busts without waiting for CACHE_TTL expiry
-const COMPILER_VERSION = "21";
+const COMPILER_VERSION = "22";
 
 // In-memory LRU cache for compiled bundles
 const bundleCache = new Map<string, { bundle: string; timestamp: number }>();
@@ -1139,6 +1139,18 @@ if (!gameScene || typeof gameScene.init !== 'function') {
             const mr2 = W.__vibexe_mediaRecorder__;
             if (mr2 && mr2.state !== 'inactive') mr2.stop();
             W.__vibexe_mediaRecorder__ = null;
+            break;
+          }
+          case 'game-cmd-screenshot': {
+            try {
+              const canvas = renderer.domElement as HTMLCanvasElement;
+              canvas.toBlob((blob: Blob | null) => {
+                if (!blob) return;
+                blob.arrayBuffer().then((buf) => {
+                  W.parent.postMessage({ type: 'game-cmd-screenshot-ready', buffer: buf }, '*', [buf]);
+                });
+              }, 'image/png');
+            } catch (ssErr: any) { console.error('[CommandCenter] Screenshot failed:', ssErr.message); }
             break;
           }
         }

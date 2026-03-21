@@ -1968,6 +1968,17 @@ export function SandpackPreview({
 					const url = URL.createObjectURL(blob);
 					gameEditor.setRecordingReady(url);
 				}
+			} else if (data.type === "game-cmd-screenshot-ready") {
+				// Screenshot PNG — trigger download
+				if (data.buffer) {
+					const blob = new Blob([data.buffer], { type: "image/png" });
+					const url = URL.createObjectURL(blob);
+					const a = document.createElement("a");
+					a.href = url;
+					a.download = `vibexe-screenshot-${Date.now()}.png`;
+					a.click();
+					setTimeout(() => URL.revokeObjectURL(url), 5000);
+				}
 			}
 			} catch (err) {
 				console.error("[MessageHandler] Error processing message:", data.type, err);
@@ -2672,7 +2683,7 @@ export function SandpackPreview({
 			</div>
 
 			{/* Sandpack container - fills remaining space */}
-			<div className="sandpack-container relative flex-1 flex flex-col min-h-0 overflow-hidden bg-muted/20 p-2">
+			<div className={`sandpack-container relative flex-1 flex flex-col min-h-0 overflow-hidden bg-muted/20 p-2 ${isGameMode && gameEditor.maximizeOnPlay ? "fixed inset-0 z-[100] p-0" : ""}`}
 				{isMobileFrame ? (
 					/* Mobile frame mode: phone frame (left) + publish panel (right) */
 					<div className="flex items-center justify-center gap-6 w-full h-full">
@@ -2893,6 +2904,8 @@ export function SandpackPreview({
 						recordingState={gameEditor.recordingState}
 						recordingDuration={gameEditor.recordingDuration}
 						recordingBlobUrl={gameEditor.recordingBlobUrl}
+						qualityPreset={gameEditor.gameSettings.performance?.qualityPreset || "high"}
+						maximizeOnPlay={gameEditor.maximizeOnPlay}
 						onPlay={gameEditor.playSimulation}
 						onPause={gameEditor.pauseSimulation}
 						onStep={gameEditor.stepSimulation}
@@ -2900,6 +2913,9 @@ export function SandpackPreview({
 						onTimeScaleChange={gameEditor.updateTimeScale}
 						onStartRecording={gameEditor.startRecording}
 						onStopRecording={gameEditor.stopRecording}
+						onScreenshot={gameEditor.takeScreenshot}
+						onQualityChange={(preset) => gameEditor.updateGameSettings({ performance: { qualityPreset: preset } })}
+						onToggleMaximize={gameEditor.toggleMaximizeOnPlay}
 						onClose={() => gameEditor.setCommandCenterOpen(false)}
 					/>
 				)}

@@ -473,6 +473,10 @@ interface GameEditorContextValue {
 	startRecording: () => void;
 	stopRecording: () => void;
 	setRecordingReady: (blobUrl: string) => void;
+	// Extended controls (Phase 3)
+	takeScreenshot: () => void;
+	maximizeOnPlay: boolean;
+	toggleMaximizeOnPlay: () => void;
 	// Generic iframe message sender (for module communication)
 	sendToIframe: (msg: any) => void;
 }
@@ -1173,6 +1177,17 @@ export function GameEditorProvider({ children }: { children: ReactNode }) {
 		return () => clearInterval(interval);
 	}, [recordingState]);
 
+	// Screenshot
+	const takeScreenshot = useCallback(() => {
+		sendToIframe({ type: "game-cmd-screenshot" });
+	}, [sendToIframe]);
+
+	// Maximize on Play
+	const [maximizeOnPlay, setMaximizeOnPlay] = useState(false);
+	const toggleMaximizeOnPlay = useCallback(() => {
+		setMaximizeOnPlay((v) => !v);
+	}, []);
+
 	// Poll for stats while command center is open
 	useEffect(() => {
 		if (!commandCenterOpen) return;
@@ -1417,6 +1432,9 @@ export function GameEditorProvider({ children }: { children: ReactNode }) {
 		startRecording,
 		stopRecording,
 		setRecordingReady,
+		takeScreenshot,
+		maximizeOnPlay,
+		toggleMaximizeOnPlay,
 		sendToIframe,
 	}), [
 		enabled, sceneTree, selectedObject, selectedUuids, gizmoMode, snapEnabled,
@@ -1448,7 +1466,8 @@ export function GameEditorProvider({ children }: { children: ReactNode }) {
 		playSimulation, pauseSimulation, stepSimulation, resetSimulation,
 		updateTimeScale, setGameStats,
 		recordingState, recordingDuration, recordingBlobUrl,
-		startRecording, stopRecording, setRecordingReady, sendToIframe,
+		startRecording, stopRecording, setRecordingReady,
+		takeScreenshot, maximizeOnPlay, toggleMaximizeOnPlay, sendToIframe,
 	]);
 
 	return (

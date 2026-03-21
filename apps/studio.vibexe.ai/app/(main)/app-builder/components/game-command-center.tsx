@@ -1,7 +1,11 @@
 "use client";
 
-import { useEffect, useRef } from "react";
-import { Play, Pause, StepForward, RotateCcw, X, Circle, Square, Download } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import {
+	Play, Pause, StepForward, RotateCcw, X,
+	Circle, Square, Download, Camera, Maximize2, Minimize2,
+} from "lucide-react";
+import type { QualityPreset } from "../lib/game-editor-context";
 
 interface GameStats {
 	fps: number;
@@ -19,6 +23,8 @@ interface GameCommandCenterProps {
 	recordingState: "idle" | "recording" | "ready";
 	recordingDuration: number;
 	recordingBlobUrl: string | null;
+	qualityPreset: QualityPreset;
+	maximizeOnPlay: boolean;
 	onPlay: () => void;
 	onPause: () => void;
 	onStep: () => void;
@@ -26,8 +32,18 @@ interface GameCommandCenterProps {
 	onTimeScaleChange: (scale: number) => void;
 	onStartRecording: () => void;
 	onStopRecording: () => void;
+	onScreenshot: () => void;
+	onQualityChange: (preset: QualityPreset) => void;
+	onToggleMaximize: () => void;
 	onClose: () => void;
 }
+
+const QUALITY_OPTIONS: { value: QualityPreset; label: string }[] = [
+	{ value: "low", label: "Low" },
+	{ value: "medium", label: "Med" },
+	{ value: "high", label: "High" },
+	{ value: "ultra", label: "Ultra" },
+];
 
 export function GameCommandCenter({
 	simulationState,
@@ -36,6 +52,8 @@ export function GameCommandCenter({
 	recordingState,
 	recordingDuration,
 	recordingBlobUrl,
+	qualityPreset,
+	maximizeOnPlay,
 	onPlay,
 	onPause,
 	onStep,
@@ -43,9 +61,13 @@ export function GameCommandCenter({
 	onTimeScaleChange,
 	onStartRecording,
 	onStopRecording,
+	onScreenshot,
+	onQualityChange,
+	onToggleMaximize,
 	onClose,
 }: GameCommandCenterProps) {
 	const panelRef = useRef<HTMLDivElement>(null);
+	const [qualityOpen, setQualityOpen] = useState(false);
 
 	// Close on Escape
 	useEffect(() => {
@@ -94,7 +116,7 @@ export function GameCommandCenter({
 		<div
 			ref={panelRef}
 			className="absolute bottom-4 left-1/2 -translate-x-1/2 z-50 bg-[#0a0a14]/95 backdrop-blur-xl border border-white/[0.10] rounded-2xl shadow-2xl"
-			style={{ width: 380 }}
+			style={{ width: 400 }}
 		>
 			{/* Header */}
 			<div className="flex items-center justify-between px-3 py-2 border-b border-white/[0.08]">
@@ -110,157 +132,125 @@ export function GameCommandCenter({
 				</button>
 			</div>
 
-			{/* Playback + Record + Time Scale */}
-			<div className="flex items-center gap-1.5 px-3 py-2 border-b border-white/[0.08]">
-				{/* Play */}
-				<button
-					type="button"
-					onClick={onPlay}
-					className={`p-1.5 rounded-lg transition-all ${
-						isRunning
-							? "bg-emerald-500/20 text-emerald-400"
-							: "text-white/50 hover:bg-white/[0.08] hover:text-white/80"
-					}`}
-					title="Play"
-				>
+			{/* Row 1: Playback + Record + Time Scale */}
+			<div className="flex items-center gap-1 px-3 py-2 border-b border-white/[0.08]">
+				<button type="button" onClick={onPlay} className={`p-1.5 rounded-lg transition-all ${isRunning ? "bg-emerald-500/20 text-emerald-400" : "text-white/50 hover:bg-white/[0.08] hover:text-white/80"}`} title="Play">
 					<Play className="w-3.5 h-3.5" />
 				</button>
-				{/* Pause */}
-				<button
-					type="button"
-					onClick={onPause}
-					className={`p-1.5 rounded-lg transition-all ${
-						isPaused
-							? "bg-amber-500/20 text-amber-400"
-							: "text-white/50 hover:bg-white/[0.08] hover:text-white/80"
-					}`}
-					title="Pause"
-				>
+				<button type="button" onClick={onPause} className={`p-1.5 rounded-lg transition-all ${isPaused ? "bg-amber-500/20 text-amber-400" : "text-white/50 hover:bg-white/[0.08] hover:text-white/80"}`} title="Pause">
 					<Pause className="w-3.5 h-3.5" />
 				</button>
-				{/* Step */}
-				<button
-					type="button"
-					onClick={onStep}
-					disabled={!isPaused}
-					className={`p-1.5 rounded-lg transition-all ${
-						isPaused
-							? "text-white/50 hover:bg-white/[0.08] hover:text-white/80"
-							: "text-white/15 cursor-not-allowed"
-					}`}
-					title="Step Frame"
-				>
+				<button type="button" onClick={onStep} disabled={!isPaused} className={`p-1.5 rounded-lg transition-all ${isPaused ? "text-white/50 hover:bg-white/[0.08] hover:text-white/80" : "text-white/15 cursor-not-allowed"}`} title="Step Frame">
 					<StepForward className="w-3.5 h-3.5" />
 				</button>
-				{/* Reset */}
-				<button
-					type="button"
-					onClick={onReset}
-					className="p-1.5 rounded-lg text-white/50 hover:bg-white/[0.08] hover:text-white/80 transition-all"
-					title="Reset"
-				>
+				<button type="button" onClick={onReset} className="p-1.5 rounded-lg text-white/50 hover:bg-white/[0.08] hover:text-white/80 transition-all" title="Reset">
 					<RotateCcw className="w-3.5 h-3.5" />
 				</button>
 
-				{/* Divider */}
 				<div className="w-px h-4 bg-white/[0.08] mx-0.5" />
 
 				{/* Record / Stop */}
 				{isRecording ? (
-					<button
-						type="button"
-						onClick={onStopRecording}
-						className="p-1.5 rounded-lg bg-red-500/20 text-red-400 transition-all animate-pulse"
-						title="Stop Recording"
-					>
+					<button type="button" onClick={onStopRecording} className="p-1.5 rounded-lg bg-red-500/20 text-red-400 transition-all animate-pulse" title="Stop Recording">
 						<Square className="w-3.5 h-3.5" />
 					</button>
 				) : (
-					<button
-						type="button"
-						onClick={onStartRecording}
-						className="p-1.5 rounded-lg text-white/50 hover:bg-red-500/10 hover:text-red-400 transition-all"
-						title="Record"
-					>
+					<button type="button" onClick={onStartRecording} className="p-1.5 rounded-lg text-white/50 hover:bg-red-500/10 hover:text-red-400 transition-all" title="Record">
 						<Circle className="w-3.5 h-3.5" />
 					</button>
 				)}
-
-				{/* Recording duration */}
-				{isRecording && (
-					<span className="text-[10px] text-red-400 font-mono">
-						{formatDuration(recordingDuration)}
-					</span>
-				)}
-
-				{/* Download (when recording ready) */}
+				{isRecording && <span className="text-[10px] text-red-400 font-mono">{formatDuration(recordingDuration)}</span>}
 				{hasRecording && (
-					<a
-						href={recordingBlobUrl}
-						download={`vibexe-recording-${Date.now()}.webm`}
-						className="p-1.5 rounded-lg text-emerald-400 hover:bg-emerald-500/10 transition-all"
-						title="Download Recording"
-					>
+					<a href={recordingBlobUrl} download={`vibexe-recording-${Date.now()}.webm`} className="p-1.5 rounded-lg text-emerald-400 hover:bg-emerald-500/10 transition-all" title="Download Recording">
 						<Download className="w-3.5 h-3.5" />
 					</a>
 				)}
 
-				{/* Spacer */}
+				{/* Screenshot */}
+				<button type="button" onClick={onScreenshot} className="p-1.5 rounded-lg text-white/50 hover:bg-white/[0.08] hover:text-white/80 transition-all" title="Screenshot (PNG)">
+					<Camera className="w-3.5 h-3.5" />
+				</button>
+
 				<div className="flex-1" />
 
-				{/* Time Scale */}
+				{/* Speed */}
 				<span className="text-[10px] text-white/40 mr-1">Speed</span>
-				<input
-					type="range"
-					min={0.1}
-					max={2.0}
-					step={0.1}
-					value={timeScale}
-					onChange={(e) => onTimeScaleChange(Number.parseFloat(e.target.value))}
-					className="w-16 h-1 accent-cyan-500 cursor-pointer"
-				/>
-				<span className="text-[10px] text-white/60 font-mono w-7 text-right">
-					{timeScale.toFixed(1)}x
-				</span>
+				<input type="range" min={0.1} max={2.0} step={0.1} value={timeScale} onChange={(e) => onTimeScaleChange(Number.parseFloat(e.target.value))} className="w-14 h-1 accent-cyan-500 cursor-pointer" />
+				<span className="text-[10px] text-white/60 font-mono w-7 text-right">{timeScale.toFixed(1)}x</span>
 			</div>
 
-			{/* Stats Grid */}
-			<div className="grid grid-cols-3 gap-x-3 gap-y-1 px-3 py-2 text-[10px]">
-				<div className="flex items-center justify-between">
-					<span className="text-white/35">FPS</span>
-					<span className={`font-mono font-medium ${gameStats ? fpsColor(gameStats.fps) : "text-white/20"}`}>
-						{gameStats?.fps ?? "--"}
-					</span>
+			{/* Row 2: Quality + Maximize + Stats */}
+			<div className="flex items-center gap-2 px-3 py-2 text-[10px]">
+				{/* Quality Preset */}
+				<div className="relative">
+					<button
+						type="button"
+						onClick={() => setQualityOpen(!qualityOpen)}
+						className="flex items-center gap-1 px-2 py-1 rounded-md bg-white/[0.05] border border-white/[0.08] text-white/60 hover:text-white/80 hover:bg-white/[0.08] transition-all"
+					>
+						<span className="text-[10px]">{QUALITY_OPTIONS.find((q) => q.value === qualityPreset)?.label || "High"}</span>
+						<svg className="w-2.5 h-2.5 opacity-50" viewBox="0 0 10 6" fill="none"><path d="M1 1l4 4 4-4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" /></svg>
+					</button>
+					{qualityOpen && (
+						<div className="absolute bottom-full left-0 mb-1 bg-[#0a0a14] border border-white/[0.12] rounded-lg shadow-xl z-50 min-w-[70px] py-0.5">
+							{QUALITY_OPTIONS.map((q) => (
+								<button
+									key={q.value}
+									type="button"
+									onClick={() => { onQualityChange(q.value); setQualityOpen(false); }}
+									className={`w-full text-left px-2.5 py-1 text-[10px] transition-colors ${
+										q.value === qualityPreset
+											? "text-cyan-400 bg-cyan-500/10"
+											: "text-white/60 hover:bg-white/[0.06] hover:text-white/80"
+									}`}
+								>
+									{q.label}
+								</button>
+							))}
+						</div>
+					)}
 				</div>
-				<div className="flex items-center justify-between">
-					<span className="text-white/35">Draws</span>
-					<span className="font-mono text-white/60">
-						{gameStats?.drawCalls ?? "--"}
-					</span>
-				</div>
-				<div className="flex items-center justify-between">
-					<span className="text-white/35">Tris</span>
-					<span className="font-mono text-white/60">
-						{gameStats ? (gameStats.triangles >= 1000 ? `${(gameStats.triangles / 1000).toFixed(0)}K` : gameStats.triangles) : "--"}
-					</span>
-				</div>
-				<div className="flex items-center justify-between">
-					<span className="text-white/35">Geo</span>
-					<span className="font-mono text-white/60">
-						{gameStats?.geometries ?? "--"}
-					</span>
-				</div>
-				<div className="flex items-center justify-between">
-					<span className="text-white/35">Tex</span>
-					<span className="font-mono text-white/60">
-						{gameStats?.textures ?? "--"}
-					</span>
-				</div>
-				<div className="flex items-center justify-between">
-					<span className="text-white/35">Mem</span>
-					<span className="font-mono text-white/60">
-						{gameStats?.memory != null ? `${gameStats.memory}MB` : "--"}
-					</span>
+
+				{/* Maximize toggle */}
+				<button
+					type="button"
+					onClick={onToggleMaximize}
+					className={`p-1 rounded-md transition-all ${
+						maximizeOnPlay
+							? "bg-cyan-500/15 text-cyan-400 border border-cyan-500/20"
+							: "text-white/40 hover:bg-white/[0.06] hover:text-white/70"
+					}`}
+					title={maximizeOnPlay ? "Restore preview size" : "Maximize on Play"}
+				>
+					{maximizeOnPlay ? <Minimize2 className="w-3 h-3" /> : <Maximize2 className="w-3 h-3" />}
+				</button>
+
+				{/* Stats Grid (inline) */}
+				<div className="flex-1 grid grid-cols-3 gap-x-3 gap-y-0.5">
+					<div className="flex items-center justify-between">
+						<span className="text-white/35">FPS</span>
+						<span className={`font-mono font-medium ${gameStats ? fpsColor(gameStats.fps) : "text-white/20"}`}>{gameStats?.fps ?? "--"}</span>
+					</div>
+					<div className="flex items-center justify-between">
+						<span className="text-white/35">Draws</span>
+						<span className="font-mono text-white/60">{gameStats?.drawCalls ?? "--"}</span>
+					</div>
+					<div className="flex items-center justify-between">
+						<span className="text-white/35">Tris</span>
+						<span className="font-mono text-white/60">{gameStats ? (gameStats.triangles >= 1000 ? `${(gameStats.triangles / 1000).toFixed(0)}K` : gameStats.triangles) : "--"}</span>
+					</div>
+					<div className="flex items-center justify-between">
+						<span className="text-white/35">Geo</span>
+						<span className="font-mono text-white/60">{gameStats?.geometries ?? "--"}</span>
+					</div>
+					<div className="flex items-center justify-between">
+						<span className="text-white/35">Tex</span>
+						<span className="font-mono text-white/60">{gameStats?.textures ?? "--"}</span>
+					</div>
+					<div className="flex items-center justify-between">
+						<span className="text-white/35">Mem</span>
+						<span className="font-mono text-white/60">{gameStats?.memory != null ? `${gameStats.memory}MB` : "--"}</span>
+					</div>
 				</div>
 			</div>
 		</div>
