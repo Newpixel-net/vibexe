@@ -6102,7 +6102,18 @@ export function getVisualEditBridgeScript(): string {
                 url = (window.__VIBEXE_API_ORIGIN__ || '') + url;
               }
               if (!url || url.length < 5 || url.endsWith('/')) {
-                _rpTextures[idx] = null;
+                // Create 1x1 solid-color fallback texture from preview color
+                // (avoids TSL vec3 fallback path which can produce black on WebGPU)
+                var _fbColor = _rpColors[idx] || [0.5, 0.5, 0.5];
+                var _fbCanvas = document.createElement("canvas");
+                _fbCanvas.width = 1; _fbCanvas.height = 1;
+                var _fbCtx = _fbCanvas.getContext("2d");
+                _fbCtx.fillStyle = "rgb(" + Math.round(_fbColor[0]*255) + "," + Math.round(_fbColor[1]*255) + "," + Math.round(_fbColor[2]*255) + ")";
+                _fbCtx.fillRect(0, 0, 1, 1);
+                var _fbTex = new _rpTHREE.CanvasTexture(_fbCanvas);
+                _fbTex.colorSpace = _rpTHREE.SRGBColorSpace;
+                _rpTextures[idx] = _fbTex;
+                console.log("[TerrainPainter] Diffuse[" + idx + "] fallback 1x1 color:", _fbCtx.fillStyle);
                 _rpLoaded++;
                 if (_rpLoaded >= _rpTotal) _rpScheduleApply();
                 return;
