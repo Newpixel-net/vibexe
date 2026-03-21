@@ -5473,6 +5473,9 @@ export function getVisualEditBridgeScript(): string {
         var _rpAOUrls = [];
         for (var li5 = 0; li5 < _rpNumLayers; li5++) {
           var _diffUrl = _rpEnabledLayers[li5].diffuseUrl || "";
+          // If diffuse is same as emission (e.g. Lava), skip diffuse — use preview color as base
+          var _emUrl5 = _rpEnabledLayers[li5].emissionUrl || "";
+          if (_emUrl5 && _diffUrl && _diffUrl === _emUrl5) _diffUrl = "";
           _rpTexUrls.push(_diffUrl);
           // Auto-derive normal map URL: Ground037.jpg → Ground037_Normal.jpg
           var _normUrl = _rpEnabledLayers[li5].normalUrl || "";
