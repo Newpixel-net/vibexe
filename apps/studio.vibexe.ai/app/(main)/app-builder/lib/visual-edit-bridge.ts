@@ -5556,6 +5556,39 @@ export function getVisualEditBridgeScript(): string {
               _wB[v * 4 + 2] = _rpNumLayers > 6 ? _rpWeights[6][v] : 0;
               _wB[v * 4 + 3] = _rpNumLayers > 7 ? _rpWeights[7][v] : 0;
             }
+            // Restore saved paint weights (from DB persistence) over modifier-computed weights
+            var _rpPaintSrc = d.paintWeightData || (window.__VIBEXE_GAME_SETTINGS__ && window.__VIBEXE_GAME_SETTINGS__.terrain && window.__VIBEXE_GAME_SETTINGS__.terrain.paintWeightData);
+            if (_rpPaintSrc && typeof _rpPaintSrc === "string" && _rpPaintSrc.length > 10) {
+              try {
+                var _rpPaintStr = atob(_rpPaintSrc);
+                var _rpPaintBytes = new Uint8Array(_rpPaintStr.length);
+                for (var _rpi = 0; _rpi < _rpPaintStr.length; _rpi++) _rpPaintBytes[_rpi] = _rpPaintStr.charCodeAt(_rpi);
+                var _rpPaintWeights = new Float32Array(_rpPaintBytes.buffer);
+                var _rpPaintVerts = _rpPaintWeights.length / 8;
+                if (_rpPaintVerts === _rpCount) {
+                  var _rpPaintApplied = 0;
+                  for (var _rpvi = 0; _rpvi < _rpCount; _rpvi++) {
+                    var _rpBase = _rpvi * 8;
+                    if (_rpPaintWeights[_rpBase] >= 0) { // -1 means unpainted
+                      _wA[_rpvi * 4]     = _rpPaintWeights[_rpBase];
+                      _wA[_rpvi * 4 + 1] = _rpPaintWeights[_rpBase + 1];
+                      _wA[_rpvi * 4 + 2] = _rpPaintWeights[_rpBase + 2];
+                      _wA[_rpvi * 4 + 3] = _rpPaintWeights[_rpBase + 3];
+                      _wB[_rpvi * 4]     = _rpPaintWeights[_rpBase + 4];
+                      _wB[_rpvi * 4 + 1] = _rpPaintWeights[_rpBase + 5];
+                      _wB[_rpvi * 4 + 2] = _rpPaintWeights[_rpBase + 6];
+                      _wB[_rpvi * 4 + 3] = _rpPaintWeights[_rpBase + 7];
+                      _rpPaintApplied++;
+                    }
+                  }
+                  // Also restore _paintedWeights so further painting builds on saved state
+                  _paintedWeights = _rpPaintWeights;
+                  console.log("[TerrainPainter] Restored", _rpPaintApplied, "painted vertices from saved data");
+                } else {
+                  console.warn("[TerrainPainter] Paint data vertex count mismatch:", _rpPaintVerts, "vs", _rpCount);
+                }
+              } catch(e) { console.warn("[TerrainPainter] Paint restore failed:", e); }
+            }
             _rpGeo.setAttribute("weightsA", new _rpTHREE.BufferAttribute(_wA, 4));
             _rpGeo.setAttribute("weightsB", new _rpTHREE.BufferAttribute(_wB, 4));
 
@@ -6463,7 +6496,25 @@ export function getVisualEditBridgeScript(): string {
           ev.stopImmediatePropagation();
         };
 
-        window.__sculptMouseUp = function() { _sculptMouseDown = false; _sculptLastStampPos = null; };
+        window.__sculptMouseUp = function() {
+          _sculptMouseDown = false;
+          _sculptLastStampPos = null;
+          // Export paint weights to parent for DB persistence after each paint stroke
+          if ((_sculptBrushType === "paint" || _sculptBrushType === "erase") && _paintedWeights) {
+            try {
+              var _pwBytes = new Uint8Array(_paintedWeights.buffer);
+              var _pwStr = "";
+              for (var _pwi = 0; _pwi < _pwBytes.length; _pwi++) _pwStr += String.fromCharCode(_pwBytes[_pwi]);
+              var _pwB64 = btoa(_pwStr);
+              window.parent.postMessage({
+                type: "terrain-paint-data",
+                data: _pwB64,
+                vertexCount: _paintedWeights.length / 8
+              }, "*");
+              console.log("[TerrainPainter] Exported paint weights:", _paintedWeights.length / 8, "vertices");
+            } catch(e) { console.warn("[TerrainPainter] Paint export failed:", e); }
+          }
+        };
 
         window.addEventListener("mousemove", window.__sculptMouseMove, true);
         window.addEventListener("mousedown", window.__sculptMouseDown, true);

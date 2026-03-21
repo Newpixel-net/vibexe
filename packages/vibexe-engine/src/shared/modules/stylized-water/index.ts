@@ -253,6 +253,9 @@ function _buildWaterTSLMaterial(u, tex, simplified) {
     side: THREE.DoubleSide,
     depthWrite: false,
     fog: true,
+    polygonOffset: true,
+    polygonOffsetFactor: -1,
+    polygonOffsetUnits: -4,
   });
 
   // Shared varyings: vertex shader → fragment shader data transfer

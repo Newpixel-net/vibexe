@@ -1785,6 +1785,17 @@ export function SandpackPreview({
 						handleSaveSettings(updatedSettings);
 					}
 				}
+			} else if (data.type === "terrain-paint-data") {
+				// Store paint weight data for persistence and save to DB
+				if (data.data && typeof data.data === "string") {
+					const terrainCfg = gameEditor.gameSettings.terrain;
+					if (terrainCfg) {
+						terrainCfg.paintWeightData = data.data;
+						console.log("[GameEditor] Stored paint weights:", data.vertexCount, "vertices");
+						const updatedSettings = { ...gameEditor.gameSettings, terrain: { ...terrainCfg } };
+						handleSaveSettings(updatedSettings);
+					}
+				}
 			} else if (data.type === "game-editor-all-transforms") {
 				// Resolve pending save-all-transforms promise
 				if (allTransformsResolverRef.current) {
