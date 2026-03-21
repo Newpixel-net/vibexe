@@ -58,14 +58,6 @@ export function GameEditorAssetLibrary() {
 		[buildPrefab, spawnObject],
 	);
 
-	const handleDragStart = useCallback(
-		(item: AssetLibraryItem, color: string): string | undefined => {
-			const prefab = buildPrefab(item, color);
-			return JSON.stringify({ factory: prefab.factory, args: prefab.args, displayName: prefab.displayName });
-		},
-		[buildPrefab],
-	);
-
 	// Selected item ID for highlight
 	const selectedItemId = useMemo(() => {
 		if (!activePrefab) return null;
@@ -119,7 +111,6 @@ export function GameEditorAssetLibrary() {
 			<SharedAssetBrowser
 				onSelect={handleSelect}
 				onDoubleClick={handleDoubleClick}
-				onDragStart={handleDragStart}
 				selectedItemId={selectedItemId}
 				columns={2}
 				highlightColor="emerald"
@@ -141,19 +132,19 @@ export function GameEditorAssetLibrary() {
 				}
 			/>
 
-			{/* Active prefab indicator */}
+			{/* Spawn mode indicator */}
 			{activePrefab && (
-				<div className="flex-shrink-0 px-2 py-1 bg-emerald-500/10 border-t border-emerald-500/20 flex items-center gap-1">
-					<span className="flex-1 text-[9px] text-emerald-400 truncate">
-						Active: {activePrefab.displayName}
+				<div className="flex-shrink-0 px-2 py-1.5 bg-emerald-500/15 border-t border-emerald-500/30 flex items-center gap-1.5 animate-pulse">
+					<span className="flex-1 text-[10px] text-emerald-300 truncate font-medium">
+						Click on map to place: {activePrefab.displayName}
 					</span>
 					<button
 						type="button"
 						onClick={() => setActivePrefab(null)}
-						className="p-0.5 rounded text-emerald-400/60 hover:text-emerald-400 hover:bg-emerald-500/20 transition-colors"
-						title="Clear selection"
+						className="px-1.5 py-0.5 rounded text-[9px] text-emerald-400/80 hover:text-white hover:bg-red-500/30 transition-colors border border-emerald-500/20"
+						title="Cancel placement (Esc)"
 					>
-						<X className="w-3 h-3" />
+						Cancel
 					</button>
 				</div>
 			)}

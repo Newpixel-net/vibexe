@@ -939,7 +939,6 @@ export function SandpackPreview({
 	const iframeContainerRef = useRef<HTMLDivElement>(null);
 	const iframeRef = useRef<HTMLIFrameElement | null>(null);
 	const [iframeBounds, setIframeBounds] = useState<DOMRect | null>(null);
-	const [isDragOverViewport, setIsDragOverViewport] = useState(false);
 	// Refs for stable access inside message handler (avoids stale closure)
 	const filesRef = useRef(files);
 	filesRef.current = files;
@@ -2696,35 +2695,7 @@ export function SandpackPreview({
 							<div
 								ref={iframeContainerRef}
 								className="relative w-full h-full"
-								onDragEnter={(e) => {
-									if (e.dataTransfer.types.includes("application/vibexe-asset")) {
-										setIsDragOverViewport(true);
-									}
-								}}
 							>
-								{isDragOverViewport && (
-									<div
-										className="absolute inset-0 z-50 bg-emerald-500/10 border-2 border-dashed border-emerald-400/50 flex items-center justify-center pointer-events-auto"
-										onDragOver={(e) => { e.preventDefault(); e.dataTransfer.dropEffect = "copy"; }}
-										onDragLeave={(e) => { if (e.currentTarget === e.target) setIsDragOverViewport(false); }}
-										onDrop={(e) => {
-											e.preventDefault();
-											setIsDragOverViewport(false);
-											const raw = e.dataTransfer.getData("application/vibexe-asset");
-											if (!raw) return;
-											try {
-												const data = JSON.parse(raw);
-												gameEditor.spawnObject(data.factory, { x: 0, y: 2, z: 0 }, data.args);
-											} catch (err) {
-												console.warn("[DragDrop] Failed to parse asset data:", err);
-											}
-										}}
-									>
-										<span className="text-emerald-300 text-sm font-medium bg-black/40 px-4 py-2 rounded-lg backdrop-blur-sm">
-											Drop to place object
-										</span>
-									</div>
-								)}
 								{useLightweightRuntime ? (
 									<GameRuntimeIframe
 										appId={appId}
@@ -2818,41 +2789,7 @@ export function SandpackPreview({
 							width: device === "desktop" ? "100%" : previewWidth,
 							maxWidth: "100%",
 						}}
-						onDragEnter={(e) => {
-							if (e.dataTransfer.types.includes("application/vibexe-asset")) {
-								setIsDragOverViewport(true);
-							}
-						}}
 					>
-						{/* Drop overlay — covers iframe during drag so drop events reach us */}
-						{isDragOverViewport && (
-							<div
-								className="absolute inset-0 z-50 bg-emerald-500/10 border-2 border-dashed border-emerald-400/50 flex items-center justify-center pointer-events-auto"
-								onDragOver={(e) => {
-									e.preventDefault();
-									e.dataTransfer.dropEffect = "copy";
-								}}
-								onDragLeave={(e) => {
-									if (e.currentTarget === e.target) setIsDragOverViewport(false);
-								}}
-								onDrop={(e) => {
-									e.preventDefault();
-									setIsDragOverViewport(false);
-									const raw = e.dataTransfer.getData("application/vibexe-asset");
-									if (!raw) return;
-									try {
-										const data = JSON.parse(raw);
-										gameEditor.spawnObject(data.factory, { x: 0, y: 2, z: 0 }, data.args);
-									} catch (err) {
-										console.warn("[DragDrop] Failed to parse asset data:", err);
-									}
-								}}
-							>
-								<span className="text-emerald-300 text-sm font-medium bg-black/40 px-4 py-2 rounded-lg backdrop-blur-sm">
-									Drop to place object
-								</span>
-							</div>
-						)}
 						{useLightweightRuntime ? (
 							<GameRuntimeIframe
 								appId={appId}
