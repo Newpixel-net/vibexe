@@ -16,6 +16,7 @@
 import {
 	ChevronDown,
 	ChevronRight,
+	ChevronUp,
 	Eye,
 	EyeOff,
 	Layers,
@@ -649,6 +650,18 @@ export function TerrainPainterPanel({
 		);
 	}, []);
 
+	const moveLayer = useCallback((index: number, direction: "up" | "down") => {
+		setLayers((prev) => {
+			const target = direction === "up" ? index - 1 : index + 1;
+			if (target < 0 || target >= prev.length) return prev;
+			const next = [...prev];
+			[next[index], next[target]] = [next[target], next[index]];
+			// Keep selection following the moved layer
+			setSelectedLayer(target);
+			return next;
+		});
+	}, []);
+
 	const updateLayerField = useCallback(
 		(index: number, field: keyof LayerData, value: string | number | boolean) => {
 			setLayers((prev) =>
@@ -830,6 +843,7 @@ export function TerrainPainterPanel({
 						onSelectLayer={setSelectedLayer}
 						onToggleLayer={toggleLayer}
 						onRemoveLayer={removeLayer}
+						onMoveLayer={moveLayer}
 						onAddLayer={addLayer}
 						onUpdateLayerField={updateLayerField}
 						showHeatmap={showHeatmap}
@@ -908,11 +922,19 @@ export function TerrainPainterPanel({
 									{layers.map((layer, i) => (
 										<button
 											key={i}
-											onClick={() => setSelectedLayer(i)}
+											onClick={() => {
+												setSelectedLayer(i);
+												// Auto-enable disabled layers when selected for painting
+												if (!layer.enabled) {
+													toggleLayer(i);
+												}
+											}}
 											className={`flex items-center gap-2 px-2 py-1.5 rounded text-[11px] transition-colors ${
 												selectedLayer === i
 													? "bg-blue-600/30 ring-1 ring-blue-400/50 text-white"
-													: "bg-white/5 text-white/60 hover:bg-white/10"
+													: layer.enabled
+														? "bg-white/5 text-white/60 hover:bg-white/10"
+														: "bg-white/5 text-white/30 hover:bg-white/10"
 											}`}
 										>
 											<div
@@ -923,7 +945,8 @@ export function TerrainPainterPanel({
 													<img src={layer.diffuseUrl} alt="" className="w-full h-full object-cover" />
 												)}
 											</div>
-											<span>{layer.name}</span>
+											<span className={!layer.enabled ? "line-through" : ""}>{layer.name}</span>
+											{!layer.enabled && <EyeOff className="w-3 h-3 text-white/20 ml-auto" />}
 										</button>
 									))}
 								</div>
@@ -1172,6 +1195,7 @@ function LayersTab({
 	onSelectLayer,
 	onToggleLayer,
 	onRemoveLayer,
+	onMoveLayer,
 	onAddLayer,
 	onUpdateLayerField,
 	showHeatmap,
@@ -1190,6 +1214,7 @@ function LayersTab({
 	onSelectLayer: (i: number) => void;
 	onToggleLayer: (i: number) => void;
 	onRemoveLayer: (i: number) => void;
+	onMoveLayer: (i: number, direction: "up" | "down") => void;
 	onAddLayer: () => void;
 	onUpdateLayerField: (i: number, field: keyof LayerData, value: string | number | boolean) => void;
 	showHeatmap: boolean;
@@ -1240,6 +1265,23 @@ function LayersTab({
 						>
 							{layer.name}
 						</span>
+						{/* Reorder */}
+						<div className="flex flex-col -my-1">
+							<button
+								onClick={(e) => { e.stopPropagation(); onMoveLayer(i, "up"); }}
+								disabled={i === 0}
+								className="p-0 leading-none hover:bg-white/10 rounded disabled:opacity-20"
+							>
+								<ChevronUp className="w-3 h-3 text-white/40" />
+							</button>
+							<button
+								onClick={(e) => { e.stopPropagation(); onMoveLayer(i, "down"); }}
+								disabled={i === layers.length - 1}
+								className="p-0 leading-none hover:bg-white/10 rounded disabled:opacity-20"
+							>
+								<ChevronDown className="w-3 h-3 text-white/40" />
+							</button>
+						</div>
 						{/* Toggle visibility */}
 						<button
 							onClick={(e) => {
