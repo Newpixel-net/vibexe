@@ -47,6 +47,56 @@ function _normalize3(x, y, z) {
   return { x: x / len, y: y / len, z: z / len };
 }
 
+// Wave-align utilities: quaternion from surface normal, multi-point plane fitting
+var _tmpQuat = new THREE.Quaternion();
+var _tmpVec3Up = new THREE.Vector3(0, 1, 0);
+var _tmpVec3N = new THREE.Vector3();
+
+function _quatFromUpNormal(nx, ny, nz) {
+  _tmpVec3N.set(nx, ny, nz).normalize();
+  _tmpQuat.setFromUnitVectors(_tmpVec3Up, _tmpVec3N);
+  return _tmpQuat;
+}
+
+function _fitPlaneToWaveSamples(cx, cz, radius, sampleCount, time, settings) {
+  if (sampleCount <= 1) {
+    var w = _sampleWaves(cx, cz, time, settings);
+    return { height: w.height, quat: _quatFromUpNormal(w.normal.x, w.normal.y, w.normal.z), offset: w.offset };
+  }
+
+  var totalH = 0;
+  if (sampleCount === 3) {
+    // Equilateral triangle at 120-degree intervals
+    var ax = cx + radius, az = cz;
+    var bx = cx - radius * 0.5, bz = cz + radius * 0.866;
+    var ex = cx - radius * 0.5, ez = cz - radius * 0.866;
+    var wa = _sampleWaves(ax, az, time, settings);
+    var wb = _sampleWaves(bx, bz, time, settings);
+    var we = _sampleWaves(ex, ez, time, settings);
+    totalH = (wa.height + wb.height + we.height) / 3;
+    // Cross product of two edge vectors → surface normal
+    var abx = bx - ax, aby = wb.height - wa.height, abz = bz - az;
+    var acx = ex - ax, acy = we.height - wa.height, acz = ez - az;
+    var nnx = aby * acz - abz * acy;
+    var nny = abz * acx - abx * acz;
+    var nnz = abx * acy - aby * acx;
+    var nn = _normalize3(nnx, nny, nnz);
+    if (nn.y < 0) { nn.x = -nn.x; nn.y = -nn.y; nn.z = -nn.z; }
+    return { height: totalH, quat: _quatFromUpNormal(nn.x, nn.y, nn.z), offset: wa.offset };
+  }
+
+  // 4 points: axis-aligned cross (finite differences)
+  var wF = _sampleWaves(cx, cz - radius, time, settings);
+  var wB = _sampleWaves(cx, cz + radius, time, settings);
+  var wL = _sampleWaves(cx - radius, cz, time, settings);
+  var wR = _sampleWaves(cx + radius, cz, time, settings);
+  totalH = (wF.height + wB.height + wL.height + wR.height) / 4;
+  var dhdx = (wR.height - wL.height) / (2 * radius);
+  var dhdz = (wB.height - wF.height) / (2 * radius);
+  var fn = _normalize3(-dhdx, 1, -dhdz);
+  return { height: totalH, quat: _quatFromUpNormal(fn.x, fn.y, fn.z), offset: wF.offset };
+}
+
 function _deepMerge(target, source) {
   if (!source) return target;
   var result = {};
@@ -1122,11 +1172,13 @@ function StylizedWaterSystem(scene, camera, settings, bodyId, displayName) {
   this._fpsTime = Date.now();
   this._currentFPS = 0;
   this._paintData = null; // vertex color painting (Phase 5)
+  this._waveAlignEntries = []; // wave-align transform entries
 
   // Build water
   this._build();
   this._loadTextures();
   this._registerBuoyancyAPI();
+  this._registerWaveAlignAPI();
 
   // Apply saved position for non-followCamera bodies
   if (!this.settings.followCamera && this.settings.position) {
@@ -1344,6 +1396,9 @@ StylizedWaterSystem.prototype._animLoop = function() {
     this._buoyancyCounter = 0;
     this._updateBuoyancy();
   }
+
+  // Wave alignment — every frame for smooth visuals
+  this._updateWaveAlignment(dt);
 
   // No per-body RAF — WaterBodyManager._tick() calls this
 };
@@ -1668,6 +1723,139 @@ StylizedWaterSystem.prototype._registerBuoyancyAPI = function() {
   window.__vibexe_waterLevel = self.settings.waterLevel;
 };
 
+// ── Wave Align Transform API ───────────────────────────
+
+StylizedWaterSystem.prototype._registerWaveAlignAPI = function() {
+  window.__vibexe_waveAlignEntries = window.__vibexe_waveAlignEntries || [];
+
+  window.__vibexe_alignToWaves = function(obj, opts) {
+    if (!obj || !obj.isObject3D) {
+      console.warn('[StylizedWater] alignToWaves: invalid Object3D');
+      return { remove: function() {} };
+    }
+    // Prevent duplicate registration
+    var entries = window.__vibexe_waveAlignEntries;
+    for (var i = 0; i < entries.length; i++) {
+      if (entries[i].obj === obj) {
+        console.warn('[StylizedWater] alignToWaves: object already registered');
+        return { remove: function() { window.__vibexe_removeWaveAlignment(obj); } };
+      }
+    }
+    var o = opts || {};
+    // Auto-radius from bounding box if not specified
+    var autoRadius = 0;
+    if (!o.sampleRadius && (o.samplePoints || 1) > 1) {
+      try {
+        var box = new THREE.Box3().setFromObject(obj);
+        var size = new THREE.Vector3();
+        box.getSize(size);
+        autoRadius = Math.max(size.x, size.z) * 0.45;
+        if (autoRadius < 0.1) autoRadius = 1;
+      } catch(e) { autoRadius = 1; }
+    }
+
+    var entry = {
+      obj: obj,
+      heightOffset: o.heightOffset != null ? o.heightOffset : 0,
+      waveInfluence: _clamp(o.waveInfluence != null ? o.waveInfluence : 1.0, 0, 1),
+      rotationInfluence: _clamp(o.rotationInfluence != null ? o.rotationInfluence : 0.8, 0, 1),
+      samplePoints: _clamp(Math.round(o.samplePoints != null ? o.samplePoints : 1), 1, 4),
+      sampleRadius: o.sampleRadius || autoRadius,
+      damping: _clamp(o.damping != null ? o.damping : 0.1, 0, 0.99),
+      followHorizontalDrift: !!o.followHorizontalDrift,
+      horizontalDriftScale: _clamp(o.horizontalDriftScale != null ? o.horizontalDriftScale : 0.3, 0, 1),
+      _baseX: obj.position.x,
+      _baseZ: obj.position.z,
+      _currentY: obj.position.y,
+      _currentQuat: obj.quaternion.clone()
+    };
+    entries.push(entry);
+    console.log('[StylizedWater] alignToWaves registered — samples:' + entry.samplePoints + ' radius:' + entry.sampleRadius.toFixed(2));
+    return { remove: function() { window.__vibexe_removeWaveAlignment(obj); } };
+  };
+
+  window.__vibexe_removeWaveAlignment = function(obj) {
+    var entries = window.__vibexe_waveAlignEntries || [];
+    for (var i = entries.length - 1; i >= 0; i--) {
+      if (entries[i].obj === obj) {
+        entries.splice(i, 1);
+        return true;
+      }
+    }
+    return false;
+  };
+
+  window.__vibexe_hasWaveAlignment = function(obj) {
+    var entries = window.__vibexe_waveAlignEntries || [];
+    for (var i = 0; i < entries.length; i++) {
+      if (entries[i].obj === obj) return true;
+    }
+    return false;
+  };
+};
+
+StylizedWaterSystem.prototype._updateWaveAlignment = function(dt) {
+  var entries = window.__vibexe_waveAlignEntries;
+  if (!entries || entries.length === 0) return;
+
+  // Only run from the first non-disposed water body (avoid double-update)
+  var bodies = window.__vibexe_waterBodies || [];
+  if (bodies.length > 0 && bodies[0] !== this) return;
+
+  var s = this.settings;
+  var time = this._time;
+
+  for (var i = entries.length - 1; i >= 0; i--) {
+    var e = entries[i];
+    // Auto-cleanup if removed from scene
+    if (!e.obj.parent) {
+      entries.splice(i, 1);
+      continue;
+    }
+
+    var x = e.followHorizontalDrift ? e._baseX : e.obj.position.x;
+    var z = e.followHorizontalDrift ? e._baseZ : e.obj.position.z;
+
+    // Sample waves
+    var result;
+    if (e.samplePoints <= 1) {
+      var w = _sampleWaves(x, z, time, s);
+      result = { height: w.height, quat: _quatFromUpNormal(w.normal.x, w.normal.y, w.normal.z), offset: w.offset };
+    } else {
+      result = _fitPlaneToWaveSamples(x, z, e.sampleRadius, e.samplePoints, time, s);
+    }
+
+    var targetY = result.height + e.heightOffset;
+
+    // Frame-rate independent damping: factor = 1 - pow(damping, dt * 60)
+    var dampFactor = 1 - Math.pow(e.damping, dt * 60);
+
+    // Lerp Y position (scaled by waveInfluence)
+    if (e.waveInfluence > 0.001) {
+      e._currentY = e._currentY + (targetY - e._currentY) * dampFactor * e.waveInfluence;
+    } else {
+      // Fixed depth: just offset + water level
+      e._currentY = s.waterLevel + e.heightOffset;
+    }
+    e.obj.position.y = e._currentY;
+
+    // Slerp rotation (scaled by rotationInfluence)
+    if (e.rotationInfluence > 0.001) {
+      var rotFactor = dampFactor * e.rotationInfluence;
+      e._currentQuat.slerp(result.quat, rotFactor);
+      e.obj.quaternion.copy(e._currentQuat);
+    }
+
+    // Horizontal drift
+    if (e.followHorizontalDrift && result.offset) {
+      var driftX = e._baseX + result.offset.x * e.horizontalDriftScale;
+      var driftZ = e._baseZ + result.offset.z * e.horizontalDriftScale;
+      e.obj.position.x += (driftX - e.obj.position.x) * dampFactor;
+      e.obj.position.z += (driftZ - e.obj.position.z) * dampFactor;
+    }
+  }
+};
+
 // ── Settings Management ────────────────────────────────
 
 StylizedWaterSystem.prototype.updateSettings = function(patch) {
@@ -1928,12 +2116,19 @@ StylizedWaterSystem.prototype.dispose = function() {
   var idx = bodies.indexOf(this);
   if (idx >= 0) bodies.splice(idx, 1);
 
+  // Clear wave alignment entries for this body
+  this._waveAlignEntries = [];
+
   // Only clean up globals if no water bodies remain
   if (bodies.length === 0) {
     delete window.__vibexe_getWaterHeight;
     delete window.__vibexe_getWaterNormal;
     delete window.__vibexe_isUnderwater;
     delete window.__vibexe_waterLevel;
+    delete window.__vibexe_alignToWaves;
+    delete window.__vibexe_removeWaveAlignment;
+    delete window.__vibexe_hasWaveAlignment;
+    window.__vibexe_waveAlignEntries = [];
   }
   delete window.__vibexe_stylizedWater;
 
