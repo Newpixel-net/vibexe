@@ -64,6 +64,9 @@ export interface PrefabDefinition {
 	args: Record<string, any>;
 	displayName: string;
 	category: string;
+	itemId?: string;
+	packId?: string;
+	modelPath?: string;
 }
 
 // ===== Scene / Level Definitions =====

@@ -33,6 +33,9 @@ export function GameEditorAssetLibrary() {
 				args,
 				displayName: item.displayName,
 				category: item.category,
+				itemId: item.id,
+				packId: item.packId,
+				modelPath: item.modelPath,
 			};
 		},
 		[],
@@ -58,11 +61,9 @@ export function GameEditorAssetLibrary() {
 		[buildPrefab, spawnObject],
 	);
 
-	// Selected item ID for highlight
+	// Selected item ID for highlight — shows green ring on active asset card
 	const selectedItemId = useMemo(() => {
-		if (!activePrefab) return null;
-		// Match by displayName since that's what we use for comparison
-		return null; // SharedAssetBrowser handles highlight via selectedItemId prop
+		return activePrefab?.itemId ?? null;
 	}, [activePrefab]);
 
 	return (

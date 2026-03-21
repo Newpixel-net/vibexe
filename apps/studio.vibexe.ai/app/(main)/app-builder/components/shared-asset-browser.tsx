@@ -176,12 +176,12 @@ export function SharedAssetBrowser({
 
 	const hl = highlightColor === "amber" ? {
 		activeBg: "bg-amber-500/20",
-		activeRing: "ring-amber-500/40",
+		activeRing: "ring-2 ring-amber-500/60",
 		pillBg: "bg-amber-500/[0.15]",
 		pillText: "text-amber-300",
 	} : {
 		activeBg: "bg-emerald-500/20",
-		activeRing: "ring-emerald-500/40",
+		activeRing: "ring-2 ring-emerald-400/70",
 		pillBg: "bg-white/[0.12]",
 		pillText: "text-white/80",
 	};
@@ -330,7 +330,7 @@ export function SharedAssetBrowser({
 									onDoubleClick={onDoubleClick ? () => handleDoubleClick(item) : undefined}
 									className={`relative flex flex-col items-center gap-0.5 p-1.5 rounded transition-all ${
 										isActive
-											? `${hl.activeBg} ring-1 ${hl.activeRing}`
+											? `${hl.activeBg} ${hl.activeRing}`
 											: "bg-white/[0.03] hover:bg-white/[0.07]"
 									}`}
 									title={`${item.displayName}\n${item.packId} / ${item.subcategory}\nClick to select, then click on map to place`}

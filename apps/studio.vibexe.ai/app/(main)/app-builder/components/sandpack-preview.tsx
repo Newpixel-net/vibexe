@@ -55,6 +55,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { AppFile } from "../adapters/file-adapter";
 import { useVisualEdit } from "../lib/visual-edit-context";
 import { useGameEditor, type GizmoMode, type SceneDefinition, type SceneObjectDef } from "../lib/game-editor-context";
+import { useAssetThumbnail } from "../lib/asset-thumbnail-renderer";
 import { GameEditorPanel } from "./game-editor-panel";
 import { GameSettingsPanel } from "./game-settings-panel";
 import { SceneGizmo } from "./scene-gizmo";
@@ -892,6 +893,19 @@ ${MARKER_END}`;
  * No key on SandpackProvider - SandpackFileSync handles incremental
  * updates so the preview iframe stays alive during streaming.
  */
+function SpawnBannerThumb({ packId, modelPath }: { packId?: string; modelPath?: string }) {
+	const { canvasRef } = useAssetThumbnail(packId || "", modelPath || "", !!packId && !!modelPath);
+	if (!packId || !modelPath) return <span className="w-6 h-6 rounded-full bg-white/20 flex-shrink-0" />;
+	return (
+		<canvas
+			ref={canvasRef}
+			width={64}
+			height={64}
+			className="w-7 h-7 rounded-full flex-shrink-0 bg-emerald-800/50 object-cover"
+		/>
+	);
+}
+
 export function SandpackPreview({
 	appId,
 	files,
@@ -2793,9 +2807,9 @@ export function SandpackPreview({
 						{/* Spawn mode indicator overlay */}
 						{gameEditor.activePrefab && gameEditor.enabled && (
 							<div className="absolute top-2 left-1/2 -translate-x-1/2 z-40 pointer-events-none">
-								<div className="bg-emerald-600/90 text-white text-xs font-medium px-4 py-1.5 rounded-full shadow-lg backdrop-blur-sm flex items-center gap-2 animate-pulse">
-									<span className="w-2 h-2 rounded-full bg-white animate-ping" />
-									Click on map to place: {gameEditor.activePrefab.displayName}
+								<div className="bg-emerald-600/90 text-white text-xs font-medium pl-1.5 pr-4 py-1 rounded-full shadow-lg backdrop-blur-sm flex items-center gap-2">
+									<SpawnBannerThumb packId={gameEditor.activePrefab.packId} modelPath={gameEditor.activePrefab.modelPath} />
+									<span className="animate-pulse">Click on map to place: {gameEditor.activePrefab.displayName}</span>
 								</div>
 							</div>
 						)}
