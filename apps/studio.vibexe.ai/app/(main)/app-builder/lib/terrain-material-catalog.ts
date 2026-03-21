@@ -39,6 +39,7 @@ export interface TerrainMaterial {
 // ===== URL helpers =====
 
 export function terrainTextureUrl(filename: string): string {
+	if (!filename) return "";
 	return `/api/app-builder/media-stock-3d/textures/${encodeURIComponent(filename)}`;
 }
 

@@ -6094,7 +6094,7 @@ export function getVisualEditBridgeScript(): string {
               if (url && url.charAt(0) === '/') {
                 url = (window.__VIBEXE_API_ORIGIN__ || '') + url;
               }
-              if (!url || url.length < 5) {
+              if (!url || url.length < 5 || url.endsWith('/')) {
                 _rpTextures[idx] = null;
                 _rpLoaded++;
                 if (_rpLoaded >= _rpTotal) _rpScheduleApply();
@@ -6129,7 +6129,7 @@ export function getVisualEditBridgeScript(): string {
               if (nurl && nurl.charAt(0) === '/') {
                 nurl = (window.__VIBEXE_API_ORIGIN__ || '') + nurl;
               }
-              if (!nurl || nurl.length < 5) {
+              if (!nurl || nurl.length < 5 || nurl.endsWith('/')) {
                 _rpNormalTextures[idx] = null;
                 _rpLoaded++;
                 if (_rpLoaded >= _rpTotal) _rpScheduleApply();
@@ -6163,7 +6163,7 @@ export function getVisualEditBridgeScript(): string {
               if (rurl && rurl.charAt(0) === '/') {
                 rurl = (window.__VIBEXE_API_ORIGIN__ || '') + rurl;
               }
-              if (!rurl || rurl.length < 5) {
+              if (!rurl || rurl.length < 5 || rurl.endsWith('/')) {
                 _rpRoughnessTextures[idx] = null;
                 _rpLoaded++;
                 if (_rpLoaded >= _rpTotal) _rpScheduleApply();
@@ -6195,7 +6195,7 @@ export function getVisualEditBridgeScript(): string {
               if (aurl && aurl.charAt(0) === '/') {
                 aurl = (window.__VIBEXE_API_ORIGIN__ || '') + aurl;
               }
-              if (!aurl || aurl.length < 5) {
+              if (!aurl || aurl.length < 5 || aurl.endsWith('/')) {
                 _rpAOTextures[idx] = null;
                 _rpLoaded++;
                 if (_rpLoaded >= _rpTotal) _rpScheduleApply();
