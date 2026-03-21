@@ -2807,9 +2807,17 @@ export function SandpackPreview({
 						{/* Spawn mode indicator overlay */}
 						{gameEditor.activePrefab && gameEditor.enabled && (
 							<div className="absolute top-2 left-1/2 -translate-x-1/2 z-40 pointer-events-none">
-								<div className="bg-emerald-600/90 text-white text-xs font-medium pl-1.5 pr-4 py-1 rounded-full shadow-lg backdrop-blur-sm flex items-center gap-2">
-									<SpawnBannerThumb packId={gameEditor.activePrefab.packId} modelPath={gameEditor.activePrefab.modelPath} />
+								<div className="bg-emerald-600/90 text-white text-xs font-medium pl-1.5 pr-1.5 py-1 rounded-full shadow-lg backdrop-blur-sm flex items-center gap-2">
+									<SpawnBannerThumb key={gameEditor.activePrefab.itemId || gameEditor.activePrefab.displayName} packId={gameEditor.activePrefab.packId} modelPath={gameEditor.activePrefab.modelPath} />
 									<span className="animate-pulse">Click on map to place: {gameEditor.activePrefab.displayName}</span>
+									<button
+										type="button"
+										onClick={() => gameEditor.setActivePrefab(null)}
+										className="pointer-events-auto w-5 h-5 rounded-full bg-white/20 hover:bg-red-500/60 flex items-center justify-center transition-colors flex-shrink-0"
+										title="Cancel placement (Esc)"
+									>
+										<span className="text-[10px] font-bold leading-none">✕</span>
+									</button>
 								</div>
 							</div>
 						)}
