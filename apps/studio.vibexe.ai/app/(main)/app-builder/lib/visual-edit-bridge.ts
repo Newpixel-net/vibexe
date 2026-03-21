@@ -6104,7 +6104,9 @@ export function getVisualEditBridgeScript(): string {
               if (!url || url.length < 5 || url.endsWith('/')) {
                 // Create 1x1 solid-color fallback texture from preview color
                 // (avoids TSL vec3 fallback path which can produce black on WebGPU)
-                var _fbColor = _rpColors[idx] || [0.5, 0.5, 0.5];
+                // Emissive layers (Lava/Burnt) need dark base so emission cracks stand out
+                var _fbIsEmissive = _rpEnabledLayers[idx] && _rpEnabledLayers[idx].emissionUrl && _rpEnabledLayers[idx].emissionIntensity > 0;
+                var _fbColor = _fbIsEmissive ? [0.08, 0.04, 0.02] : (_rpColors[idx] || [0.5, 0.5, 0.5]);
                 var _fbCanvas = document.createElement("canvas");
                 _fbCanvas.width = 1; _fbCanvas.height = 1;
                 var _fbCtx = _fbCanvas.getContext("2d");
