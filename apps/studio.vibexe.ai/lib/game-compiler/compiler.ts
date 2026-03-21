@@ -14,7 +14,7 @@ import { generateRuntimeBootstrap } from "./runtime-bootstrap";
 
 // Bump this when generateGameEntry() or the compiler wrapper changes
 // so esbuild cache busts without waiting for CACHE_TTL expiry
-const COMPILER_VERSION = "19";
+const COMPILER_VERSION = "20";
 
 // In-memory LRU cache for compiled bundles
 const bundleCache = new Map<string, { bundle: string; timestamp: number }>();
@@ -920,6 +920,7 @@ if (!gameScene || typeof gameScene.init !== 'function') {
         const __perfNow = performance.now();
         if (__perfNow - __perfLastCheck >= 2000 && !__editorMode) {
           const __avgFps = __perfFrames / ((__perfNow - __perfLastCheck) / 1000);
+          W.__vibexe_lastFps__ = __avgFps;
           const __perfAge = __perfNow - __perfStartTime;
           // Two-tier PerfGuard: emergency at FPS<8 after 15s, normal at FPS<15 after 35s
           // Extended grace period for WebGPU TSL shader compilation (multiple materials compile on first use)
