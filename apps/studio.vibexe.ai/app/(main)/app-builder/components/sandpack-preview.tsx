@@ -1099,15 +1099,31 @@ export function SandpackPreview({
 						body: JSON.stringify({ path: sceneFile.path, content: code }),
 					});
 					console.log("[GameEditor] DB save complete for", names.length, "objects,", deletions.length, "deletions");
-					toast("Scene saved", { type: "success" });
 					deletedObjectsRef.current = [];
 				} catch (err) {
 					console.warn("[GameEditor] DB save failed:", err);
 					toast("Failed to save scene", { type: "error" });
 				}
-			} else {
-				toast("Scene saved", { type: "success" });
 			}
+			// Persist spawned objects to game settings so they survive page refresh
+			const spawnedToSave = spawnedObjectsRef.current;
+			const currentGS = gameEditor.gameSettings;
+			const hasSpawnedChanges = JSON.stringify((currentGS as any).spawnedObjects || []) !== JSON.stringify(spawnedToSave);
+			if (hasSpawnedChanges) {
+				const settingsWithSpawns = { ...currentGS, spawnedObjects: spawnedToSave };
+				const settingsJson = JSON.stringify(settingsWithSpawns, null, 2);
+				try {
+					await fetch(`/api/app-builder/apps/${appId}/files`, {
+						method: "PUT",
+						headers: { "Content-Type": "application/json" },
+						body: JSON.stringify({ path: "src/__game-settings.json", content: settingsJson }),
+					});
+					console.log("[GameEditor] Saved", spawnedToSave.length, "spawned objects to settings file");
+				} catch (err) {
+					console.warn("[GameEditor] Failed to save spawned objects:", err);
+				}
+			}
+			toast("Scene saved", { type: "success" });
 		};
 		gameEditor.setSaveHandler(saveAllTransforms);
 	}, [isGameMode, appId, gameEditor.setSaveHandler, toast]);
@@ -1438,6 +1454,10 @@ export function SandpackPreview({
 					}
 				}
 				// Restore spawned objects from previous session (if any)
+				// First check persisted game settings (survives full page reload)
+				if (spawnedObjectsRef.current.length === 0 && (gameEditor.gameSettings as any).spawnedObjects?.length) {
+					spawnedObjectsRef.current = (gameEditor.gameSettings as any).spawnedObjects;
+				}
 				if (spawnedObjectsRef.current.length > 0 && iframe?.contentWindow) {
 					const objectsToRestore = [...spawnedObjectsRef.current];
 					console.log("[GameEditor] Restoring", objectsToRestore.length, "spawned objects after reload");
