@@ -28,6 +28,8 @@ export interface SharedAssetBrowserProps {
 	onSelect: (item: AssetLibraryItem, color: string) => void;
 	/** Called on double-click (optional — e.g., for quick-spawn) */
 	onDoubleClick?: (item: AssetLibraryItem, color: string) => void;
+	/** Called when user starts dragging an item (for drag-and-drop placement) */
+	onDragStart?: (item: AssetLibraryItem, color: string) => string | undefined;
 	/** ID of the currently selected item (for highlight) */
 	selectedItemId?: string | null;
 	/** Number of grid columns (default: 2) */
@@ -79,6 +81,7 @@ const PACK_LABELS: Record<string, string> = {
 export function SharedAssetBrowser({
 	onSelect,
 	onDoubleClick,
+	onDragStart,
 	selectedItemId,
 	columns = 2,
 	highlightColor = "emerald",
@@ -326,14 +329,22 @@ export function SharedAssetBrowser({
 								<button
 									key={item.id}
 									type="button"
+									draggable={!!onDragStart}
 									onClick={() => handleClick(item)}
 									onDoubleClick={onDoubleClick ? () => handleDoubleClick(item) : undefined}
+									onDragStart={onDragStart ? (e) => {
+										const payload = onDragStart(item, selectedColor);
+										if (payload) {
+											e.dataTransfer.setData("application/vibexe-asset", payload);
+											e.dataTransfer.effectAllowed = "copy";
+										}
+									} : undefined}
 									className={`relative flex flex-col items-center gap-0.5 p-1.5 rounded transition-all ${
 										isActive
 											? `${hl.activeBg} ring-1 ${hl.activeRing}`
 											: "bg-white/[0.03] hover:bg-white/[0.07]"
-									}`}
-									title={`${item.displayName}\n${item.packId} / ${item.subcategory}`}
+									} ${onDragStart ? "cursor-grab active:cursor-grabbing" : ""}`}
+									title={`${item.displayName}\n${item.packId} / ${item.subcategory}\n${onDragStart ? "Drag to viewport to place" : ""}`}
 								>
 									<AssetThumbnailCard item={item} itemColor={itemColor} />
 									<span className="text-[8px] text-white/50 truncate w-full text-center leading-tight mt-0.5">

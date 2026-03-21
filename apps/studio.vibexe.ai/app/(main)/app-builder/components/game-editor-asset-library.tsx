@@ -58,6 +58,14 @@ export function GameEditorAssetLibrary() {
 		[buildPrefab, spawnObject],
 	);
 
+	const handleDragStart = useCallback(
+		(item: AssetLibraryItem, color: string): string | undefined => {
+			const prefab = buildPrefab(item, color);
+			return JSON.stringify({ factory: prefab.factory, args: prefab.args, displayName: prefab.displayName });
+		},
+		[buildPrefab],
+	);
+
 	// Selected item ID for highlight
 	const selectedItemId = useMemo(() => {
 		if (!activePrefab) return null;
@@ -111,6 +119,7 @@ export function GameEditorAssetLibrary() {
 			<SharedAssetBrowser
 				onSelect={handleSelect}
 				onDoubleClick={handleDoubleClick}
+				onDragStart={handleDragStart}
 				selectedItemId={selectedItemId}
 				columns={2}
 				highlightColor="emerald"

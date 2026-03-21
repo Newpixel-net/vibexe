@@ -6618,6 +6618,76 @@ export default function Game3D({ gameScene: rawScene, bgColor = "#87CEEB", camer
                   }
                 }
                 break;
+              case "game-editor-spawn-at-screen": {
+                // Drag-drop spawn: raycast from screen NDC to find 3D position
+                if (d.factory && typeof d.ndcX === "number" && typeof d.ndcY === "number" && _raycaster) {
+                  const _dropMouse = new THREE.Vector2(d.ndcX, d.ndcY);
+                  _raycaster.setFromCamera(_dropMouse, camera);
+                  const _dropMeshes: any[] = [];
+                  scene.traverse((child: any) => {
+                    if (child.isMesh && child.type !== "TransformControlsGizmo" &&
+                        child.type !== "TransformControlsPlane" &&
+                        !child.name.startsWith("__editor_")) {
+                      _dropMeshes.push(child);
+                    }
+                  });
+                  const _dropHits = _raycaster.intersectObjects(_dropMeshes, false);
+                  let _dropPos = { x: 0, y: 2, z: 0 };
+                  if (_dropHits.length > 0) {
+                    const pt = _dropHits[0].point;
+                    _dropPos = { x: pt.x, y: pt.y + 0.5, z: pt.z };
+                  } else {
+                    const dir = new THREE.Vector3(d.ndcX, d.ndcY, 0.5).unproject(camera).sub(camera.position).normalize();
+                    const projPt = camera.position.clone().add(dir.multiplyScalar(15));
+                    _dropPos = { x: projPt.x, y: Math.max(0.5, projPt.y), z: projPt.z };
+                  }
+                  // Resolve args and spawn (same logic as game-editor-spawn-object)
+                  const _dropArgs = { ...(d.args || {}) };
+                  for (const _k of Object.keys(_dropArgs)) {
+                    const _v = _dropArgs[_k];
+                    if (typeof _v === "string" && _v.startsWith("__MODEL_URL__")) {
+                      const _rest = _v.slice(13);
+                      const _sep = _rest.indexOf("__");
+                      if (_sep >= 0) _dropArgs[_k] = modelUrl(_rest.slice(0, _sep), _rest.slice(_sep + 2));
+                    }
+                  }
+                  let _dropUnresolved = false;
+                  for (const _uk of Object.keys(_dropArgs)) {
+                    if (typeof _dropArgs[_uk] === "string" && _dropArgs[_uk].startsWith("__MODEL_URL__")) {
+                      _dropUnresolved = true;
+                    }
+                  }
+                  if (!_dropUnresolved) {
+                    const _fns2: Record<string, Function> = {
+                      createPlatform3D, createCollectible3D, createPlayer3D,
+                      createBarrier3D, createDecoration3D, createAnimatedCharacter3D,
+                    };
+                    const fn2 = _fns2[d.factory] || (window as any)[d.factory];
+                    if (fn2) {
+                      (async () => {
+                        try {
+                          const result = await fn2(scene, _dropPos.x, _dropPos.y, _dropPos.z, _dropArgs);
+                          if (result?.mesh) {
+                            result.mesh.userData.__spawned = true;
+                            result.mesh.userData.vibexeFactory = d.factory;
+                            result.mesh.userData.vibexeSpawnArgs = _dropArgs;
+                            _sendSceneTree();
+                            window.parent.postMessage({
+                              type: "game-editor-object-spawned",
+                              uuid: result.mesh.uuid,
+                              name: result.mesh.name,
+                            }, "*");
+                            _selectObject(result.mesh);
+                          }
+                        } catch (spawnErr) {
+                          console.warn("[Editor] Drop-spawn failed:", spawnErr);
+                        }
+                      })();
+                    }
+                  }
+                }
+                break;
+              }
               case "game-editor-get-spawned-objects": {
                 // Collect all spawned objects for persistence across restart
                 const spawned: any[] = [];
