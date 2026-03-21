@@ -126,7 +126,8 @@ export function getTerrainMaterialsByCategory(cat: TerrainMaterialCategory): Ter
 
 /** Given a diffuse URL, find the matching catalog material */
 export function findMaterialByDiffuseUrl(diffuseUrl: string): TerrainMaterial | undefined {
+	if (!diffuseUrl) return undefined;
 	return TERRAIN_MATERIAL_CATALOG.find(
-		(m) => diffuseUrl.endsWith(m.diffuseFilename) || diffuseUrl.includes(m.diffuseFilename),
+		(m) => m.diffuseFilename && (diffuseUrl.endsWith(m.diffuseFilename) || diffuseUrl.includes(m.diffuseFilename)),
 	);
 }
