@@ -1096,6 +1096,28 @@ if (!gameScene || typeof gameScene.init !== 'function') {
       // Force initial shadow render
       renderer.shadowMap.needsUpdate = true;
       animate();
+
+      // Command Center message handler — always active (not editor-bridge dependent)
+      W.addEventListener('message', function(ev: any) {
+        const d = ev.data;
+        if (!d || !d.type || typeof d.type !== 'string' || d.type.indexOf('game-cmd-') !== 0) return;
+        switch (d.type) {
+          case 'game-cmd-play': W.__vibexe_game_paused__ = false; break;
+          case 'game-cmd-pause': W.__vibexe_game_paused__ = true; break;
+          case 'game-cmd-step': W.__vibexe_step_frame__ = true; break;
+          case 'game-cmd-reset': W.location.reload(); break;
+          case 'game-cmd-time-scale': W.__vibexe_time_scale__ = d.scale; break;
+          case 'game-cmd-request-stats': {
+            const s: any = { fps: 0, drawCalls: 0, triangles: 0, geometries: 0, textures: 0, memory: 0 };
+            if (W.__vibexe_lastFps__) s.fps = Math.round(W.__vibexe_lastFps__);
+            else { const fpsEl = document.getElementById('fps-display'); if (fpsEl) s.fps = parseInt(fpsEl.textContent?.replace(/[^0-9]/g, '') || '0', 10) || 0; }
+            if (renderer?.info) { s.drawCalls = renderer.info.render?.calls || 0; s.triangles = renderer.info.render?.triangles || 0; s.geometries = renderer.info.memory?.geometries || 0; s.textures = renderer.info.memory?.textures || 0; }
+            if ((performance as any)?.memory) s.memory = Math.round((performance as any).memory.usedJSHeapSize / (1024 * 1024));
+            W.parent.postMessage({ type: 'game-cmd-stats-report', stats: s }, '*');
+            break;
+          }
+        }
+      });
     };
 
     // Menu overlay — TAP TO START
