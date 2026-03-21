@@ -466,6 +466,13 @@ interface GameEditorContextValue {
 	stepSimulation: () => void;
 	resetSimulation: () => void;
 	updateTimeScale: (scale: number) => void;
+	// Recording
+	recordingState: "idle" | "recording" | "ready";
+	recordingDuration: number;
+	recordingBlobUrl: string | null;
+	startRecording: () => void;
+	stopRecording: () => void;
+	setRecordingReady: (blobUrl: string) => void;
 	// Generic iframe message sender (for module communication)
 	sendToIframe: (msg: any) => void;
 }
@@ -528,6 +535,10 @@ export function GameEditorProvider({ children }: { children: ReactNode }) {
 	const [simulationState, setSimulationState] = useState<"running" | "paused" | "stopped">("running");
 	const [timeScale, setTimeScale] = useState(1.0);
 	const [gameStats, setGameStatsState] = useState<{ fps: number; drawCalls: number; triangles: number; geometries: number; textures: number; memory: number } | null>(null);
+	const [recordingState, setRecordingState] = useState<"idle" | "recording" | "ready">("idle");
+	const [recordingDuration, setRecordingDuration] = useState(0);
+	const [recordingBlobUrl, setRecordingBlobUrl] = useState<string | null>(null);
+	const recordingStartRef = useRef(0);
 
 	// Multi-scene / level state
 	const defaultScene = createDefaultScene();
@@ -1132,6 +1143,36 @@ export function GameEditorProvider({ children }: { children: ReactNode }) {
 		setGameStatsState(stats);
 	}, []);
 
+	// Recording actions
+	const startRecording = useCallback(() => {
+		// Revoke previous blob URL if any
+		if (recordingBlobUrl) URL.revokeObjectURL(recordingBlobUrl);
+		setRecordingBlobUrl(null);
+		setRecordingState("recording");
+		setRecordingDuration(0);
+		recordingStartRef.current = Date.now();
+		sendToIframe({ type: "game-cmd-start-record" });
+	}, [sendToIframe, recordingBlobUrl]);
+
+	const stopRecording = useCallback(() => {
+		sendToIframe({ type: "game-cmd-stop-record" });
+		// State will change to "ready" when we receive the blob back
+	}, [sendToIframe]);
+
+	const setRecordingReady = useCallback((blobUrl: string) => {
+		setRecordingState("ready");
+		setRecordingBlobUrl(blobUrl);
+	}, []);
+
+	// Update recording duration while recording
+	useEffect(() => {
+		if (recordingState !== "recording") return;
+		const interval = setInterval(() => {
+			setRecordingDuration(Date.now() - recordingStartRef.current);
+		}, 200);
+		return () => clearInterval(interval);
+	}, [recordingState]);
+
 	// Poll for stats while command center is open
 	useEffect(() => {
 		if (!commandCenterOpen) return;
@@ -1369,6 +1410,13 @@ export function GameEditorProvider({ children }: { children: ReactNode }) {
 		stepSimulation,
 		resetSimulation,
 		updateTimeScale,
+		// Recording
+		recordingState,
+		recordingDuration,
+		recordingBlobUrl,
+		startRecording,
+		stopRecording,
+		setRecordingReady,
 		sendToIframe,
 	}), [
 		enabled, sceneTree, selectedObject, selectedUuids, gizmoMode, snapEnabled,
@@ -1398,7 +1446,9 @@ export function GameEditorProvider({ children }: { children: ReactNode }) {
 		saveAsPrefab, deletePrefab,
 		commandCenterOpen, simulationState, timeScale, gameStats,
 		playSimulation, pauseSimulation, stepSimulation, resetSimulation,
-		updateTimeScale, setGameStats, sendToIframe,
+		updateTimeScale, setGameStats,
+		recordingState, recordingDuration, recordingBlobUrl,
+		startRecording, stopRecording, setRecordingReady, sendToIframe,
 	]);
 
 	return (

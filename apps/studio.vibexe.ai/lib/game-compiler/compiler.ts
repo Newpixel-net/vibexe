@@ -14,7 +14,7 @@ import { generateRuntimeBootstrap } from "./runtime-bootstrap";
 
 // Bump this when generateGameEntry() or the compiler wrapper changes
 // so esbuild cache busts without waiting for CACHE_TTL expiry
-const COMPILER_VERSION = "20";
+const COMPILER_VERSION = "21";
 
 // In-memory LRU cache for compiled bundles
 const bundleCache = new Map<string, { bundle: string; timestamp: number }>();
@@ -1115,6 +1115,30 @@ if (!gameScene || typeof gameScene.init !== 'function') {
             if (renderer?.info) { s.drawCalls = renderer.info.render?.calls || 0; s.triangles = renderer.info.render?.triangles || 0; s.geometries = renderer.info.memory?.geometries || 0; s.textures = renderer.info.memory?.textures || 0; }
             if ((performance as any)?.memory) s.memory = Math.round((performance as any).memory.usedJSHeapSize / (1024 * 1024));
             W.parent.postMessage({ type: 'game-cmd-stats-report', stats: s }, '*');
+            break;
+          }
+          case 'game-cmd-start-record': {
+            try {
+              const canvas = renderer.domElement as HTMLCanvasElement;
+              const stream = canvas.captureStream(30);
+              const mr = new MediaRecorder(stream, { mimeType: 'video/webm;codecs=vp9', videoBitsPerSecond: 5_000_000 });
+              const chunks: BlobPart[] = [];
+              mr.ondataavailable = (e: any) => { if (e.data.size > 0) chunks.push(e.data); };
+              mr.onstop = () => {
+                const blob = new Blob(chunks, { type: 'video/webm' });
+                blob.arrayBuffer().then((buf) => {
+                  W.parent.postMessage({ type: 'game-cmd-recording-ready', buffer: buf }, '*', [buf]);
+                });
+              };
+              mr.start(100);
+              W.__vibexe_mediaRecorder__ = mr;
+            } catch (recErr: any) { console.error('[CommandCenter] Record start failed:', recErr.message); }
+            break;
+          }
+          case 'game-cmd-stop-record': {
+            const mr2 = W.__vibexe_mediaRecorder__;
+            if (mr2 && mr2.state !== 'inactive') mr2.stop();
+            W.__vibexe_mediaRecorder__ = null;
             break;
           }
         }

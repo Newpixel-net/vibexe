@@ -1961,6 +1961,13 @@ export function SandpackPreview({
 			} else if (data.type === "game-cmd-stats-report") {
 				// Command Center stats from iframe
 				gameEditor.setGameStats(data.stats || null);
+			} else if (data.type === "game-cmd-recording-ready") {
+				// Recording complete — create blob URL from transferred ArrayBuffer
+				if (data.buffer) {
+					const blob = new Blob([data.buffer], { type: "video/webm" });
+					const url = URL.createObjectURL(blob);
+					gameEditor.setRecordingReady(url);
+				}
 			}
 			} catch (err) {
 				console.error("[MessageHandler] Error processing message:", data.type, err);
@@ -2883,11 +2890,16 @@ export function SandpackPreview({
 						simulationState={gameEditor.simulationState}
 						timeScale={gameEditor.timeScale}
 						gameStats={gameEditor.gameStats}
+						recordingState={gameEditor.recordingState}
+						recordingDuration={gameEditor.recordingDuration}
+						recordingBlobUrl={gameEditor.recordingBlobUrl}
 						onPlay={gameEditor.playSimulation}
 						onPause={gameEditor.pauseSimulation}
 						onStep={gameEditor.stepSimulation}
 						onReset={gameEditor.resetSimulation}
 						onTimeScaleChange={gameEditor.updateTimeScale}
+						onStartRecording={gameEditor.startRecording}
+						onStopRecording={gameEditor.stopRecording}
 						onClose={() => gameEditor.setCommandCenterOpen(false)}
 					/>
 				)}
