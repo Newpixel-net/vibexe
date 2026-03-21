@@ -14,7 +14,7 @@ import { generateRuntimeBootstrap } from "./runtime-bootstrap";
 
 // Bump this when generateGameEntry() or the compiler wrapper changes
 // so esbuild cache busts without waiting for CACHE_TTL expiry
-const COMPILER_VERSION = "23";
+const COMPILER_VERSION = "24";
 
 // In-memory LRU cache for compiled bundles
 const bundleCache = new Map<string, { bundle: string; timestamp: number }>();
@@ -1110,21 +1110,22 @@ if (!gameScene || typeof gameScene.init !== 'function') {
           case 'game-cmd-time-scale': W.__vibexe_time_scale__ = d.scale; break;
           case 'game-cmd-request-stats': {
             const s: any = { fps: 0, drawCalls: 0, triangles: 0, geometries: 0, textures: 0, memory: 0 };
-            if (W.__vibexe_lastFps__) s.fps = Math.round(W.__vibexe_lastFps__);
-            else { const fpsEl = document.getElementById('fps-display'); if (fpsEl) s.fps = parseInt(fpsEl.textContent?.replace(/[^0-9]/g, '') || '0', 10) || 0; }
+            // FPS priority: 1) AdaptiveQuality (most accurate, RAF-wrapped)
+            //               2) FPS DOM counter  3) PerfGuard (stale in editor mode)
+            const aq = W.__vibexe_adaptive_quality__;
+            if (aq && aq.fps > 0) { s.fps = Math.round(aq.fps); }
+            else { const fpsEl = document.getElementById('__vibexe_fps__'); if (fpsEl) s.fps = parseInt(fpsEl.textContent?.replace(/[^0-9]/g, '') || '0', 10) || 0; }
+            if (!s.fps && W.__vibexe_lastFps__) s.fps = Math.round(W.__vibexe_lastFps__);
             if (renderer?.info) {
-              // WebGPURenderer.info doesn't reset properly — compute per-frame delta
-              const calls = renderer.info.render?.calls || 0;
-              const tris = renderer.info.render?.triangles || 0;
-              const prev = W.__vibexe_prevStats__ || { calls: 0, tris: 0 };
-              s.drawCalls = Math.max(0, calls - prev.calls);
-              s.triangles = Math.max(0, tris - prev.tris);
-              // If delta is 0 or negative (reset happened), show raw values
-              if (s.drawCalls === 0 && calls > 0) s.drawCalls = calls;
-              if (s.triangles === 0 && tris > 0) s.triangles = tris;
-              W.__vibexe_prevStats__ = { calls, tris };
+              // WebGPURenderer.info values are per-frame when reset() works,
+              // cumulative when it doesn't. Read values, then try reset for next poll.
+              s.drawCalls = renderer.info.render?.calls || 0;
+              s.triangles = renderer.info.render?.triangles || 0;
               s.geometries = renderer.info.memory?.geometries || 0;
               s.textures = renderer.info.memory?.textures || 0;
+              // Try reset — if it works, next poll gets per-frame values.
+              // If not, values are still reasonable (per-frame from last render).
+              try { if (renderer.info.reset) renderer.info.reset(); } catch(_e) {}
             }
             if ((performance as any)?.memory) s.memory = Math.round((performance as any).memory.usedJSHeapSize / (1024 * 1024));
             W.parent.postMessage({ type: 'game-cmd-stats-report', stats: s }, '*');
