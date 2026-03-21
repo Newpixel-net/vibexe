@@ -453,6 +453,19 @@ interface GameEditorContextValue {
 	// Prefab management
 	saveAsPrefab: (displayName: string) => void;
 	deletePrefab: (prefabId: string) => void;
+	// Command Center (game simulation controls)
+	commandCenterOpen: boolean;
+	setCommandCenterOpen: (open: boolean) => void;
+	simulationState: "running" | "paused" | "stopped";
+	setSimulationState: (state: "running" | "paused" | "stopped") => void;
+	timeScale: number;
+	gameStats: { fps: number; drawCalls: number; triangles: number; geometries: number; textures: number; memory: number } | null;
+	setGameStats: (stats: { fps: number; drawCalls: number; triangles: number; geometries: number; textures: number; memory: number } | null) => void;
+	playSimulation: () => void;
+	pauseSimulation: () => void;
+	stepSimulation: () => void;
+	resetSimulation: () => void;
+	updateTimeScale: (scale: number) => void;
 	// Generic iframe message sender (for module communication)
 	sendToIframe: (msg: any) => void;
 }
@@ -509,6 +522,12 @@ export function GameEditorProvider({ children }: { children: ReactNode }) {
 	// Settings panel open/close
 	const [isSettingsOpen, setIsSettingsOpen] = useState(false);
 	const toggleSettings = useCallback(() => setIsSettingsOpen((v) => !v), []);
+
+	// Command Center state
+	const [commandCenterOpen, setCommandCenterOpen] = useState(false);
+	const [simulationState, setSimulationState] = useState<"running" | "paused" | "stopped">("running");
+	const [timeScale, setTimeScale] = useState(1.0);
+	const [gameStats, setGameStatsState] = useState<{ fps: number; drawCalls: number; triangles: number; geometries: number; textures: number; memory: number } | null>(null);
 
 	// Multi-scene / level state
 	const defaultScene = createDefaultScene();
@@ -1083,6 +1102,45 @@ export function GameEditorProvider({ children }: { children: ReactNode }) {
 		}
 	}, [enabled]);
 
+	// ===== Command Center actions =====
+	const playSimulation = useCallback(() => {
+		sendToIframe({ type: "game-cmd-play" });
+		setSimulationState("running");
+	}, [sendToIframe]);
+
+	const pauseSimulation = useCallback(() => {
+		sendToIframe({ type: "game-cmd-pause" });
+		setSimulationState("paused");
+	}, [sendToIframe]);
+
+	const stepSimulation = useCallback(() => {
+		sendToIframe({ type: "game-cmd-step" });
+	}, [sendToIframe]);
+
+	const resetSimulation = useCallback(() => {
+		sendToIframe({ type: "game-cmd-reset" });
+		setSimulationState("running");
+		setTimeScale(1.0);
+	}, [sendToIframe]);
+
+	const updateTimeScale = useCallback((scale: number) => {
+		setTimeScale(scale);
+		sendToIframe({ type: "game-cmd-time-scale", scale });
+	}, [sendToIframe]);
+
+	const setGameStats = useCallback((stats: { fps: number; drawCalls: number; triangles: number; geometries: number; textures: number; memory: number } | null) => {
+		setGameStatsState(stats);
+	}, []);
+
+	// Poll for stats while command center is open
+	useEffect(() => {
+		if (!commandCenterOpen) return;
+		const interval = setInterval(() => {
+			sendToIframe({ type: "game-cmd-request-stats" });
+		}, 500);
+		return () => clearInterval(interval);
+	}, [commandCenterOpen, sendToIframe]);
+
 	// ===== Multi-scene / level management =====
 
 	// Sync scenes from gameSettings when settings are loaded from DB (initial load only).
@@ -1298,6 +1356,19 @@ export function GameEditorProvider({ children }: { children: ReactNode }) {
 		getActiveScene,
 		saveAsPrefab,
 		deletePrefab,
+		// Command Center
+		commandCenterOpen,
+		setCommandCenterOpen,
+		simulationState,
+		setSimulationState,
+		timeScale,
+		gameStats,
+		setGameStats,
+		playSimulation,
+		pauseSimulation,
+		stepSimulation,
+		resetSimulation,
+		updateTimeScale,
 		sendToIframe,
 	}), [
 		enabled, sceneTree, selectedObject, selectedUuids, gizmoMode, snapEnabled,
@@ -1324,7 +1395,10 @@ export function GameEditorProvider({ children }: { children: ReactNode }) {
 		isSettingsOpen, toggleSettings, addLight, updateLight, removeLight,
 		scenes, activeSceneId, addScene, removeScene, renameScene, switchScene,
 		updateSceneObjects, updateSceneTerrain, updateSceneCamera, getActiveScene,
-		saveAsPrefab, deletePrefab, sendToIframe,
+		saveAsPrefab, deletePrefab,
+		commandCenterOpen, simulationState, timeScale, gameStats,
+		playSimulation, pauseSimulation, stepSimulation, resetSimulation,
+		updateTimeScale, setGameStats, sendToIframe,
 	]);
 
 	return (

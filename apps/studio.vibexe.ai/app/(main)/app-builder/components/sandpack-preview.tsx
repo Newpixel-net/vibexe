@@ -24,6 +24,7 @@ import {
 	Copy,
 	ExternalLink,
 	Crosshair,
+	Gauge,
 	Globe,
 	Grid3X3,
 	Hand,
@@ -64,6 +65,7 @@ import { WorldBuilderPanel } from "./world-builder-panel";
 import { WaterPanel } from "./water-panel";
 import { GameRuntimeIframe } from "./game-runtime-iframe";
 import { DebugOverlay } from "./debug-overlay";
+import { GameCommandCenter } from "./game-command-center";
 import type { RightPanelView } from "./right-panel-tabs";
 import { VisualEditToolbar } from "./visual-edit-toolbar";
 import {
@@ -1956,6 +1958,9 @@ export function SandpackPreview({
 						},
 					});
 				}
+			} else if (data.type === "game-cmd-stats-report") {
+				// Command Center stats from iframe
+				gameEditor.setGameStats(data.stats || null);
 			}
 			} catch (err) {
 				console.error("[MessageHandler] Error processing message:", data.type, err);
@@ -2623,6 +2628,22 @@ export function SandpackPreview({
 							<span className="hidden sm:inline">Visual Edit</span>
 						</button>
 					)}
+					{/* Command Center trigger (game mode only) */}
+					{isGameMode && (
+						<button
+							type="button"
+							onClick={() => gameEditor.setCommandCenterOpen(!gameEditor.commandCenterOpen)}
+							className={`flex items-center gap-1 px-2 py-1.5 text-xs rounded-xl transition-all duration-200 ${
+								gameEditor.commandCenterOpen
+									? "bg-gradient-to-r from-cyan-500/20 to-emerald-500/20 text-cyan-300 border border-cyan-500/25 shadow-[0_0_12px_rgba(34,211,238,0.15)]"
+									: "text-white/40 hover:bg-white/[0.04] hover:text-white/70"
+							}`}
+							title="Command Center"
+						>
+							<Gauge className="w-3.5 h-3.5" />
+							<span className="hidden lg:inline">Controls</span>
+						</button>
+					)}
 					<PreviewLink appId={appId} />
 					<button
 						type="button"
@@ -2855,6 +2876,21 @@ export function SandpackPreview({
 
 				{/* Debug Overlay — Runtime diagnostics (game mode only) */}
 				{isGameMode && !gameEditor.enabled && <DebugOverlay iframeRef={iframeRef} />}
+
+				{/* Command Center — floating game controls (game mode, non-editor) */}
+				{isGameMode && gameEditor.commandCenterOpen && (
+					<GameCommandCenter
+						simulationState={gameEditor.simulationState}
+						timeScale={gameEditor.timeScale}
+						gameStats={gameEditor.gameStats}
+						onPlay={gameEditor.playSimulation}
+						onPause={gameEditor.pauseSimulation}
+						onStep={gameEditor.stepSimulation}
+						onReset={gameEditor.resetSimulation}
+						onTimeScaleChange={gameEditor.updateTimeScale}
+						onClose={() => gameEditor.setCommandCenterOpen(false)}
+					/>
+				)}
 
 				{/* Game Editor Panel / Module Panel / Settings Panel (overlaid on right side — mutually exclusive) */}
 				{gameEditor.enabled && isGameMode && (

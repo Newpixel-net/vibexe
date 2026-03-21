@@ -1138,6 +1138,48 @@ export function getGameEditorBridgeScript(): string {
         console.log("[GameEditorBridge] Collected transforms:", Object.keys(allTransforms).length, "objects");
         window.parent.postMessage({ type: "game-editor-all-transforms", transforms: allTransforms }, "*");
         break;
+
+      // ===== Command Center — Play/Pause/Step/Stats/TimeScale =====
+      case "game-cmd-play":
+        window.__vibexe_game_paused__ = false;
+        break;
+      case "game-cmd-pause":
+        window.__vibexe_game_paused__ = true;
+        break;
+      case "game-cmd-step":
+        window.__vibexe_step_frame__ = true;
+        break;
+      case "game-cmd-reset":
+        window.location.reload();
+        break;
+      case "game-cmd-time-scale":
+        window.__vibexe_time_scale__ = d.scale;
+        break;
+      case "game-cmd-request-stats": {
+        var _stats = { fps: 0, drawCalls: 0, triangles: 0, geometries: 0, textures: 0, memory: 0 };
+        // Read FPS from performance display or calculate from frame interval
+        var _fpsEl = document.getElementById("fps-display") || document.querySelector("[data-fps]");
+        if (_fpsEl) {
+          var _fpsText = _fpsEl.textContent || _fpsEl.getAttribute("data-fps") || "0";
+          _stats.fps = parseInt(_fpsText.replace(/[^0-9]/g, ""), 10) || 0;
+        } else if (window.__vibexe_lastFps__) {
+          _stats.fps = Math.round(window.__vibexe_lastFps__);
+        }
+        // Read renderer.info
+        var _r = window.__vibexe_renderer__;
+        if (_r && _r.info) {
+          _stats.drawCalls = _r.info.render?.calls || 0;
+          _stats.triangles = _r.info.render?.triangles || 0;
+          _stats.geometries = _r.info.memory?.geometries || 0;
+          _stats.textures = _r.info.memory?.textures || 0;
+        }
+        // Approximate memory from performance API
+        if (performance && performance.memory) {
+          _stats.memory = Math.round(performance.memory.usedJSHeapSize / (1024 * 1024));
+        }
+        window.parent.postMessage({ type: "game-cmd-stats-report", stats: _stats }, "*");
+        break;
+      }
     }
   }
   window.addEventListener("message", _onBridgeMessage);

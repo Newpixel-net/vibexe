@@ -976,7 +976,11 @@ if (!gameScene || typeof gameScene.init !== 'function') {
           return;
         }
 
-        const delta = clock.getDelta();
+        // Command Center: pause / step support
+        if (W.__vibexe_game_paused__ && !W.__vibexe_step_frame__) return;
+        if (W.__vibexe_step_frame__) W.__vibexe_step_frame__ = false;
+
+        const delta = clock.getDelta() * (W.__vibexe_time_scale__ != null ? W.__vibexe_time_scale__ : 1);
         // Auto-update animation mixers
         W._updateAllMixers3D?.(delta);
         // Pin GLB root node position to zero after mixer update.
