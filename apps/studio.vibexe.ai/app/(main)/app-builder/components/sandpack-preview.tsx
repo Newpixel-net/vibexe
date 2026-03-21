@@ -2830,19 +2830,7 @@ export function SandpackPreview({
 							e.preventDefault();
 							try {
 								const data = JSON.parse(raw);
-								const iframe = iframeRef.current;
-								if (!iframe) return;
-								const rect = iframe.getBoundingClientRect();
-								const ndcX = ((e.clientX - rect.left) / rect.width) * 2 - 1;
-								const ndcY = -((e.clientY - rect.top) / rect.height) * 2 + 1;
-								iframe.contentWindow?.postMessage({
-									type: "game-editor-spawn-at-screen",
-									factory: data.factory,
-									args: data.args,
-									ndcX,
-									ndcY,
-								}, "*");
-								gameEditor.setDirty(true);
+								gameEditor.spawnObject(data.factory, { x: 0, y: 2, z: 0 }, data.args);
 							} catch (err) {
 								console.warn("[DragDrop] Failed to parse asset data:", err);
 							}
