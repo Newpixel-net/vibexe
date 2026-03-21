@@ -41,7 +41,7 @@ export async function POST(request: Request) {
 
 		// Input validation: prevent DoS via oversized payloads
 		const MAX_FILES = 100;
-		const MAX_FILE_SIZE = 512 * 1024; // 512 KB per file
+		const MAX_FILE_SIZE = 2 * 1024 * 1024; // 2 MB per file (game-settings.json can be large with terrain data)
 		const MAX_TOTAL_SIZE = 5 * 1024 * 1024; // 5 MB total
 		if (files.length > MAX_FILES) {
 			return Response.json(
