@@ -2006,6 +2006,26 @@ export function getVisualEditBridgeScript(): string {
     if (!active || !editor) { showDebug("SKIP: active=" + active + " editor=" + !!editor); return; }
     if (panToolActive) { showDebug("SKIP: pan tool active"); return; }
     if (transformControls && (transformControls.dragging || transformControls.axis)) { showDebug("SKIP: gizmo active (dragging/hover)"); return; }
+    // Spawn mode: raycast for position and spawn object instead of selecting
+    if (window.__vibexe_spawn_mode__ && window.__vibexe_spawn_factory__) {
+      var _spTHREE = window.THREE;
+      var _spRect = editor.renderer.domElement.getBoundingClientRect();
+      var _spMx = ((clientX - _spRect.left) / _spRect.width) * 2 - 1;
+      var _spMy = -((clientY - _spRect.top) / _spRect.height) * 2 + 1;
+      raycaster.setFromCamera(new _spTHREE.Vector2(_spMx, _spMy), editor.camera);
+      var _spHits = raycaster.intersectObjects(editor.scene.children, true);
+      var _spPos = { x: 0, y: 2, z: 0 };
+      for (var _spi = 0; _spi < _spHits.length; _spi++) {
+        var _spo = _spHits[_spi].object;
+        if (_spo.name && _spo.name.indexOf("__editor_") === 0) continue;
+        if (_spo.isTransformControls) continue;
+        _spPos = { x: +_spHits[_spi].point.x.toFixed(2), y: +(_spHits[_spi].point.y + 0.5).toFixed(2), z: +_spHits[_spi].point.z.toFixed(2) };
+        break;
+      }
+      showDebug("SPAWN at (" + _spPos.x + ", " + _spPos.y + ", " + _spPos.z + ")");
+      window.parent.postMessage({ type: "game-editor-do-spawn", factory: window.__vibexe_spawn_factory__, args: window.__vibexe_spawn_args__ || {}, position: _spPos }, "*");
+      return;
+    }
     var rect = editor.renderer.domElement.getBoundingClientRect();
     showDebug("Canvas rect: " + Math.round(rect.left) + "," + Math.round(rect.top) + " " + Math.round(rect.width) + "x" + Math.round(rect.height) + " | Click: " + Math.round(clientX) + "," + Math.round(clientY));
     var target = raycastMeshes(clientX, clientY);
