@@ -143,6 +143,7 @@ const PRESETS = [
 	{ id: "swamp", label: "Swamp", icon: "🌿" },
 	{ id: "frozen", label: "Frozen", icon: "❄" },
 	{ id: "lava", label: "Lava", icon: "🌋" },
+	{ id: "volcanic", label: "Volcanic", icon: "🔥" },
 	{ id: "realistic", label: "Realistic", icon: "🏖" },
 	{ id: "murky", label: "Murky", icon: "🌑" },
 	{ id: "low-poly", label: "Low-Poly", icon: "🔷" },

@@ -867,7 +867,7 @@ var PRESETS = {
     deepColor: { r: 0.35, g: 0.04, b: 0.0, a: 1.0 },
     horizonColor: { r: 0.8, g: 0.15, b: 0.0, a: 0.6 },
     waveHeight: 0.15, waveSpeed: 0.08, waveSteepness: 0.4, waveCount: 3,
-    depthVertical: 3.0,
+    depthVertical: 0.5,
     foamEnabled: true,
     foamColor: { r: 0.12, g: 0.06, b: 0.02, a: 0.95 }, // dark cooled crust
     foamWaveAmount: 0.3, foamBaseAmount: 0.15, foamClipping: 0.2,
@@ -877,9 +877,29 @@ var PRESETS = {
     normalStrength: 1.0, normalSpeed: 0.015, normalTilingX: 0.3, normalTilingY: 0.3,
     sunReflectionStrength: 0.0, sunReflectionSize: 0.0, // no sun reflection on lava
     sparkleIntensity: 0, waveTint: 0.2,
-    colorAbsorption: 0.9,
+    colorAbsorption: 0.15,
     intersectionEnabled: false,
-    edgeFade: 0.3,
+    edgeFade: 0.1,
+  },
+  volcanic: {
+    // Volcanic lava: dark cooled crust with glowing cracks — matches terrain Lava texture style
+    shallowColor: { r: 0.12, g: 0.04, b: 0.01, a: 0.99 }, // dark cooled rock base
+    deepColor: { r: 0.8, g: 0.25, b: 0.02, a: 1.0 }, // glowing molten underneath
+    horizonColor: { r: 0.4, g: 0.08, b: 0.0, a: 0.85 },
+    waveHeight: 0.05, waveSpeed: 0.03, waveSteepness: 0.2, waveCount: 2, // barely moving
+    depthVertical: 0.3,
+    foamEnabled: true,
+    foamColor: { r: 0.05, g: 0.02, b: 0.01, a: 0.98 }, // dark cooled crust patches
+    foamWaveAmount: 0.1, foamBaseAmount: 0.55, foamClipping: 0.15, // heavy crust coverage
+    roughness: 0.95, metalness: 0.0, // very rough cooled surface
+    causticsEnabled: false,
+    translucencyStrength: 4.0, translucencyExp: 1.5, // strong molten glow through cracks
+    normalStrength: 1.8, normalSpeed: 0.008, normalTilingX: 0.2, normalTilingY: 0.2, // slow, chunky deformation
+    sunReflectionStrength: 0.0, sunReflectionSize: 0.0,
+    sparkleIntensity: 0, waveTint: 0.05,
+    colorAbsorption: 0.05,
+    intersectionEnabled: false,
+    edgeFade: 0.05,
   },
   realistic: {
     shallowColor: { r: 0.06, g: 0.28, b: 0.38, a: 0.88 },
