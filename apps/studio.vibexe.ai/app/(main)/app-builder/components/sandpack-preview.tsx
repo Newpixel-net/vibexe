@@ -1105,23 +1105,28 @@ export function SandpackPreview({
 					toast("Failed to save scene", { type: "error" });
 				}
 			}
-			// Persist spawned objects to game settings so they survive page refresh
+			// Persist spawned objects to game settings — MERGE into existing file, don't replace
 			const spawnedToSave = spawnedObjectsRef.current;
-			const currentGS = gameEditor.gameSettings;
-			const hasSpawnedChanges = JSON.stringify((currentGS as any).spawnedObjects || []) !== JSON.stringify(spawnedToSave);
-			if (hasSpawnedChanges) {
-				const settingsWithSpawns = { ...currentGS, spawnedObjects: spawnedToSave };
-				const settingsJson = JSON.stringify(settingsWithSpawns, null, 2);
-				try {
-					await fetch(`/api/app-builder/apps/${appId}/files`, {
-						method: "PUT",
-						headers: { "Content-Type": "application/json" },
-						body: JSON.stringify({ path: "src/__game-settings.json", content: settingsJson }),
-					});
-					console.log("[GameEditor] Saved", spawnedToSave.length, "spawned objects to settings file");
-				} catch (err) {
-					console.warn("[GameEditor] Failed to save spawned objects:", err);
+			try {
+				// Read current settings file from DB to avoid overwriting other fields
+				const settingsFile = currentFiles.find((f) => f.path?.endsWith("__game-settings.json"));
+				if (settingsFile?.content) {
+					const existingSettings = JSON.parse(settingsFile.content);
+					existingSettings.spawnedObjects = spawnedToSave;
+					const mergedJson = JSON.stringify(existingSettings, null, 2);
+					if (mergedJson !== settingsFile.content) {
+						const currentOnFU = onFileUpdateRef.current;
+						if (currentOnFU) currentOnFU(settingsFile.id, mergedJson);
+						await fetch(`/api/app-builder/apps/${appId}/files`, {
+							method: "PUT",
+							headers: { "Content-Type": "application/json" },
+							body: JSON.stringify({ path: settingsFile.path, content: mergedJson }),
+						});
+						console.log("[GameEditor] Saved", spawnedToSave.length, "spawned objects (merged into settings)");
+					}
 				}
+			} catch (err) {
+				console.warn("[GameEditor] Failed to save spawned objects:", err);
 			}
 			toast("Scene saved", { type: "success" });
 		};
