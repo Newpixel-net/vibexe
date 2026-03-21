@@ -3669,6 +3669,43 @@ export function getVisualEditBridgeScript(): string {
         var fakeEvent = { key: d.key, code: _fkCode, ctrlKey: !!d.ctrlKey, metaKey: !!d.metaKey, shiftKey: !!d.shiftKey, target: { tagName: "BODY" }, preventDefault: function() {} };
         onKeyDown(fakeEvent);
         break;
+      case "game-editor-spawn-object": {
+        if (!d.factory || !d.position || !editor || !editor.scene) break;
+        var _spArgs = Object.assign({}, d.args || {});
+        // Resolve __MODEL_URL__ placeholders
+        var _spKeys = Object.keys(_spArgs);
+        for (var _ski = 0; _ski < _spKeys.length; _ski++) {
+          var _spVal = _spArgs[_spKeys[_ski]];
+          if (typeof _spVal === "string" && _spVal.indexOf("__MODEL_URL__") === 0) {
+            var _spRest = _spVal.slice(13);
+            var _spSep = _spRest.indexOf("__");
+            if (_spSep >= 0 && window.modelUrl) {
+              _spArgs[_spKeys[_ski]] = window.modelUrl(_spRest.slice(0, _spSep), _spRest.slice(_spSep + 2));
+            }
+          }
+        }
+        var _spFns = window.__vibexeFactories || {};
+        var _spFn = _spFns[d.factory] || window[d.factory];
+        if (_spFn) {
+          (function(_fn, _sc, _pos, _args) {
+            Promise.resolve(_fn(_sc, _pos.x, _pos.y, _pos.z, _args)).then(function(result) {
+              if (result && result.mesh) {
+                result.mesh.userData.__spawned = true;
+                result.mesh.userData.vibexeFactory = d.factory;
+                result.mesh.userData.vibexeSpawnArgs = _args;
+                sendSceneTree();
+                window.parent.postMessage({
+                  type: "game-editor-object-spawned",
+                  uuid: result.mesh.uuid,
+                  name: result.mesh.name,
+                }, "*");
+                selectObject(result.mesh);
+              }
+            }).catch(function(err) { console.warn("[Bridge] Spawn failed:", err); });
+          })(_spFn, editor.scene, d.position, _spArgs);
+        }
+        break;
+      }
       case "game-editor-apply-texture": {
         if (!editor || !editor.scene || !d.uuid || !d.textureUrl) break;
         var _atObj = findByUuid(editor.scene, d.uuid);
