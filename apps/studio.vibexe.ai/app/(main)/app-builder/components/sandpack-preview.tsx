@@ -1170,9 +1170,6 @@ export function SandpackPreview({
 		if (savingSettingsRef.current) return;
 		savingSettingsRef.current = true;
 		try {
-			if ((settings as any).terrain?.biome) {
-				console.log("[GameSettings] _doSaveSettings terrain:", { biome: (settings as any).terrain.biome, presetId: (settings as any).terrain.presetId, seed: (settings as any).terrain.seed });
-			}
 			const content = JSON.stringify(settings, null, 2);
 			// Track that we initiated this content so the load effect doesn't re-parse it
 			lastLoadedSettingsContentRef.current = content;
@@ -2997,8 +2994,10 @@ export function SandpackPreview({
 								const biomeChanged = config.biome !== prevTerrain?.biome;
 								const sizeChanged = config.width !== prevTerrain?.width || config.depth !== prevTerrain?.depth;
 								const seedChanged = config.seed !== prevTerrain?.seed;
+								const presetChanged = (config as any).presetId !== (prevTerrain as any)?.presetId;
+								const terrainRegenerated = biomeChanged || sizeChanged || seedChanged || presetChanged;
 								const mergedConfig = { ...config } as any;
-								if (biomeChanged || sizeChanged || seedChanged) {
+								if (terrainRegenerated) {
 									// New terrain generated — clear old sculpt data, will be re-exported below
 									mergedConfig.sculptHeightData = null;
 								} else {
@@ -3009,10 +3008,10 @@ export function SandpackPreview({
 								gameEditor.updateGameSettings({ terrain: mergedConfig });
 								// Auto-save terrain config to JSON file so it persists across iframe reloads
 								const updatedSettings = { ...gameEditor.gameSettings, terrain: mergedConfig };
-								if (biomeChanged || sizeChanged || seedChanged) {
+								if (terrainRegenerated) {
 									// Preset change — save IMMEDIATELY, bypass debounce to prevent loss on fast refresh
 									console.log("[GameSettings] Immediate save for terrain preset change:", {
-										biome: mergedConfig.biome, presetId: mergedConfig.presetId, seed: mergedConfig.seed, heightScale: mergedConfig.heightScale,
+										biome: mergedConfig.biome, presetId: mergedConfig.presetId, seed: mergedConfig.seed,
 									});
 									_doSaveSettings(updatedSettings);
 								} else {
@@ -3021,7 +3020,7 @@ export function SandpackPreview({
 								// Auto-export heightmap after terrain generates (2s delay for generation to complete)
 								// This ensures the generated terrain shape persists across page reloads
 								const iframe = iframeRef.current;
-								if (iframe?.contentWindow && (biomeChanged || sizeChanged || seedChanged)) {
+								if (iframe?.contentWindow && terrainRegenerated) {
 									setTimeout(() => {
 										iframe.contentWindow?.postMessage({ type: "terrain-get-heightmap" }, "*");
 									}, 3000);
