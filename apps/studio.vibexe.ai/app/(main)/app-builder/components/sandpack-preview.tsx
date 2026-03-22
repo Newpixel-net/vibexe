@@ -1965,23 +1965,25 @@ export function SandpackPreview({
 			} else if (data.type === "game-editor-ground-click") {
 				// Ground/terrain click with no object hit — used for pick-spawn/pick-respawn
 				if (gameEditor.pickSpawnActive && data.position) {
-					gameEditor.updateGameSettings({
-						player: {
-							spawnX: data.position.x,
-							spawnY: data.position.y + 1,
-							spawnZ: data.position.z,
-						},
-					});
+					const updatedPlayer = {
+						...gameEditor.gameSettings.player,
+						spawnX: +data.position.x.toFixed(1),
+						spawnY: +(data.position.y + 1).toFixed(1),
+						spawnZ: +data.position.z.toFixed(1),
+					};
+					gameEditor.updateGameSettings({ player: updatedPlayer });
 					gameEditor.togglePickSpawn();
+					handleSaveSettings({ ...gameEditor.gameSettings, player: updatedPlayer });
 				} else if (gameEditor.pickRespawnActive && data.position) {
-					gameEditor.updateGameSettings({
-						player: {
-							respawnX: data.position.x,
-							respawnY: data.position.y + 1,
-							respawnZ: data.position.z,
-						},
-					});
+					const updatedPlayer = {
+						...gameEditor.gameSettings.player,
+						respawnX: +data.position.x.toFixed(1),
+						respawnY: +(data.position.y + 1).toFixed(1),
+						respawnZ: +data.position.z.toFixed(1),
+					};
+					gameEditor.updateGameSettings({ player: updatedPlayer });
 					gameEditor.togglePickRespawn();
+					handleSaveSettings({ ...gameEditor.gameSettings, player: updatedPlayer });
 				}
 			} else if (data.type === "game-editor-camera-position") {
 				// Camera position response for "reset to camera" feature
@@ -2040,6 +2042,9 @@ export function SandpackPreview({
 		const wasEnabled = prevEditorEnabledRef.current;
 		prevEditorEnabledRef.current = gameEditor.enabled;
 		if (wasEnabled && !gameEditor.enabled) {
+			// Cancel any active pick mode
+			if (gameEditor.pickSpawnActive) gameEditor.togglePickSpawn();
+			if (gameEditor.pickRespawnActive) gameEditor.togglePickRespawn();
 			// Flag: bridge-loaded handler uses Game-mode delay (8s) for terrain regen
 			justExitedEditorRef.current = true;
 			// Request heightmap data before bridge deactivates (for sculpt persistence)

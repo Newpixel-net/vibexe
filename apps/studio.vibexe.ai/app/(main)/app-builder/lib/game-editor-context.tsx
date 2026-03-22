@@ -868,18 +868,20 @@ export function GameEditorProvider({ children }: { children: ReactNode }) {
 			const next = !prev;
 			pickSpawnRef.current = next;
 			if (next) { setPickRespawnActive(false); pickRespawnRef.current = false; }
+			sendToIframe({ type: "game-editor-pick-mode", mode: next ? "spawn" : null });
 			return next;
 		});
-	}, []);
+	}, [sendToIframe]);
 
 	const togglePickRespawn = useCallback(() => {
 		setPickRespawnActive((prev) => {
 			const next = !prev;
 			pickRespawnRef.current = next;
 			if (next) { setPickSpawnActive(false); pickSpawnRef.current = false; }
+			sendToIframe({ type: "game-editor-pick-mode", mode: next ? "respawn" : null });
 			return next;
 		});
-	}, []);
+	}, [sendToIframe]);
 
 	const resetSpawnToCamera = useCallback(() => {
 		sendToIframe({ type: "game-editor-get-camera-position", _purpose: "spawn" });

@@ -570,6 +570,8 @@ export function getVisualEditBridgeScript(): string {
   // Weight painting state — per-vertex painted weights override modifier-computed weights
   var _paintLayerIndex = 0; // which layer index to paint (0-7)
   var _paintedWeights = null; // Float32Array[vertexCount * 8] or null if no painting done
+  // Pick-spawn/pick-respawn mode — "spawn" | "respawn" | null
+  var pickMode = null;
 
   function applySculptBrush(wx, wz) {
     var terrain = editor.scene.getObjectByName("__terrain__");
@@ -1819,6 +1821,7 @@ export function getVisualEditBridgeScript(): string {
       if (!child.visible) continue;
       if ((child.name || "").indexOf("__") === 0) continue;
       if (child === boxHelper || child === transformControls || child === cameraHelper) continue;
+      if (child.isCamera) continue; // cameras are not selectable via raycast
       if (child.isLight || child.type === "HemisphereLight" || child.type === "AmbientLight" || child.type === "DirectionalLight" || child.type === "SpotLight" || child.type === "PointLight") continue;
       if (child.type === "GridHelper" || child.type === "CameraHelper") continue;
       if (isGroundPlane(child)) continue;
@@ -2070,6 +2073,33 @@ export function getVisualEditBridgeScript(): string {
       }
       showDebug("SPAWN at (" + _spPos.x + ", " + _spPos.y + ", " + _spPos.z + ") hit=" + _spFound + " meshes=" + _spMeshes.length + " ndc=(" + _spMx.toFixed(2) + "," + _spMy.toFixed(2) + ")");
       window.parent.postMessage({ type: "game-editor-do-spawn", factory: window.__vibexe_spawn_factory__, args: window.__vibexe_spawn_args__ || {}, position: _spPos }, "*");
+      return;
+    }
+    // Pick-spawn/pick-respawn mode: raycast directly against terrain, bypass object selection
+    if (pickMode) {
+      var _pkRect = editor.renderer.domElement.getBoundingClientRect();
+      var _pkMx = ((clientX - _pkRect.left) / _pkRect.width) * 2 - 1;
+      var _pkMy = -((clientY - _pkRect.top) / _pkRect.height) * 2 + 1;
+      raycaster.setFromCamera(new (window.THREE.Vector2)(_pkMx, _pkMy), editor.camera);
+      var _pkTerrain = editor.scene.getObjectByName("__terrain__");
+      var _pkPt = null;
+      if (_pkTerrain) {
+        var _pkHits = raycaster.intersectObject(_pkTerrain, false);
+        if (_pkHits.length > 0) _pkPt = _pkHits[0].point;
+      }
+      if (!_pkPt) {
+        _pkPt = new (window.THREE).Vector3();
+        var _pkPlane = new (window.THREE).Plane(new (window.THREE).Vector3(0, 1, 0), 0);
+        if (!raycaster.ray.intersectPlane(_pkPlane, _pkPt)) _pkPt = null;
+      }
+      if (_pkPt) {
+        window.parent.postMessage({
+          type: "game-editor-ground-click",
+          position: { x: +_pkPt.x.toFixed(3), y: +_pkPt.y.toFixed(3), z: +_pkPt.z.toFixed(3) }
+        }, "*");
+      }
+      pickMode = null;
+      if (editor.renderer) editor.renderer.domElement.style.cursor = "";
       return;
     }
     var rect = editor.renderer.domElement.getBoundingClientRect();
@@ -2921,6 +2951,7 @@ export function getVisualEditBridgeScript(): string {
       }
     }
     active = false;
+    pickMode = null;
     window.__vibexe_editor_active__ = false;
     window.__vibexe_bridge_rendering__ = false;
     // Restore composer bypass to pre-bridge state (PerfGuard may have set it true for perf)
@@ -3547,6 +3578,12 @@ export function getVisualEditBridgeScript(): string {
           transformControls.scaleSnap = gridSnapIncrement;
         }
         break;
+      case "game-editor-pick-mode":
+        pickMode = d.mode || null;
+        if (editor && editor.renderer) {
+          editor.renderer.domElement.style.cursor = pickMode ? "crosshair" : "";
+        }
+        break;
       case "game-editor-set-spawn-mode":
         window.__vibexe_spawn_mode__ = !!d.active;
         window.__vibexe_spawn_factory__ = d.factory || null;
@@ -3664,6 +3701,33 @@ export function getVisualEditBridgeScript(): string {
           // (viewport-click path is a backup — handleClick usually handles this first)
           if (window.__vibexe_spawn_mode__ && window.__vibexe_spawn_factory__) {
             return; // Already handled by handleClick's spawn mode
+          }
+          // Pick-spawn/pick-respawn mode: direct terrain raycast, bypass selection
+          if (pickMode) {
+            var _vpkRect = editor.renderer.domElement.getBoundingClientRect();
+            var _vpkMx = ((d.clientX - _vpkRect.left) / _vpkRect.width) * 2 - 1;
+            var _vpkMy = -((d.clientY - _vpkRect.top) / _vpkRect.height) * 2 + 1;
+            raycaster.setFromCamera(new (window.THREE.Vector2)(_vpkMx, _vpkMy), editor.camera);
+            var _vpkTerrain = editor.scene.getObjectByName("__terrain__");
+            var _vpkPt = null;
+            if (_vpkTerrain) {
+              var _vpkHits = raycaster.intersectObject(_vpkTerrain, false);
+              if (_vpkHits.length > 0) _vpkPt = _vpkHits[0].point;
+            }
+            if (!_vpkPt) {
+              _vpkPt = new (window.THREE).Vector3();
+              var _vpkPlane = new (window.THREE).Plane(new (window.THREE).Vector3(0, 1, 0), 0);
+              if (!raycaster.ray.intersectPlane(_vpkPlane, _vpkPt)) _vpkPt = null;
+            }
+            if (_vpkPt) {
+              window.parent.postMessage({
+                type: "game-editor-ground-click",
+                position: { x: +_vpkPt.x.toFixed(3), y: +_vpkPt.y.toFixed(3), z: +_vpkPt.z.toFixed(3) }
+              }, "*");
+            }
+            pickMode = null;
+            if (editor.renderer) editor.renderer.domElement.style.cursor = "";
+            return;
           }
           var cx = d.clientX, cy = d.clientY;
           if (transformControls && transformControls.dragging) return;
