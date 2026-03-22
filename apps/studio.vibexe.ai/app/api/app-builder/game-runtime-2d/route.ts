@@ -58,9 +58,11 @@ canvas{display:block;width:100%;height:100%}
   console.log('[2D Runtime] Pixi.js v' + PIXI.VERSION + ' loaded');
   console.log('[2D Runtime] Proton particle engine v' + (Proton.VERSION || '7.x') + ' loaded');
 
-  // Signal libraries ready
+  // Signal libraries ready (both 2D-specific and generic flag for GameRuntimeIframe fallback)
   window.__vibexe_2d_libs_ready__ = true;
+  window.__vibexe_libs_ready__ = true;
   window.dispatchEvent(new Event('vibexe-2d-libs-ready'));
+  window.dispatchEvent(new Event('vibexe-libs-ready'));
 })();
 </script>
 
