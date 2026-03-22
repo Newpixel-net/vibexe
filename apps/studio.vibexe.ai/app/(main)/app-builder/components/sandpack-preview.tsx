@@ -1971,10 +1971,14 @@ export function SandpackPreview({
 						spawnY: +(data.position.y + 1).toFixed(1),
 						spawnZ: +data.position.z.toFixed(1),
 					};
-					// Toggle pick off BEFORE updateGameSettings so move-player message isn't suppressed
 					gameEditor.togglePickSpawn();
 					gameEditor.updateGameSettings({ player: updatedPlayer });
 					handleSaveSettings({ ...gameEditor.gameSettings, player: updatedPlayer });
+					// Directly send move-player to iframe (bypasses React batching)
+					iframeRef.current?.contentWindow?.postMessage({
+						type: "game-editor-move-player",
+						x: updatedPlayer.spawnX, y: updatedPlayer.spawnY, z: updatedPlayer.spawnZ,
+					}, "*");
 				} else if (gameEditor.pickRespawnActive && data.position) {
 					const updatedPlayer = {
 						...gameEditor.gameSettings.player,
@@ -1982,7 +1986,6 @@ export function SandpackPreview({
 						respawnY: +(data.position.y + 1).toFixed(1),
 						respawnZ: +data.position.z.toFixed(1),
 					};
-					// Toggle pick off BEFORE updateGameSettings so move-player message isn't suppressed
 					gameEditor.togglePickRespawn();
 					gameEditor.updateGameSettings({ player: updatedPlayer });
 					handleSaveSettings({ ...gameEditor.gameSettings, player: updatedPlayer });
