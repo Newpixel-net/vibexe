@@ -12,6 +12,12 @@ import {
 	GAME_3D_SCENE_STARTER_RUNNER,
 	GAME_3D_SCENE_STARTER_SHOOTER,
 	GAME_3D_TEMPLATE_FILES,
+	GAME_2D_TEMPLATE_FILES,
+	GAME_2D_SCENE_STARTER,
+	GAME_2D_SCENE_STARTER_RUNNER,
+	GAME_2D_SCENE_STARTER_PUZZLE,
+	GAME_2D_SCENE_STARTER_SHOOTER,
+	GAME_2D_ASSETS_REFERENCE_BUILDER,
 	assemblePrompt,
 	executeOrchestration,
 	getAgent,
@@ -697,10 +703,35 @@ const supabase = createClient("${supabaseConfig.url}", "${supabaseConfig.anonKey
 			"createplayer3d", "animated warrior", "animated character",
 		];
 		let isGame3d = false;
+		let isGame2d = false;
+		let isRunner2d = false;
+		let isShooter2d = false;
+		let isPuzzle2d = false;
 		let hasAnimatedCharacter = false;
 		let isRunner3d = false;
 		let isShooter3d = false;
 		let needsTerrain = false; // open-world, exploration, terrain-heavy games
+		const GAME_2D_KEYWORDS = [
+			"2d game", "2d platformer", "side scroller", "side-scroller", "sidescroller",
+			"pixel game", "pixel art game", "sprite game", "2d shooter", "2d puzzle",
+			"match-3", "match 3", "runner game", "endless runner", "2d adventure",
+			"retro game", "arcade game", "pixi", "pixi.js", "2d rpg", "top-down 2d",
+			"metroidvania", "2d fighter", "2d racing", "flappy", "breakout", "pong",
+			"tetris", "snake game", "platformer game", "jumping game", "2d character",
+			"2d world", "2d sprites", "tile-based", "tilemap", "2d",
+		];
+		const RUNNER_2D_KEYWORDS = [
+			"runner game", "endless runner", "2d runner", "run game", "auto-run",
+			"temple run", "subway surfers", "infinite runner",
+		];
+		const SHOOTER_2D_KEYWORDS = [
+			"2d shooter", "shoot em up", "shmup", "bullet hell", "space shooter",
+			"2d shoot", "top down shooter 2d",
+		];
+		const PUZZLE_2D_KEYWORDS = [
+			"puzzle", "match-3", "match 3", "tetris", "block puzzle", "word game",
+			"sudoku", "jigsaw", "memory game", "card game", "brain game",
+		];
 		const TERRAIN_KEYWORDS = [
 			"open world", "open-world", "terrain", "exploration", "adventure game 3d",
 			"rpg 3d", "3d rpg", "survival 3d", "3d survival", "mmorpg", "mmo",
@@ -744,10 +775,30 @@ const supabase = createClient("${supabaseConfig.url}", "${supabaseConfig.anonKey
 				isGame3d = true;
 				console.log(`[Chat API] 3D game detected (keywords)`);
 			}
-			// All non-3D game requests now route to 3D pipeline (2D engine pending rebuild)
-			if (!isGame3d) {
+			// Detect 2D game keywords
+			if (!isGame3d && GAME_2D_KEYWORDS.some(kw => searchText.includes(kw))) {
+				isGame2d = true;
+				console.log(`[Chat API] 2D game detected (keywords)`);
+			}
+			// 2D sub-genre detection
+			if (isGame2d) {
+				if (RUNNER_2D_KEYWORDS.some(kw => searchText.includes(kw))) {
+					isRunner2d = true;
+					console.log(`[Chat API] 2D runner detected (keywords)`);
+				}
+				if (SHOOTER_2D_KEYWORDS.some(kw => searchText.includes(kw))) {
+					isShooter2d = true;
+					console.log(`[Chat API] 2D shooter detected (keywords)`);
+				}
+				if (PUZZLE_2D_KEYWORDS.some(kw => searchText.includes(kw))) {
+					isPuzzle2d = true;
+					console.log(`[Chat API] 2D puzzle detected (keywords)`);
+				}
+			}
+			// Fallback: if neither 3D nor 2D detected, default to 3D
+			if (!isGame3d && !isGame2d) {
 				isGame3d = true;
-				console.log(`[Chat API] Routing non-3D game to 3D pipeline (2D engine pending rebuild)`);
+				console.log(`[Chat API] No engine detected — defaulting to 3D pipeline`);
 			}
 			// Detect animated character keywords (warrior, knight, etc.)
 			if (isGame3d && CHARACTER_KEYWORDS.some(kw => searchText.includes(kw))) {
@@ -770,15 +821,20 @@ const supabase = createClient("${supabaseConfig.url}", "${supabaseConfig.anonKey
 				console.log(`[Chat API] Terrain-heavy 3D game detected (keywords)`);
 			}
 			// Fallback: if 3D templates already exist in DB (injected on a previous call), force 3D mode
-			if (!isGame3d && existingFiles.some(f => f.path === "src/components/Game3D.tsx")) {
+			if (!isGame3d && !isGame2d && existingFiles.some(f => f.path === "src/components/Game3D.tsx")) {
 				isGame3d = true;
 				console.log(`[Chat API] 3D game detected (existing Game3D.tsx template)`);
+			}
+			// Fallback: if 2D templates already exist in DB, force 2D mode
+			if (!isGame3d && !isGame2d && existingFiles.some(f => f.path === "src/components/Game2D.tsx")) {
+				isGame2d = true;
+				console.log(`[Chat API] 2D game detected (existing Game2D.tsx template)`);
 			}
 		}
 		if (isGameProject) {
 			const existingPaths = new Set(existingFiles.map((f) => f.path));
-			// Use 3D templates for 3D games, 2D templates for everything else
-			const templateFiles = GAME_3D_TEMPLATE_FILES;
+			// Use 3D templates for 3D games, 2D templates for 2D games
+			const templateFiles = isGame2d ? GAME_2D_TEMPLATE_FILES : GAME_3D_TEMPLATE_FILES;
 			for (const tpl of templateFiles) {
 				if (existingPaths.has(tpl.path)) {
 					console.log(`[Chat API] Template skip (exists): ${tpl.path}`);
@@ -808,6 +864,23 @@ const supabase = createClient("${supabaseConfig.url}", "${supabaseConfig.anonKey
 					console.log(`[Chat API] 3D scene starter injected: src/scenes/GameScene3D.ts (shooter=${isShooter3d}, runner=${isRunner3d}, character=${hasAnimatedCharacter})`);
 				} catch (e) {
 					console.error(`[Chat API] 3D scene starter injection failed:`, e);
+				}
+			}
+
+			// 2D games: inject GameScene2D.ts STARTER based on detected sub-genre
+			if (isGame2d && !existingPaths.has("src/scenes/GameScene2D.ts")) {
+				try {
+					const sceneStarter2d = isShooter2d
+						? GAME_2D_SCENE_STARTER_SHOOTER
+						: isRunner2d
+							? GAME_2D_SCENE_STARTER_RUNNER
+							: isPuzzle2d
+								? GAME_2D_SCENE_STARTER_PUZZLE
+								: GAME_2D_SCENE_STARTER;
+					await saveFile(appId, "src/scenes/GameScene2D.ts", sceneStarter2d, "typescript");
+					console.log(`[Chat API] 2D scene starter injected: src/scenes/GameScene2D.ts (shooter=${isShooter2d}, runner=${isRunner2d}, puzzle=${isPuzzle2d})`);
+				} catch (e) {
+					console.error(`[Chat API] 2D scene starter injection failed:`, e);
 				}
 			}
 
@@ -986,6 +1059,23 @@ After creating ALL files, end with a short summary. If the app has auth, include
 **MINIMUM**: Your GameScene3D.ts must call at least 5 different factory helpers. Every platform, collectible, player, barrier, and decoration MUST use the corresponding factory.`);
 
 			}
+			// 2D game "build" phase: tell AI that GameScene2D.ts is pre-created
+			if (isGame2d) {
+				runtimeAddenda.push(`## CRITICAL: 2D Game — Pixi.js + Proton Engine Pattern
+
+**\`src/scenes/GameScene2D.ts\` is PRE-CREATED** with a working starter that uses the Engine2D, PhysicsWorld, CharacterController, and Proton particle effects.
+
+**You MUST follow this workflow:**
+1. Use \`read_file("src/scenes/GameScene2D.ts")\` FIRST to see the existing starter pattern
+2. Use \`update_file\` to REPLACE the content with your full game implementation
+3. Your replacement MUST use the pre-created engine files: core.ts, physics.ts, effects.ts, assets.ts
+4. ALWAYS apply SCALES when creating sprites — raw sprites are 800-3000px
+5. Add particle effects: at minimum theme ambient + gameplay triggers (jump dust, collect sparkle)
+6. Use createParallaxBackground() for environment backgrounds
+7. Call engine.input.endFrame() at the end of every update() method
+
+**MINIMUM**: Your GameScene2D.ts must have parallax background, physics, character controller, collectibles with sparkle effects, and a score display in engine.ui.`);
+			}
 		} else if (isReturningUser) {
 			// Normal existing project — edit/add files
 			runtimeAddenda.push(`## Existing Project (${existingFiles.length} files)
@@ -1015,6 +1105,27 @@ ${injectedFiles.map((f) => `- \`${f}\``).join("\n")}
 - **MOVEMENT**: ALWAYS use \`playerBody.velocity.x = speed\` for player movement, NEVER \`playerBody.applyForce()\`. Set \`playerBody.linearDamping = 0.9\` and \`playerBody.fixedRotation = true\` on player body
 - Use \`loadGLTF(modelUrl(packId, filename))\` ONLY for advanced packs (city-builder, resource-bits, skeletons)
 - The package.json already includes \`"three": "^0.162.0"\` — do NOT recreate it`);
+			}
+			if (isGame2d) {
+				runtimeAddenda.push(`## MANDATORY: Pre-Created Infrastructure Files (2D — Pixi.js + Proton)
+
+The following files have been pre-created by the platform and already exist in the project:
+${injectedFiles.map((f) => `- \`${f}\``).join("\n")}
+
+**MANDATORY RULES — violation will break the game:**
+- Do NOT recreate, overwrite, or modify these files — they contain correct, tested code
+- You MUST \`import\` from them:
+  - \`import { Engine2D, GameScene, createGame2D, loadAssets } from "../engine/core";\`
+  - \`import { PhysicsWorld, createBody, createStaticBody, createOneWayPlatform, CharacterController } from "../engine/physics";\`
+  - \`import { createRainEffect, createFireEffect, createExplosionEffect, createSparkleEffect, createDustEffect, createAmbientEffect, getThemeEffects, onJumpDust, onCollectSparkle, onDeathExplosion } from "../engine/effects";\`
+  - \`import { createGameSprite, createAnimatedGameSprite, createParallaxBackground, SCALES, CHARACTER_FRAMES, ENVIRONMENTS } from "../config/assets";\`
+- **Game2D.tsx is PRE-CREATED** — do NOT create Game2D.tsx. Just import it in App.tsx: \`import Game2D from "./components/Game2D";\`
+- **App.tsx pattern**: \`export default function App() { return <Game2D />; }\`
+- Access PIXI via global: \`const PIXI = (window as any).PIXI;\` — do NOT import from "pixi.js"
+- Access Proton via global: \`const Proton = (window as any).Proton;\`
+- ALWAYS apply SCALES when creating sprites: \`sprite.scale.set(SCALES.player)\`
+- ALWAYS call \`engine.input.endFrame()\` at the end of update()
+- Use \`engine.world\` for game objects (scrolls with camera), \`engine.ui\` for HUD (fixed on screen)`);
 			}
 		}
 		if (isGameProject) {
@@ -1088,6 +1199,11 @@ ${injectedFiles.map((f) => `- \`${f}\``).join("\n")}
 - Enemy tiers: Tier 1 (wave 1+): Normal/Skinny/Mine. Tier 2 (wave 3+): Pistolman/RifleMan/CowBoy. Tier 3 (wave 5+): Bomber/Grenader/ShotgunMan/MeeleMan. Tier 4 (wave 7+): Elite variants. Boss every 5 waves: Boss_Bomber/Old_Boss/Sniper_Boss`);
 					console.log(`[Chat API] 3D shooter addendum injected`);
 				}
+			}
+			if (isGame2d) {
+				// 2D game — inject 2D asset catalog
+				runtimeAddenda.push(GAME_2D_ASSETS_REFERENCE_BUILDER());
+				console.log(`[Chat API] Injected 2D assets reference`);
 			}
 		}
 

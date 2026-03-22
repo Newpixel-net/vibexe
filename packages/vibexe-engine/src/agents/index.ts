@@ -15,6 +15,7 @@ import { uiDesigner } from "./ui-designer";
 import { continuationAnalyst } from "./continuation-analyst";
 import { mobileAppDeveloper } from "./mobile-app-developer";
 import { game3dDeveloper } from "./game-3d-developer";
+import { game2dDeveloper } from "./game-2d-developer";
 import { siteReplicator } from "./site-replicator";
 
 export const DEFAULT_AGENTS: AgentDefinition[] = [
@@ -29,6 +30,7 @@ export const DEFAULT_AGENTS: AgentDefinition[] = [
 	fullstackDeveloper,
 	mobileAppDeveloper,
 	game3dDeveloper,
+	game2dDeveloper,
 	uiDesigner,
 	docUpdater,
 	refactorCleaner,

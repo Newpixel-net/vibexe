@@ -22,11 +22,14 @@ import {
 	GAME_3D_SCENE_STARTER,
 	GAME_3D_SCENE_STARTER_CHARACTER,
 	GAME_3D_SCENE_STARTER_RUNNER,
+	GAME_2D_TEMPLATE_FILES,
 	PACKS_3D,
+	PACKS_2D,
 	GAME_3D_ASSETS_REFERENCE,
 	ALL_MODULE_MANIFESTS,
 	type TemplateFile,
 	type AssetPack3D,
+	type AssetPack2D,
 	type ModuleManifest,
 } from "@vibexe-ai/vibexe-engine";
 
@@ -58,6 +61,18 @@ const ENGINES: EngineDef[] = [
 		agentName: "3D Game Developer",
 		modelTier: "opus",
 		templateFiles: GAME_3D_TEMPLATE_FILES,
+	},
+	{
+		id: "pixi-js",
+		name: "Pixi.js 2D",
+		version: "v8.9",
+		description:
+			"2D game engine using Pixi.js + Proton particle effects. Sprite animations, AABB physics, parallax backgrounds, mobile touch input.",
+		icon: "Gamepad2",
+		agentId: "game-2d-developer",
+		agentName: "2D Game Developer",
+		modelTier: "opus",
+		templateFiles: GAME_2D_TEMPLATE_FILES,
 	},
 ];
 
@@ -207,6 +222,79 @@ const GENRES: GenreDef[] = [
 		],
 		starterCode: "GAME_3D_SCENE_STARTER",
 		agentId: "game-3d-developer",
+	},
+	// ---- 2D GENRES (Pixi.js + Proton) ----
+	{
+		id: "2d-platformer",
+		name: "2D Platformer",
+		engine: "pixi-js",
+		isDefault: true,
+		description:
+			"Side-scrolling platformer with jump, collect, avoid. Sprite animations, parallax backgrounds, Proton particle effects.",
+		detectionKeywords: [
+			"2d game", "2d platformer", "side scroller", "sidescroller",
+			"platformer game", "jumping game", "metroidvania",
+		],
+		factoryIds: [
+			"createGameSprite",
+			"createAnimatedGameSprite",
+			"createParallaxBackground",
+		],
+		starterCode: "GAME_2D_SCENE_STARTER",
+		agentId: "game-2d-developer",
+	},
+	{
+		id: "2d-runner",
+		name: "2D Endless Runner",
+		engine: "pixi-js",
+		isDefault: false,
+		description:
+			"Auto-scrolling runner with lane switching, obstacles, speed ramp. Distance-based scoring.",
+		detectionKeywords: [
+			"runner game", "endless runner", "2d runner", "auto-run",
+			"temple run", "subway surfers",
+		],
+		factoryIds: [
+			"createGameSprite",
+			"createParallaxBackground",
+		],
+		starterCode: "GAME_2D_SCENE_STARTER_RUNNER",
+		agentId: "game-2d-developer",
+	},
+	{
+		id: "2d-puzzle",
+		name: "2D Puzzle",
+		engine: "pixi-js",
+		isDefault: false,
+		description:
+			"Grid-based puzzle (match-3, block puzzle, etc.). Drag-drop, click-to-select, sparkle effects on matches.",
+		detectionKeywords: [
+			"puzzle", "match-3", "match 3", "tetris", "block puzzle",
+			"word game", "memory game",
+		],
+		factoryIds: [
+			"createGameSprite",
+		],
+		starterCode: "GAME_2D_SCENE_STARTER_PUZZLE",
+		agentId: "game-2d-developer",
+	},
+	{
+		id: "2d-shooter",
+		name: "2D Shooter",
+		engine: "pixi-js",
+		isDefault: false,
+		description:
+			"Space shooter, shmup, bullet hell. Projectiles, enemy waves, explosion effects.",
+		detectionKeywords: [
+			"2d shooter", "shoot em up", "shmup", "bullet hell",
+			"space shooter",
+		],
+		factoryIds: [
+			"createGameSprite",
+			"createParallaxBackground",
+		],
+		starterCode: "GAME_2D_SCENE_STARTER_SHOOTER",
+		agentId: "game-2d-developer",
 	},
 ];
 
