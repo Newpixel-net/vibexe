@@ -4930,6 +4930,22 @@ export function getVisualEditBridgeScript(): string {
           }
         }
 
+        // Ensure terrainHeight + terrainSlope attributes exist for BOTH paths
+        // (inline noise sets them inside its block; module path needs them here)
+        if (_tpGeo && _tpPos && !_tpGeo.attributes.terrainHeight) {
+          var _tpHeightArr2 = new Float32Array(_tpPos.count);
+          var _tpSlopeArr2 = new Float32Array(_tpPos.count);
+          var _tpNormAttr2 = _tpGeo.attributes.normal;
+          var _tpRange2 = _tpMaxY - _tpMinY || 1;
+          for (var _ha2 = 0; _ha2 < _tpPos.count; _ha2++) {
+            _tpHeightArr2[_ha2] = (_tpPos.getY(_ha2) - _tpMinY) / _tpRange2;
+            var _ny2 = _tpNormAttr2 ? _tpNormAttr2.getY(_ha2) : 1;
+            _tpSlopeArr2[_ha2] = Math.acos(Math.min(1, Math.abs(_ny2))) * (180 / Math.PI);
+          }
+          _tpGeo.setAttribute("terrainHeight", new _tpTHREE.BufferAttribute(_tpHeightArr2, 1));
+          _tpGeo.setAttribute("terrainSlope", new _tpTHREE.BufferAttribute(_tpSlopeArr2, 1));
+        }
+
         // Store heightmap data for CPU-side getHeightAt() queries
         window.__vibexe_terrainData = {
           heightData: _tpHeightData,
