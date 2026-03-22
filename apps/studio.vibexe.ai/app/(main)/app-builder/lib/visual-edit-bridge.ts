@@ -4649,6 +4649,16 @@ export function getVisualEditBridgeScript(): string {
         var _tpSegZ = _tpSeg + 1;
         var _tpGeo, _tpPos, _tpMinY, _tpMaxY, _tpHeightData, _tpMesh;
 
+        // clearSculpt flag: clear stale sculpt data from window settings BEFORE either path runs
+        // This MUST be outside if(!_tpBiomeGenerated) so module-generated terrain also clears stale data
+        var _tpSculptRestored = false;
+        if (d.clearSculpt) {
+          console.log("[TerrainPainter] clearSculpt flag set — clearing stale sculpt data");
+          if (window.__VIBEXE_GAME_SETTINGS__ && window.__VIBEXE_GAME_SETTINGS__.terrain) {
+            window.__VIBEXE_GAME_SETTINGS__.terrain.sculptHeightData = null;
+          }
+        }
+
         if (!_tpBiomeGenerated) {
         // Create plane geometry
         _tpGeo = new _tpTHREE.PlaneGeometry(_tpW, _tpD, _tpSeg, _tpSeg);
@@ -4707,15 +4717,7 @@ export function getVisualEditBridgeScript(): string {
         // If sculpt heightmap data was saved, overlay it on the generated terrain
         // T5 fix: validate Base64 sculpt data — check length, NaN, and reasonable range
         // Also check window.__VIBEXE_GAME_SETTINGS__.terrain as fallback (IIFE may not pass it)
-        // clearSculpt flag: skip restoration when generating a new preset (fresh shape)
-        var _tpSculptRestored = false;
-        if (d.clearSculpt) {
-          console.log("[TerrainPainter] clearSculpt flag set — skipping sculpt restoration for fresh preset");
-          // Also clear from global settings so reload doesn't re-apply old sculpt
-          if (window.__VIBEXE_GAME_SETTINGS__ && window.__VIBEXE_GAME_SETTINGS__.terrain) {
-            window.__VIBEXE_GAME_SETTINGS__.terrain.sculptHeightData = null;
-          }
-        }
+        // clearSculpt handling moved to before if(!_tpBiomeGenerated) so it runs for both paths
         var _tpSculptSrc = d.clearSculpt ? null : _tpS.sculptHeightData;
         if (!_tpSculptSrc && !d.clearSculpt && window.__VIBEXE_GAME_SETTINGS__ && window.__VIBEXE_GAME_SETTINGS__.terrain) {
           _tpSculptSrc = window.__VIBEXE_GAME_SETTINGS__.terrain.sculptHeightData;
