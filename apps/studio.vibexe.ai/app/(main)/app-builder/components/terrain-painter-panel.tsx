@@ -270,6 +270,7 @@ export interface TerrainPainterPanelProps {
 			emissionIntensity?: number;
 		}>;
 	};
+	onWaterConfigFromPreset?: (config: { waterLevel?: number; scale?: number; visible?: boolean }) => void;
 }
 
 // ===== Component =====
@@ -279,6 +280,7 @@ export function TerrainPainterPanel({
 	onClose,
 	onTerrainConfigChanged,
 	initialConfig,
+	onWaterConfigFromPreset,
 }: TerrainPainterPanelProps) {
 	const [activeTab, setActiveTab] = useState<"layers" | "settings" | "sculpt" | "populate">("layers");
 	const population = usePopulationEngine({ sendToIframe });
@@ -618,7 +620,41 @@ export function TerrainPainterPanel({
 				resolution: settings.splatmapResolution,
 			});
 		}, 1500);
-	}, [selectedPreset, biomeSeed, sendToIframe, settings, onTerrainConfigChanged]);
+
+		// Apply water config from preset (hide/show + level + scale + visual preset)
+		if (preset.water && onWaterConfigFromPreset) {
+			if (!preset.water.enabled) {
+				sendToIframe({ type: "stylized-water-set-visible", visible: false });
+				onWaterConfigFromPreset({ visible: false });
+			} else {
+				sendToIframe({ type: "stylized-water-set-visible", visible: true });
+
+				let waterLevel: number;
+				if (preset.water.waterLevelAbsolute != null) {
+					waterLevel = preset.water.waterLevelAbsolute;
+				} else {
+					waterLevel = resolved.heightScale * (preset.water.waterLevelFraction ?? 0.15);
+				}
+
+				const waterScale = preset.water.scaleMatchTerrain !== false
+					? Math.max(preset.terrain.width, preset.terrain.depth) * 1.2
+					: 200;
+
+				if (preset.water.waterPreset) {
+					sendToIframe({ type: "stylized-water-set-preset", preset: preset.water.waterPreset });
+				}
+
+				setTimeout(() => {
+					sendToIframe({
+						type: "stylized-water-update-config",
+						config: { waterLevel, scale: waterScale, visible: true },
+					});
+				}, 100);
+
+				onWaterConfigFromPreset({ waterLevel, scale: waterScale, visible: true });
+			}
+		}
+	}, [selectedPreset, biomeSeed, sendToIframe, settings, onTerrainConfigChanged, onWaterConfigFromPreset]);
 
 	// ===== Layer actions =====
 

@@ -41,6 +41,14 @@ export interface BiomeParamRanges {
 	peakRounds: [number, number];
 }
 
+export interface TerrainPresetWaterConfig {
+	enabled: boolean;
+	waterPreset?: string;
+	waterLevelFraction?: number;
+	waterLevelAbsolute?: number;
+	scaleMatchTerrain?: boolean;
+}
+
 export interface TerrainPreset {
 	id: string;
 	name: string;
@@ -57,6 +65,7 @@ export interface TerrainPreset {
 		biome: BiomeParamRanges;
 	};
 	layers: TerrainLayerPreset[];
+	water?: TerrainPresetWaterConfig;
 }
 
 // ===== Category Definitions =====
@@ -161,6 +170,7 @@ export const TERRAIN_PRESETS: TerrainPreset[] = [
 				],
 			},
 		],
+	water: { enabled: false },
 	},
 
 	// 2. Runner Desert
@@ -231,6 +241,7 @@ export const TERRAIN_PRESETS: TerrainPreset[] = [
 				],
 			},
 		],
+	water: { enabled: false },
 	},
 
 	// 3. Open World Mountains
@@ -303,6 +314,7 @@ export const TERRAIN_PRESETS: TerrainPreset[] = [
 				],
 			},
 		],
+	water: { enabled: true, waterPreset: "ocean", waterLevelFraction: 0.20 },
 	},
 
 	// 4. Open World Forest
@@ -374,6 +386,7 @@ export const TERRAIN_PRESETS: TerrainPreset[] = [
 				],
 			},
 		],
+	water: { enabled: true, waterPreset: "river", waterLevelFraction: 0.08 },
 	},
 
 	// 5. Racing Terrain
@@ -444,6 +457,7 @@ export const TERRAIN_PRESETS: TerrainPreset[] = [
 				],
 			},
 		],
+	water: { enabled: false },
 	},
 
 	// 6. Strategy Map
@@ -515,6 +529,7 @@ export const TERRAIN_PRESETS: TerrainPreset[] = [
 				],
 			},
 		],
+	water: { enabled: true, waterPreset: "ocean", waterLevelFraction: 0.15 },
 	},
 
 	// 7. Survival Wilderness
@@ -586,6 +601,7 @@ export const TERRAIN_PRESETS: TerrainPreset[] = [
 				],
 			},
 		],
+	water: { enabled: true, waterPreset: "river", waterLevelFraction: 0.10 },
 	},
 
 	// 8. Battle Arena
@@ -657,6 +673,7 @@ export const TERRAIN_PRESETS: TerrainPreset[] = [
 				],
 			},
 		],
+	water: { enabled: false },
 	},
 
 	// 9. Desert Wasteland
@@ -727,6 +744,7 @@ export const TERRAIN_PRESETS: TerrainPreset[] = [
 				],
 			},
 		],
+	water: { enabled: false },
 	},
 
 	// 10. Tropical Paradise
@@ -798,6 +816,7 @@ export const TERRAIN_PRESETS: TerrainPreset[] = [
 				],
 			},
 		],
+	water: { enabled: true, waterPreset: "tropical", waterLevelAbsolute: 0 },
 	},
 
 	// 11. Arctic Expedition
@@ -869,6 +888,7 @@ export const TERRAIN_PRESETS: TerrainPreset[] = [
 				],
 			},
 		],
+	water: { enabled: true, waterPreset: "frozen", waterLevelFraction: 0.08 },
 	},
 
 	// 12. Volcanic Hellscape
@@ -939,6 +959,7 @@ export const TERRAIN_PRESETS: TerrainPreset[] = [
 				],
 			},
 		],
+	water: { enabled: true, waterPreset: "lava", waterLevelFraction: 0.10 },
 	},
 
 	// 13. Coastal Shores
@@ -1010,6 +1031,7 @@ export const TERRAIN_PRESETS: TerrainPreset[] = [
 				],
 			},
 		],
+	water: { enabled: true, waterPreset: "ocean", waterLevelAbsolute: 0 },
 	},
 
 	// 14. Alien World
@@ -1081,6 +1103,7 @@ export const TERRAIN_PRESETS: TerrainPreset[] = [
 				],
 			},
 		],
+	water: { enabled: true, waterPreset: "swamp", waterLevelFraction: 0.12 },
 	},
 
 	// 15. Platformer Hills
@@ -1152,6 +1175,7 @@ export const TERRAIN_PRESETS: TerrainPreset[] = [
 				],
 			},
 		],
+	water: { enabled: false },
 	},
 
 	// 16. FPS Tactical
@@ -1223,6 +1247,7 @@ export const TERRAIN_PRESETS: TerrainPreset[] = [
 				],
 			},
 		],
+	water: { enabled: false },
 	},
 
 	// 17. Tower Defense
@@ -1294,6 +1319,7 @@ export const TERRAIN_PRESETS: TerrainPreset[] = [
 				],
 			},
 		],
+	water: { enabled: false },
 	},
 
 	// 18. Sports Field
@@ -1364,6 +1390,7 @@ export const TERRAIN_PRESETS: TerrainPreset[] = [
 				],
 			},
 		],
+	water: { enabled: false },
 	},
 
 	// 19. FPS Desert
@@ -1434,6 +1461,7 @@ export const TERRAIN_PRESETS: TerrainPreset[] = [
 				],
 			},
 		],
+	water: { enabled: false },
 	},
 
 	// 20. RPG Meadow
@@ -1505,6 +1533,7 @@ export const TERRAIN_PRESETS: TerrainPreset[] = [
 				],
 			},
 		],
+	water: { enabled: true, waterPreset: "clear-pool", waterLevelFraction: 0.10 },
 	},
 ];
 

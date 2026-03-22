@@ -3013,6 +3013,21 @@ export function SandpackPreview({
 									}, 3000);
 								}
 							}}
+							onWaterConfigFromPreset={(waterUpdate) => {
+								const modules = { ...gameEditor.gameSettings.modules };
+								if (modules.installed?.["stylized-water"]) {
+									const existing = modules.installed["stylized-water"].config || {};
+									modules.installed = {
+										...modules.installed,
+										"stylized-water": {
+											...modules.installed["stylized-water"],
+											config: { ...existing, ...waterUpdate },
+										},
+									};
+									gameEditor.updateGameSettings({ modules });
+									handleSaveSettings({ ...gameEditor.gameSettings, modules });
+								}
+							}}
 						/>
 					) : activeModulePanel === "sky-weather" || activeModulePanel === "sky-weather-advanced" ? (
 						<SkyWeatherPanel
