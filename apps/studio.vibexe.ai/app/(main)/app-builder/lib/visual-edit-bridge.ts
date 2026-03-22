@@ -5383,15 +5383,15 @@ export function getVisualEditBridgeScript(): string {
         var _rpScene = (editor && editor.scene) ? editor.scene : window.__vibexe_scene__;
         console.log("[TerrainPainter] REPAINT CASE HIT. editor=", !!editor, "scene=", !!_rpScene);
         var _rpTHREE = window.THREE;
-        if (!_rpTHREE || !_rpScene) { console.log("[TerrainPainter] REPAINT ABORT: missing deps"); break; }
+        if (!_rpTHREE || !_rpScene) { console.log("[TerrainPainter] REPAINT ABORT: missing deps"); window.__vibexe_terrainRepaintInProgress = false; break; }
         var _rpTerrain = _rpScene.getObjectByName("__terrain__");
-        if (!_rpTerrain || !_rpTerrain.geometry) { console.warn("[TerrainPainter] No terrain found for repaint"); break; }
+        if (!_rpTerrain || !_rpTerrain.geometry) { console.warn("[TerrainPainter] No terrain found for repaint"); window.__vibexe_terrainRepaintInProgress = false; break; }
 
         var _rpLayers = d.layers || [];
         var _rpGeo = _rpTerrain.geometry;
         var _rpHAttr = _rpGeo.attributes.terrainHeight;
         var _rpSAttr = _rpGeo.attributes.terrainSlope;
-        if (!_rpHAttr || !_rpSAttr) { console.warn("[TerrainPainter] Terrain missing height/slope attributes"); break; }
+        if (!_rpHAttr || !_rpSAttr) { console.warn("[TerrainPainter] Terrain missing height/slope attributes"); window.__vibexe_terrainRepaintInProgress = false; break; }
 
         var _rpCount = _rpHAttr.count;
         var _rpEnabledLayers = _rpLayers.filter(function(l) { return l.enabled; });
