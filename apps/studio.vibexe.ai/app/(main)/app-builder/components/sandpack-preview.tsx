@@ -3038,7 +3038,10 @@ export function SandpackPreview({
 										},
 									};
 									gameEditor.updateGameSettings({ modules });
-									handleSaveSettings({ ...gameEditor.gameSettings, modules });
+									// Skip explicit save here — this runs synchronously after onTerrainConfigChanged
+									// which already saved. React state is still batched (stale), so reading
+									// gameEditor.gameSettings here would overwrite terrain.presetId.
+									// The next save (heightmap export at 3s) will include the modules update.
 								}
 							}}
 						/>
