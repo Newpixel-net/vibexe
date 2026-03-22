@@ -190,8 +190,29 @@ export async function compileGameBundle(input: CompileInput): Promise<CompileOut
 	}
 
 	// If no index entry found, detect game project and generate a synthetic non-React entry.
-	// Game projects have GameScene3D.ts + assets-3d.ts but no index.tsx (sandpack-adapter creates it).
-	// The lightweight runtime doesn't use React — generate a direct bootstrap entry instead.
+	// Check 2D FIRST (Engine2D in core.ts is a strong signal), then fall back to 3D.
+	if (!entryContent) {
+		// 2D game detection: engine/core.ts with Engine2D class
+		const coreEnginePath = findFileByName(files, "core.ts") || findFileByName(files, "engine/core.ts");
+		const is2DGame = !!coreEnginePath && files.get(coreEnginePath)?.includes("Engine2D");
+
+		if (is2DGame) {
+			// Find ANY scene file — AI may name it GameScene2D, GameScene, PlatformerGameScene, etc.
+			const gameScene2DPath = findFileByName(files, "GameScene2D.ts") || findFileByName(files, "GameScene2D.tsx")
+				|| findFileByName(files, "GameScene.ts") || findFileByName(files, "GameScene.tsx")
+				|| findFileByName(files, "GameScene3D.ts") || findFileByName(files, "GameScene3D.tsx");
+			// Also search for any .ts file in scenes/ directory
+			const anyScenePath = gameScene2DPath || [...files.keys()].find(k => k.startsWith("scenes/") && k.endsWith(".ts") && !k.includes("GameOver"));
+
+			if (anyScenePath) {
+				entryPath = "__runtime_entry__.ts";
+				entryContent = generateGame2DEntry(anyScenePath, coreEnginePath);
+				files.set(entryPath, entryContent);
+			}
+		}
+	}
+
+	// 3D game detection (fallback): GameScene3D.ts + assets-3d.ts
 	if (!entryContent) {
 		const gameScenePath = findFileByName(files, "GameScene3D.ts") || findFileByName(files, "GameScene3D.tsx");
 		const assetsPath = findFileByName(files, "assets-3d.ts");
@@ -199,20 +220,6 @@ export async function compileGameBundle(input: CompileInput): Promise<CompileOut
 		if (gameScenePath) {
 			entryPath = "__runtime_entry__.ts";
 			entryContent = generateGameEntry(gameScenePath, assetsPath, input.enabledModuleIds);
-			files.set(entryPath, entryContent);
-		}
-	}
-
-	// 2D game detection: look for engine/core.ts or GameScene2D.ts
-	if (!entryContent) {
-		const coreEnginePath = findFileByName(files, "core.ts") || findFileByName(files, "engine/core.ts");
-		const gameScene2DPath = findFileByName(files, "GameScene2D.ts") || findFileByName(files, "GameScene2D.tsx")
-			|| findFileByName(files, "GameScene.ts") || findFileByName(files, "GameScene.tsx");
-		const is2DGame = !!coreEnginePath && files.get(coreEnginePath)?.includes("Engine2D");
-
-		if (is2DGame && gameScene2DPath) {
-			entryPath = "__runtime_entry__.ts";
-			entryContent = generateGame2DEntry(gameScene2DPath, coreEnginePath);
 			files.set(entryPath, entryContent);
 		}
 	}
@@ -348,10 +355,13 @@ function generateGame2DEntry(gameScenePath: string, corePath: string | null): st
 ${coreImport}
 import * as GameSceneModule from "./${gameScenePath}";
 
-// Resolve game scene from any export pattern
+// Resolve game scene from any export pattern (AI may use any name)
 const _m = GameSceneModule as any;
-const _SceneClass = _m.GameScene2D || _m.GameScene || _m.default
-  || Object.values(_m).find((v: any) => v && typeof v === 'function' && v.prototype && v.prototype.enter)
+const _SceneClass = _m.GameScene2D || _m.GameScene || _m.PlatformerGameScene
+  || _m.RunnerGameScene || _m.ShooterGameScene || _m.PuzzleGameScene
+  || _m.default
+  || Object.values(_m).find((v: any) => v && typeof v === 'function' && v.prototype && (v.prototype.enter || v.prototype.update))
+  || Object.values(_m).find((v: any) => v && typeof v === 'function')
   || null;
 
 (async function boot2D() {
