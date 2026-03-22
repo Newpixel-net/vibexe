@@ -36,11 +36,13 @@ function normalizePath(p: string): string {
 }
 
 function createVirtualPlugin(files: Map<string, string>, enabledModuleIds?: string[]): esbuild.Plugin {
-	// Shim modules: Three.js + CANNON.js + Rapier.js + React as window globals
+	// Shim modules: Three.js + CANNON.js + Rapier.js + Pixi.js + Proton + React as window globals
 	const shims: Record<string, string> = {
 		three: "module.exports = window.THREE;",
 		"cannon-es": "module.exports = window.CANNON;",
 		"@dimforge/rapier3d-compat": "module.exports = window.RAPIER || {};",
+		"pixi.js": "module.exports = window.PIXI || {};",
+		"proton-engine": "module.exports = window.Proton || {};",
 		react: "module.exports = window.React || {};",
 		"react-dom": "module.exports = window.ReactDOM || {};",
 		"react-dom/client": "module.exports = { createRoot: (window.ReactDOM||{}).createRoot };",
@@ -201,12 +203,26 @@ export async function compileGameBundle(input: CompileInput): Promise<CompileOut
 		}
 	}
 
+	// 2D game detection: look for engine/core.ts or GameScene2D.ts
+	if (!entryContent) {
+		const coreEnginePath = findFileByName(files, "core.ts") || findFileByName(files, "engine/core.ts");
+		const gameScene2DPath = findFileByName(files, "GameScene2D.ts") || findFileByName(files, "GameScene2D.tsx")
+			|| findFileByName(files, "GameScene.ts") || findFileByName(files, "GameScene.tsx");
+		const is2DGame = !!coreEnginePath && files.get(coreEnginePath)?.includes("Engine2D");
+
+		if (is2DGame && gameScene2DPath) {
+			entryPath = "__runtime_entry__.ts";
+			entryContent = generateGame2DEntry(gameScene2DPath, coreEnginePath);
+			files.set(entryPath, entryContent);
+		}
+	}
+
 	if (!entryContent) {
 		return {
 			bundle: "",
 			bootstrap: "",
 			hash: "",
-			errors: ["No entry point found (index.tsx/ts/jsx/js or GameScene3D.ts)"],
+			errors: ["No entry point found (index.tsx/ts/jsx/js, GameScene3D.ts, or 2D engine/core.ts)"],
 			compiledMs: Date.now() - startMs,
 		};
 	}
@@ -317,6 +333,93 @@ export async function compileGameBundle(input: CompileInput): Promise<CompileOut
  * Find a file in the virtual filesystem by its basename (e.g., "GameScene3D.ts").
  * Returns the full path key if found, or null.
  */
+/**
+ * Generate a synthetic entry point for 2D game projects (Pixi.js + Proton).
+ *
+ * Bootstraps the Engine2D from engine/core.ts and runs the game scene.
+ * The 2D runtime page already loads Pixi.js + Proton via CDN.
+ */
+function generateGame2DEntry(gameScenePath: string, corePath: string | null): string {
+	const coreImport = corePath
+		? `import { createGame2D, Engine2D } from "./${corePath}";`
+		: '// No engine/core.ts found';
+
+	return `// Synthetic 2D entry — bootstraps Pixi.js game without React
+${coreImport}
+import * as GameSceneModule from "./${gameScenePath}";
+
+// Resolve game scene from any export pattern
+const _m = GameSceneModule as any;
+const _SceneClass = _m.GameScene2D || _m.GameScene || _m.default
+  || Object.values(_m).find((v: any) => v && typeof v === 'function' && v.prototype && v.prototype.enter)
+  || null;
+
+(async function boot2D() {
+  try {
+    const PIXI = (window as any).PIXI;
+    const Proton = (window as any).Proton;
+    if (!PIXI) { console.error('[2D Boot] PIXI not found on window'); return; }
+
+    // Import additional template files if they exist
+    try { await import("./config/assets"); } catch(e) {}
+    try { await import("./engine/effects"); } catch(e) {}
+    try { await import("./engine/physics"); } catch(e) {}
+    try { await import("./engine/input"); } catch(e) {}
+    try { await import("./utils/media-stock"); } catch(e) {}
+
+    // Create engine
+    let engine: any;
+    if (typeof createGame2D === 'function') {
+      engine = await createGame2D({
+        width: window.innerWidth,
+        height: window.innerHeight,
+        backgroundColor: 0x1a1a2e,
+      });
+    } else {
+      // Fallback: create PIXI app directly
+      const app = new PIXI.Application();
+      await app.init({ width: window.innerWidth, height: window.innerHeight, backgroundColor: 0x1a1a2e });
+      document.getElementById('root')!.appendChild(app.canvas);
+      engine = { app, proton: new Proton() };
+    }
+
+    // Create and start game scene
+    if (_SceneClass) {
+      const scene = typeof _SceneClass === 'function' ? new _SceneClass() : _SceneClass;
+      if (engine.addScene) {
+        engine.addScene(scene);
+        // Also try to add GameOverScene
+        try {
+          const gom = await import("./scenes/GameOverScene");
+          const GoScene = (gom as any).GameOverScene || (gom as any).default;
+          if (GoScene) engine.addScene(typeof GoScene === 'function' ? new GoScene() : GoScene);
+        } catch(e) {}
+        engine.switchScene(scene.name || 'game');
+      } else if (scene.enter) {
+        scene.enter(engine);
+      }
+    } else {
+      console.error('[2D Boot] No game scene found. Exports:', Object.keys(_m));
+      const errEl = document.createElement('div');
+      errEl.style.cssText = 'position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:#ff6b6b;font:16px/1.4 sans-serif;text-align:center;padding:20px;background:#111';
+      errEl.textContent = 'Error: GameScene2D not found. Check console.';
+      document.getElementById('root')!.appendChild(errEl);
+    }
+
+    // Report FPS to parent
+    (window as any).__vibexe_animFrameId__ = 1; // Signal that game is running
+    console.log('[2D Boot] Game started');
+  } catch (err) {
+    console.error('[2D Boot] Fatal:', err);
+    const errEl = document.createElement('div');
+    errEl.style.cssText = 'position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:#ff6b6b;font:16px/1.4 sans-serif;text-align:center;padding:20px;background:#111';
+    errEl.textContent = 'Error: ' + String(err);
+    document.getElementById('root')!.appendChild(errEl);
+  }
+})();
+`;
+}
+
 function findFileByName(files: Map<string, string>, name: string): string | null {
 	// Exact match first
 	if (files.has(name)) return name;
