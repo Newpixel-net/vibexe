@@ -28,6 +28,8 @@ interface GameRuntimeIframeProps {
 	refreshRef?: MutableRefObject<(() => void) | null>;
 	/** When true, skip automatic recompile on file changes (scene editor active) */
 	suppressRecompile?: boolean;
+	/** Override the runtime URL (default: 3D runtime). Use for 2D games. */
+	runtimeUrl?: string;
 }
 
 export function GameRuntimeIframe({
@@ -39,6 +41,7 @@ export function GameRuntimeIframe({
 	onBundleLoaded,
 	refreshRef,
 	suppressRecompile,
+	runtimeUrl,
 }: GameRuntimeIframeProps) {
 	const [compileError, setCompileError] = useState<string | null>(null);
 	const [isCompiling, setIsCompiling] = useState(false);
@@ -280,7 +283,7 @@ export function GameRuntimeIframe({
 		<div className="relative w-full h-full">
 			<iframe
 				ref={iframeRef}
-				src="/api/app-builder/game-runtime?bv=191"
+				src={runtimeUrl || "/api/app-builder/game-runtime?bv=191"}
 				className="w-full h-full border-0"
 				title="Game Preview"
 				allow="autoplay; fullscreen; webgpu"

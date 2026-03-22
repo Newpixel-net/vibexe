@@ -2339,9 +2339,10 @@ export function SandpackPreview({
 	const sandpackFiles = useMemo(() => convertToSandpackFiles(files, langConfig, apiOrigin, appId), [files, langConfig, apiOrigin, appId]);
 	const dependencies = useMemo(() => extractDependencies(files), [files]);
 
-	// Lightweight runtime: use server-compiled iframe instead of Sandpack for 3D games
+	// Lightweight runtime: use server-compiled iframe instead of Sandpack for 3D/2D games
 	// Eliminates ~15-20 FPS overhead from in-browser bundling
-	const useLightweightRuntime = isGameMode && !!dependencies.three;
+	const is2DGame = isGameMode && files.some(f => f.path === "src/engine/core.ts" || f.path === "src/components/Game2D.tsx");
+	const useLightweightRuntime = isGameMode && (!!dependencies.three || is2DGame);
 
 	// Enabled module IDs for lightweight runtime compiler
 	const enabledModuleIds = useMemo(() => {
@@ -2435,7 +2436,7 @@ export function SandpackPreview({
 
 				{/* Visual Edit / Scene Editor toggle + Preview link + Actions */}
 				<div className="flex items-center gap-2">
-					{isGameMode && dependencies.three ? (
+					{isGameMode && (dependencies.three || is2DGame) ? (
 						<>
 							<div className="flex items-center bg-white/[0.04] rounded-xl border border-white/[0.08] overflow-hidden">
 								<button
@@ -2755,6 +2756,7 @@ export function SandpackPreview({
 										iframeRef={iframeRef as React.RefObject<HTMLIFrameElement | null>}
 										refreshRef={sandpackRefreshRef}
 										suppressRecompile={gameEditor.enabled}
+										runtimeUrl={is2DGame ? "/api/app-builder/game-runtime-2d?v=1" : undefined}
 									/>
 								) : (
 								<SandpackProvider
@@ -2866,6 +2868,7 @@ export function SandpackPreview({
 								iframeRef={iframeRef as React.RefObject<HTMLIFrameElement | null>}
 								refreshRef={sandpackRefreshRef}
 								suppressRecompile={gameEditor.enabled}
+								runtimeUrl={is2DGame ? "/api/app-builder/game-runtime-2d?v=1" : undefined}
 							/>
 						) : (
 						<SandpackProvider
