@@ -339,6 +339,11 @@ export function TerrainPainterPanel({
 	const [selectedGenre, setSelectedGenre] = useState<string>("all");
 	const [selectedEnvironment, setSelectedEnvironment] = useState<string>("all");
 	const [selectedPreset, setSelectedPreset] = useState<string | null>(() => {
+		// Restore by exact preset ID first (unique), fall back to biome match (ambiguous — multiple presets share biomeIds)
+		if ((initialConfig as any)?.presetId) {
+			const exact = TERRAIN_PRESETS.find((p) => p.id === (initialConfig as any).presetId);
+			if (exact) return exact.id;
+		}
 		if (initialConfig?.biome) {
 			const match = TERRAIN_PRESETS.find((p) => p.biomeId === initialConfig.biome);
 			return match?.id || null;
@@ -458,6 +463,7 @@ export function TerrainPainterPanel({
 				heightScale: settings.terrainHeightScale,
 				segments: settings.terrainSegments,
 				biome: preset?.biomeId,
+				presetId: selectedPreset || undefined,
 				seed: biomeSeed,
 				layers: layers.map((l) => ({
 					textureUrl: l.diffuseUrl,
@@ -495,6 +501,7 @@ export function TerrainPainterPanel({
 				heightScale: settings.terrainHeightScale,
 				segments: settings.terrainSegments,
 				biome: preset?.biomeId,
+				presetId: selectedPreset || undefined,
 				seed: biomeSeed,
 				layers: layers.map((l) => ({
 					textureUrl: l.diffuseUrl,
@@ -580,6 +587,7 @@ export function TerrainPainterPanel({
 				heightScale: resolved.heightScale,
 				segments: preset.terrain.segments,
 				biome: preset.biomeId,
+				presetId: selectedPreset || undefined,
 				seed: biomeSeed,
 				resolvedBiomeParams: resolved,
 				sculptHeightData: null, // Clear old sculpt data so new preset shape is used
