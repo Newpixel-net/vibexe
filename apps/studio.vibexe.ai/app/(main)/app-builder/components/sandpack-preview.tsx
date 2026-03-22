@@ -1188,7 +1188,7 @@ export function SandpackPreview({
 					const errBody = await saveResp.text().catch(() => "");
 					console.error("[GameSettings] DB save failed:", saveResp.status, errBody);
 				} else {
-					console.log("[GameSettings] Saved to DB:", filePath, "characterController:", JSON.stringify(settings.characterController || null).slice(0, 120));
+					console.log("[GameSettings] Saved to DB:", filePath, "terrain:", settings.terrain ? { biome: settings.terrain.biome, seed: settings.terrain.seed, heightScale: settings.terrain.heightScale, hasSculpt: !!settings.terrain.sculptHeightData } : null);
 				}
 			} catch (err) {
 				console.error("[GameSettings] DB save network error:", err);
@@ -1821,10 +1821,11 @@ export function SandpackPreview({
 				if (data.data && typeof data.data === "string") {
 					const terrainCfg = gameEditor.gameSettings.terrain;
 					if (terrainCfg) {
-						terrainCfg.sculptHeightData = data.data;
-						console.log("[GameEditor] Stored sculpt heightmap:", data.vertexCount, "vertices");
-						// Persist sculpt data to DB so it survives page reload
-						const updatedSettings = { ...gameEditor.gameSettings, terrain: { ...terrainCfg } };
+						// Merge sculpt data into LATEST terrain config — don't mutate original or overwrite biome/seed
+						const updatedTerrain = { ...terrainCfg, sculptHeightData: data.data };
+						console.log("[GameEditor] Stored sculpt heightmap:", data.vertexCount, "vertices, biome:", updatedTerrain.biome);
+						gameEditor.updateGameSettings({ terrain: updatedTerrain });
+						const updatedSettings = { ...gameEditor.gameSettings, terrain: updatedTerrain };
 						handleSaveSettings(updatedSettings);
 					}
 				}
@@ -1833,9 +1834,11 @@ export function SandpackPreview({
 				if (data.data && typeof data.data === "string") {
 					const terrainCfg = gameEditor.gameSettings.terrain;
 					if (terrainCfg) {
-						terrainCfg.paintWeightData = data.data;
-						console.log("[GameEditor] Stored paint weights:", data.vertexCount, "vertices");
-						const updatedSettings = { ...gameEditor.gameSettings, terrain: { ...terrainCfg } };
+						// Merge paint data into LATEST terrain config — don't mutate original or overwrite biome/seed
+						const updatedTerrain = { ...terrainCfg, paintWeightData: data.data };
+						console.log("[GameEditor] Stored paint weights:", data.vertexCount, "vertices, biome:", updatedTerrain.biome);
+						gameEditor.updateGameSettings({ terrain: updatedTerrain });
+						const updatedSettings = { ...gameEditor.gameSettings, terrain: updatedTerrain };
 						handleSaveSettings(updatedSettings);
 					}
 				}
@@ -3003,7 +3006,15 @@ export function SandpackPreview({
 								gameEditor.updateGameSettings({ terrain: mergedConfig });
 								// Auto-save terrain config to JSON file so it persists across iframe reloads
 								const updatedSettings = { ...gameEditor.gameSettings, terrain: mergedConfig };
-								handleSaveSettings(updatedSettings);
+								if (biomeChanged || sizeChanged || seedChanged) {
+									// Preset change — save IMMEDIATELY, bypass debounce to prevent loss on fast refresh
+									console.log("[GameSettings] Immediate save for terrain preset change:", {
+										biome: mergedConfig.biome, seed: mergedConfig.seed, heightScale: mergedConfig.heightScale,
+									});
+									_doSaveSettings(updatedSettings);
+								} else {
+									handleSaveSettings(updatedSettings);
+								}
 								// Auto-export heightmap after terrain generates (2s delay for generation to complete)
 								// This ensures the generated terrain shape persists across page reloads
 								const iframe = iframeRef.current;

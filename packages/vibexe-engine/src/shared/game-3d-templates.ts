@@ -6991,6 +6991,11 @@ export default function Game3D({ gameScene: rawScene, bgColor = "#87CEEB", camer
               case "updateGameSettings": {
                 const s = d.settings;
                 if (!s) break;
+                // --- Sync terrain config to window global so _autoTerrain reads latest ---
+                if (s.terrain) {
+                  const wgs = (window as any).__VIBEXE_GAME_SETTINGS__ = (window as any).__VIBEXE_GAME_SETTINGS__ || {};
+                  wgs.terrain = s.terrain;
+                }
                 // --- Physics ---
                 if (s.physics) {
                   if (s.physics.gravity !== undefined) { GRAVITY_3D = s.physics.gravity; (window as any).GRAVITY_3D = GRAVITY_3D; }
