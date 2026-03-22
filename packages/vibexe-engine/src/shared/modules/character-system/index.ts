@@ -2471,10 +2471,10 @@ function swapCharacter(scene, characterId) {
               var cd = R.ColliderDesc.capsule(capsHH, capsR);
               _rapierCollider = rw.createCollider(cd, _rapierBody);
               _rapierKCC = rw.createCharacterController(0.01);
-              _rapierKCC.enableSnapToGround(1.5);
+              _rapierKCC.enableSnapToGround(0.5);
               _rapierKCC.setMaxSlopeClimbAngle(_slopeMaxAngle * Math.PI / 180);
               _rapierKCC.setMinSlopeSlideAngle(30 * Math.PI / 180);
-              _rapierKCC.enableAutostep(0.15, 0.3, false);
+              _rapierKCC.enableAutostep(0.3, 0.5, false);
               _rapierKCC.setApplyImpulsesToDynamicBodies(true);
               _rapierKCC.setUp({ x: 0.0, y: 1.0, z: 0.0 });
               window.__charCtrl_rapier = { body: _rapierBody, collider: _rapierCollider, kcc: _rapierKCC };
@@ -2573,9 +2573,9 @@ function swapCharacter(scene, characterId) {
                           // Slope too steep — BLOCK movement completely
                           _slopeMultiplier = 0;
                           break;
-                        } else if (_ang > 15) {
+                        } else if (_ang > 25) {
                           // Gradual slowdown on moderate slopes
-                          var _sm = 1.0 - (_ang / _slopeMaxAngle) * 0.7;
+                          var _sm = 1.0 - (_ang / _slopeMaxAngle) * 0.4;
                           if (_sm < _slopeMultiplier) _slopeMultiplier = _sm;
                         }
                       }
@@ -2698,7 +2698,7 @@ function swapCharacter(scene, characterId) {
                       if (_fwdH != null) {
                         var _wallRise = _fwdH - _thNew;
                         var _wallAng = Math.atan2(Math.abs(_wallRise), _la) * 57.2958;
-                        if (_wallRise > 0.2 && _wallAng > _slopeMaxAngle) {
+                        if (_wallRise > 0.5 && _wallAng > _slopeMaxAngle) {
                           _currentVelX = 0;
                           _currentVelZ = 0;
                           break;
@@ -2719,8 +2719,9 @@ function swapCharacter(scene, characterId) {
                 _visualPosInit = true;
               }
               var _vBlend = Math.min(_visualSmoothFactor * dt, 1);
+              var _vBlendY = Math.min(12 * dt, 1);
               _visualPosX += (_nx - _visualPosX) * _vBlend;
-              _visualPosY += (_targetMeshY - _visualPosY) * _vBlend;
+              _visualPosY += (_targetMeshY - _visualPosY) * _vBlendY;
               _visualPosZ += (_nz - _visualPosZ) * _vBlend;
               _csMesh.position.x = _visualPosX;
               _csMesh.position.y = _visualPosY;
@@ -2903,8 +2904,9 @@ function swapCharacter(scene, characterId) {
                 _visualPosInit = true;
               }
               var _vBlendC = Math.min(_visualSmoothFactor * dt, 1);
+              var _vBlendYC = Math.min(12 * dt, 1);
               _visualPosX += (_csBody.position.x - _visualPosX) * _vBlendC;
-              _visualPosY += (_targetMeshYC - _visualPosY) * _vBlendC;
+              _visualPosY += (_targetMeshYC - _visualPosY) * _vBlendYC;
               _visualPosZ += (_csBody.position.z - _visualPosZ) * _vBlendC;
               _csMesh.position.x = _visualPosX;
               _csMesh.position.y = _visualPosY;
