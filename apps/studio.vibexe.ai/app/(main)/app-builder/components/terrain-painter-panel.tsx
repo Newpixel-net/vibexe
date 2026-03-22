@@ -622,10 +622,10 @@ export function TerrainPainterPanel({
 		}, 1500);
 
 		// Apply water config from preset (hide/show + level + scale + visual preset)
-		if (preset.water && onWaterConfigFromPreset) {
+		if (preset.water) {
 			if (!preset.water.enabled) {
 				sendToIframe({ type: "stylized-water-set-visible", visible: false });
-				onWaterConfigFromPreset({ visible: false });
+				onWaterConfigFromPreset?.({ visible: false });
 			} else {
 				sendToIframe({ type: "stylized-water-set-visible", visible: true });
 
@@ -651,7 +651,7 @@ export function TerrainPainterPanel({
 					});
 				}, 100);
 
-				onWaterConfigFromPreset({ waterLevel, scale: waterScale, visible: true });
+				onWaterConfigFromPreset?.({ waterLevel, scale: waterScale, visible: true });
 			}
 		}
 	}, [selectedPreset, biomeSeed, sendToIframe, settings, onTerrainConfigChanged, onWaterConfigFromPreset]);
