@@ -1971,8 +1971,9 @@ export function SandpackPreview({
 						spawnY: +(data.position.y + 1).toFixed(1),
 						spawnZ: +data.position.z.toFixed(1),
 					};
-					gameEditor.updateGameSettings({ player: updatedPlayer });
+					// Toggle pick off BEFORE updateGameSettings so move-player message isn't suppressed
 					gameEditor.togglePickSpawn();
+					gameEditor.updateGameSettings({ player: updatedPlayer });
 					handleSaveSettings({ ...gameEditor.gameSettings, player: updatedPlayer });
 				} else if (gameEditor.pickRespawnActive && data.position) {
 					const updatedPlayer = {
@@ -1981,8 +1982,9 @@ export function SandpackPreview({
 						respawnY: +(data.position.y + 1).toFixed(1),
 						respawnZ: +data.position.z.toFixed(1),
 					};
-					gameEditor.updateGameSettings({ player: updatedPlayer });
+					// Toggle pick off BEFORE updateGameSettings so move-player message isn't suppressed
 					gameEditor.togglePickRespawn();
+					gameEditor.updateGameSettings({ player: updatedPlayer });
 					handleSaveSettings({ ...gameEditor.gameSettings, player: updatedPlayer });
 				}
 			} else if (data.type === "game-editor-camera-position") {
