@@ -1170,6 +1170,9 @@ export function SandpackPreview({
 		if (savingSettingsRef.current) return;
 		savingSettingsRef.current = true;
 		try {
+			if ((settings as any).terrain?.biome) {
+				console.log("[GameSettings] _doSaveSettings terrain:", { biome: (settings as any).terrain.biome, presetId: (settings as any).terrain.presetId, seed: (settings as any).terrain.seed });
+			}
 			const content = JSON.stringify(settings, null, 2);
 			// Track that we initiated this content so the load effect doesn't re-parse it
 			lastLoadedSettingsContentRef.current = content;
@@ -3009,7 +3012,7 @@ export function SandpackPreview({
 								if (biomeChanged || sizeChanged || seedChanged) {
 									// Preset change — save IMMEDIATELY, bypass debounce to prevent loss on fast refresh
 									console.log("[GameSettings] Immediate save for terrain preset change:", {
-										biome: mergedConfig.biome, seed: mergedConfig.seed, heightScale: mergedConfig.heightScale,
+										biome: mergedConfig.biome, presetId: mergedConfig.presetId, seed: mergedConfig.seed, heightScale: mergedConfig.heightScale,
 									});
 									_doSaveSettings(updatedSettings);
 								} else {

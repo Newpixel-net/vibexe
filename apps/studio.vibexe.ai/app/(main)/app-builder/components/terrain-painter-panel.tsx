@@ -245,8 +245,10 @@ export interface TerrainPainterPanelProps {
 		heightScale: number;
 		segments: number;
 		biome?: string;
+		presetId?: string;
 		seed?: number;
 		resolvedBiomeParams?: Record<string, number>;
+		sculptHeightData?: string | null;
 		layers: Array<{ textureUrl: string; normalUrl: string; enabled: boolean; tileSize: number; opacity?: number; roughness?: number; normalIntensity?: number; metallic?: boolean; modifiers?: any[]; materialId?: string; emissionUrl?: string; emissionIntensity?: number }>;
 	}) => void;
 	initialConfig?: {
