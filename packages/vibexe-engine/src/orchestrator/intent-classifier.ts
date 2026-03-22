@@ -64,7 +64,7 @@ const REFACTOR_KEYWORDS = [
 	"reduce duplication",
 ];
 
-/** Keywords that indicate game intent (routes to GAME_FLOW) — checked BEFORE mobile */
+/** Keywords that indicate game intent (routes to GAME_FLOW via game-3d-developer) — checked BEFORE mobile */
 const GAME_KEYWORDS = [
 	"game",
 	"platformer",
@@ -258,7 +258,7 @@ export function classifyIntent(prompt: string): IntentClassification {
 		complexity = hasComplexSignals >= 2 ? "complex" : "medium";
 		type = "refactoring";
 	}
-	// Priority 3.25: Game intent (BEFORE mobile — games requested via Mobile tab should route to GAME_FLOW)
+	// Priority 3.25: Game intent (BEFORE mobile — routes to GAME_FLOW via game-3d-developer)
 	else if (isGameIntent(lower)) {
 		suggestedFlow = "game";
 		complexity = hasComplexSignals >= 2 ? "complex" : "medium";

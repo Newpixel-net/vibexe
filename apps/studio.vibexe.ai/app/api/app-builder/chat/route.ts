@@ -1015,23 +1015,6 @@ ${injectedFiles.map((f) => `- \`${f}\``).join("\n")}
 - **MOVEMENT**: ALWAYS use \`playerBody.velocity.x = speed\` for player movement, NEVER \`playerBody.applyForce()\`. Set \`playerBody.linearDamping = 0.9\` and \`playerBody.fixedRotation = true\` on player body
 - Use \`loadGLTF(modelUrl(packId, filename))\` ONLY for advanced packs (city-builder, resource-bits, skeletons)
 - The package.json already includes \`"three": "^0.162.0"\` — do NOT recreate it`);
-			} else {
-				runtimeAddenda.push(`## MANDATORY: Pre-Created Infrastructure Files
-
-The following files have been pre-created by the platform and already exist in the project:
-${injectedFiles.map((f) => `- \`${f}\``).join("\n")}
-
-**MANDATORY RULES — violation will break the game:**
-- Do NOT recreate, overwrite, or modify these files — they contain correct, tested code
-- You MUST \`import\` from them: \`import { preloadAssets, createAnimations, SCALES, setupBackground } from "../config/assets";\` and \`import { assetUrl } from "../utils/media-stock";\`
-- **Game.tsx is PRE-CREATED** — do NOT create Game.tsx, GameCanvas.tsx, or any React wrapper. Just import it in App.tsx: \`import Game from "./components/Game";\`
-- **App.tsx pattern**: \`export default function App() { return <Game scenes={[BootScene, MenuScene, GameScene, GameOverScene]} />; }\`
-- Do NOT add onStateChange, handleVisibilityChange, or custom React↔Phaser callbacks — Game.tsx handles everything
-- Pick ONE art theme and use ONLY its background: \`"bg-nature"\` (default), \`"bg-jungle"\`, \`"bg-cartoon"\`, \`"bg-dark-forest"\`, or \`"bg-space"\`
-- Call \`setupBackground(this, "bg-nature")\` (or your theme's BG) — NEVER raw \`this.add.image()\` for backgrounds
-- Apply \`SCALES.player\` / \`SCALES.zombie\` / \`SCALES.platform\` / etc. to EVERY sprite — raw assets are 800-3000px
-- For static physics bodies (platforms, ground), call \`.refreshBody()\` AFTER \`.setScale()\`
-- The package.json already includes \`"phaser": "^3.90.0"\` — do NOT recreate it`);
 			}
 		}
 		if (isGameProject) {
