@@ -6398,6 +6398,7 @@ export function getVisualEditBridgeScript(): string {
             });
           }
           console.log("[TerrainPainter] Vertex colors applied with", _rpNumLayers, "layers (preserved:", _rpAllDefaultGray, ")");
+          window.__vibexe_terrainRepaintInProgress = false;
           window.parent.postMessage({ type: "terrain-painter-repainted" }, "*");
         }
         break;
