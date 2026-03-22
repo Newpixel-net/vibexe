@@ -4878,7 +4878,7 @@ export function getVisualEditBridgeScript(): string {
           // This second restore applies to the FINAL geometry that actually renders.
           // Skip if clearSculpt was set (new preset = fresh shape)
           var _tpSculptSrc2 = d.clearSculpt ? null : _tpS.sculptHeightData;
-          if (!_tpSculptSrc2 && window.__VIBEXE_GAME_SETTINGS__ && window.__VIBEXE_GAME_SETTINGS__.terrain) {
+          if (!_tpSculptSrc2 && !d.clearSculpt && window.__VIBEXE_GAME_SETTINGS__ && window.__VIBEXE_GAME_SETTINGS__.terrain) {
             _tpSculptSrc2 = window.__VIBEXE_GAME_SETTINGS__.terrain.sculptHeightData;
           }
           if (_tpSculptSrc2 && typeof _tpSculptSrc2 === "string" && _tpSculptSrc2.length > 0) {
