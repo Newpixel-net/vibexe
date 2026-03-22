@@ -551,6 +551,7 @@ export function TerrainPainterPanel({
 		const resolved = resolveBiomeParams(preset.terrain.biome, biomeSeed);
 
 		// Send generate with preset terrain dimensions, biomeId, AND resolved params
+		// clearSculpt: true tells the bridge to skip restoring old sculpt data
 		sendToIframe({
 			type: "terrain-painter-generate-terrain",
 			settings: {
@@ -559,10 +560,12 @@ export function TerrainPainterPanel({
 				terrainDepth: preset.terrain.depth,
 				terrainHeightScale: resolved.heightScale,
 				terrainSegments: preset.terrain.segments,
+				sculptHeightData: null,
 			},
 			biome: preset.biomeId,
 			seed: biomeSeed,
 			resolvedBiomeParams: resolved,
+			clearSculpt: true,
 		});
 
 		// Persist terrain config so it survives iframe reloads
@@ -577,6 +580,7 @@ export function TerrainPainterPanel({
 				biome: preset.biomeId,
 				seed: biomeSeed,
 				resolvedBiomeParams: resolved,
+				sculptHeightData: null, // Clear old sculpt data so new preset shape is used
 				layers: newLayers.map((l) => ({
 					textureUrl: l.diffuseUrl,
 					normalUrl: l.diffuseUrl.replace(/\.[^.]+$/, "_Normal$&"),
