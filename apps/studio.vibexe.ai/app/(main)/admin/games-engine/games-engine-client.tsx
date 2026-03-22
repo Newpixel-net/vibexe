@@ -18,13 +18,11 @@ import {
 	Trash2,
 } from "lucide-react";
 import {
-	GAME_TEMPLATE_FILES,
 	GAME_3D_TEMPLATE_FILES,
 	GAME_3D_SCENE_STARTER,
 	GAME_3D_SCENE_STARTER_CHARACTER,
 	GAME_3D_SCENE_STARTER_RUNNER,
 	PACKS_3D,
-	GAME_ASSETS_REFERENCE,
 	GAME_3D_ASSETS_REFERENCE,
 	ALL_MODULE_MANIFESTS,
 	type TemplateFile,
@@ -60,18 +58,6 @@ const ENGINES: EngineDef[] = [
 		agentName: "3D Game Developer",
 		modelTier: "opus",
 		templateFiles: GAME_3D_TEMPLATE_FILES,
-	},
-	{
-		id: "phaser-3",
-		name: "Phaser 3 2D",
-		version: "3.90.0",
-		description:
-			"2D game engine using Phaser 3 Arcade physics. Sprite loading, parallax backgrounds, animations, touch controls.",
-		icon: "Gamepad2",
-		agentId: "game-developer",
-		agentName: "2D Game Developer",
-		modelTier: "opus",
-		templateFiles: GAME_TEMPLATE_FILES,
 	},
 ];
 
@@ -222,62 +208,6 @@ const GENRES: GenreDef[] = [
 		starterCode: "GAME_3D_SCENE_STARTER",
 		agentId: "game-3d-developer",
 	},
-	{
-		id: "2d-platformer",
-		name: "2D Platformer",
-		engine: "phaser-3",
-		isDefault: true,
-		description:
-			"Side-scrolling platformer with Arcade physics, parallax backgrounds, and animated sprites. 6 themes, 5 parallax packs.",
-		detectionKeywords: [
-			"game",
-			"2d game",
-			"platformer",
-			"side scroller",
-			"pixel game",
-			"retro game",
-			"arcade game",
-		],
-		factoryIds: [
-			"createPlayer",
-			"createGround",
-			"setupParallaxEnvironment",
-			"createAnimations",
-			"preloadAssets",
-		],
-		agentId: "game-developer",
-	},
-	{
-		id: "2d-runner",
-		name: "2D Runner",
-		engine: "phaser-3",
-		isDefault: false,
-		description:
-			"Endless runner with 3-lane vertical road, no gravity, tween-based lane switching, auto-run forward, distance collision.",
-		detectionKeywords: [
-			"runner",
-			"run forward",
-			"endless run",
-			"dodge obstacles",
-			"subway surfers",
-			"temple run",
-			"lane",
-			"endless runner",
-			"auto-run",
-			"forward run",
-			"running game",
-			"dodge and run",
-			"run and jump",
-			"infinite runner",
-		],
-		factoryIds: [
-			"createRoad",
-			"createRunnerPlayer",
-			"spawnObstacle",
-			"spawnCollectible",
-		],
-		agentId: "game-developer",
-	},
 ];
 
 type FactoryDef = {
@@ -408,122 +338,6 @@ const FACTORIES: FactoryDef[] = [
 			{ name: "opts.color", type: "string", required: false, description: "Text color. Default white" },
 		],
 	},
-	// 2D factories
-	{
-		id: "createPlayer",
-		name: "createPlayer",
-		engine: "phaser-3",
-		signature: "createPlayer(scene, x, y)",
-		returnType: "Phaser.Physics.Arcade.Sprite",
-		description: "Creates an animated player sprite with Arcade physics body, gravity, and pre-loaded animations.",
-		params: [
-			{ name: "scene", type: "Phaser.Scene", required: true, description: "Phaser scene" },
-			{ name: "x, y", type: "number", required: true, description: "Start position" },
-		],
-	},
-	{
-		id: "createGround",
-		name: "createGround",
-		engine: "phaser-3",
-		signature: "createGround(scene)",
-		returnType: "Phaser.Physics.Arcade.StaticGroup",
-		description: "Creates ground platform static group spanning the scene width. Uses tiled ground sprites.",
-		params: [
-			{ name: "scene", type: "Phaser.Scene", required: true, description: "Phaser scene" },
-		],
-	},
-	{
-		id: "setupParallaxEnvironment",
-		name: "setupParallaxEnvironment",
-		engine: "phaser-3",
-		signature: "setupParallaxEnvironment(scene, theme?)",
-		returnType: "void",
-		description: "Sets up multi-layer parallax scrolling background. 5 packs: forest (8), nature (11), dark (6), mountains (9), simple (4).",
-		params: [
-			{ name: "scene", type: "Phaser.Scene", required: true, description: "Phaser scene" },
-			{ name: "theme", type: "string", required: false, description: '"forest"|"nature"|"dark"|"mountains"|"simple". Default "forest"' },
-		],
-	},
-	{
-		id: "createAnimations",
-		name: "createAnimations",
-		engine: "phaser-3",
-		signature: "createAnimations(scene)",
-		returnType: "void",
-		description: "Registers all sprite animations (walk, idle, jump) for the player character.",
-		params: [{ name: "scene", type: "Phaser.Scene", required: true, description: "Phaser scene" }],
-	},
-	{
-		id: "preloadAssets",
-		name: "preloadAssets",
-		engine: "phaser-3",
-		signature: "preloadAssets(scene)",
-		returnType: "void",
-		description: "Preloads all game sprites, spritesheets, and audio from media-stock server.",
-		params: [{ name: "scene", type: "Phaser.Scene", required: true, description: "Phaser scene" }],
-	},
-	{
-		id: "createRoad",
-		name: "createRoad",
-		engine: "phaser-3",
-		signature: "createRoad(scene)",
-		returnType: "void",
-		description: "Creates 3-lane vertical road for runner games. Sets __isRunner flag to skip parallax auto-inject.",
-		params: [{ name: "scene", type: "Phaser.Scene", required: true, description: "Phaser scene" }],
-	},
-	{
-		id: "createRunnerPlayer",
-		name: "createRunnerPlayer",
-		engine: "phaser-3",
-		signature: "createRunnerPlayer(scene, x, y)",
-		returnType: "Phaser.Physics.Arcade.Sprite",
-		description: "Creates a player sprite for runner mode — no gravity, tween-based lane switching.",
-		params: [
-			{ name: "scene", type: "Phaser.Scene", required: true, description: "Phaser scene" },
-			{ name: "x, y", type: "number", required: true, description: "Start position" },
-		],
-	},
-	{
-		id: "spawnObstacle",
-		name: "spawnObstacle",
-		engine: "phaser-3",
-		signature: "spawnObstacle(scene, lane)",
-		returnType: "Phaser.Physics.Arcade.Sprite",
-		description: "Spawns an obstacle in the specified lane for runner games. Uses distance-based collision.",
-		params: [
-			{ name: "scene", type: "Phaser.Scene", required: true, description: "Phaser scene" },
-			{ name: "lane", type: "number", required: true, description: "Lane index (0, 1, 2)" },
-		],
-	},
-	{
-		id: "spawnCollectible",
-		name: "spawnCollectible",
-		engine: "phaser-3",
-		signature: "spawnCollectible(scene, lane)",
-		returnType: "Phaser.Physics.Arcade.Sprite",
-		description: "Spawns a collectible item in the specified lane for runner games.",
-		params: [
-			{ name: "scene", type: "Phaser.Scene", required: true, description: "Phaser scene" },
-			{ name: "lane", type: "number", required: true, description: "Lane index (0, 1, 2)" },
-		],
-	},
-];
-
-type Theme2D = {
-	id: string;
-	name: string;
-	layers: number;
-	description: string;
-	mood: string;
-};
-
-const THEMES_2D: Theme2D[] = [
-	{ id: "forest", name: "Forest", layers: 8, description: "Dense canopy with light rays, layered trees, and distant mountains", mood: "Lush, adventurous" },
-	{ id: "nature", name: "Nature", layers: 11, description: "Open countryside with rolling hills, wildflowers, and soft clouds", mood: "Calm, pastoral" },
-	{ id: "dark", name: "Dark World", layers: 6, description: "Moonlit environment with dark trees and eerie fog", mood: "Mysterious, spooky" },
-	{ id: "mountains", name: "Mountains", layers: 9, description: "Alpine landscape with snow-capped peaks and misty valleys", mood: "Epic, vast" },
-	{ id: "simple", name: "Simple", layers: 4, description: "Minimal gradient sky with few elements — fast to load", mood: "Clean, minimal" },
-	{ id: "space", name: "Space Mission", layers: 0, description: "Star field with nebula effects (non-parallax, static bg)", mood: "Sci-fi, cosmic" },
 ];
 
 // =============================================================================
@@ -548,7 +362,6 @@ const TABS: { id: Tab; label: string; icon: React.ReactNode }[] = [
 
 const ENGINE_COLORS: Record<string, string> = {
 	"three-js": "text-blue-400 bg-blue-500/10",
-	"phaser-3": "text-green-400 bg-green-500/10",
 };
 
 const TIER_COLORS: Record<string, string> = {
@@ -671,9 +484,9 @@ function OverviewTab({ onNavigate }: { onNavigate: (tab: Tab) => void }) {
 	const total3DModels = PACKS_3D.reduce((sum, p) => sum + p.fileCount, 0);
 
 	const stats = [
-		{ icon: "🎮", label: "Engines", value: ENGINES.length, sub: "Three.js + Phaser", tab: "genres" as Tab },
-		{ icon: "🎯", label: "Genres", value: GENRES.length, sub: "4 3D + 2 2D", tab: "genres" as Tab },
-		{ icon: "🏭", label: "Factory Helpers", value: FACTORIES.length, sub: "8 3D + 6 2D", tab: "factories" as Tab },
+		{ icon: "🎮", label: "Engines", value: ENGINES.length, sub: "Three.js 3D", tab: "genres" as Tab },
+		{ icon: "🎯", label: "Genres", value: GENRES.length, sub: "3D genres", tab: "genres" as Tab },
+		{ icon: "🏭", label: "Factory Helpers", value: FACTORIES.length, sub: "3D factories", tab: "factories" as Tab },
 		{ icon: "📦", label: "3D Models", value: total3DModels.toLocaleString(), sub: `${PACKS_3D.length} packs`, tab: "assets" as Tab },
 		{ icon: "🎨", label: "2D Sprites", value: "20,454", sub: "6 themes", tab: "assets" as Tab },
 		{ icon: "🔊", label: "Audio Files", value: 39, sub: "35 SFX + 4 BGM", tab: "starters" as Tab },
@@ -980,24 +793,6 @@ function AssetsTab() {
 				</div>
 			</div>
 
-			{/* 2D Themes */}
-			<div>
-				<h3 className="text-sm font-medium text-foreground mb-3">2D Parallax Themes</h3>
-				<div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-					{THEMES_2D.map((theme) => (
-						<div key={theme.id} className="rounded-lg border border-border bg-card p-3">
-							<div className="flex items-center gap-2 mb-1">
-								<span className="font-medium text-foreground text-sm">{theme.name}</span>
-								{theme.layers > 0 && (
-									<Badge className="text-green-400 bg-green-500/10">{theme.layers} layers</Badge>
-								)}
-								<Badge className="text-purple-400 bg-purple-500/10">{theme.mood}</Badge>
-							</div>
-							<p className="text-xs text-muted-foreground">{theme.description}</p>
-						</div>
-					))}
-				</div>
-			</div>
 		</div>
 	);
 }

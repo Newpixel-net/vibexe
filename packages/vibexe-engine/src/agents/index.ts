@@ -14,7 +14,6 @@ import { tddGuide } from "./tdd-guide";
 import { uiDesigner } from "./ui-designer";
 import { continuationAnalyst } from "./continuation-analyst";
 import { mobileAppDeveloper } from "./mobile-app-developer";
-import { gameDeveloper } from "./game-developer";
 import { game3dDeveloper } from "./game-3d-developer";
 import { siteReplicator } from "./site-replicator";
 
@@ -29,7 +28,6 @@ export const DEFAULT_AGENTS: AgentDefinition[] = [
 	backendDeveloper,
 	fullstackDeveloper,
 	mobileAppDeveloper,
-	gameDeveloper,
 	game3dDeveloper,
 	uiDesigner,
 	docUpdater,

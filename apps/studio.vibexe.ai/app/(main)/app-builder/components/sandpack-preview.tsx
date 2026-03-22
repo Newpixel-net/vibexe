@@ -2353,12 +2353,8 @@ export function SandpackPreview({
 	}, [gameEditor.gameSettings?.modules?.installed]);
 
 	// Visual Edit bridge loaded as external script (bypasses Sandpack's bundler)
-	// Phaser CDN loaded when game projects use it (Sandpack's bundler can't handle the 4MB package)
 	const externalResources = useMemo(() => {
 		const resources = ["https://cdn.tailwindcss.com"];
-		if (dependencies.phaser) {
-			resources.push("https://cdn.jsdelivr.net/npm/phaser@3.90.0/dist/phaser.min.js");
-		}
 		// Three.js r172 is loaded via CJS shim in sandpack-adapter.ts (no UMD/global scripts in r160+)
 		// No externalResources needed for Three.js — the shim handles core + all addons
 		// Bridge MUST load AFTER Three.js CDN — game editor bridge checks window.THREE on init

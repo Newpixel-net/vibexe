@@ -12,8 +12,6 @@ import {
 	GAME_3D_SCENE_STARTER_RUNNER,
 	GAME_3D_SCENE_STARTER_SHOOTER,
 	GAME_3D_TEMPLATE_FILES,
-	GAME_ASSETS_REFERENCE,
-	GAME_TEMPLATE_FILES,
 	assemblePrompt,
 	executeOrchestration,
 	getAgent,
@@ -689,13 +687,6 @@ const supabase = createClient("${supabaseConfig.url}", "${supabaseConfig.anonKey
 		const injectedFiles: string[] = [];
 		const isGameProject = app.projectType === "game" || app.projectType === "game-mobile";
 
-		// --- Detect game sub-type from user prompt + conversation history ---
-		const RUNNER_KEYWORDS = [
-			"runner", "run forward", "endless run", "dodge obstacles",
-			"subway surfers", "temple run", "lane", "endless runner",
-			"auto-run", "forward run", "running game", "dodge and run",
-			"vertical runner", "top-down runner", "3-lane",
-		];
 		// --- Detect 3D game from keywords ---
 		// NOTE: "3d" standalone is safe because this check only runs when isGameProject=true
 		const GAME_3D_KEYWORDS = [
@@ -710,7 +701,6 @@ const supabase = createClient("${supabaseConfig.url}", "${supabaseConfig.anonKey
 		let isRunner3d = false;
 		let isShooter3d = false;
 		let needsTerrain = false; // open-world, exploration, terrain-heavy games
-		let gameSubType: "platformer" | "runner" = "platformer"; // default
 		const TERRAIN_KEYWORDS = [
 			"open world", "open-world", "terrain", "exploration", "adventure game 3d",
 			"rpg 3d", "3d rpg", "survival 3d", "3d survival", "mmorpg", "mmo",
@@ -754,8 +744,10 @@ const supabase = createClient("${supabaseConfig.url}", "${supabaseConfig.anonKey
 				isGame3d = true;
 				console.log(`[Chat API] 3D game detected (keywords)`);
 			}
-			if (!isGame3d && RUNNER_KEYWORDS.some(kw => searchText.includes(kw))) {
-				gameSubType = "runner";
+			// All non-3D game requests now route to 3D pipeline (2D engine pending rebuild)
+			if (!isGame3d) {
+				isGame3d = true;
+				console.log(`[Chat API] Routing non-3D game to 3D pipeline (2D engine pending rebuild)`);
 			}
 			// Detect animated character keywords (warrior, knight, etc.)
 			if (isGame3d && CHARACTER_KEYWORDS.some(kw => searchText.includes(kw))) {
@@ -786,7 +778,7 @@ const supabase = createClient("${supabaseConfig.url}", "${supabaseConfig.anonKey
 		if (isGameProject) {
 			const existingPaths = new Set(existingFiles.map((f) => f.path));
 			// Use 3D templates for 3D games, 2D templates for everything else
-			const templateFiles = isGame3d ? GAME_3D_TEMPLATE_FILES : GAME_TEMPLATE_FILES;
+			const templateFiles = GAME_3D_TEMPLATE_FILES;
 			for (const tpl of templateFiles) {
 				if (existingPaths.has(tpl.path)) {
 					console.log(`[Chat API] Template skip (exists): ${tpl.path}`);
@@ -1113,17 +1105,6 @@ ${injectedFiles.map((f) => `- \`${f}\``).join("\n")}
 - Enemy tiers: Tier 1 (wave 1+): Normal/Skinny/Mine. Tier 2 (wave 3+): Pistolman/RifleMan/CowBoy. Tier 3 (wave 5+): Bomber/Grenader/ShotgunMan/MeeleMan. Tier 4 (wave 7+): Elite variants. Boss every 5 waves: Boss_Bomber/Old_Boss/Sniper_Boss`);
 					console.log(`[Chat API] 3D shooter addendum injected`);
 				}
-			} else {
-				// 2D game — inject 2D asset catalog
-				runtimeAddenda.push(GAME_ASSETS_REFERENCE);
-				// Inject game sub-type marker so the AI agent uses the correct helper set
-				if (gameSubType === "runner") {
-					runtimeAddenda.push(`## GAME SUB-TYPE: RUNNER
-You MUST follow the runner patterns below. Use createRoad(), createRunnerPlayer(), spawnObstacle(), spawnCollectible().
-Do NOT use platformer helpers (createPlayer, createGround, setupParallaxEnvironment) for runner games.
-Do NOT enable gravity — runner games are top-down perspective with tween-based movement.`);
-					console.log(`[Chat API] Game sub-type detected: runner`);
-				}
 			}
 		}
 
@@ -1226,56 +1207,45 @@ An App Store listing has been analyzed and injected into the project context abo
 		// Build file creation filter options for game projects
 		let fileToolsOptions: FileToolsOptions | undefined;
 		if (isGameProject) {
-			const templateFiles = isGame3d ? GAME_3D_TEMPLATE_FILES : GAME_TEMPLATE_FILES;
+			const templateFiles = GAME_3D_TEMPLATE_FILES;
 			const protectedPaths = new Set(templateFiles.map((t) => t.path));
-			const forbiddenPatterns: RegExp[] = isGame3d
-				? [
-					// 3D: Block ALL helper scenes — Game3D.tsx provides loading/menu/restart
-					/(?:^|\/)(?:Boot|Menu|Loading|Title|Splash|Intro|Main)Scene(?:3D)?\.ts$/i,
-				]
-				: [
-					// 2D: Block BootScene, MenuScene, LoadingScene
-					/(?:^|\/)(?:Boot|Menu|Loading|Title|Splash|Intro)Scene\.ts$/i,
-				];
+			const forbiddenPatterns: RegExp[] = [
+				// Block ALL helper scenes — Game3D.tsx provides loading/menu/restart
+				/(?:^|\/)(?:Boot|Menu|Loading|Title|Splash|Intro|Main)Scene(?:3D)?\.ts$/i,
+			];
 			// Path rewrites: AI consistently creates wrong filenames
-			const pathRewrites = isGame3d
-				? new Map([
-					// Name corrections: wrong GameScene filename → GameScene3D.ts
-					["src/scenes/GameScene.ts", "src/scenes/GameScene3D.ts"],
-					["src/scenes/Game3DScene.ts", "src/scenes/GameScene3D.ts"],
-					["src/scenes/GameScene3d.ts", "src/scenes/GameScene3D.ts"],
-					// GameOver name corrections
-					["src/scenes/GameOverScene.ts", "src/scenes/GameOverScene3D.ts"],
-					["src/scenes/GameOver.ts", "src/scenes/GameOverScene3D.ts"],
-					["src/scenes/GameOverScene3d.ts", "src/scenes/GameOverScene3D.ts"],
-					// AI creates constants at wrong paths
-					["src/config/constants-3d.ts", "src/config/constants.ts"],
-					["src/constants.ts", "src/config/constants.ts"],
-					["src/scenes/constants.ts", "src/config/constants.ts"],
-					["src/game-config.ts", "src/config/constants.ts"],
-					["constants.ts", "src/config/constants.ts"],
-				])
-				: new Map<string, string>();
+			const pathRewrites = new Map([
+				// Name corrections: wrong GameScene filename → GameScene3D.ts
+				["src/scenes/GameScene.ts", "src/scenes/GameScene3D.ts"],
+				["src/scenes/Game3DScene.ts", "src/scenes/GameScene3D.ts"],
+				["src/scenes/GameScene3d.ts", "src/scenes/GameScene3D.ts"],
+				// GameOver name corrections
+				["src/scenes/GameOverScene.ts", "src/scenes/GameOverScene3D.ts"],
+				["src/scenes/GameOver.ts", "src/scenes/GameOverScene3D.ts"],
+				["src/scenes/GameOverScene3d.ts", "src/scenes/GameOverScene3D.ts"],
+				// AI creates constants at wrong paths
+				["src/config/constants-3d.ts", "src/config/constants.ts"],
+				["src/constants.ts", "src/config/constants.ts"],
+				["src/scenes/constants.ts", "src/config/constants.ts"],
+				["src/game-config.ts", "src/config/constants.ts"],
+				["constants.ts", "src/config/constants.ts"],
+			]);
 			// 3D games: allowlist — AI can ONLY create these files (everything else is blocked)
-			const allowedPathPatterns: RegExp[] = isGame3d
-				? [
-					/^docs\//, // Any doc file
-					/^src\/config\/constants(?:-3d)?\.ts$/, // Game constants (+ re-export shim)
-					/^src\/scenes\/GameScene3D\.ts$/, // Main scene (ONLY scene AI should create)
-					/^src\/objects\//, // Optional: Player.ts, Enemy.ts
-					/^src\/utils\/level-builder\.ts$/, // Optional: level generation
-				]
-				: [];
+			const allowedPathPatterns: RegExp[] = [
+				/^docs\//, // Any doc file
+				/^src\/config\/constants(?:-3d)?\.ts$/, // Game constants (+ re-export shim)
+				/^src\/scenes\/GameScene3D\.ts$/, // Main scene (ONLY scene AI should create)
+				/^src\/objects\//, // Optional: Player.ts, Enemy.ts
+				/^src\/utils\/level-builder\.ts$/, // Optional: level generation
+			];
 			// Import path rewrites: fix import references that don't match path-rewritten filenames
-			const importRewrites: [RegExp, string][] = isGame3d
-				? [
-					// AI writes import from "constants-3d" but file is rewritten to "constants"
-					[/from\s+"\.\.\/config\/constants-3d"/g, 'from "../config/constants"'],
-					[/from\s+'\.\.\/config\/constants-3d'/g, "from '../config/constants'"],
-					[/from\s+"\.\/constants-3d"/g, 'from "./constants"'],
-					[/from\s+'\.\/constants-3d'/g, "from './constants'"],
-				]
-				: [];
+			const importRewrites: [RegExp, string][] = [
+				// AI writes import from "constants-3d" but file is rewritten to "constants"
+				[/from\s+"\.\.\/config\/constants-3d"/g, 'from "../config/constants"'],
+				[/from\s+'\.\.\/config\/constants-3d'/g, "from '../config/constants'"],
+				[/from\s+"\.\/constants-3d"/g, 'from "./constants"'],
+				[/from\s+'\.\/constants-3d'/g, "from './constants'"],
+			];
 			fileToolsOptions = { protectedPaths, forbiddenPatterns, pathRewrites, allowedPathPatterns, importRewrites };
 			console.log(`[Chat API] File filter active: ${protectedPaths.size} protected, ${forbiddenPatterns.length} forbidden, ${pathRewrites.size} rewrites, ${allowedPathPatterns.length} allowed patterns`);
 		}

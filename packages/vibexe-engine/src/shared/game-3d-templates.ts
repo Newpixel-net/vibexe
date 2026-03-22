@@ -2,13 +2,17 @@
  * 3D Game Template Files — Pre-created infrastructure injected into projects
  * BEFORE the AI agent starts generating code.
  *
- * Mirrors the 2D Phaser template pattern (game-templates.ts) exactly.
+ * Pre-created template files injected into 3D game projects.
  * The agent finds these files already existing and imports from them.
  *
  * To add more template files, just add entries to GAME_3D_TEMPLATE_FILES.
  */
 
-import type { TemplateFile } from "./game-templates";
+export interface TemplateFile {
+	path: string;
+	content: string;
+	language: string;
+}
 
 export const GAME_3D_TEMPLATE_FILES: TemplateFile[] = [
 	// ---------- Template 1: 3D Media-stock URL builder ----------

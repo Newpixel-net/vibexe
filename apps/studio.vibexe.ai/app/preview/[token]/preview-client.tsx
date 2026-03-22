@@ -189,9 +189,6 @@ export function PreviewClient({ appName, appId, projectType, files }: PreviewCli
 				recompileDelay: 300,
 				externalResources: [
 					"https://cdn.tailwindcss.com",
-					...(dependencies.phaser
-						? ["https://cdn.jsdelivr.net/npm/phaser@3.90.0/dist/phaser.min.js"]
-						: []),
 					...(dependencies.three
 						? [
 								"https://cdn.jsdelivr.net/npm/three@0.128.0/build/three.min.js",
