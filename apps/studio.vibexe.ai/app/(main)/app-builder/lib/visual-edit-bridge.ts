@@ -931,6 +931,30 @@ export function getVisualEditBridgeScript(): string {
         }
       }
     }
+    // Group __swa_* children under a virtual "Sky & Weather" folder node
+    if (obj.isScene || obj.type === "Scene") {
+      var swaChildren = [];
+      var otherChildren = [];
+      for (var gi = 0; gi < children.length; gi++) {
+        if (children[gi].name && children[gi].name.indexOf("__swa_") === 0) {
+          swaChildren.push(children[gi]);
+        } else {
+          otherChildren.push(children[gi]);
+        }
+      }
+      if (swaChildren.length > 0) {
+        var anyVisible = false;
+        for (var vi = 0; vi < swaChildren.length; vi++) { if (swaChildren[vi].visible) { anyVisible = true; break; } }
+        otherChildren.push({
+          uuid: "__swa_group__", name: "Sky & Weather", type: "Group",
+          position: { x: 0, y: 0, z: 0 }, rotation: { x: 0, y: 0, z: 0 }, scale: { x: 1, y: 1, z: 1 },
+          visible: anyVisible, userData: { __virtualGroup: true }, children: swaChildren,
+          _isMesh: false, _isLight: false, _isGroup: true, _isLocked: true, _materialColor: null
+        });
+      }
+      children = otherChildren;
+    }
+
     return {
       uuid: obj.uuid, name: obj.name || obj.type, type: obj.type || "Object3D",
       position: { x: obj.position.x, y: obj.position.y, z: obj.position.z },
