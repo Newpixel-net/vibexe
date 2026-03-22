@@ -646,7 +646,7 @@ export const MEDIA_STOCK_2D_CONTENT = `
  */
 export function spriteUrl(path: string): string {
   const origin = (window as any).__VIBEXE_API_ORIGIN__ || '';
-  return \\\`\\\${origin}/api/app-builder/media-stock/\\\${encodeURI(path)}\\\`;
+  return origin + '/api/app-builder/media-stock/' + encodeURI(path);
 }
 
 /**
