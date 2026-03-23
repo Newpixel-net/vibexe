@@ -1627,18 +1627,254 @@ function _generateEnemies() {
   return enemies;
 }
 
-function _generateTrees() {
-  var count = _rngInt(6, 12);
-  var trees: { x: number; h: number; lr: number }[] = [];
+function _generateDecorations() {
+  var count = _rngInt(8, 16);
+  var decs: { x: number; type: number; size: number; flip: boolean }[] = [];
   var spacing = CONFIG.worldWidth / count;
   for (var i = 0; i < count; i++) {
-    trees.push({
+    decs.push({
       x: i * spacing + _rngRange(20, spacing - 20),
-      h: _rngRange(40, 90),
-      lr: _rngRange(20, 40),
+      type: _rngInt(0, 3), // 4 variants per theme
+      size: _rngRange(0.7, 1.3),
+      flip: _rng() > 0.5,
     });
   }
-  return trees;
+  return decs;
+}
+
+// ======================== THEME-SPECIFIC DRAWING ========================
+function _drawDecoration(type: number, size: number): any {
+  var g = new PIXI.Graphics();
+  var s = size;
+  switch (THEME) {
+    case 'volcanic':
+      if (type === 0) { // Lava pool
+        g.beginFill(0xff3300, 0.8); g.drawEllipse(0, 0, 30 * s, 8 * s); g.endFill();
+        g.beginFill(0xff6600, 0.6); g.drawEllipse(0, -2, 20 * s, 5 * s); g.endFill();
+        g.beginFill(0xffaa00, 0.4); g.drawEllipse(0, -3, 10 * s, 3 * s); g.endFill();
+      } else if (type === 1) { // Smoking vent
+        g.beginFill(0x3a2a1a); g.moveTo(-8 * s, 0); g.lineTo(8 * s, 0); g.lineTo(4 * s, -20 * s); g.lineTo(-4 * s, -20 * s); g.endFill();
+        g.beginFill(0x554433); g.drawCircle(0, -20 * s, 6 * s); g.endFill();
+        g.beginFill(0xff4400, 0.5); g.drawCircle(0, -20 * s, 3 * s); g.endFill();
+      } else if (type === 2) { // Obsidian crystal
+        g.beginFill(0x1a1a2a); g.moveTo(0, -35 * s); g.lineTo(8 * s, 0); g.lineTo(-8 * s, 0); g.endFill();
+        g.beginFill(0x2a2a4a); g.moveTo(6 * s, -25 * s); g.lineTo(12 * s, 0); g.lineTo(2 * s, 0); g.endFill();
+        g.beginFill(0xff4400, 0.3); g.moveTo(0, -30 * s); g.lineTo(3 * s, -10 * s); g.lineTo(-3 * s, -10 * s); g.endFill();
+      } else { // Cracked rock
+        g.beginFill(0x4a3a2a); g.drawRoundedRect(-15 * s, -12 * s, 30 * s, 12 * s, 4); g.endFill();
+        g.beginFill(0x5a4a3a); g.drawRoundedRect(-10 * s, -18 * s, 20 * s, 8 * s, 3); g.endFill();
+        g.lineStyle(1, 0xff4400, 0.6); g.moveTo(-5 * s, -2 * s); g.lineTo(0, -10 * s); g.lineTo(5 * s, -4 * s);
+      }
+      break;
+    case 'arctic':
+      if (type === 0) { // Ice crystal
+        g.beginFill(0x99ddff, 0.8); g.moveTo(0, -40 * s); g.lineTo(6 * s, -10 * s); g.lineTo(0, 0); g.lineTo(-6 * s, -10 * s); g.endFill();
+        g.beginFill(0xbbeeFF, 0.5); g.moveTo(0, -35 * s); g.lineTo(3 * s, -12 * s); g.lineTo(-3 * s, -12 * s); g.endFill();
+        g.beginFill(0xccffff, 0.6); g.moveTo(10 * s, -25 * s); g.lineTo(14 * s, -10 * s); g.lineTo(8 * s, -10 * s); g.endFill();
+      } else if (type === 1) { // Snowdrift
+        g.beginFill(0xddeeff, 0.9); g.drawEllipse(0, 0, 25 * s, 10 * s); g.endFill();
+        g.beginFill(0xeef4ff, 0.7); g.drawEllipse(5 * s, -3 * s, 15 * s, 6 * s); g.endFill();
+      } else if (type === 2) { // Frozen pillar
+        g.beginFill(0x88bbdd); g.drawRoundedRect(-6 * s, -45 * s, 12 * s, 45 * s, 3); g.endFill();
+        g.beginFill(0xaaddee, 0.6); g.drawRoundedRect(-3 * s, -42 * s, 6 * s, 38 * s, 2); g.endFill();
+        g.beginFill(0x99ccee); g.drawCircle(0, -48 * s, 8 * s); g.endFill();
+      } else { // Icicles
+        for (var ic = 0; ic < 3; ic++) {
+          var ix = (ic - 1) * 10 * s;
+          var ih = (20 + ic * 8) * s;
+          g.beginFill(0xaaddff, 0.8); g.moveTo(ix - 3 * s, 0); g.lineTo(ix, -ih); g.lineTo(ix + 3 * s, 0); g.endFill();
+        }
+      }
+      break;
+    case 'candy':
+      if (type === 0) { // Lollipop
+        g.beginFill(0x886644); g.drawRect(-2 * s, -40 * s, 4 * s, 40 * s); g.endFill();
+        g.beginFill(0xff6699); g.drawCircle(0, -48 * s, 12 * s); g.endFill();
+        g.beginFill(0xffaacc, 0.6); g.drawCircle(-3 * s, -50 * s, 5 * s); g.endFill();
+        g.lineStyle(2, 0xffffff, 0.5); g.arc(0, -48 * s, 8 * s, 0, Math.PI); g.lineStyle(0);
+      } else if (type === 1) { // Candy cane
+        g.beginFill(0xff3344); g.drawRoundedRect(-4 * s, -35 * s, 8 * s, 35 * s, 3); g.endFill();
+        for (var st = 0; st < 5; st++) {
+          g.beginFill(0xffffff, 0.8); g.drawRect(-4 * s, -35 * s + st * 14 * s, 8 * s, 4 * s); g.endFill();
+        }
+        g.beginFill(0xff3344); g.drawCircle(6 * s, -35 * s, 5 * s); g.endFill();
+      } else if (type === 2) { // Gummy bear
+        g.beginFill(0x44cc88); g.drawEllipse(0, -12 * s, 10 * s, 14 * s); g.endFill();
+        g.beginFill(0x44cc88); g.drawCircle(-6 * s, -26 * s, 5 * s); g.drawCircle(6 * s, -26 * s, 5 * s); g.endFill();
+        g.beginFill(0xffffff); g.drawCircle(-3 * s, -14 * s, 2 * s); g.drawCircle(3 * s, -14 * s, 2 * s); g.endFill();
+        g.beginFill(0x111111); g.drawCircle(-3 * s, -14 * s, 1); g.drawCircle(3 * s, -14 * s, 1); g.endFill();
+      } else { // Sprinkle pile
+        var sprColors = [0xff6699, 0x66ccff, 0xffcc33, 0x66ff99, 0xff66ff];
+        for (var sp = 0; sp < 8; sp++) {
+          g.beginFill(sprColors[sp % sprColors.length]);
+          g.drawRoundedRect(_rngRange(-15, 15) * s, _rngRange(-8, 0) * s, 6 * s, 2 * s, 1);
+          g.endFill();
+        }
+      }
+      break;
+    case 'space':
+      if (type === 0) { // Floating asteroid
+        g.beginFill(0x555566); g.drawCircle(0, -15 * s, 14 * s); g.endFill();
+        g.beginFill(0x444455); g.drawCircle(-5 * s, -18 * s, 5 * s); g.endFill();
+        g.beginFill(0x333344); g.drawCircle(6 * s, -12 * s, 4 * s); g.endFill();
+      } else if (type === 1) { // Alien plant
+        g.beginFill(0x44ff88, 0.8); g.moveTo(0, 0); g.quadraticCurveTo(15 * s, -20 * s, 5 * s, -35 * s); g.quadraticCurveTo(0, -25 * s, 0, 0); g.endFill();
+        g.beginFill(0x88ffbb, 0.6); g.moveTo(0, 0); g.quadraticCurveTo(-12 * s, -18 * s, -3 * s, -30 * s); g.quadraticCurveTo(0, -20 * s, 0, 0); g.endFill();
+        g.beginFill(0xaaffdd); g.drawCircle(4 * s, -34 * s, 3 * s); g.drawCircle(-2 * s, -29 * s, 2 * s); g.endFill();
+      } else if (type === 2) { // Energy pylon
+        g.beginFill(0x333355); g.drawRect(-4 * s, -40 * s, 8 * s, 40 * s); g.endFill();
+        g.beginFill(0x6666ff, 0.7); g.drawCircle(0, -42 * s, 6 * s); g.endFill();
+        g.beginFill(0x9999ff, 0.4); g.drawCircle(0, -42 * s, 10 * s); g.endFill();
+      } else { // Antenna dish
+        g.beginFill(0x555577); g.drawRect(-2 * s, -30 * s, 4 * s, 30 * s); g.endFill();
+        g.beginFill(0x777799); g.drawEllipse(0, -32 * s, 14 * s, 6 * s); g.endFill();
+        g.beginFill(0x4488ff, 0.5); g.drawCircle(0, -32 * s, 3 * s); g.endFill();
+      }
+      break;
+    case 'dark':
+      if (type === 0) { // Skull on stick
+        g.beginFill(0x333344); g.drawRect(-2 * s, -30 * s, 4 * s, 30 * s); g.endFill();
+        g.beginFill(0xccccbb); g.drawCircle(0, -35 * s, 8 * s); g.endFill();
+        g.beginFill(0x1a1a2a); g.drawEllipse(-3 * s, -36 * s, 2.5 * s, 3 * s); g.drawEllipse(3 * s, -36 * s, 2.5 * s, 3 * s); g.endFill();
+        g.beginFill(0x1a1a2a); g.moveTo(-2 * s, -31 * s); g.lineTo(0, -29 * s); g.lineTo(2 * s, -31 * s); g.endFill();
+      } else if (type === 1) { // Glowing mushroom
+        g.beginFill(0x333344); g.drawRect(-3 * s, -15 * s, 6 * s, 15 * s); g.endFill();
+        g.beginFill(0x6633aa); g.drawEllipse(0, -18 * s, 14 * s, 8 * s); g.endFill();
+        g.beginFill(0xaa55ff, 0.4); g.drawEllipse(0, -18 * s, 18 * s, 10 * s); g.endFill();
+        g.beginFill(0xddaaff, 0.5); g.drawCircle(-4 * s, -20 * s, 2 * s); g.drawCircle(5 * s, -17 * s, 1.5 * s); g.endFill();
+      } else if (type === 2) { // Tombstone
+        g.beginFill(0x444455); g.drawRoundedRect(-10 * s, -30 * s, 20 * s, 30 * s, 5 * s); g.endFill();
+        g.beginFill(0x333344); g.drawRect(-1 * s, -22 * s, 2 * s, 10 * s); g.drawRect(-5 * s, -18 * s, 10 * s, 2 * s); g.endFill();
+      } else { // Broken lantern
+        g.beginFill(0x444455); g.drawRect(-2 * s, -25 * s, 4 * s, 25 * s); g.endFill();
+        g.beginFill(0x555566); g.drawRect(-6 * s, -30 * s, 12 * s, 8 * s); g.endFill();
+        g.beginFill(0x00ff88, 0.4); g.drawCircle(0, -26 * s, 4 * s); g.endFill();
+        g.beginFill(0x00ff88, 0.15); g.drawCircle(0, -26 * s, 10 * s); g.endFill();
+      }
+      break;
+    case 'ocean':
+      if (type === 0) { // Coral
+        g.beginFill(0xff6688); g.moveTo(0, 0); g.quadraticCurveTo(10 * s, -20 * s, 5 * s, -30 * s); g.quadraticCurveTo(2 * s, -20 * s, 0, 0); g.endFill();
+        g.beginFill(0xff88aa); g.moveTo(0, 0); g.quadraticCurveTo(-8 * s, -18 * s, -4 * s, -25 * s); g.quadraticCurveTo(-1 * s, -15 * s, 0, 0); g.endFill();
+        g.beginFill(0xffaacc); g.drawCircle(4 * s, -29 * s, 3 * s); g.drawCircle(-3 * s, -24 * s, 2.5 * s); g.endFill();
+      } else if (type === 1) { // Seaweed
+        g.beginFill(0x228855, 0.8);
+        for (var sw = 0; sw < 3; sw++) {
+          var sx = (sw - 1) * 6 * s;
+          g.moveTo(sx, 0); g.quadraticCurveTo(sx + 8 * s, -15 * s, sx + 2 * s, -30 * s - sw * 5 * s);
+          g.quadraticCurveTo(sx - 2 * s, -15 * s, sx, 0);
+        }
+        g.endFill();
+      } else if (type === 2) { // Shell
+        g.beginFill(0xffcc88); g.drawEllipse(0, -5 * s, 12 * s, 8 * s); g.endFill();
+        g.beginFill(0xffddaa); g.drawEllipse(0, -7 * s, 8 * s, 5 * s); g.endFill();
+        g.lineStyle(1, 0xddaa77); for (var sl = 0; sl < 5; sl++) { g.moveTo(0, -5 * s); g.lineTo((sl * 5 - 10) * s, 3 * s); } g.lineStyle(0);
+      } else { // Anchor
+        g.beginFill(0x556677); g.drawRect(-2 * s, -30 * s, 4 * s, 30 * s); g.endFill();
+        g.beginFill(0x556677); g.drawRect(-12 * s, -8 * s, 24 * s, 4 * s); g.endFill();
+        g.beginFill(0x667788); g.drawCircle(0, -32 * s, 5 * s); g.endFill();
+        g.beginFill(0x445566); g.drawCircle(0, -32 * s, 3 * s); g.endFill();
+      }
+      break;
+    case 'sunset':
+      if (type === 0) { // Sunflower
+        g.beginFill(0x447733); g.drawRect(-2 * s, -35 * s, 4 * s, 35 * s); g.endFill();
+        for (var pet = 0; pet < 8; pet++) {
+          var pa = pet * Math.PI / 4;
+          g.beginFill(0xffcc00); g.drawEllipse(Math.cos(pa) * 8 * s, -40 * s + Math.sin(pa) * 8 * s, 5 * s, 3 * s); g.endFill();
+        }
+        g.beginFill(0x885500); g.drawCircle(0, -40 * s, 5 * s); g.endFill();
+      } else if (type === 1) { // Tall grass
+        g.beginFill(0x558833, 0.7);
+        for (var tg = 0; tg < 5; tg++) {
+          var tx2 = (tg - 2) * 5 * s;
+          g.moveTo(tx2, 0); g.quadraticCurveTo(tx2 + 4 * s, -15 * s, tx2 + 2 * s, -25 * s - _rng() * 10 * s);
+          g.lineTo(tx2 - 1 * s, -25 * s - _rng() * 10 * s); g.quadraticCurveTo(tx2 - 4 * s, -15 * s, tx2, 0);
+        }
+        g.endFill();
+      } else if (type === 2) { // Butterfly bush (flower cluster)
+        g.beginFill(0x447733); g.drawRect(-2 * s, -20 * s, 4 * s, 20 * s); g.endFill();
+        var flColors = [0xff6688, 0xffaa44, 0xff88cc, 0xffcc66];
+        for (var fl = 0; fl < 6; fl++) {
+          g.beginFill(flColors[fl % flColors.length], 0.8);
+          g.drawCircle(_rngRange(-8, 8) * s, (-22 - _rng() * 10) * s, (3 + _rng() * 2) * s);
+          g.endFill();
+        }
+      } else { // Cattail
+        g.beginFill(0x558844); g.drawRect(-1.5 * s, -40 * s, 3 * s, 40 * s); g.endFill();
+        g.beginFill(0x885533); g.drawEllipse(0, -42 * s, 3.5 * s, 8 * s); g.endFill();
+      }
+      break;
+    default: // forest
+      if (type === 0) { // Mushroom
+        g.beginFill(0x886644); g.drawRect(-3 * s, -12 * s, 6 * s, 12 * s); g.endFill();
+        g.beginFill(0xcc3333); g.drawEllipse(0, -15 * s, 12 * s, 8 * s); g.endFill();
+        g.beginFill(0xffffff, 0.7); g.drawCircle(-4 * s, -17 * s, 2 * s); g.drawCircle(3 * s, -14 * s, 1.5 * s); g.drawCircle(6 * s, -16 * s, 1 * s); g.endFill();
+      } else if (type === 1) { // Flower patch
+        g.beginFill(0x447733); g.drawRect(-1 * s, -15 * s, 2 * s, 15 * s); g.endFill();
+        g.beginFill(0xff6688); g.drawCircle(0, -17 * s, 5 * s); g.endFill();
+        g.beginFill(0xffdd44); g.drawCircle(0, -17 * s, 2 * s); g.endFill();
+        g.beginFill(0x447733); g.drawRect(3 * s, -10 * s, 2 * s, 10 * s); g.endFill();
+        g.beginFill(0xffaa44); g.drawCircle(4 * s, -12 * s, 4 * s); g.endFill();
+      } else if (type === 2) { // Fern bush
+        g.beginFill(0x338833, 0.8);
+        for (var fn = 0; fn < 4; fn++) {
+          var fa = (fn - 1.5) * 0.5;
+          g.moveTo(0, 0); g.quadraticCurveTo(Math.sin(fa) * 20 * s, -15 * s, Math.sin(fa) * 15 * s, -25 * s);
+          g.lineTo(Math.sin(fa) * 12 * s, -23 * s); g.quadraticCurveTo(Math.sin(fa) * 15 * s, -12 * s, 0, 0);
+        }
+        g.endFill();
+      } else { // Log
+        g.beginFill(0x5a3a1a); g.drawEllipse(0, -5 * s, 20 * s, 7 * s); g.endFill();
+        g.beginFill(0x7a5a3a); g.drawCircle(-18 * s, -5 * s, 7 * s); g.endFill();
+        g.beginFill(0x4a2a0a); g.drawCircle(-18 * s, -5 * s, 4 * s); g.endFill();
+      }
+      break;
+  }
+  return g;
+}
+
+function _drawGroundDetail(x: number, groundY: number): any {
+  var g = new PIXI.Graphics();
+  g.x = x;
+  g.y = groundY;
+  switch (THEME) {
+    case 'volcanic':
+      // Lava cracks
+      g.lineStyle(2, 0xff4400, 0.6); g.moveTo(-8, 2); g.lineTo(0, -3); g.lineTo(8, 1); g.lineTo(12, 4);
+      g.lineStyle(1, 0xff6600, 0.3); g.moveTo(-5, 5); g.lineTo(3, 0); g.lineTo(10, 6);
+      break;
+    case 'arctic':
+      // Snow mound
+      g.beginFill(0xddeeff, 0.6); g.drawEllipse(0, 0, 18, 5); g.endFill();
+      break;
+    case 'candy':
+      // Sprinkles on ground
+      var sc = [0xff6699, 0x66ccff, 0xffcc33, 0x66ff99];
+      for (var j = 0; j < 4; j++) { g.beginFill(sc[j]); g.drawCircle(_rngRange(-10, 10), _rngRange(-2, 2), 1.5); g.endFill(); }
+      break;
+    case 'space':
+      // Glowing crack
+      g.lineStyle(1, 0x4488ff, 0.5); g.moveTo(-6, 2); g.lineTo(0, -2); g.lineTo(7, 3);
+      g.beginFill(0x4488ff, 0.15); g.drawCircle(0, 0, 8); g.endFill();
+      break;
+    case 'dark':
+      // Purple mist
+      g.beginFill(0x6633aa, 0.12); g.drawEllipse(0, -3, 20, 8); g.endFill();
+      break;
+    case 'ocean':
+      // Bubbles
+      g.beginFill(0x66aadd, 0.3); g.drawCircle(-3, -5, 3); g.drawCircle(4, -8, 2); g.drawCircle(0, -12, 1.5); g.endFill();
+      break;
+    default:
+      // Grass tufts
+      g.beginFill(0x55aa33, 0.5);
+      g.moveTo(-5, 0); g.lineTo(-3, -8); g.lineTo(-1, 0);
+      g.moveTo(2, 0); g.lineTo(4, -6); g.lineTo(6, 0);
+      g.endFill();
+      break;
+  }
+  return g;
 }
 
 // ======================== GAME SCENE ========================
@@ -1709,27 +1945,40 @@ export class GameScene2D implements GameScene {
       this.bgLayers.push({ gfx: mGfx, factor: 0.1 + mi * 0.15 });
     }
 
-    // ---- 4. CLOUDS (PRNG count + position) ----
-    var cloudCount = _rngInt(5, 10);
-    for (var ci = 0; ci < cloudCount; ci++) {
-      var cw = _rngRange(80, 200);
-      var ch = _rngRange(25, 45);
-      var cloud = drawCloud(cw, ch);
-      cloud.x = _rngRange(0, WW);
-      cloud.y = _rngRange(50, CONFIG.groundY * 0.4);
-      this.container.addChild(cloud);
-      this.clouds.push({ gfx: cloud, speed: _rngRange(5, 15) });
+    // ---- 4. CLOUDS / SKY OBJECTS (theme-aware) ----
+    if (THEME !== 'space' && THEME !== 'dark') {
+      var cloudCount = _rngInt(5, 10);
+      for (var ci = 0; ci < cloudCount; ci++) {
+        var cw = _rngRange(80, 200);
+        var ch = _rngRange(25, 45);
+        var cloud = drawCloud(cw, ch);
+        cloud.x = _rngRange(0, WW);
+        cloud.y = _rngRange(50, CONFIG.groundY * 0.4);
+        if (THEME === 'volcanic') { cloud.tint = 0x997766; cloud.alpha = 0.5; } // smoke
+        this.container.addChild(cloud);
+        this.clouds.push({ gfx: cloud, speed: _rngRange(5, 15) });
+      }
     }
 
-    // ---- 5. DECORATIVE TREES (PRNG) ----
-    var treeData = _generateTrees();
-    for (var ti = 0; ti < treeData.length; ti++) {
-      var td = treeData[ti];
-      var tree = drawTree(td.h, td.lr, 0x4a3020, PAL.foliage);
-      tree.x = td.x;
-      tree.y = CONFIG.groundY;
-      this.container.addChild(tree);
-      this.decorTrees.push(tree);
+    // ---- 5. THEME-SPECIFIC DECORATIONS (PRNG) ----
+    var decData = _generateDecorations();
+    for (var di = 0; di < decData.length; di++) {
+      var dd = decData[di];
+      var dec = _drawDecoration(dd.type, dd.size);
+      dec.x = dd.x;
+      dec.y = CONFIG.groundY;
+      if (dd.flip) dec.scale.x = -1;
+      this.container.addChild(dec);
+      this.decorTrees.push(dec);
+    }
+
+    // ---- 5b. GROUND DETAILS (theme-specific texture) ----
+    var groundDetailCount = _rngInt(12, 24);
+    var gdSpacing = CONFIG.worldWidth / groundDetailCount;
+    for (var gdi = 0; gdi < groundDetailCount; gdi++) {
+      var gdx = gdi * gdSpacing + _rngRange(10, gdSpacing - 10);
+      var gd = _drawGroundDetail(gdx, CONFIG.groundY);
+      this.container.addChild(gd);
     }
 
     // ---- 6. GROUND ----
