@@ -1152,21 +1152,22 @@ After creating ALL files, end with a short summary. If the app has auth, include
 **MINIMUM**: Your GameScene3D.ts must call at least 5 different factory helpers. Every platform, collectible, player, barrier, and decoration MUST use the corresponding factory.`);
 
 			}
-			// 2D game creative brief injection — drives variety per seed
-			if (isGame2d && game2dBrief) {
-				runtimeAddenda.push(buildCreativeBriefPrompt(game2dBrief));
-			}
-			// 2D game AI-generated sprites — inject URLs + loading pattern into prompt
-			if (isGame2d && Object.keys(generatedSprites).length > 0) {
-				const spriteEntries = Object.entries(generatedSprites);
-				const spriteList = spriteEntries
-					.map(([cat, url]) => `- **${cat}**: Load with \`await PIXI.Assets.load("${url}")\``)
-					.join("\n");
-				const loadLines = spriteEntries
-					.map(([cat, url]) => `  PIXI.Assets.load("${url}").catch(() => null),`)
-					.join("\n");
-				const varNames = spriteEntries.map(([cat]) => `${cat}Tex`).join(", ");
-				runtimeAddenda.push(`## AI-Generated Sprites (LOAD THESE)
+		}
+		// 2D game addenda — runs for ALL calls (new AND returning) so
+		// the "build it" second call still gets skeleton/reference/sprite instructions.
+		if (isGame2d && game2dBrief) {
+			runtimeAddenda.push(buildCreativeBriefPrompt(game2dBrief));
+		}
+		if (isGame2d && Object.keys(generatedSprites).length > 0) {
+			const spriteEntries = Object.entries(generatedSprites);
+			const spriteList = spriteEntries
+				.map(([cat, url]) => `- **${cat}**: Load with \`await PIXI.Assets.load("${url}")\``)
+				.join("\n");
+			const loadLines = spriteEntries
+				.map(([cat, url]) => `  PIXI.Assets.load("${url}").catch(() => null),`)
+				.join("\n");
+			const varNames = spriteEntries.map(([cat]) => `${cat}Tex`).join(", ");
+			runtimeAddenda.push(`## AI-Generated Sprites (LOAD THESE)
 
 ${spriteList}
 
@@ -1185,10 +1186,9 @@ var playerGfx = playerTex
 
 **IMPORTANT**: Always use \`.catch(() => null)\` and fallback to drawing helpers if sprite loading fails.
 These sprites have white backgrounds — set blendMode or use alpha masking if needed.`);
-			}
-			// 2D game "build" phase: tell AI that GameScene2D.ts is a SKELETON
-			if (isGame2d) {
-				runtimeAddenda.push(`## CRITICAL: 2D Game — GameScene2D.ts is a SKELETON
+		}
+		if (isGame2d) {
+			runtimeAddenda.push(`## CRITICAL: 2D Game — GameScene2D.ts is a SKELETON
 
 **\`src/scenes/GameScene2D.ts\` is a SKELETON** with empty enter() and update() methods. You MUST generate the COMPLETE game.
 
@@ -1213,8 +1213,8 @@ These sprites have white backgrounds — set blendMode or use alpha masking if n
 
 **The result must be a COMPLETE, PLAYABLE game — not a skeleton.**`);
 
-				// Inject condensed reference pattern so AI knows HOW to build
-				runtimeAddenda.push(`## Reference: How to Build a 2D Game Scene
+			// Inject condensed reference pattern so AI knows HOW to build
+			runtimeAddenda.push(`## Reference: How to Build a 2D Game Scene
 
 Here is a CONDENSED example of a working platformer scene.
 Use this pattern but create YOUR OWN unique game based on the Creative Brief:
@@ -1263,7 +1263,6 @@ engine.ui.addChild(scoreText);
 \`\`\`
 
 **CRITICAL**: Do NOT copy this example verbatim. Generate unique content based on the Creative Brief.`);
-			}
 		} else if (isReturningUser) {
 			// Normal existing project — edit/add files
 			runtimeAddenda.push(`## Existing Project (${existingFiles.length} files)
