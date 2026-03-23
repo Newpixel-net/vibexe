@@ -1527,7 +1527,7 @@ export default function Game2D({ onReady }: { onReady?: (engine: any) => void })
 // GAME SCENE SKELETONS — Injected as starter files, AI generates the content
 // ============================================================================
 
-/** Platformer skeleton — AI generates all gameplay in enter()/update() */
+/** Hybrid platformer starter — fully playable, seed-driven dynamic game. AI ENHANCES it. */
 export const GAME_2D_SCENE_STARTER = `import { Engine2D, GameScene, createGame2D, loadAssets, JuiceSystem } from "../engine/core";
 import { createBody, createStaticBody, createOneWayPlatform, PhysicsWorld, CharacterController } from "../engine/physics";
 import { createAmbientEffect, createSnowEffect, createRainEffect, getThemeEffects, onJumpDust, onLandImpact, onCollectSparkle, onDeathExplosion } from "../engine/effects";
@@ -1535,6 +1535,13 @@ import { PALETTES, lerpColor, drawSkyGradient, drawStars, drawMountainRange, dra
 import { _loadSpriteLib, _sheetCache } from "../utils/media-stock";
 
 const PIXI = (window as any).PIXI;
+
+// ======================== SEEDED PRNG (Mulberry32) ========================
+var _seed = 1234;
+function _rng() { _seed |= 0; _seed = _seed + 0x6D2B79F5 | 0; var t = Math.imul(_seed ^ _seed >>> 15, 1 | _seed); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }
+function _rngRange(min: number, max: number) { return min + _rng() * (max - min); }
+function _rngInt(min: number, max: number) { return Math.floor(_rngRange(min, max + 1)); }
+function _rngPick<T>(arr: T[]): T { return arr[_rngInt(0, arr.length - 1)]; }
 
 // ======================== CONFIGURATION ========================
 var THEME = 'sunset'; // Change to: forest, sunset, space, volcanic, candy, arctic, dark, ocean
@@ -1553,15 +1560,110 @@ var CONFIG = {
   enemySize: 44,
   enemySpeed: 60,
   lives: 3,
+  platformCount: 11,
+  enemyCount: 6,
+  coinCount: 27,
+  levelShape: 'flat-wide' as 'flat-wide' | 'staircase-ascending' | 'valley-bowl' | 'hilly-undulating',
+  doubleJump: true,
+  wallSlide: false,
 };
 
-// SKELETON — The AI agent MUST generate the full game.
-// See the Creative Brief and Reference Pattern in the system prompt.
+// ======================== LEVEL GENERATORS ========================
+function _generatePlatformY(index: number, total: number): number {
+  var t = index / Math.max(total - 1, 1); // 0..1
+  var minY = CONFIG.groundY - 360;
+  var maxY = CONFIG.groundY - 80;
+  switch (CONFIG.levelShape) {
+    case 'staircase-ascending':
+      return maxY - t * (maxY - minY) + _rngRange(-20, 20);
+    case 'valley-bowl':
+      var bowl = Math.abs(t - 0.5) * 2; // 0 at center, 1 at edges
+      return minY + bowl * (maxY - minY) * 0.6 + _rngRange(-15, 15);
+    case 'hilly-undulating':
+      return minY + (maxY - minY) * (0.5 + 0.4 * Math.sin(t * Math.PI * 3)) + _rngRange(-20, 20);
+    default: // flat-wide
+      return _rngRange(minY, maxY);
+  }
+}
 
+function _generatePlatforms() {
+  var plats = [];
+  var spacing = (CONFIG.worldWidth - 600) / CONFIG.platformCount;
+  for (var i = 0; i < CONFIG.platformCount; i++) {
+    plats.push({
+      x: 350 + i * spacing + _rngRange(-spacing * 0.2, spacing * 0.2),
+      y: _generatePlatformY(i, CONFIG.platformCount),
+      w: _rngInt(120, 200),
+    });
+  }
+  return plats;
+}
+
+function _generateCoins(platforms: { x: number; y: number; w: number }[]) {
+  var coins: { x: number; y: number }[] = [];
+  var onPlatCount = Math.floor(CONFIG.coinCount * 0.6);
+  var groundCount = CONFIG.coinCount - onPlatCount;
+  // Coins on/near platforms
+  for (var i = 0; i < onPlatCount; i++) {
+    var p = platforms[_rngInt(0, platforms.length - 1)];
+    coins.push({ x: p.x + _rngRange(-p.w * 0.3, p.w * 0.3), y: p.y - _rngRange(25, 45) });
+  }
+  // Ground coins
+  for (var j = 0; j < groundCount; j++) {
+    coins.push({ x: _rngRange(300, CONFIG.worldWidth - 200), y: CONFIG.groundY - 40 });
+  }
+  return coins;
+}
+
+function _generateEnemies() {
+  var enemies: { x: number; range: number }[] = [];
+  var spacing = (CONFIG.worldWidth - 400) / CONFIG.enemyCount;
+  for (var i = 0; i < CONFIG.enemyCount; i++) {
+    enemies.push({
+      x: 500 + i * spacing + _rngRange(-spacing * 0.2, spacing * 0.2),
+      range: _rngInt(80, 180),
+    });
+  }
+  return enemies;
+}
+
+function _generateTrees() {
+  var count = _rngInt(6, 12);
+  var trees: { x: number; h: number; lr: number }[] = [];
+  var spacing = CONFIG.worldWidth / count;
+  for (var i = 0; i < count; i++) {
+    trees.push({
+      x: i * spacing + _rngRange(20, spacing - 20),
+      h: _rngRange(40, 90),
+      lr: _rngRange(20, 40),
+    });
+  }
+  return trees;
+}
+
+// ======================== GAME SCENE ========================
 export class GameScene2D implements GameScene {
   name = 'game';
   container: any;
   private physics!: PhysicsWorld;
+  private playerGfx: any;
+  private playerBody: any;
+  private playerCtrl!: CharacterController;
+  private score = 0;
+  private lives = CONFIG.lives;
+  private scoreText: any;
+  private livesContainer: any;
+  private coins: { gfx: any; body: any; baseY: number }[] = [];
+  private enemies: { gfx: any; body: any; startX: number; range: number; dir: number }[] = [];
+  private clouds: { gfx: any; speed: number }[] = [];
+  private bgLayers: { gfx: any; factor: number }[] = [];
+  private stars: any;
+  private decorTrees: any[] = [];
+  private invincibleTimer = 0;
+  private shakeTimer = 0;
+  private shakeIntensity = 0;
+  private lastPlayerFacing = 1;
+  private _lastAnim = '';
 
   constructor() {
     this.container = new PIXI.Container();
@@ -1569,26 +1671,363 @@ export class GameScene2D implements GameScene {
 
   async enter(engine: Engine2D): Promise<void> {
     this.physics = new PhysicsWorld(CONFIG.gravity);
+    this.score = 0;
+    this.lives = CONFIG.lives;
+    this.coins = [];
+    this.enemies = [];
+    this.clouds = [];
+    this.bgLayers = [];
+    this.decorTrees = [];
+    this.invincibleTimer = 0;
+    this.shakeTimer = 0;
+
     await _loadSpriteLib(THEME);
+
     var W = engine.config.width;
     var H = engine.config.height;
+    var WW = CONFIG.worldWidth;
+    var WH = CONFIG.worldHeight;
 
-    // TODO: AI agent generates the full game here based on Creative Brief
-    // 1. Gradient sky background + parallax mountain/cloud layers
-    // 2. Ground with physics body
-    // 3. Platforms (procedurally placed, use CONFIG values)
-    // 4. Player character with CharacterController
-    // 5. Collectibles (coins/gems) with sparkle effects
-    // 6. Enemies with patrol behavior
-    // 7. Collision handling (collect items, take damage)
-    // 8. Score + lives UI in engine.ui
-    // 9. Ambient particle effects
-    // 10. Camera following the player
+    // ---- 1. GRADIENT SKY ----
+    var sky = drawSkyGradient(WW, WH, PAL.skyTop, PAL.skyBottom);
+    this.container.addChild(sky);
+
+    // ---- 2. STARS ----
+    this.stars = drawStars(WW, WH * 0.5, 80);
+    this.container.addChild(this.stars);
+
+    // ---- 3. PARALLAX MOUNTAINS (3 layers) ----
+    for (var mi = 0; mi < 3; mi++) {
+      var mColor = PAL.mountains[mi] || PAL.mountains[0];
+      var mBaseY = CONFIG.groundY - 30 - mi * 60;
+      var mMinH = 60 + mi * 30;
+      var mMaxH = 120 + mi * 50;
+      var mSpacing = 250 - mi * 30;
+      var mAlpha = 0.4 + mi * 0.2;
+      var mGfx = drawMountainRange(WW, mBaseY, mColor, mAlpha, mMinH, mMaxH, mSpacing);
+      this.container.addChild(mGfx);
+      this.bgLayers.push({ gfx: mGfx, factor: 0.1 + mi * 0.15 });
+    }
+
+    // ---- 4. CLOUDS (PRNG count + position) ----
+    var cloudCount = _rngInt(5, 10);
+    for (var ci = 0; ci < cloudCount; ci++) {
+      var cw = _rngRange(80, 200);
+      var ch = _rngRange(25, 45);
+      var cloud = drawCloud(cw, ch);
+      cloud.x = _rngRange(0, WW);
+      cloud.y = _rngRange(50, CONFIG.groundY * 0.4);
+      this.container.addChild(cloud);
+      this.clouds.push({ gfx: cloud, speed: _rngRange(5, 15) });
+    }
+
+    // ---- 5. DECORATIVE TREES (PRNG) ----
+    var treeData = _generateTrees();
+    for (var ti = 0; ti < treeData.length; ti++) {
+      var td = treeData[ti];
+      var tree = drawTree(td.h, td.lr, 0x4a3020, PAL.foliage);
+      tree.x = td.x;
+      tree.y = CONFIG.groundY;
+      this.container.addChild(tree);
+      this.decorTrees.push(tree);
+    }
+
+    // ---- 6. GROUND ----
+    var floorH = WH - CONFIG.groundY;
+    var ground = drawGroundStrip(WW, CONFIG.groundY, floorH, PAL.ground, PAL.groundTop);
+    this.container.addChild(ground);
+    var groundBody = createStaticBody(WW / 2, CONFIG.groundY + 4, WW, 8);
+    this.physics.addBody(groundBody);
+
+    // ---- 7. PLATFORMS (PRNG layout based on levelShape) ----
+    var platforms = _generatePlatforms();
+    for (var pi = 0; pi < platforms.length; pi++) {
+      var p = platforms[pi];
+      var platGfx = drawPlatformBlock(p.w, 24, PAL.platform, PAL.platformTop);
+      platGfx.x = p.x;
+      platGfx.y = p.y;
+      this.container.addChild(platGfx);
+      var platBody = createOneWayPlatform(p.x, p.y, p.w, 24);
+      this.physics.addBody(platBody);
+    }
+
+    // ---- 8. PLAYER ----
+    this.playerGfx = drawPlayerCharacter(CONFIG.playerSize, PAL.player, PAL.playerLight);
+    this.playerGfx.x = CONFIG.playerStartX;
+    this.playerGfx.y = CONFIG.groundY - 30;
+    this.container.addChild(this.playerGfx);
+
+    this.playerBody = createBody(CONFIG.playerStartX, CONFIG.groundY - 30, 28, 44);
+    this.playerBody.sprite = this.playerGfx;
+    this.playerBody.tag = 'player';
+    this.physics.addBody(this.playerBody);
+    this.playerCtrl = new CharacterController(this.playerBody, {
+      moveSpeed: CONFIG.moveSpeed,
+      jumpForce: CONFIG.jumpForce,
+      doubleJump: CONFIG.doubleJump,
+      wallSlide: CONFIG.wallSlide,
+    });
+
+    // ---- 9. COINS (PRNG placement: 60% on platforms, 40% ground) ----
+    var coinData = _generateCoins(platforms);
+    for (var coi = 0; coi < coinData.length; coi++) {
+      var cp = coinData[coi];
+      var coinGfx = drawCoinToken(CONFIG.coinRadius, PAL.coin, PAL.coinGlow);
+      coinGfx.x = cp.x;
+      coinGfx.y = cp.y;
+      this.container.addChild(coinGfx);
+      var coinBody = createBody(cp.x, cp.y, 18, 18, { isStatic: true, isSensor: true, tag: 'coin' });
+      coinBody.sprite = coinGfx;
+      this.physics.addBody(coinBody);
+      this.coins.push({ gfx: coinGfx, body: coinBody, baseY: cp.y });
+    }
+
+    // ---- 10. ENEMIES (PRNG positions + patrol ranges) ----
+    var enemyData = _generateEnemies();
+    for (var ei = 0; ei < enemyData.length; ei++) {
+      var ed = enemyData[ei];
+      var enemyGfx = drawEnemySlime(CONFIG.enemySize, PAL.enemy, PAL.enemyLight);
+      enemyGfx.x = ed.x;
+      enemyGfx.y = CONFIG.groundY - 18;
+      this.container.addChild(enemyGfx);
+      var enemyBody = createBody(ed.x, CONFIG.groundY - 18, 32, 28, { isStatic: true, isSensor: true, tag: 'enemy' });
+      enemyBody.sprite = enemyGfx;
+      this.physics.addBody(enemyBody);
+      this.enemies.push({ gfx: enemyGfx, body: enemyBody, startX: ed.x, range: ed.range, dir: 1 });
+    }
+
+    // ---- 11. COLLISION HANDLER ----
+    var self = this;
+    this.physics.onSensorOverlap(function(a: any, b: any) {
+      var coin = a.tag === 'coin' ? a : b.tag === 'coin' ? b : null;
+      var enemy = a.tag === 'enemy' ? a : b.tag === 'enemy' ? b : null;
+      var player = a.tag === 'player' ? a : b.tag === 'player' ? b : null;
+      if (coin && player && coin.enabled !== false) {
+        onCollectSparkle(engine.proton, coin.x, coin.y);
+        if (coin.sprite) coin.sprite.visible = false;
+        coin.enabled = false;
+        self.score += 10;
+        if (self.scoreText) {
+          self.scoreText.text = String(self.score);
+          engine.juice.scalePop(self.scoreText, 1.4, 0.25);
+        }
+      }
+      if (enemy && player && enemy.enabled !== false && self.invincibleTimer <= 0) {
+        self.lives--;
+        self.invincibleTimer = 1.5;
+        engine.juice.screenShake(engine.world, 10, 0.3);
+        engine.juice.hitPause(engine.app, 80);
+        engine.juice.colorFlash(self.playerGfx, 0xff0000, 0.15);
+        onDeathExplosion(engine.proton, enemy.x, enemy.y, '#ff4444');
+        self.playerBody.vy = -350;
+        self.updateLivesDisplay(engine);
+        if (self.lives <= 0) {
+          engine.switchScene('gameover', { score: self.score });
+        }
+      }
+    });
+
+    // ---- 12. AMBIENT PARTICLES ----
+    try {
+      if (PAL.weather === 'snow') {
+        var snowFx = createSnowEffect(W, H, 0.4);
+        if (snowFx && snowFx.emitter) engine.addEmitter(snowFx.emitter);
+      } else if (PAL.weather === 'rain') {
+        var rainFx = createRainEffect(W, H, 0.5);
+        if (rainFx && rainFx.emitter) engine.addEmitter(rainFx.emitter);
+      }
+      if (PAL.ambient) {
+        var ambientFx = createAmbientEffect(PAL.ambient as any, W, H);
+        if (ambientFx && ambientFx.emitter) engine.addEmitter(ambientFx.emitter);
+      }
+    } catch(e) { /* particle effects optional */ }
+
+    // ---- 13. UI LAYER ----
+    var scoreLbl = engine.createText('SCORE', { fontSize: 12, fill: 0x888888 });
+    scoreLbl.x = 20;
+    scoreLbl.y = 12;
+    engine.ui.addChild(scoreLbl);
+
+    this.scoreText = engine.createText('0', {
+      fontSize: 32, fill: 0xffffff, fontWeight: 'bold',
+      stroke: { color: 0x000000, width: 5 },
+    });
+    this.scoreText.x = 20;
+    this.scoreText.y = 26;
+    engine.ui.addChild(this.scoreText);
+
+    this.livesContainer = new PIXI.Container();
+    this.livesContainer.x = W - 20;
+    this.livesContainer.y = 24;
+    engine.ui.addChild(this.livesContainer);
+    this.updateLivesDisplay(engine);
+
+    var hint = engine.createText('WASD / Arrows + Space', { fontSize: 11, fill: 0x666666 });
+    hint.anchor.set(0.5, 1);
+    hint.x = W / 2;
+    hint.y = H - 8;
+    engine.ui.addChild(hint);
+
+    // ---- 14. CAMERA ----
+    engine.camera.follow(this.playerBody);
+    engine.camera.worldWidth = CONFIG.worldWidth;
+    engine.camera.worldHeight = CONFIG.worldHeight;
+    engine.camera.smoothing = 0.08;
+
+    // ---- 15. JUICE EFFECTS ----
+    for (var ji = 0; ji < this.coins.length; ji++) {
+      engine.juice.float(this.coins[ji].gfx, 5, 2 + _rng() * 0.5);
+    }
+    engine.juice.breathe(this.playerGfx, 1.03, 1.2);
+
+    var _PIXI = (window as any).PIXI;
+    if (_PIXI.filters && _PIXI.filters.GlowFilter) {
+      for (var fi = 0; fi < this.coins.length; fi++) {
+        if (this.coins[fi].gfx && !this.coins[fi].gfx.filters) {
+          this.coins[fi].gfx.filters = [new _PIXI.filters.GlowFilter({
+            distance: 12, outerStrength: 2.5, innerStrength: 0.4, color: PAL.coinGlow,
+          })];
+        }
+      }
+    }
+    if (_PIXI.filters && _PIXI.filters.DropShadowFilter && !this.playerGfx.filters) {
+      this.playerGfx.filters = [new _PIXI.filters.DropShadowFilter({
+        offset: { x: 3, y: 5 }, blur: 5, alpha: 0.5, color: 0x000000,
+      })];
+    }
+
+    // === AI ENHANCEMENT ZONE ===
+    // This game is fully playable. ENHANCE it based on the Creative Brief:
+    // - Add themed decorations (torches, mushrooms, crystals, coral, etc.)
+    // - Implement specialMechanic if not already active (dash, gravity-flip, etc.)
+    // - Add unique enemy types or a boss fight
+    // - Add moving/breakable/disappearing platforms
+    // - Add themed particle effects beyond ambient
+    // - DO NOT delete or rewrite existing code — ADD to it
+  }
+
+  private updateLivesDisplay(engine: Engine2D): void {
+    this.livesContainer.removeChildren();
+    for (var i = 0; i < this.lives; i++) {
+      var heart = drawHeart(14, 0xff3355);
+      heart.x = -(i * 28) - 14;
+      heart.y = 0;
+      this.livesContainer.addChild(heart);
+    }
   }
 
   update(engine: Engine2D, dt: number): void {
     this.physics.update(dt);
-    // TODO: AI agent generates update logic (movement, enemies, camera, animations)
+
+    // ---- Player movement ----
+    if (this.playerCtrl) {
+      var wasOnGround = this.playerCtrl.body.onGround;
+      this.playerCtrl.update({
+        left: engine.input.left,
+        right: engine.input.right,
+        jump: engine.input.jump,
+      }, dt);
+
+      if (engine.input.left) this.lastPlayerFacing = -1;
+      if (engine.input.right) this.lastPlayerFacing = 1;
+      this.playerGfx.scale.x = this.lastPlayerFacing;
+
+      // AnimatedSprite animation switching
+      if (this.playerGfx.textures && this.playerGfx.play) {
+        var _sheet = _sheetCache && _sheetCache['hero'];
+        if (_sheet && _sheet.animations) {
+          var _anim = 'idle';
+          if (!this.playerCtrl.body.onGround) {
+            _anim = 'jump';
+          } else if (engine.input.left || engine.input.right) {
+            _anim = 'walk';
+          }
+          if (this._lastAnim !== _anim && _sheet.animations[_anim]) {
+            this.playerGfx.textures = _sheet.animations[_anim];
+            this.playerGfx.animationSpeed = _anim === 'walk' ? 0.12 : 0.08;
+            this.playerGfx.play();
+            this._lastAnim = _anim;
+          }
+        }
+      }
+
+      // Squash & stretch
+      if (!this.playerCtrl.body.onGround) {
+        var vy = this.playerCtrl.body.vy;
+        if (vy < -100) {
+          this.playerGfx.scale.y = 1.15;
+        } else if (vy > 100) {
+          this.playerGfx.scale.y = 0.9;
+        }
+      } else {
+        this.playerGfx.scale.y += (1 - this.playerGfx.scale.y) * 0.2;
+      }
+
+      // Jump dust
+      if (!this.playerCtrl.body.onGround && wasOnGround && this.playerCtrl.body.vy < 0) {
+        onJumpDust(engine.proton, this.playerCtrl.body.x, this.playerCtrl.body.y + 22);
+      }
+      // Land impact
+      if (this.playerCtrl.body.onGround && !wasOnGround) {
+        onLandImpact(engine.proton, this.playerCtrl.body.x, this.playerCtrl.body.y + 22);
+        engine.juice.squashStretch(this.playerGfx, 0.7, 1.15);
+      }
+    }
+
+    // ---- Invincibility blink ----
+    if (this.playerGfx) {
+      if (this.invincibleTimer > 0) {
+        this.invincibleTimer -= dt;
+        this.playerGfx.alpha = Math.sin(this.invincibleTimer * 20) > 0 ? 1 : 0.3;
+      } else {
+        this.playerGfx.alpha = 1;
+      }
+    }
+
+    // ---- Animate coins ----
+    for (var c = 0; c < this.coins.length; c++) {
+      var coin = this.coins[c];
+      if (coin.gfx.visible) {
+        coin.gfx.y = coin.baseY + Math.sin(engine.elapsed * 3 + coin.body.x * 0.01) * 5;
+        coin.gfx.rotation = Math.sin(engine.elapsed * 2 + coin.body.x * 0.02) * 0.15;
+        if (coin.gfx.children && coin.gfx.children[0]) {
+          coin.gfx.children[0].alpha = 0.5 + 0.5 * Math.sin(engine.elapsed * 4 + coin.body.x * 0.03);
+        }
+        coin.body.y = coin.gfx.y;
+      }
+    }
+
+    // ---- Animate enemies ----
+    for (var e = 0; e < this.enemies.length; e++) {
+      var en = this.enemies[e];
+      if (en.body.enabled === false) continue;
+      en.gfx.x += en.dir * CONFIG.enemySpeed * dt;
+      en.body.x = en.gfx.x;
+      if (en.gfx.x > en.startX + en.range) en.dir = -1;
+      if (en.gfx.x < en.startX - en.range) en.dir = 1;
+      en.gfx.scale.x = en.dir;
+      en.gfx.scale.y = 1 + Math.sin(engine.elapsed * 5 + e) * 0.08;
+    }
+
+    // ---- Animate clouds ----
+    for (var cl = 0; cl < this.clouds.length; cl++) {
+      var cloud = this.clouds[cl];
+      cloud.gfx.x += cloud.speed * dt;
+      if (cloud.gfx.x > CONFIG.worldWidth + 150) {
+        cloud.gfx.x = -150;
+      }
+    }
+
+    // ---- Star twinkle ----
+    if (this.stars) {
+      this.stars.alpha = 0.6 + 0.4 * Math.sin(engine.elapsed * 0.5);
+    }
+
+    // ---- Fall death ----
+    if (this.playerCtrl && this.playerCtrl.body.y > CONFIG.worldHeight + 100) {
+      engine.switchScene('gameover', { score: this.score });
+    }
+
     engine.input.endFrame();
   }
 
@@ -3189,13 +3628,16 @@ export class GameScene2D implements GameScene {
 export function buildGame2dSceneStarter(brief: CreativeBrief): string {
 	let code = GAME_2D_SCENE_STARTER;
 
+	// Replace seed
+	code = code.replace("var _seed = 1234;", `var _seed = ${brief.seed};`);
+
 	// Replace THEME
 	code = code.replace(
 		"var THEME = 'sunset'; // Change to: forest, sunset, space, volcanic, candy, arctic, dark, ocean",
 		`var THEME = '${brief.theme}'; // Seed ${brief.seed} -- ${brief.difficultyProfile}, ${brief.mechanicEmphasis}`,
 	);
 
-	// Replace CONFIG values
+	// Replace CONFIG values (including new hybrid fields)
 	code = code.replace(
 		[
 			"var CONFIG = {",
@@ -3211,6 +3653,12 @@ export function buildGame2dSceneStarter(brief: CreativeBrief): string {
 			"  enemySize: 44,",
 			"  enemySpeed: 60,",
 			"  lives: 3,",
+			"  platformCount: 11,",
+			"  enemyCount: 6,",
+			"  coinCount: 27,",
+			"  levelShape: 'flat-wide' as 'flat-wide' | 'staircase-ascending' | 'valley-bowl' | 'hilly-undulating',",
+			"  doubleJump: true,",
+			"  wallSlide: false,",
 			"};",
 		].join("\n"),
 		[
@@ -3227,6 +3675,12 @@ export function buildGame2dSceneStarter(brief: CreativeBrief): string {
 			"  enemySize: 44,",
 			`  enemySpeed: ${brief.difficultyProfile === "hard-intense" ? 100 : brief.difficultyProfile === "casual-easy" ? 40 : 60},`,
 			`  lives: ${brief.difficultyProfile === "casual-easy" ? 5 : brief.difficultyProfile === "hard-intense" ? 2 : 3},`,
+			`  platformCount: ${brief.platformCount},`,
+			`  enemyCount: ${brief.enemyCount},`,
+			`  coinCount: ${brief.coinCount},`,
+			`  levelShape: '${brief.levelShape}' as 'flat-wide' | 'staircase-ascending' | 'valley-bowl' | 'hilly-undulating',`,
+			`  doubleJump: ${brief.specialMechanic === "double-jump" || brief.specialMechanic === "dash"},`,
+			`  wallSlide: ${brief.specialMechanic === "wall-slide"},`,
 			"};",
 		].join("\n"),
 	);

@@ -1191,81 +1191,65 @@ var playerGfx = playerTex
 These sprites have white backgrounds — set blendMode or use alpha masking if needed.`);
 		}
 		if (isGame2d) {
-			runtimeAddenda.push(`## CRITICAL: 2D Game — GameScene2D.ts is a SKELETON
+			runtimeAddenda.push(`## CRITICAL: 2D Game — GameScene2D.ts is a WORKING HYBRID STARTER
 
-**\`src/scenes/GameScene2D.ts\` is a SKELETON** with empty enter() and update() methods. You MUST generate the COMPLETE game.
+**\`src/scenes/GameScene2D.ts\` is a FULLY PLAYABLE game** with seed-generated
+platforms, coins, enemies, and visual variety from the palette system.
 
-**You MUST follow this workflow:**
-1. Use \`read_file("src/scenes/GameScene2D.ts")\` to see the skeleton + CONFIG values
-2. Use \`update_file\` to REPLACE the skeleton with your full game implementation
-3. Your implementation MUST include ALL of these:
-   - Gradient sky background + parallax mountain/cloud layers
-   - Ground with physics body
-   - Platforms (procedurally placed, at least 8)
-   - Player character with CharacterController
-   - Collectibles (coins/gems/stars) with sparkle effects
-   - Enemies with patrol behavior
-   - Collision handling (collect items, take damage)
-   - Score display + lives display in engine.ui
-   - Ambient particle effects from the theme
-   - Jump dust + land impact particles
-   - Camera following the player
-4. ALWAYS apply SCALES when creating sprites — raw sprites are 800-3000px
+**Your workflow:**
+1. Use \`read_file("src/scenes/GameScene2D.ts")\` to see the working game
+2. Use \`update_file\` to ADD enhancements — do NOT rewrite from scratch
+3. Enhancements to add:
+   - Themed decorations matching the Creative Brief atmosphere (torches, mushrooms, crystals, coral, etc.)
+   - Special mechanics from Creative Brief (e.g., dash, gravity-flip, wall-slide)
+   - Unique enemy types or boss fights (new draw functions, new patrol patterns)
+   - Moving/breakable/disappearing platforms
+   - Enhanced particle effects beyond ambient
+   - Themed power-ups or collectibles
+4. ALWAYS keep existing code intact — ADD to it, do NOT delete or rewrite
 5. Call engine.input.endFrame() at the end of every update() method
 6. If AI-Generated Sprites are listed above, LOAD THEM and use them
 
-**The result must be a COMPLETE, PLAYABLE game — not a skeleton.**`);
+**The starter is already playable. Make it UNIQUE and POLISHED.**`);
 
-			// Inject condensed reference pattern so AI knows HOW to build
-			runtimeAddenda.push(`## Reference: How to Build a 2D Game Scene
+			// Enhancement examples instead of build-from-scratch reference
+			runtimeAddenda.push(`## Reference: How to ENHANCE the Hybrid Starter
 
-Here is a CONDENSED example of a working platformer scene.
-Use this pattern but create YOUR OWN unique game based on the Creative Brief:
+The game already has sky, mountains, platforms, player, coins, enemies, particles, UI, and camera.
+Here are examples of what to ADD:
 
 \`\`\`typescript
-// In enter(): Create background
-var sky = drawSkyGradient(CONFIG.worldWidth, CONFIG.worldHeight, PAL.skyTop, PAL.skyBottom);
-this.container.addChild(sky);
+// Example: Add a moving platform in enter()
+var movPlat = drawPlatformBlock(120, 24, PAL.platform, PAL.platformTop);
+movPlat.x = 1800; movPlat.y = 400;
+this.container.addChild(movPlat);
+var movPlatBody = createOneWayPlatform(1800, 400, 120, 24);
+this.physics.addBody(movPlatBody);
+// Store for update: this._movingPlats = [{ gfx: movPlat, body: movPlatBody, startY: 400, range: 100 }];
 
-// Create parallax mountains (3 layers)
-for (var i = 0; i < 3; i++) {
-  var mtn = drawMountainRange(CONFIG.worldWidth, CONFIG.groundY - i * 60, PAL.mountain, 0.5 - i * 0.15, 40 + i * 30, 80 + i * 50, 60 + i * 20);
-  this.bgLayers.push({ gfx: mtn, factor: 0.1 + i * 0.1 });
-  this.container.addChild(mtn);
+// Example: Add moving platform logic in update()
+for (var mp of this._movingPlats) {
+  mp.gfx.y = mp.startY + Math.sin(engine.elapsed * 2) * mp.range;
+  mp.body.y = mp.gfx.y;
 }
 
-// Create ground
-var ground = drawGroundStrip(CONFIG.worldWidth, CONFIG.groundY, 220, PAL.ground, PAL.groundTop);
-var groundBody = createStaticBody(CONFIG.worldWidth / 2, CONFIG.groundY + 4, CONFIG.worldWidth, 8);
-this.container.addChild(ground);
+// Example: Add themed decoration in enter()
+var torch = new PIXI.Graphics();
+torch.beginFill(0x8B4513).drawRect(-4, 0, 8, 30).endFill();
+torch.beginFill(0xFF6600).drawCircle(0, -5, 8).endFill();
+torch.x = 600; torch.y = CONFIG.groundY - 30;
+this.container.addChild(torch);
 
-// Create platforms using procedural generation
-for (var i = 0; i < platformCount; i++) {
-  var platGfx = drawPlatformBlock(w, 24, PAL.platform, PAL.platformTop);
-  var platBody = createOneWayPlatform(x, y, w, 24);
-  this.container.addChild(platGfx);
+// Example: Add dash mechanic in update()
+if (engine.input.wasPressed('e') && this._dashCooldown <= 0) {
+  this.playerBody.vx = this.lastPlayerFacing * 600;
+  this._dashCooldown = 1.0;
+  engine.juice.screenShake(engine.world, 5, 0.15);
 }
-
-// Create player with CharacterController
-var playerGfx = drawPlayerCharacter(48, PAL.player, PAL.playerLight);
-var playerBody = createBody(CONFIG.playerStartX, CONFIG.groundY - 60, 28, 44);
-var playerCtrl = new CharacterController(playerBody, {
-  moveSpeed: CONFIG.moveSpeed, jumpForce: CONFIG.jumpForce,
-  doubleJump: true, wallSlide: false,
-});
-
-// Collision handler
-physics.onSensorOverlap(function(a, b) { /* collect coins, take damage */ });
-
-// Ambient particles
-try { var fx = createAmbientEffect(PAL.ambient, W, H); engine.stage.addChild(fx); } catch(e) {}
-
-// UI: Score + Lives
-var scoreText = engine.createText('Score: 0', { fontSize: 28, fill: 0xffffff });
-engine.ui.addChild(scoreText);
+if (this._dashCooldown > 0) this._dashCooldown -= dt;
 \`\`\`
 
-**CRITICAL**: Do NOT copy this example verbatim. Generate unique content based on the Creative Brief.`);
+**CRITICAL**: The game WORKS as-is. Your job is to make it UNIQUE per the Creative Brief. ADD code, don't rewrite.`);
 		} else if (isReturningUser) {
 			// Normal existing project — edit/add files
 			runtimeAddenda.push(`## Existing Project (${existingFiles.length} files)

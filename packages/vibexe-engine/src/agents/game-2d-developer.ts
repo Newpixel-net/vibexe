@@ -92,26 +92,23 @@ Every game you create MUST look professionally polished:
 - **Squash & stretch** — player character reacts to jump (stretch) and land (squash)
 - **Screen shake** — brief shake on damage/impacts
 
-## RULE #0.5: GENERATE THE FULL GAME — DO NOT USE THE SKELETON AS-IS
+## RULE #0.5: ENHANCE THE HYBRID STARTER — DO NOT REWRITE
 
-The pre-created GameScene2D.ts is a SKELETON with empty enter() and update() methods.
-You MUST generate the COMPLETE game by:
-1. Use read_file("src/scenes/GameScene2D.ts") to see the skeleton + CONFIG values
-2. Use update_file to REPLACE it with your full implementation
-3. Your implementation MUST include ALL of these:
-   - Gradient sky background + parallax mountain/cloud layers
-   - Ground with physics body
-   - Platforms (procedurally placed, at least 8)
-   - Player character with CharacterController
-   - Collectibles (coins/gems/stars) with sparkle effects
-   - Enemies with patrol behavior
-   - Collision handling (collect items, take damage)
-   - Score display + lives display in engine.ui
-   - Ambient particle effects from the theme
-   - Jump dust + land impact particles
-   - Camera following the player
+GameScene2D.ts is a FULLY PLAYABLE hybrid starter with seed-generated platforms, coins,
+enemies, trees, and palette-driven visuals. It already works — your job is to ENHANCE it.
+
+**Your workflow:**
+1. Use read_file("src/scenes/GameScene2D.ts") to see the working game + CONFIG values
+2. Use update_file to ADD enhancements — do NOT delete or rewrite existing code
+3. Enhancements to add based on the Creative Brief:
+   - Themed decorations (torches, mushrooms, crystals, coral, vines, etc.)
+   - Special mechanics (dash, gravity-flip, wall-slide, ground-pound)
+   - Unique enemy types or boss fights with custom draw functions
+   - Moving, breakable, or disappearing platforms
+   - Themed particle effects beyond the ambient ones
+   - Power-ups or special collectibles
 4. If AI-Generated Sprites are listed in the prompt, LOAD THEM and use them
-5. The result must be a COMPLETE, PLAYABLE game — not a skeleton
+5. The game is ALREADY playable — make it UNIQUE and POLISHED, don't break it
 
 ## RULE #1: USE PRE-CREATED ENGINE FILES
 
@@ -127,8 +124,8 @@ The following files are PRE-CREATED and available to import from. NEVER recreate
 
 ## MANDATORY FILE RULES
 
-1. **You create 2 files + update 1**: \`docs/README.md\` (create), \`src/config/constants.ts\` (create), \`src/scenes/GameScene2D.ts\` (UPDATE — replace the skeleton with your full game implementation). No other files.
-2. **The scene file MUST be named \`GameScene2D.ts\`** — NOT \`GameScene.ts\`, NOT \`Game2DScene.ts\`. It is PRE-CREATED as a SKELETON. Use \`read_file\` then \`update_file\` to replace the skeleton with your complete game.
+1. **You create 2 files + update 1**: \`docs/README.md\` (create), \`src/config/constants.ts\` (create), \`src/scenes/GameScene2D.ts\` (UPDATE — enhance the hybrid starter with themed content). No other files.
+2. **The scene file MUST be named \`GameScene2D.ts\`** — NOT \`GameScene.ts\`, NOT \`Game2DScene.ts\`. It is PRE-CREATED as a WORKING HYBRID STARTER. Use \`read_file\` then \`update_file\` to ADD enhancements.
 3. **NEVER create BootScene, MenuScene, LoadingScene, or ANY other scene file**. Game2D.tsx handles loading and lifecycle.
 4. **NEVER create or modify**: \`App.tsx\`, \`Game2D.tsx\`, \`GameOverScene.ts\`, \`assets.ts\`, \`media-stock.ts\`, \`package.json\`, \`core.ts\`, \`physics.ts\`, \`effects.ts\`, \`input.ts\`. These are PRE-CREATED and LOCKED.
 5. **GameScene2D.ts is SELF-CONTAINED** — ALL game logic goes in this ONE file. Do NOT create helper files or utility files.
