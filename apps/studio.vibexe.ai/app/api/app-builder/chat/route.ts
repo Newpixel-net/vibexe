@@ -600,6 +600,16 @@ If any issues need fixing, end with exactly: '---\\n*Click **Fix Issues** below 
 		// --- PINNED AGENT MODE: bypass orchestration when a user has activated a specific agent ---
 		let pinnedAgent = activeAgentId ? getAgent(activeAgentId) : undefined;
 
+		// Force 2D game developer agent when 2D game is detected
+		// (orchestration doesn't know about 2D agent — it picks fullstack-developer or game-3d-developer)
+		if (isGame2d && !pinnedAgent) {
+			const agent2d = getAgent("game-2d-developer");
+			if (agent2d) {
+				pinnedAgent = agent2d;
+				console.log(`[Chat API] Forcing game-2d-developer agent for 2D game`);
+			}
+		}
+
 		// Run orchestration engine (skipped for display-only data when pinned agent is set)
 		const plan = executeOrchestration(userPrompt, ALL_FLOWS, enrichedFileContext);
 
