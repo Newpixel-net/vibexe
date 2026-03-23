@@ -52,11 +52,22 @@ canvas{display:block;width:100%;height:100%}
   }
 
   window.PIXI = PIXI;
-  window.Proton = Proton;
+  // Proton CDN exports an ES module object — normalize to the constructor
+  // so `new Proton()` works (template code expects Proton to be a constructor)
+  var _ProtonCtor = (typeof Proton === 'function') ? Proton : (Proton.default || Proton);
+  // Merge all static members onto the constructor so Proton.Emitter, Proton.Rate etc. work
+  if (_ProtonCtor !== Proton) {
+    for (var _pk in Proton) {
+      if (Proton.hasOwnProperty(_pk) && _pk !== 'default') {
+        _ProtonCtor[_pk] = Proton[_pk];
+      }
+    }
+  }
+  window.Proton = _ProtonCtor;
   window.__VIBEXE_API_ORIGIN__ = '${apiOrigin}';
 
   console.log('[2D Runtime] Pixi.js v' + PIXI.VERSION + ' loaded');
-  console.log('[2D Runtime] Proton particle engine v' + (Proton.VERSION || '7.x') + ' loaded');
+  console.log('[2D Runtime] Proton particle engine loaded (constructor: ' + (typeof _ProtonCtor === 'function') + ')');
 
   // Signal libraries ready (both 2D-specific and generic flag for GameRuntimeIframe fallback)
   window.__vibexe_2d_libs_ready__ = true;
