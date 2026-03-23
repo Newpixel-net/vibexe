@@ -1201,20 +1201,37 @@ platforms, coins, enemies, themed decorations, and visual variety from the palet
 2. **DO NOT create src/App.tsx** — it is pre-created and LOCKED.
 3. **DO NOT create src/components/Game2D.tsx** — it is pre-created and LOCKED.
 4. **You may ONLY create/update**: \`docs/README.md\`, \`src/config/constants.ts\`, \`src/scenes/GameScene2D.ts\`
-5. **When updating GameScene2D.ts**: use \`read_file\` first, then \`update_file\` with the FULL existing code PLUS your additions. Add new code at the marked "AI ENHANCEMENT ZONE" comment and in the update() method. Keep ALL existing code intact.
+5. **Use \`patch_file\` (NOT update_file) to enhance GameScene2D.ts** — it safely inserts code without replacing the existing file.
 
 ### Your enhancement workflow:
-1. Use \`read_file("src/scenes/GameScene2D.ts")\` — read the ~300 line working game
-2. Copy ALL existing code, then ADD your enhancements:
-   - Themed decorations matching the Creative Brief atmosphere
-   - Special mechanics from Creative Brief (dash, gravity-flip, wall-slide)
+1. Use \`read_file("src/scenes/GameScene2D.ts")\` — read the working game to understand what's there
+2. Use \`patch_file\` to ADD enhancements at the "AI ENHANCEMENT ZONE" marker:
+   \`\`\`
+   patch_file({
+     path: "src/scenes/GameScene2D.ts",
+     anchor: "// === AI ENHANCEMENT ZONE ===",
+     position: "after",
+     code: "\\n    // your new code here..."
+   })
+   \`\`\`
+3. For adding update() logic, patch after the last animation block:
+   \`\`\`
+   patch_file({
+     path: "src/scenes/GameScene2D.ts",
+     anchor: "engine.input.endFrame();",
+     position: "before",
+     code: "\\n    // your new update logic here..."
+   })
+   \`\`\`
+4. Enhancements to add:
+   - Themed decorations matching the Creative Brief
+   - Special mechanics (dash, gravity-flip, wall-slide)
    - Unique enemy types or boss fights
    - Moving/breakable/disappearing platforms
    - Enhanced particle effects
-3. Use \`update_file\` with the full content (existing + new). Output should be ~350-500 lines, NOT 800+.
-4. ALWAYS keep engine.input.endFrame() at the end of update()
+5. Each patch should be 20-150 lines. Do NOT use update_file for GameScene2D.ts.
 
-**The starter is already playable. Make it UNIQUE and POLISHED — but do NOT delete or replace existing code.**`);
+**The starter is already playable. Make it UNIQUE and POLISHED using patch_file.**`);
 
 			// Enhancement examples instead of build-from-scratch reference
 			runtimeAddenda.push(`## Reference: How to ENHANCE the Hybrid Starter
@@ -1650,7 +1667,7 @@ An App Store listing has been analyzed and injected into the project context abo
 			},
 			onStepFinish: ({ toolCalls, finishReason, usage }) => {
 				stepCount++;
-				const fileToolNames = ["create_file", "update_file", "delete_file", "define_entities", "read_file", "manage_environments", "manage_backups"];
+				const fileToolNames = ["create_file", "update_file", "delete_file", "define_entities", "read_file", "patch_file", "manage_environments", "manage_backups"];
 				const fileCallsInStep = (toolCalls || []).filter(
 					(tc) => fileToolNames.includes(tc.toolName),
 				).length;
@@ -1659,7 +1676,7 @@ An App Store listing has been analyzed and injected into the project context abo
 				// Track changed files and entities for wiki sync
 				for (const tc of toolCalls || []) {
 					const args = (tc as Record<string, unknown>).args as Record<string, unknown> | undefined;
-					if ((tc.toolName === "create_file" || tc.toolName === "update_file") && args && typeof args.path === "string") {
+					if ((tc.toolName === "create_file" || tc.toolName === "update_file" || tc.toolName === "patch_file") && args && typeof args.path === "string") {
 						filesChanged.push(args.path);
 					}
 					if (tc.toolName === "define_entities" && args && Array.isArray(args.entities)) {

@@ -243,6 +243,110 @@ export function createFileTools(appId: string, options?: FileToolsOptions) {
 			},
 		}),
 
+		patch_file: tool({
+			description:
+				"Safely add code to an existing file WITHOUT replacing it. Use this instead of update_file when you want to INSERT new code at a specific location. This preserves all existing code and only adds your new content. PREFERRED over update_file for GameScene2D.ts enhancements.",
+			inputSchema: z.object({
+				path: z.string().describe("File path to patch"),
+				anchor: z
+					.string()
+					.describe(
+						'A unique string that exists in the file to locate the insertion point. For GameScene2D.ts, use "// === AI ENHANCEMENT ZONE ===" or the closing brace of enter().',
+					),
+				position: z
+					.enum(["before", "after"])
+					.describe(
+						"Insert the new code BEFORE or AFTER the anchor string",
+					),
+				code: z
+					.string()
+					.describe(
+						"The new code to insert. This is ADDED to the file, not replacing anything.",
+					),
+			}),
+			execute: async ({ path: rawPath, anchor, position, code }) => {
+				const path = rewritePath(rawPath);
+				const blocked = checkForbidden(path);
+				if (blocked) {
+					return { success: false, action: "patched", path, error: blocked };
+				}
+				try {
+					// Read existing file
+					const existing = await getFileByPath(appId, path);
+					if (!existing) {
+						return {
+							success: false,
+							action: "patched",
+							path,
+							error: `File not found: ${path}. Use create_file to create it first.`,
+						};
+					}
+					const oldContent = existing.content ?? "";
+
+					// Find anchor
+					const anchorIdx = oldContent.indexOf(anchor);
+					if (anchorIdx === -1) {
+						return {
+							success: false,
+							action: "patched",
+							path,
+							error: `Anchor string not found in ${path}: "${anchor.slice(0, 80)}...". Use read_file first to find the correct anchor string.`,
+						};
+					}
+
+					// Limit patch size (prevent massive insertions)
+					const patchLines = code.split("\n").length;
+					if (patchLines > 300) {
+						return {
+							success: false,
+							action: "patched",
+							path,
+							error: `Patch too large: ${patchLines} lines (max 300). Add smaller enhancements incrementally.`,
+						};
+					}
+
+					// Insert code
+					let newContent: string;
+					if (position === "before") {
+						newContent =
+							oldContent.slice(0, anchorIdx) +
+							code +
+							"\n" +
+							oldContent.slice(anchorIdx);
+					} else {
+						const afterAnchor = anchorIdx + anchor.length;
+						newContent =
+							oldContent.slice(0, afterAnchor) +
+							"\n" +
+							code +
+							oldContent.slice(afterAnchor);
+					}
+
+					const newContent2 = rewriteImports(newContent);
+					const lang = inferLanguage(path);
+					const file = await saveFile(appId, path, newContent2, lang);
+					console.log(
+						`[FileTools] PATCHED ${path}: +${patchLines} lines ${position} "${anchor.slice(0, 40)}..."`,
+					);
+					return {
+						success: true,
+						action: "patched",
+						path,
+						fileId: file.id,
+						linesAdded: patchLines,
+					};
+				} catch (error) {
+					console.error("patch_file error:", error);
+					return {
+						success: false,
+						action: "patched",
+						path,
+						error: `Failed to patch file: ${String(error)}`,
+					};
+				}
+			},
+		}),
+
 		read_file: tool({
 			description:
 				"Read the contents of an existing file in the project. Use this BEFORE update_file to understand the current code, or to inspect any file's implementation.",

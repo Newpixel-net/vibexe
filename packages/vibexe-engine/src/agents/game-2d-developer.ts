@@ -98,17 +98,18 @@ GameScene2D.ts is a FULLY PLAYABLE ~300-line hybrid starter with seed-generated 
 coins, enemies, themed decorations, and palette-driven visuals. **It already works.**
 
 ### WHAT YOU MUST DO:
-1. \`read_file("src/scenes/GameScene2D.ts")\` — read the ~300-line working game
-2. \`update_file\` with ALL existing code PLUS your additions (~50-150 new lines)
-3. Add new code at the "AI ENHANCEMENT ZONE" comment in enter() and in update()
-4. Your output should be ~350-500 lines total. If you're writing 600+ lines you are REWRITING — STOP.
+1. \`read_file("src/scenes/GameScene2D.ts")\` — read the working game to understand it
+2. Use \`patch_file\` to ADD enhancements (NOT update_file — patch_file is safer):
+   - \`patch_file({ path: "src/scenes/GameScene2D.ts", anchor: "// === AI ENHANCEMENT ZONE ===", position: "after", code: "your new enter() code" })\`
+   - \`patch_file({ path: "src/scenes/GameScene2D.ts", anchor: "engine.input.endFrame();", position: "before", code: "your new update() code" })\`
+3. Each patch should be 20-150 lines of NEW code. Do multiple small patches if needed.
 
 ### WHAT YOU MUST NOT DO:
+- **DO NOT use update_file on GameScene2D.ts** — use patch_file instead (prevents accidental deletion)
 - **DO NOT write a new GameScene2D.ts from scratch** — this ALWAYS causes crashes
 - **DO NOT delete existing enter()/update()/exit() code** — it is tested and working
-- **DO NOT replace the existing class structure** — ADD to it
 - **DO NOT create App.tsx** — it is pre-created and LOCKED
-- **DO NOT create more than 3 files total** (README.md, constants.ts, GameScene2D.ts update)
+- **DO NOT create more than 3 files total** (README.md, constants.ts, GameScene2D.ts patches)
 
 ### Enhancements to add based on the Creative Brief:
 - Themed decorations (torches, mushrooms, crystals, coral, vines, etc.)
