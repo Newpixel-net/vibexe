@@ -259,8 +259,8 @@ export function drawCloud(w: number, h: number): any {
   g.ellipse(w * 0.25, h * 0.05, w * 0.4, h * 0.45);
   g.fill({ color: 0xffffff, alpha: 0.1 });
   container.addChild(g);
-  if (hasFilters()) {
-    container.filters = [new PIXI.filters.BlurFilter({ strength: 3 })];
+  if (PIXI.BlurFilter) {
+    container.filters = [new PIXI.BlurFilter(3)];
   }
   return container;
 }

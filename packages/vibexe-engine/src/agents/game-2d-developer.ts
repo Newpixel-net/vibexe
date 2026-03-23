@@ -225,7 +225,7 @@ if (PIXI.filters && PIXI.filters.DropShadowFilter) { ... }
 new PIXI.filters.DropShadowFilter({ offset: { x: 2, y: 3 }, blur: 4, alpha: 0.3, color: 0x000000 })
 new PIXI.filters.GlowFilter({ distance: 10, outerStrength: 1.5, innerStrength: 0.3, color: 0xffdd00 })
 new PIXI.filters.OutlineFilter({ thickness: 2, color: 0x000000 })
-new PIXI.filters.BlurFilter({ strength: 3 })
+new PIXI.BlurFilter(3) // built-in Pixi filter (NOT in PIXI.filters)
 new PIXI.filters.BloomFilter({ strength: 1.5 })
 new PIXI.filters.MotionBlurFilter({ velocity: { x: 10, y: 0 } })
 \`\`\`
