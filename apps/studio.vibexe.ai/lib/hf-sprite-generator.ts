@@ -26,9 +26,9 @@ export async function generateSprite(
 	try {
 		const start = Date.now();
 
-		// Use the HF Inference API directly via fetch (avoids version-specific SDK issues)
+		// Use the HF Inference API directly via fetch
 		const response = await fetch(
-			`https://router.huggingface.co/hf-inference/models/${HF_MODEL}`,
+			`https://api-inference.huggingface.co/models/${HF_MODEL}`,
 			{
 				method: "POST",
 				headers: {
