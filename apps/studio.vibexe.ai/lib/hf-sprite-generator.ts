@@ -1,17 +1,18 @@
 /**
  * Hugging Face Sprite Generator
  *
- * Calls the HF Inference API with gokaygokay/Flux-2D-Game-Assets-LoRA
- * to generate 2D game asset PNGs from text prompts. FREE via HF Spaces.
+ * Calls FLUX.1-schnell via HF Inference API (FREE, ~4s per image)
+ * to generate 2D game asset PNGs from text prompts.
  *
- * Returns a PNG Buffer on success, null on failure (non-fatal).
+ * Returns a PNG/JPEG Buffer on success, null on failure (non-fatal).
  */
 
-const HF_MODEL = "gokaygokay/Flux-2D-Game-Assets-LoRA";
+// FLUX.1-schnell: free, fast (~4s), good quality for game assets.
+const HF_MODEL = "black-forest-labs/FLUX.1-schnell";
 
 /**
  * Generate a single 2D game sprite from a text prompt.
- * Returns PNG buffer or null if generation fails.
+ * Returns image buffer or null if generation fails.
  */
 export async function generateSprite(
 	prompt: string,
@@ -21,14 +22,14 @@ export async function generateSprite(
 		return null;
 	}
 
-	const enhancedPrompt = `${prompt}, high detailed, complete object, not cut off, white solid background`;
+	// Enhance prompt for game asset quality
+	const enhancedPrompt = `2D game asset sprite, ${prompt}, high detail, complete object centered, isolated on plain white background, clean edges, digital art style`;
 
 	try {
 		const start = Date.now();
 
-		// Use the HF Inference API directly via fetch
 		const response = await fetch(
-			`https://api-inference.huggingface.co/models/${HF_MODEL}`,
+			`https://router.huggingface.co/hf-inference/models/${HF_MODEL}`,
 			{
 				method: "POST",
 				headers: {
@@ -37,7 +38,7 @@ export async function generateSprite(
 				},
 				body: JSON.stringify({
 					inputs: enhancedPrompt,
-					parameters: { num_inference_steps: 30 },
+					parameters: { num_inference_steps: 4 },
 				}),
 			},
 		);

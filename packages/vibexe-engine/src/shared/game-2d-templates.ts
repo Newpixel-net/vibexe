@@ -1439,8 +1439,7 @@ export class GameOverScene implements GameScene {
     this.container.addChild(this.restartText);
 
     // Explosion burst
-    var fx = createExplosionEffect(W / 2, H / 3, '#ff4444');
-    engine.addEmitter(fx.emitter);
+    try { var fx = createExplosionEffect(W / 2, H / 3, '#ff4444'); if (fx && fx.emitter) engine.addEmitter(fx.emitter); } catch(e) {}
   }
 
   update(engine: Engine2D, dt: number): void {
@@ -2722,8 +2721,15 @@ export class GameScene2D implements GameScene {
     this.container.addChild(this.playerGfx);
 
     // Ambient
-    var ambientFx = createAmbientEffect('dust', W, H);
-    engine.addEmitter(ambientFx.emitter);
+    try {
+      if (PAL.ambient) {
+        var ambientFx = createAmbientEffect(PAL.ambient as any, W, H);
+        if (ambientFx && ambientFx.emitter) engine.addEmitter(ambientFx.emitter);
+      } else {
+        var dustFx = createAmbientEffect('dust', W, H);
+        if (dustFx && dustFx.emitter) engine.addEmitter(dustFx.emitter);
+      }
+    } catch(e) { /* particle effects optional */ }
 
     // UI
     this.scoreText = engine.createText('0', {
