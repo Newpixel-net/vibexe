@@ -1925,11 +1925,13 @@ export class GameScene2D implements GameScene {
     }
 
     // ---- Invincibility timer + blink ----
-    if (this.invincibleTimer > 0) {
-      this.invincibleTimer -= dt;
-      this.playerGfx.alpha = Math.sin(this.invincibleTimer * 20) > 0 ? 1 : 0.3;
-    } else {
-      this.playerGfx.alpha = 1;
+    if (this.playerGfx) {
+      if (this.invincibleTimer > 0) {
+        this.invincibleTimer -= dt;
+        this.playerGfx.alpha = Math.sin(this.invincibleTimer * 20) > 0 ? 1 : 0.3;
+      } else {
+        this.playerGfx.alpha = 1;
+      }
     }
 
     // ---- Animate coins (bob + glow pulse) ----
