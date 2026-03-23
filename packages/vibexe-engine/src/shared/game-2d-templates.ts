@@ -3307,7 +3307,7 @@ export class GameScene2D implements GameScene {
   }
 
   update(engine: Engine2D, dt: number): void {
-    if (this.gameOver) { engine.input.endFrame(); return; }
+    if (this.gameOver || !this.playerGfx) { engine.input.endFrame(); return; }
     this.physics.update(dt);
 
     // Auto-run: move player right at current speed
@@ -3621,9 +3621,10 @@ export class GameScene2D implements GameScene {
       this.playerGfx.x = Math.max(30, Math.min(W - 30, this.playerGfx.x));
     }
 
-    // Auto-fire
+    // Auto-fire (guard: playerGfx must exist — enter() is async)
+    if (!this.playerGfx) { engine.input.endFrame(); return; }
     this.fireCooldown -= dt;
-    if ((engine.input.jump || true) && this.fireCooldown <= 0) { this._fireBullet(); this.fireCooldown = CONFIG.fireRate; }
+    if (this.fireCooldown <= 0) { this._fireBullet(); this.fireCooldown = CONFIG.fireRate; }
 
     // Move bullets
     for (var bi = this.bullets.length - 1; bi >= 0; bi--) {
