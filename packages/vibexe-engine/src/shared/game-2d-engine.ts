@@ -795,4 +795,122 @@ export async function loadSprites(paths: string[]): Promise<Record<string, any>>
     return result;
   });
 }
+
+/**
+ * Load a sprite sheet JSON + texture, returns animation frames.
+ * The JSON file must follow the standard format:
+ * { "frames": { "name": { "frame": { x, y, w, h } } }, "animations": { "idle": ["frame1","frame2",...] }, "meta": { "image": "sheet.png" } }
+ *
+ * Usage:
+ *   const sheet = await loadSpriteSheet("2d/sprites/characters/hero/sheet.json");
+ *   const anim = new PIXI.AnimatedSprite(sheet.animations['idle']);
+ */
+export async function loadSpriteSheet(jsonPath: string): Promise<any> {
+  const PIXI = (window as any).PIXI;
+  const url = spriteUrl(jsonPath);
+  try {
+    const sheet = await PIXI.Assets.load(url);
+    return sheet;
+  } catch (e) {
+    console.warn('[media-stock] Failed to load sprite sheet:', jsonPath, e);
+    return null;
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Sprite Library — preloaded texture cache for the drawing helper fallback chain
+// ---------------------------------------------------------------------------
+
+/** Internal cache of loaded sprite textures keyed by category/name */
+const _spriteCache: Record<string, any> = {};
+
+/** Internal cache of loaded animated sprite sheet data */
+const _sheetCache: Record<string, any> = {};
+
+/** Whether the sprite library has been loaded */
+let _spriteLibLoaded = false;
+
+/** Sprite catalog — maps style to available sprite paths */
+const SPRITE_CATALOG: Record<string, Record<string, string[]>> = {
+  default: {
+    platforms: ['2d/sprites/platforms/grass_block.png', '2d/sprites/platforms/stone_block.png', '2d/sprites/platforms/ice_block.png', '2d/sprites/platforms/sand_block.png', '2d/sprites/platforms/dark_block.png'],
+    trees: ['2d/sprites/trees/round_tree.png', '2d/sprites/trees/pine_tree.png', '2d/sprites/trees/palm_tree.png', '2d/sprites/trees/dead_tree.png'],
+    bushes: ['2d/sprites/bushes/bush_green.png', '2d/sprites/bushes/bush_flower.png'],
+    clouds: ['2d/sprites/clouds/cloud_puffy.png', '2d/sprites/clouds/cloud_small.png'],
+    collectibles: ['2d/sprites/collectibles/coin_gold.png', '2d/sprites/collectibles/gem_red.png', '2d/sprites/collectibles/gem_blue.png', '2d/sprites/collectibles/star.png', '2d/sprites/collectibles/heart.png'],
+    props: ['2d/sprites/props/crate.png', '2d/sprites/props/barrel.png', '2d/sprites/props/rock.png', '2d/sprites/props/fence.png', '2d/sprites/props/sign_post.png'],
+    backgrounds: ['2d/sprites/backgrounds/hill_green.png', '2d/sprites/backgrounds/hill_snow.png', '2d/sprites/backgrounds/mountain_rock.png'],
+  },
+};
+
+/** Character sprite sheets — maps character name to sheet JSON path */
+const CHARACTER_SHEETS: Record<string, string> = {
+  hero: '2d/sprites/characters/hero/sheet.json',
+  slime: '2d/sprites/characters/slime/sheet.json',
+  bat: '2d/sprites/characters/bat/sheet.json',
+  boss: '2d/sprites/characters/boss/sheet.json',
+  npc: '2d/sprites/characters/npc/sheet.json',
+};
+
+/**
+ * Preload all sprites for a given style. Call in scene enter().
+ * Silently skips missing assets — fallback chain handles them.
+ */
+export async function _loadSpriteLib(style?: string): Promise<void> {
+  if (_spriteLibLoaded) return;
+  const PIXI = (window as any).PIXI;
+  const catalog = SPRITE_CATALOG[style || 'default'] || SPRITE_CATALOG.default;
+  const allPaths: string[] = [];
+  for (const cat of Object.keys(catalog)) {
+    for (const p of catalog[cat]) allPaths.push(p);
+  }
+
+  // Load environment sprites (silently skip failures)
+  var loaded = 0;
+  for (var i = 0; i < allPaths.length; i++) {
+    try {
+      var url = spriteUrl(allPaths[i]);
+      var tex = await PIXI.Assets.load(url);
+      if (tex) { _spriteCache[allPaths[i]] = tex; loaded++; }
+    } catch (e) { /* sprite not available yet — fallback chain handles it */ }
+  }
+
+  // Load character sprite sheets (silently skip failures)
+  for (var charName of Object.keys(CHARACTER_SHEETS)) {
+    try {
+      var sheetUrl = spriteUrl(CHARACTER_SHEETS[charName]);
+      var sheet = await PIXI.Assets.load(sheetUrl);
+      if (sheet) { _sheetCache[charName] = sheet; loaded++; }
+    } catch (e) { /* character sheet not available yet */ }
+  }
+
+  _spriteLibLoaded = true;
+  if (loaded > 0) console.log('[sprite-lib] Loaded ' + loaded + ' assets');
+}
+
+/**
+ * Get a cached static sprite as PIXI.Sprite, or null if not loaded.
+ * Usage: var spr = _getSprite('platforms', 'grass_block');
+ */
+export function _getSprite(category: string, name: string): any {
+  var PIXI = (window as any).PIXI;
+  var key = '2d/sprites/' + category + '/' + name + '.png';
+  var tex = _spriteCache[key];
+  if (!tex) return null;
+  return new PIXI.Sprite(tex);
+}
+
+/**
+ * Get an AnimatedSprite from a loaded character sheet, or null.
+ * Usage: var anim = _getAnimatedSprite('hero', 'idle');
+ */
+export function _getAnimatedSprite(character: string, animation: string): any {
+  var PIXI = (window as any).PIXI;
+  var sheet = _sheetCache[character];
+  if (!sheet || !sheet.animations || !sheet.animations[animation]) return null;
+  var anim = new PIXI.AnimatedSprite(sheet.animations[animation]);
+  anim.animationSpeed = 0.15;
+  anim.play();
+  return anim;
+}
 `;

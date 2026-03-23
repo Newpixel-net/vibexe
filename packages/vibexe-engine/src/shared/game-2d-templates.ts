@@ -37,6 +37,397 @@ function hasFillGradient(): boolean {
   return !!PIXI.FillGradient;
 }
 
+function hasCanvas(): boolean {
+  return typeof document !== 'undefined' && !!document.createElement;
+}
+
+// ============================================================================
+// SPRITE LIBRARY IMPORTS (from media-stock.ts)
+// ============================================================================
+
+import { _getSprite, _getAnimatedSprite } from '../utils/media-stock';
+
+/** Check if sprite lib imports are available */
+function _hasSpriteLib(): boolean {
+  return typeof _getSprite === 'function';
+}
+
+// ============================================================================
+// CANVAS 2D HELPERS — High-quality programmatic fallback using HTML Canvas
+// ============================================================================
+
+/** Create an offscreen canvas and return [canvas, ctx] */
+function _makeCanvas(w: number, h: number): [any, any] {
+  var c = document.createElement('canvas');
+  c.width = Math.ceil(w);
+  c.height = Math.ceil(h);
+  var ctx = c.getContext('2d')!;
+  return [c, ctx];
+}
+
+/** Convert a hex number (0xRRGGBB) to CSS color string */
+function _hexCss(color: number, alpha?: number): string {
+  var r = (color >> 16) & 0xff, g = (color >> 8) & 0xff, b = color & 0xff;
+  if (alpha !== undefined && alpha < 1) return 'rgba(' + r + ',' + g + ',' + b + ',' + alpha + ')';
+  return '#' + ('000000' + color.toString(16)).slice(-6);
+}
+
+/** Create a PIXI.Sprite from an HTML Canvas element */
+function _canvasToSprite(canvas: any): any {
+  return PIXI.Sprite.from(canvas);
+}
+
+/** Draw a volumetric 3D-shaded circle on canvas (offset radial gradient + specular) */
+function _drawShadedCircle(ctx: any, cx: number, cy: number, r: number, color: number, lightAngle?: number): void {
+  var la = lightAngle || -0.7;
+  var offX = Math.cos(la) * r * 0.25;
+  var offY = Math.sin(la) * r * 0.25;
+  var grad = ctx.createRadialGradient(cx + offX, cy + offY, r * 0.05, cx, cy, r);
+  grad.addColorStop(0, _hexCss(lighten(color, 40)));
+  grad.addColorStop(0.6, _hexCss(color));
+  grad.addColorStop(1, _hexCss(darken(color, 40)));
+  ctx.fillStyle = grad;
+  ctx.beginPath();
+  ctx.arc(cx, cy, r, 0, Math.PI * 2);
+  ctx.fill();
+  // Specular highlight
+  ctx.globalCompositeOperation = 'screen';
+  var spec = ctx.createRadialGradient(cx + offX * 1.5, cy + offY * 1.5, 0, cx + offX, cy + offY, r * 0.45);
+  spec.addColorStop(0, 'rgba(255,255,255,0.5)');
+  spec.addColorStop(1, 'rgba(255,255,255,0)');
+  ctx.fillStyle = spec;
+  ctx.beginPath();
+  ctx.arc(cx, cy, r, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.globalCompositeOperation = 'source-over';
+}
+
+/** Draw a puffy soft-edged shape on canvas using shadowBlur */
+function _drawPuffyEllipse(ctx: any, cx: number, cy: number, rx: number, ry: number, color: string, blur: number): void {
+  ctx.save();
+  ctx.shadowColor = color;
+  ctx.shadowBlur = blur;
+  ctx.shadowOffsetX = 0;
+  ctx.shadowOffsetY = 0;
+  ctx.fillStyle = color;
+  ctx.beginPath();
+  ctx.ellipse(cx, cy, rx, ry, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.restore();
+}
+
+// ---------------------------------------------------------------------------
+// Canvas 2D drawing functions (Tier 2 fallback — better than PIXI.Graphics)
+// ---------------------------------------------------------------------------
+
+/** Canvas 2D player character — volumetric 3D-shaded body with face details */
+function _drawPlayerCanvas(size: number, bodyColor: number, lightColor: number): any {
+  var s = size;
+  var w = s * 1.2, h = s * 1.6;
+  var pad = 8;
+  var cw = w + pad * 2, ch = h + pad * 2;
+  var [canvas, ctx] = _makeCanvas(cw, ch);
+  var ox = cw / 2, oy = ch * 0.65;
+
+  // Ground shadow
+  ctx.fillStyle = 'rgba(0,0,0,0.15)';
+  ctx.beginPath();
+  ctx.ellipse(ox, oy + s * 0.48, s * 0.3, s * 0.06, 0, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Feet
+  _drawShadedCircle(ctx, ox - s * 0.16, oy + s * 0.4, s * 0.1, darken(bodyColor, 30));
+  _drawShadedCircle(ctx, ox + s * 0.16, oy + s * 0.4, s * 0.1, darken(bodyColor, 30));
+
+  // Body — rounded rect with vertical gradient
+  var bodyTop = oy - s * 0.2, bodyH = s * 0.62, bodyW = s * 0.58;
+  var bodyGrad = ctx.createLinearGradient(0, bodyTop, 0, bodyTop + bodyH);
+  bodyGrad.addColorStop(0, _hexCss(lightColor));
+  bodyGrad.addColorStop(1, _hexCss(darken(bodyColor, 20)));
+  ctx.fillStyle = bodyGrad;
+  _roundRect(ctx, ox - bodyW / 2, bodyTop, bodyW, bodyH, s * 0.18);
+  ctx.fill();
+  // Body specular
+  ctx.globalCompositeOperation = 'screen';
+  var bodySpec = ctx.createRadialGradient(ox - s * 0.08, bodyTop + bodyH * 0.2, 0, ox, bodyTop + bodyH * 0.4, bodyW * 0.5);
+  bodySpec.addColorStop(0, 'rgba(255,255,255,0.2)');
+  bodySpec.addColorStop(1, 'rgba(255,255,255,0)');
+  ctx.fillStyle = bodySpec;
+  _roundRect(ctx, ox - bodyW / 2, bodyTop, bodyW, bodyH, s * 0.18);
+  ctx.fill();
+  ctx.globalCompositeOperation = 'source-over';
+
+  // Head — 3D shaded sphere
+  _drawShadedCircle(ctx, ox, oy - s * 0.35, s * 0.26, bodyColor);
+
+  // Hat
+  var hatGrad = ctx.createLinearGradient(0, oy - s * 0.63, 0, oy - s * 0.49);
+  hatGrad.addColorStop(0, _hexCss(darken(bodyColor, 20)));
+  hatGrad.addColorStop(1, _hexCss(darken(bodyColor, 40)));
+  ctx.fillStyle = hatGrad;
+  _roundRect(ctx, ox - s * 0.22, oy - s * 0.63, s * 0.44, s * 0.14, 5);
+  ctx.fill();
+  ctx.fillStyle = _hexCss(darken(bodyColor, 30));
+  _roundRect(ctx, ox - s * 0.3, oy - s * 0.54, s * 0.6, s * 0.07, 4);
+  ctx.fill();
+
+  // Eyes
+  ctx.fillStyle = '#ffffff';
+  ctx.beginPath();
+  ctx.arc(ox - s * 0.1, oy - s * 0.36, s * 0.08, 0, Math.PI * 2);
+  ctx.arc(ox + s * 0.1, oy - s * 0.36, s * 0.08, 0, Math.PI * 2);
+  ctx.fill();
+  // Pupils
+  ctx.fillStyle = '#111122';
+  ctx.beginPath();
+  ctx.arc(ox - s * 0.07, oy - s * 0.36, s * 0.04, 0, Math.PI * 2);
+  ctx.arc(ox + s * 0.13, oy - s * 0.36, s * 0.04, 0, Math.PI * 2);
+  ctx.fill();
+  // Eye shine
+  ctx.fillStyle = 'rgba(255,255,255,0.9)';
+  ctx.beginPath();
+  ctx.arc(ox - s * 0.09, oy - s * 0.39, s * 0.022, 0, Math.PI * 2);
+  ctx.arc(ox + s * 0.11, oy - s * 0.39, s * 0.022, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Smile
+  ctx.strokeStyle = _hexCss(darken(bodyColor, 55));
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.moveTo(ox - s * 0.06, oy - s * 0.24);
+  ctx.quadraticCurveTo(ox, oy - s * 0.18, ox + s * 0.06, oy - s * 0.24);
+  ctx.stroke();
+
+  // Rosy cheeks
+  ctx.fillStyle = 'rgba(255,102,136,0.15)';
+  ctx.beginPath();
+  ctx.ellipse(ox - s * 0.15, oy - s * 0.27, s * 0.04, s * 0.025, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.beginPath();
+  ctx.ellipse(ox + s * 0.15, oy - s * 0.27, s * 0.04, s * 0.025, 0, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Thick outline (sticker look)
+  ctx.globalCompositeOperation = 'destination-over';
+  ctx.strokeStyle = _hexCss(darken(bodyColor, 80));
+  ctx.lineWidth = 3;
+  ctx.lineJoin = 'round';
+  ctx.beginPath();
+  // Trace full silhouette
+  ctx.arc(ox, oy - s * 0.35, s * 0.28, 0, Math.PI * 2);
+  ctx.stroke();
+  ctx.beginPath();
+  _roundRect(ctx, ox - bodyW / 2 - 1, bodyTop - 1, bodyW + 2, bodyH + 2, s * 0.18);
+  ctx.stroke();
+  ctx.globalCompositeOperation = 'source-over';
+
+  var spr = _canvasToSprite(canvas);
+  spr.anchor.set(0.5, 0.65);
+  return spr;
+}
+
+/** Canvas 2D coin — radial gradient with golden 3D shading */
+function _drawCoinCanvas(radius: number, color: number, glowColor: number): any {
+  var r = radius;
+  var pad = r * 2.5;
+  var sz = (r + pad) * 2;
+  var [canvas, ctx] = _makeCanvas(sz, sz);
+  var cx = sz / 2, cy = sz / 2;
+
+  // Outer glow
+  ctx.save();
+  ctx.shadowColor = _hexCss(glowColor, 0.6);
+  ctx.shadowBlur = r * 2;
+  ctx.fillStyle = _hexCss(glowColor, 0.15);
+  ctx.beginPath();
+  ctx.arc(cx, cy, r * 1.3, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.restore();
+
+  // Coin body with 3D shading
+  _drawShadedCircle(ctx, cx, cy, r, color, -0.8);
+
+  // Inner ring
+  ctx.strokeStyle = _hexCss(darken(color, 15), 0.4);
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.arc(cx, cy, r * 0.65, 0, Math.PI * 2);
+  ctx.stroke();
+
+  // Star symbol in center
+  ctx.fillStyle = _hexCss(darken(color, 20), 0.3);
+  ctx.font = (r * 0.8) + 'px sans-serif';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText('$', cx, cy + 1);
+
+  var spr = _canvasToSprite(canvas);
+  spr.anchor.set(0.5, 0.5);
+  return spr;
+}
+
+/** Canvas 2D enemy slime — organic blob with volumetric shading */
+function _drawSlimeCanvas(size: number, color: number, lightColor: number): any {
+  var s = size;
+  var pad = 8;
+  var cw = s * 1.2 + pad * 2, ch = s * 1.1 + pad * 2;
+  var [canvas, ctx] = _makeCanvas(cw, ch);
+  var ox = cw / 2, oy = ch * 0.6;
+
+  // Ground shadow
+  ctx.fillStyle = 'rgba(0,0,0,0.15)';
+  ctx.beginPath();
+  ctx.ellipse(ox, oy + s * 0.42, s * 0.35, s * 0.06, 0, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Body blob with offset radial gradient
+  var grad = ctx.createRadialGradient(ox - s * 0.08, oy - s * 0.12, s * 0.05, ox, oy + s * 0.05, s * 0.42);
+  grad.addColorStop(0, _hexCss(lightColor));
+  grad.addColorStop(0.6, _hexCss(color));
+  grad.addColorStop(1, _hexCss(darken(color, 30)));
+  ctx.fillStyle = grad;
+  ctx.beginPath();
+  ctx.ellipse(ox, oy + s * 0.08, s * 0.4, s * 0.34, 0, 0, Math.PI * 2);
+  ctx.fill();
+  // Top bump
+  ctx.beginPath();
+  ctx.arc(ox, oy - s * 0.15, s * 0.27, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Specular highlight
+  ctx.globalCompositeOperation = 'screen';
+  var spec = ctx.createRadialGradient(ox - s * 0.1, oy - s * 0.2, 0, ox - s * 0.05, oy - s * 0.1, s * 0.2);
+  spec.addColorStop(0, 'rgba(255,255,255,0.3)');
+  spec.addColorStop(1, 'rgba(255,255,255,0)');
+  ctx.fillStyle = spec;
+  ctx.beginPath();
+  ctx.arc(ox, oy - s * 0.1, s * 0.3, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.globalCompositeOperation = 'source-over';
+
+  // Eyes
+  ctx.fillStyle = '#ffffff';
+  ctx.beginPath();
+  ctx.arc(ox - s * 0.11, oy - s * 0.1, s * 0.09, 0, Math.PI * 2);
+  ctx.arc(ox + s * 0.11, oy - s * 0.1, s * 0.09, 0, Math.PI * 2);
+  ctx.fill();
+  // Angry pupils
+  ctx.fillStyle = '#111111';
+  ctx.beginPath();
+  ctx.arc(ox - s * 0.09, oy - s * 0.09, s * 0.045, 0, Math.PI * 2);
+  ctx.arc(ox + s * 0.13, oy - s * 0.09, s * 0.045, 0, Math.PI * 2);
+  ctx.fill();
+  // Eye shine
+  ctx.fillStyle = 'rgba(255,255,255,0.85)';
+  ctx.beginPath();
+  ctx.arc(ox - s * 0.11, oy - s * 0.13, s * 0.02, 0, Math.PI * 2);
+  ctx.arc(ox + s * 0.11, oy - s * 0.13, s * 0.02, 0, Math.PI * 2);
+  ctx.fill();
+  // Angry brows
+  ctx.strokeStyle = _hexCss(darken(color, 65));
+  ctx.lineWidth = 2.5;
+  ctx.beginPath();
+  ctx.moveTo(ox - s * 0.2, oy - s * 0.24);
+  ctx.lineTo(ox - s * 0.04, oy - s * 0.17);
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.moveTo(ox + s * 0.2, oy - s * 0.24);
+  ctx.lineTo(ox + s * 0.04, oy - s * 0.17);
+  ctx.stroke();
+  // Mouth
+  ctx.fillStyle = _hexCss(darken(color, 50));
+  ctx.beginPath();
+  ctx.moveTo(ox - s * 0.08, oy + s * 0.02);
+  ctx.quadraticCurveTo(ox, oy + s * 0.1, ox + s * 0.08, oy + s * 0.02);
+  ctx.fill();
+
+  // Thick outline
+  ctx.globalCompositeOperation = 'destination-over';
+  ctx.strokeStyle = _hexCss(darken(color, 70));
+  ctx.lineWidth = 2.5;
+  ctx.beginPath();
+  ctx.ellipse(ox, oy + s * 0.08, s * 0.42, s * 0.36, 0, 0, Math.PI * 2);
+  ctx.stroke();
+  ctx.globalCompositeOperation = 'source-over';
+
+  var spr = _canvasToSprite(canvas);
+  spr.anchor.set(0.5, 0.6);
+  return spr;
+}
+
+/** Canvas 2D platform block — gradient fill with thick border and grass */
+function _drawPlatformCanvas(w: number, h: number, mainColor: number, topColor: number): any {
+  var pad = 12;
+  var cw = w + pad * 2, ch = h + pad * 2 + 16;
+  var [canvas, ctx] = _makeCanvas(cw, ch);
+  var bx = pad, by = pad + 12;
+
+  // Drop shadow
+  ctx.save();
+  ctx.shadowColor = 'rgba(0,0,0,0.4)';
+  ctx.shadowBlur = 8;
+  ctx.shadowOffsetX = 4;
+  ctx.shadowOffsetY = 6;
+  ctx.fillStyle = _hexCss(darken(mainColor, 35));
+  _roundRect(ctx, bx - 3, by - 3, w + 6, h + 6, 8);
+  ctx.fill();
+  ctx.restore();
+
+  // Main body gradient
+  var grad = ctx.createLinearGradient(0, by, 0, by + h);
+  grad.addColorStop(0, _hexCss(lighten(mainColor, 20)));
+  grad.addColorStop(1, _hexCss(darken(mainColor, 10)));
+  ctx.fillStyle = grad;
+  _roundRect(ctx, bx, by, w, h, 6);
+  ctx.fill();
+
+  // Top highlight band
+  ctx.fillStyle = 'rgba(255,255,255,0.15)';
+  _roundRect(ctx, bx + 2, by + 1, w - 4, h * 0.25, 4);
+  ctx.fill();
+
+  // Top grass lip
+  ctx.fillStyle = _hexCss(topColor);
+  _roundRect(ctx, bx - 2, by - 4, w + 4, 8, 4);
+  ctx.fill();
+  ctx.fillStyle = _hexCss(lighten(topColor, 20));
+  _roundRect(ctx, bx - 1, by - 4, w + 2, 3, 3);
+  ctx.fill();
+
+  // Grass tufts
+  for (var gx = bx + 5; gx < bx + w - 5; gx += 6 + Math.random() * 4) {
+    var gh = 4 + Math.random() * 8;
+    ctx.fillStyle = Math.random() > 0.4 ? _hexCss(topColor) : _hexCss(lighten(topColor, 12));
+    ctx.beginPath();
+    ctx.moveTo(gx, by - 4);
+    ctx.quadraticCurveTo(gx + 1, by - gh * 0.7, gx + 0.5, by - gh - 4);
+    ctx.quadraticCurveTo(gx + 2, by - gh * 0.3 - 4, gx + 3, by - 4);
+    ctx.closePath();
+    ctx.fill();
+  }
+
+  var container = new PIXI.Container();
+  var spr = _canvasToSprite(canvas);
+  spr.anchor.set((pad + w / 2) / cw, (pad + 12 + h / 2) / ch);
+  container.addChild(spr);
+  return container;
+}
+
+/** Helper: draw a rounded rectangle path on canvas context */
+function _roundRect(ctx: any, x: number, y: number, w: number, h: number, r: number): void {
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.lineTo(x + w - r, y);
+  ctx.quadraticCurveTo(x + w, y, x + w, y + r);
+  ctx.lineTo(x + w, y + h - r);
+  ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+  ctx.lineTo(x + r, y + h);
+  ctx.quadraticCurveTo(x, y + h, x, y + h - r);
+  ctx.lineTo(x, y + r);
+  ctx.quadraticCurveTo(x, y, x + r, y);
+  ctx.closePath();
+}
+
 // ============================================================================
 // COLOR UTILITIES
 // ============================================================================
@@ -307,8 +698,14 @@ export function drawMountainRange(
   return container;
 }
 
-/** Puffy volumetric cloud with 3D shading — light top, shadowed bottom */
+/** Puffy volumetric cloud with 3D shading — light top, shadowed bottom.
+ *  Fallback chain: sprite → PIXI.Graphics */
 export function drawCloud(w: number, h: number): any {
+  // Tier 1: Pre-made sprite
+  if (_hasSpriteLib()) {
+    var spr = _getSprite('clouds', 'cloud_puffy');
+    if (spr) { spr.width = w; spr.height = h; spr.anchor.set(0.5); return spr; }
+  }
   var container = new PIXI.Container();
   var g = new PIXI.Graphics();
   // Shadow base (darker, offset down)
@@ -345,8 +742,14 @@ export function drawCloud(w: number, h: number): any {
 // TERRAIN & PLATFORMS
 // ============================================================================
 
-/** Tree with 3D-shaded spherical canopy and textured trunk */
+/** Tree with 3D-shaded spherical canopy and textured trunk.
+ *  Fallback chain: sprite → PIXI.Graphics */
 export function drawTree(trunkH: number, leafR: number, trunkColor: number, leafColor: number): any {
+  // Tier 1: Pre-made sprite
+  if (_hasSpriteLib()) {
+    var spr = _getSprite('trees', 'round_tree');
+    if (spr) { spr.width = leafR * 2.5; spr.height = trunkH + leafR * 1.5; spr.anchor.set(0.5, 1); return spr; }
+  }
   var container = new PIXI.Container();
   var g = new PIXI.Graphics();
   // Trunk shadow
@@ -452,8 +855,19 @@ export function drawGroundStrip(
   return container;
 }
 
-/** Platform block with thick colored border, inner gradient, grass lip */
+/** Platform block with thick colored border, inner gradient, grass lip.
+ *  Fallback chain: sprite → Canvas 2D → PIXI.Graphics */
 export function drawPlatformBlock(w: number, h: number, mainColor: number, topColor: number): any {
+  // Tier 1: Pre-made sprite (only for standard sizes ~120x30)
+  if (_hasSpriteLib() && w >= 80 && w <= 200 && h >= 20 && h <= 60) {
+    var spr = _getSprite('platforms', 'grass_block');
+    if (spr) { spr.width = w; spr.height = h; spr.anchor.set(0.5); return spr; }
+  }
+  // Tier 2: Canvas 2D (gradient fill + shadow + grass tufts)
+  if (hasCanvas()) {
+    try { return _drawPlatformCanvas(w, h, mainColor, topColor); } catch(e) {}
+  }
+  // Tier 3: PIXI.Graphics fallback
   var container = new PIXI.Container();
   var g = new PIXI.Graphics();
   var bw = 3; // border width
@@ -501,8 +915,24 @@ export function drawPlatformBlock(w: number, h: number, mainColor: number, topCo
 // CHARACTERS & ENTITIES
 // ============================================================================
 
-/** Professional character with round body, 3D shading, expressive face */
+/** Professional character with round body, 3D shading, expressive face.
+ *  Fallback chain: AnimatedSprite → static sprite → Canvas 2D → PIXI.Graphics */
 export function drawPlayerCharacter(size: number, bodyColor: number, lightColor: number): any {
+  // Tier 1: 3D-rendered animated sprite sheet
+  if (_hasSpriteLib()) {
+    var anim = _getAnimatedSprite('hero', 'idle');
+    if (anim) { anim.width = size; anim.height = size * 1.2; return anim; }
+  }
+  // Tier 2: Static pre-made sprite
+  if (_hasSpriteLib()) {
+    var spr2 = _getSprite('characters', 'player_idle');
+    if (spr2) { spr2.width = size; spr2.height = size * 1.2; return spr2; }
+  }
+  // Tier 3: Canvas 2D (volumetric 3D shading)
+  if (hasCanvas()) {
+    try { return _drawPlayerCanvas(size, bodyColor, lightColor); } catch(e) {}
+  }
+  // Tier 4: PIXI.Graphics fallback (original code below)
   var container = new PIXI.Container();
   var g = new PIXI.Graphics();
   var s = size;
@@ -586,8 +1016,19 @@ export function drawPlayerCharacter(size: number, bodyColor: number, lightColor:
   return container;
 }
 
-/** Coin with 3D depth, strong radial gradient, and real glow */
+/** Coin with 3D depth, strong radial gradient, and real glow.
+ *  Fallback chain: sprite → Canvas 2D → PIXI.Graphics */
 export function drawCoinToken(radius: number, color: number, glowColor: number): any {
+  // Tier 1: Pre-made sprite
+  if (_hasSpriteLib()) {
+    var spr = _getSprite('collectibles', 'coin_gold');
+    if (spr) { spr.width = radius * 2; spr.height = radius * 2; spr.anchor.set(0.5); return spr; }
+  }
+  // Tier 2: Canvas 2D (golden 3D shading + glow)
+  if (hasCanvas()) {
+    try { return _drawCoinCanvas(radius, color, glowColor); } catch(e) {}
+  }
+  // Tier 3: PIXI.Graphics fallback
   var container = new PIXI.Container();
   var coin = new PIXI.Graphics();
   // Outer ring (darker edge)
@@ -630,8 +1071,24 @@ export function drawCoinToken(radius: number, color: number, glowColor: number):
   return container;
 }
 
-/** Slime enemy — organic blob with 3D shading, expressive angry face */
+/** Slime enemy — organic blob with 3D shading, expressive angry face.
+ *  Fallback chain: AnimatedSprite → sprite → Canvas 2D → PIXI.Graphics */
 export function drawEnemySlime(size: number, color: number, lightColor: number): any {
+  // Tier 1: 3D-rendered animated sprite
+  if (_hasSpriteLib()) {
+    var anim = _getAnimatedSprite('slime', 'idle');
+    if (anim) { anim.width = size; anim.height = size; return anim; }
+  }
+  // Tier 2: Static sprite
+  if (_hasSpriteLib()) {
+    var spr = _getSprite('characters', 'slime_idle');
+    if (spr) { spr.width = size; spr.height = size; spr.anchor.set(0.5); return spr; }
+  }
+  // Tier 3: Canvas 2D (volumetric blob shading)
+  if (hasCanvas()) {
+    try { return _drawSlimeCanvas(size, color, lightColor); } catch(e) {}
+  }
+  // Tier 4: PIXI.Graphics fallback
   var container = new PIXI.Container();
   var g = new PIXI.Graphics();
   var s = size;
@@ -704,8 +1161,14 @@ export function drawEnemySlime(size: number, color: number, lightColor: number):
   return container;
 }
 
-/** Heart shape with 3D shading for lives display */
+/** Heart shape with 3D shading for lives display.
+ *  Fallback chain: sprite → PIXI.Graphics */
 export function drawHeart(size: number, color: number): any {
+  // Tier 1: Pre-made sprite
+  if (_hasSpriteLib()) {
+    var spr = _getSprite('collectibles', 'heart');
+    if (spr) { spr.width = size; spr.height = size; spr.anchor.set(0.5); return spr; }
+  }
   var container = new PIXI.Container();
   var g = new PIXI.Graphics();
   var s = size;
@@ -729,8 +1192,15 @@ export function drawHeart(size: number, color: number): any {
   return container;
 }
 
-/** Hexagonal gem with 3D faceted look and strong glow */
+/** Hexagonal gem with 3D faceted look and strong glow.
+ *  Fallback chain: sprite → PIXI.Graphics */
 export function drawGemShape(radius: number, color: number): any {
+  // Tier 1: Pre-made sprite
+  if (_hasSpriteLib()) {
+    var gemName = color === 0xff3333 ? 'gem_red' : color === 0x3333ff ? 'gem_blue' : 'gem_red';
+    var spr = _getSprite('collectibles', gemName);
+    if (spr) { spr.width = radius * 2; spr.height = radius * 2; spr.anchor.set(0.5); return spr; }
+  }
   var container = new PIXI.Container();
   var g = new PIXI.Graphics();
   // Shadow
@@ -1062,6 +1532,7 @@ export const GAME_2D_SCENE_STARTER = `import { Engine2D, GameScene, createGame2D
 import { createBody, createStaticBody, createOneWayPlatform, PhysicsWorld, CharacterController } from "../engine/physics";
 import { createAmbientEffect, createSnowEffect, createRainEffect, getThemeEffects, onJumpDust, onLandImpact, onCollectSparkle, onDeathExplosion } from "../engine/effects";
 import { PALETTES, lerpColor, drawSkyGradient, drawStars, drawMountainRange, drawCloud, drawTree, drawGroundStrip, drawPlatformBlock, drawPlayerCharacter, drawCoinToken, drawEnemySlime, drawHeart } from "../config/assets";
+import { _loadSpriteLib } from "../utils/media-stock";
 
 const PIXI = (window as any).PIXI;
 
@@ -1122,6 +1593,9 @@ export class GameScene2D implements GameScene {
     this.decorTrees = [];
     this.invincibleTimer = 0;
     this.shakeTimer = 0;
+
+    // Preload sprite library (silently falls back if no sprites available)
+    await _loadSpriteLib(THEME);
 
     var W = engine.config.width;
     var H = engine.config.height;
@@ -1500,6 +1974,7 @@ export const GAME_2D_SCENE_STARTER_RUNNER = `import { Engine2D, GameScene, creat
 import { createBody, createStaticBody, PhysicsWorld } from "../engine/physics";
 import { createAmbientEffect, onJumpDust, onLandImpact, onDeathExplosion, onCollectSparkle } from "../engine/effects";
 import { PALETTES, lerpColor, drawSkyGradient, drawStars, drawMountainRange, drawCloud, drawGroundStrip, drawPlayerCharacter, drawCoinToken, drawEnemySlime, drawHeart } from "../config/assets";
+import { _loadSpriteLib } from "../utils/media-stock";
 
 const PIXI = (window as any).PIXI;
 
@@ -1557,6 +2032,8 @@ export class GameScene2D implements GameScene {
     this.spawnTimer = 2;
     this.coinTimer = 0.5;
     this.gameOver = false;
+
+    await _loadSpriteLib(THEME);
 
     var W = engine.config.width;
     var H = engine.config.height;
@@ -1767,6 +2244,7 @@ export class GameScene2D implements GameScene {
 export const GAME_2D_SCENE_STARTER_PUZZLE = `import { Engine2D, GameScene, createGame2D, JuiceSystem } from "../engine/core";
 import { createSparkleEffect, onCollectSparkle } from "../engine/effects";
 import { PALETTES, lerpColor, drawSkyGradient, drawHeart, drawGemShape } from "../config/assets";
+import { _loadSpriteLib } from "../utils/media-stock";
 
 const PIXI = (window as any).PIXI;
 
@@ -1810,6 +2288,8 @@ export class GameScene2D implements GameScene {
     this.gridColors = [];
     this.selectedCell = null;
     this.isAnimating = false;
+
+    await _loadSpriteLib(THEME);
 
     var W = engine.config.width;
     var H = engine.config.height;
@@ -2111,6 +2591,7 @@ export const GAME_2D_SCENE_STARTER_SHOOTER = `import { Engine2D, GameScene, crea
 import { createBody, createStaticBody, PhysicsWorld } from "../engine/physics";
 import { createExplosionEffect, createTrailEffect, createAmbientEffect, onDeathExplosion, onCollectSparkle } from "../engine/effects";
 import { PALETTES, lerpColor, drawSkyGradient, drawStars, drawCoinToken, drawHeart, drawShipShape } from "../config/assets";
+import { _loadSpriteLib } from "../utils/media-stock";
 
 const PIXI = (window as any).PIXI;
 
@@ -2192,6 +2673,8 @@ export class GameScene2D implements GameScene {
     this.spawnTimer = 1;
     this.wave = 1;
     this.enemiesKilled = 0;
+
+    await _loadSpriteLib(THEME);
 
     var W = engine.config.width;
     var H = engine.config.height;

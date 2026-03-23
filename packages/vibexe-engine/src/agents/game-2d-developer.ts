@@ -84,8 +84,8 @@ The following files are PRE-CREATED and available to import from. NEVER recreate
 - \`src/engine/physics.ts\` — PhysicsBody, PhysicsWorld, CharacterController, createBody, createStaticBody, createOneWayPlatform
 - \`src/engine/effects.ts\` — All Proton particle effect factories (rain, snow, fire, smoke, explosion, sparkle, dust, blood, trail, bubble, magic, ambient)
 - \`src/engine/input.ts\` — VirtualJoystick, onTapZone (mobile input utilities)
-- \`src/utils/media-stock.ts\` — spriteUrl(), loadSprite(), loadSprites() (for future sprite assets)
-- \`src/config/assets.ts\` — PALETTES, drawing helpers (drawSkyGradient, drawPlayerCharacter, drawPlatformBlock, drawCoinToken, drawEnemySlime, drawGemShape, drawShipShape, etc.)
+- \`src/utils/media-stock.ts\` — spriteUrl(), loadSprite(), loadSprites(), loadSpriteSheet(), _loadSpriteLib(), _getSprite(), _getAnimatedSprite()
+- \`src/config/assets.ts\` — PALETTES, drawing helpers with **automatic sprite fallback chain** (drawSkyGradient, drawPlayerCharacter, drawPlatformBlock, drawCoinToken, drawEnemySlime, drawGemShape, drawShipShape, etc.)
 - \`src/components/Game2D.tsx\` — React wrapper component
 - \`src/scenes/GameOverScene.ts\` — Default game over screen with particle effects
 
@@ -96,7 +96,7 @@ The following files are PRE-CREATED and available to import from. NEVER recreate
 3. **NEVER create BootScene, MenuScene, LoadingScene, or ANY other scene file**. Game2D.tsx handles loading and lifecycle.
 4. **NEVER create or modify**: \`App.tsx\`, \`Game2D.tsx\`, \`GameOverScene.ts\`, \`assets.ts\`, \`media-stock.ts\`, \`package.json\`, \`core.ts\`, \`physics.ts\`, \`effects.ts\`, \`input.ts\`. These are PRE-CREATED and LOCKED.
 5. **GameScene2D.ts is SELF-CONTAINED** — ALL game logic goes in this ONE file. Do NOT create helper files or utility files.
-6. **GameScene2D.ts imports ONLY from**: \`../engine/core\`, \`../engine/physics\`, \`../engine/effects\`, \`../config/assets\`, \`../config/constants\`. NO other imports.
+6. **GameScene2D.ts imports ONLY from**: \`../engine/core\`, \`../engine/physics\`, \`../engine/effects\`, \`../config/assets\`, \`../config/constants\`, \`../utils/media-stock\`. NO other imports.
 
 ## Engine Quick Reference
 
@@ -105,6 +105,7 @@ import { Engine2D, GameScene, createGame2D, loadAssets } from "../engine/core";
 import { PhysicsWorld, createBody, createStaticBody, createOneWayPlatform, CharacterController } from "../engine/physics";
 import { createAmbientEffect, createRainEffect, createSnowEffect, onJumpDust, onLandImpact, onCollectSparkle, onDeathExplosion } from "../engine/effects";
 import { PALETTES, lerpColor, drawSkyGradient, drawStars, drawMountainRange, drawCloud, drawTree, drawGroundStrip, drawPlatformBlock, drawPlayerCharacter, drawCoinToken, drawEnemySlime, drawHeart, drawGemShape, drawShipShape } from "../config/assets";
+import { _loadSpriteLib } from "../utils/media-stock";
 
 const PIXI = (window as any).PIXI;
 
@@ -113,7 +114,24 @@ var THEME = 'sunset'; // forest, sunset, space, volcanic, candy, arctic, dark, o
 var PAL = PALETTES[THEME];
 \`\`\`
 
-### Drawing Helpers (from src/config/assets.ts)
+### Sprite Library Preloading (MANDATORY in enter())
+
+\`\`\`typescript
+async enter(engine: Engine2D): Promise<void> {
+  // MUST be first line — preloads available sprites for the theme
+  await _loadSpriteLib(THEME);
+  // ... rest of enter() ...
+}
+\`\`\`
+
+Drawing helpers now auto-use sprites when available. Characters may return AnimatedSprite
+(with .textures, .play(), .animationSpeed) instead of PIXI.Container. Handle both:
+\`\`\`typescript
+var playerGfx = drawPlayerCharacter(48, PAL.player, PAL.playerLight);
+// Works as-is — anchor/position/scale work on both Sprite and Container
+\`\`\`
+
+### Drawing Helpers (from src/config/assets.ts — auto-uses sprites when available)
 
 \`\`\`typescript
 // BACKGROUNDS
