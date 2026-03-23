@@ -1,0 +1,15 @@
+{
+  "frames": {
+    "idle_0": {"frame":{"x":0,"y":0,"w":128,"h":128},"sourceSize":{"w":128,"h":128},"spriteSourceSize":{"x":0,"y":0,"w":128,"h":128}},
+    "fly_0": {"frame":{"x":128,"y":0,"w":128,"h":128},"sourceSize":{"w":128,"h":128},"spriteSourceSize":{"x":0,"y":0,"w":128,"h":128}},
+    "attack_0": {"frame":{"x":256,"y":0,"w":128,"h":128},"sourceSize":{"w":128,"h":128},"spriteSourceSize":{"x":0,"y":0,"w":128,"h":128}},
+    "die_0": {"frame":{"x":384,"y":0,"w":128,"h":128},"sourceSize":{"w":128,"h":128},"spriteSourceSize":{"x":0,"y":0,"w":128,"h":128}}
+  },
+  "animations": {
+    "idle": ["idle_0"],
+    "fly": ["fly_0"],
+    "attack": ["attack_0"],
+    "die": ["die_0"]
+  },
+  "meta": {"image":"sheet.png","size":{"w":512,"h":128},"format":"RGBA8888","scale":"1"}
+}

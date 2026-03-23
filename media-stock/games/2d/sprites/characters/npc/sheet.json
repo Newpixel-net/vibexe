@@ -1,0 +1,13 @@
+{
+  "frames": {
+    "idle_0": {"frame":{"x":0,"y":0,"w":80,"h":110},"sourceSize":{"w":80,"h":110},"spriteSourceSize":{"x":0,"y":0,"w":80,"h":110}},
+    "idle_1": {"frame":{"x":80,"y":0,"w":80,"h":110},"sourceSize":{"w":80,"h":110},"spriteSourceSize":{"x":0,"y":0,"w":80,"h":110}},
+    "talk_0": {"frame":{"x":160,"y":0,"w":80,"h":110},"sourceSize":{"w":80,"h":110},"spriteSourceSize":{"x":0,"y":0,"w":80,"h":110}},
+    "talk_1": {"frame":{"x":240,"y":0,"w":80,"h":110},"sourceSize":{"w":80,"h":110},"spriteSourceSize":{"x":0,"y":0,"w":80,"h":110}}
+  },
+  "animations": {
+    "idle": ["idle_0","idle_1"],
+    "talk": ["talk_0","talk_1"]
+  },
+  "meta": {"image":"sheet.png","size":{"w":320,"h":110},"format":"RGBA8888","scale":"1"}
+}

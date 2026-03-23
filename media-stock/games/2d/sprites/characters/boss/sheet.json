@@ -1,0 +1,16 @@
+{
+  "frames": {
+    "idle_0": {"frame":{"x":0,"y":0,"w":80,"h":110},"sourceSize":{"w":80,"h":110},"spriteSourceSize":{"x":0,"y":0,"w":80,"h":110}},
+    "idle_1": {"frame":{"x":80,"y":0,"w":80,"h":110},"sourceSize":{"w":80,"h":110},"spriteSourceSize":{"x":0,"y":0,"w":80,"h":110}},
+    "walk_0": {"frame":{"x":160,"y":0,"w":80,"h":110},"sourceSize":{"w":80,"h":110},"spriteSourceSize":{"x":0,"y":0,"w":80,"h":110}},
+    "walk_1": {"frame":{"x":240,"y":0,"w":80,"h":110},"sourceSize":{"w":80,"h":110},"spriteSourceSize":{"x":0,"y":0,"w":80,"h":110}},
+    "attack_0": {"frame":{"x":320,"y":0,"w":80,"h":110},"sourceSize":{"w":80,"h":110},"spriteSourceSize":{"x":0,"y":0,"w":80,"h":110}},
+    "die_0": {"frame":{"x":400,"y":0,"w":80,"h":110},"sourceSize":{"w":80,"h":110},"spriteSourceSize":{"x":0,"y":0,"w":80,"h":110}}
+  },
+  "animations": {
+    "idle": ["idle_0","idle_1"],
+    "attack": ["attack_0"],
+    "die": ["die_0"]
+  },
+  "meta": {"image":"sheet.png","size":{"w":480,"h":110},"format":"RGBA8888","scale":"1"}
+}
