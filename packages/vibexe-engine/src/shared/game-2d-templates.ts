@@ -353,7 +353,7 @@ export function drawPlatformBlock(w: number, h: number, mainColor: number, topCo
   container.addChild(g);
   if (hasFilters()) {
     container.filters = [new PIXI.filters.DropShadowFilter({
-      offset: { x: 3, y: 4 }, blur: 4, alpha: 0.3, color: 0x000000,
+      offset: { x: 4, y: 6 }, blur: 6, alpha: 0.5, color: 0x000000,
     })];
   }
   return container;
@@ -414,7 +414,7 @@ export function drawPlayerCharacter(size: number, bodyColor: number, lightColor:
   // Sticker-style outline
   if (hasFilters()) {
     container.filters = [new PIXI.filters.OutlineFilter({
-      thickness: 2, color: darken(bodyColor, 60),
+      thickness: 3, color: darken(bodyColor, 80),
     })];
   }
   return container;
@@ -437,7 +437,7 @@ export function drawCoinToken(radius: number, color: number, glowColor: number):
   // Real glow via filter, or fallback to manual glow rings
   if (hasFilters()) {
     container.filters = [new PIXI.filters.GlowFilter({
-      distance: radius * 0.8, outerStrength: 1.5, innerStrength: 0.3,
+      distance: radius * 1.2, outerStrength: 3.0, innerStrength: 0.5,
       color: glowColor,
     })];
   } else {
@@ -486,7 +486,7 @@ export function drawEnemySlime(size: number, color: number, lightColor: number):
   container.addChild(g);
   if (hasFilters()) {
     container.filters = [new PIXI.filters.OutlineFilter({
-      thickness: 1.5, color: darken(color, 50),
+      thickness: 2.5, color: darken(color, 70),
     })];
   }
   return container;
@@ -525,7 +525,7 @@ export function drawGemShape(radius: number, color: number): any {
   container.addChild(g);
   if (hasFilters()) {
     container.filters = [new PIXI.filters.GlowFilter({
-      distance: radius * 0.6, outerStrength: 1.2, innerStrength: 0.2, color: color,
+      distance: radius * 1.0, outerStrength: 2.5, innerStrength: 0.4, color: color,
     })];
   }
   return container;
@@ -566,7 +566,7 @@ export function drawShipShape(size: number, color: number, lightColor: number): 
   // Engine glow filter
   if (hasFilters()) {
     container.filters = [new PIXI.filters.GlowFilter({
-      distance: 6, outerStrength: 0.8, color: 0xff6600,
+      distance: 10, outerStrength: 2.0, color: 0xff6600,
     })];
   }
   return container;
@@ -1105,11 +1105,22 @@ export class GameScene2D implements GameScene {
     // Breathe player idle
     engine.juice.breathe(this.playerGfx, 1.03, 1.2);
 
-    // Add DropShadow to player if filters available
+    // Add GlowFilter on all coins
     var _PIXI = (window as any).PIXI;
+    if (_PIXI.filters && _PIXI.filters.GlowFilter) {
+      for (var fi = 0; fi < this.coins.length; fi++) {
+        if (this.coins[fi].gfx && !this.coins[fi].gfx.filters) {
+          this.coins[fi].gfx.filters = [new _PIXI.filters.GlowFilter({
+            distance: 12, outerStrength: 2.5, innerStrength: 0.4, color: PAL.coinGlow,
+          })];
+        }
+      }
+    }
+
+    // Add DropShadow to player if filters available
     if (_PIXI.filters && _PIXI.filters.DropShadowFilter && !this.playerGfx.filters) {
       this.playerGfx.filters = [new _PIXI.filters.DropShadowFilter({
-        offset: { x: 2, y: 3 }, blur: 3, alpha: 0.35, color: 0x000000,
+        offset: { x: 3, y: 5 }, blur: 5, alpha: 0.5, color: 0x000000,
       })];
     }
   }

@@ -129,13 +129,14 @@ export function createSmokeEffect(x: number, y: number): ParticleEffect {
  */
 export function createExplosionEffect(x: number, y: number, color = '#ff4400'): ParticleEffect {
   const emitter = new Proton.Emitter();
-  emitter.rate = new Proton.Rate(new Proton.Span(20, 40), 1);
-  emitter.addInitialize(new Proton.Life(0.3, 0.8));
-  emitter.addInitialize(new Proton.Radius(3, 10));
-  emitter.addInitialize(new Proton.Velocity(new Proton.Span(3, 10), new Proton.Span(0, 360), 'polar'));
-  emitter.addBehaviour(new Proton.Scale(1, 0.1));
+  emitter.rate = new Proton.Rate(new Proton.Span(30, 60), 1);
+  emitter.addInitialize(new Proton.Life(0.4, 1.0));
+  emitter.addInitialize(new Proton.Radius(3, 12));
+  emitter.addInitialize(new Proton.Velocity(new Proton.Span(4, 12), new Proton.Span(0, 360), 'polar'));
+  emitter.addBehaviour(new Proton.Scale(1.2, 0.1));
   emitter.addBehaviour(new Proton.Alpha(1, 0));
   emitter.addBehaviour(new Proton.Color(color, '#000000'));
+  emitter.addBehaviour(new Proton.Rotate(new Proton.Span(0, 360), new Proton.Span(-4, 4), 'add'));
   emitter.addBehaviour(new Proton.Gravity(3));
   emitter.p.x = x;
   emitter.p.y = y;
@@ -148,13 +149,14 @@ export function createExplosionEffect(x: number, y: number, color = '#ff4400'): 
  */
 export function createSparkleEffect(x: number, y: number): ParticleEffect {
   const emitter = new Proton.Emitter();
-  emitter.rate = new Proton.Rate(new Proton.Span(10, 20), 1);
-  emitter.addInitialize(new Proton.Life(0.3, 0.6));
-  emitter.addInitialize(new Proton.Radius(2, 5));
-  emitter.addInitialize(new Proton.Velocity(new Proton.Span(2, 6), new Proton.Span(0, 360), 'polar'));
-  emitter.addBehaviour(new Proton.Scale(1, 0));
+  emitter.rate = new Proton.Rate(new Proton.Span(15, 30), 1);
+  emitter.addInitialize(new Proton.Life(0.4, 0.8));
+  emitter.addInitialize(new Proton.Radius(2, 7));
+  emitter.addInitialize(new Proton.Velocity(new Proton.Span(3, 8), new Proton.Span(0, 360), 'polar'));
+  emitter.addBehaviour(new Proton.Scale(1.2, 0));
   emitter.addBehaviour(new Proton.Alpha(1, 0));
   emitter.addBehaviour(new Proton.Color('#ffff00', '#ffffff'));
+  emitter.addBehaviour(new Proton.Rotate(new Proton.Span(0, 360), 'add'));
   emitter.p.x = x;
   emitter.p.y = y;
   emitter.emit('once');
@@ -377,6 +379,46 @@ export function getThemeEffects(theme: GameTheme, width: number, height: number)
   }
 
   return effects;
+}
+
+// ---------------------------------------------------------------------------
+// Theme-matched particle colors
+// ---------------------------------------------------------------------------
+
+/** Pick a color from the active palette for themed particles */
+export function paletteColor(palette: any, type: 'warm' | 'cool' | 'accent' = 'accent'): string {
+  if (!palette) return '#ffdd00';
+  if (type === 'warm') return '#' + (palette.coinGlow || 0xff8800).toString(16).padStart(6, '0');
+  if (type === 'cool') return '#' + (palette.playerLight || 0x77ccff).toString(16).padStart(6, '0');
+  return '#' + (palette.coin || 0xffdd00).toString(16).padStart(6, '0');
+}
+
+/** Shockwave effect using pixi-filters ShockwaveFilter + GSAP animation */
+export function createShockwaveEffect(container: any, x: number, y: number): void {
+  var PIXI = (window as any).PIXI;
+  var gsap = (window as any).gsap;
+  if (!PIXI || !PIXI.filters || !PIXI.filters.ShockwaveFilter || !gsap) return;
+  var filter = new PIXI.filters.ShockwaveFilter({
+    center: [x / (container.width || 800), y / (container.height || 600)],
+    speed: 400, amplitude: 20, wavelength: 120, brightness: 1.2, radius: -1,
+  });
+  if (!container.filters) container.filters = [];
+  container.filters.push(filter);
+  gsap.to(filter, {
+    time: 1.5, duration: 0.8, ease: 'power2.out',
+    onComplete: function() {
+      var idx = container.filters ? container.filters.indexOf(filter) : -1;
+      if (idx >= 0) container.filters.splice(idx, 1);
+    }
+  });
+}
+
+/** Coin magnet attraction effect */
+export function createCoinMagnetEffect(proton: any, targetX: number, targetY: number): any {
+  var attraction = new Proton.Attraction(
+    { x: targetX, y: targetY }, 8, 200
+  );
+  return attraction;
 }
 
 // ---------------------------------------------------------------------------
