@@ -134,6 +134,20 @@ export function createFileTools(appId: string, options?: FileToolsOptions) {
 				if (blocked) {
 					return { success: false, action: "created", path, error: blocked };
 				}
+				// Hard line count limit for 2D GameScene — prevents full rewrites
+				const is2DScene = /GameScene2D\.ts$/i.test(path);
+				if (is2DScene) {
+					const lineCount = content.split("\n").length;
+					if (lineCount > 600) {
+						console.log(`[FileTools] BLOCKED GameScene2D.ts create: ${lineCount} lines (max 600).`);
+						return {
+							success: false,
+							action: "created",
+							path,
+							error: `BLOCKED: GameScene2D.ts has ${lineCount} lines — max allowed is 600. The hybrid starter is ~350 lines. You must ENHANCE it by adding 50-150 lines, not rewrite from scratch.`,
+						};
+					}
+				}
 				try {
 					const lang = language || inferLanguage(path);
 					const file = await saveFile(appId, path, content, lang);
@@ -167,6 +181,20 @@ export function createFileTools(appId: string, options?: FileToolsOptions) {
 				const blocked = checkForbidden(path);
 				if (blocked) {
 					return { success: false, action: "updated", path, error: blocked };
+				}
+				// Hard line count limit for 2D GameScene — prevents full rewrites that crash
+				const is2DScene = /GameScene2D\.ts$/i.test(path);
+				if (is2DScene) {
+					const lineCount = content.split("\n").length;
+					if (lineCount > 600) {
+						console.log(`[FileTools] BLOCKED GameScene2D.ts update: ${lineCount} lines (max 600). This is a rewrite, not an enhancement.`);
+						return {
+							success: false,
+							action: "updated",
+							path,
+							error: `BLOCKED: GameScene2D.ts has ${lineCount} lines — max allowed is 600. The hybrid starter is ~350 lines. You are REWRITING instead of ENHANCING. Use read_file first, then add only 50-150 lines of enhancements. Do NOT rewrite the entire file.`,
+						};
+					}
 				}
 				try {
 					const lang = inferLanguage(path);

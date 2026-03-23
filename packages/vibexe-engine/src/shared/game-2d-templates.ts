@@ -1665,10 +1665,8 @@ export function drawAtmosphericFog(worldW: number, groundY: number, theme: strin
       g.ellipse(x, fogY + (Math.random() - 0.5) * 30, fw, fh);
       g.fill({ color: fogColor, alpha: fogAlpha });
     }
-    // Apply blur for soft edges
-    if (PIXI.BlurFilter) {
-      try { g.filters = [new PIXI.BlurFilter({ strength: 10 + i * 5 })]; } catch(e) {}
-    }
+    // Soft edges via low alpha (no BlurFilter — saves ~1.5ms GPU per layer)
+    g.alpha = 0.6 - i * 0.12;
     layers.push(g);
   }
   return layers;
@@ -1940,15 +1938,7 @@ export function createLightingLayer(theme: string, worldW: number, groundY: numb
     layer.addChild(amb);
   }
 
-  // AdvancedBloomFilter on light layer for glow bleed
-  if (PIXI.filters && PIXI.filters.AdvancedBloomFilter) {
-    try {
-      layer.filters = [new PIXI.filters.AdvancedBloomFilter({
-        threshold: 0.3, bloomScale: 0.6, brightness: 1.0, blur: 6, quality: 4,
-      })];
-    } catch(e) {}
-  }
-
+  // Additive blendMode is sufficient for glow — no AdvancedBloomFilter (saves ~1ms GPU)
   return layer;
 }
 
@@ -2321,7 +2311,7 @@ export default function Game2D({ onReady }: { onReady?: (engine: any) => void })
 export const GAME_2D_SCENE_STARTER = `import { Engine2D, GameScene, createGame2D, loadAssets, JuiceSystem } from "../engine/core";
 import { createBody, createStaticBody, createOneWayPlatform, PhysicsWorld, CharacterController } from "../engine/physics";
 import { createAmbientEffect, createSnowEffect, createRainEffect, getThemeEffects, onJumpDust, onLandImpact, onCollectSparkle, onDeathExplosion } from "../engine/effects";
-import { PALETTES, lerpColor, setNoiseSeed, drawSkyGradient, drawStars, drawMountainRange, drawCloud, drawTree, drawGroundStrip, drawPlatformBlock, drawPlayerCharacter, drawCoinToken, drawEnemySlime, drawHeart, applyBiomePostProcessing, drawVignette, drawAtmosphericFog, drawLSystemTree, TREE_PRESETS, drawPointLight, createLightingLayer, createWaterSurface, createLavaSurface, applyGodrayFilter } from "../config/assets";
+import { PALETTES, lerpColor, setNoiseSeed, drawSkyGradient, drawStars, drawMountainRange, drawCloud, drawTree, drawGroundStrip, drawPlatformBlock, drawPlayerCharacter, drawCoinToken, drawEnemySlime, drawHeart, applyBiomePostProcessing, drawVignette, drawAtmosphericFog, drawLSystemTree, TREE_PRESETS, drawPointLight, createLightingLayer, createWaterSurface, createLavaSurface } from "../config/assets";
 import { _loadSpriteLib, _sheetCache } from "../utils/media-stock";
 
 const PIXI = (window as any).PIXI;
@@ -2695,8 +2685,6 @@ export class GameScene2D implements GameScene {
   private treeSway: any[] = [];
   private waterSurface: any = null;
   private lavaSurface: any = null;
-  private godrayFilter: any = null;
-  private _displacementSprite: any = null;
   private invincibleTimer = 0;
   private shakeTimer = 0;
   private shakeIntensity = 0;
@@ -2786,7 +2774,14 @@ export class GameScene2D implements GameScene {
       this.decorTrees.push(dec);
     }
 
-    // ---- 5b. L-SYSTEM TREES (theme-driven presets) ----
+    // ---- 6. GROUND (drawn before trees so trees appear in front) ----
+    var floorH = WH - CONFIG.groundY;
+    var ground = drawGroundStrip(WW, CONFIG.groundY, floorH, PAL.ground, PAL.groundTop, THEME);
+    this.container.addChild(ground);
+    var groundBody = createStaticBody(WW / 2, CONFIG.groundY + 4, WW, 8);
+    this.physics.addBody(groundBody);
+
+    // ---- 6b. L-SYSTEM TREES (drawn after ground so they're visible) ----
     var treePresetList = TREE_PRESETS[THEME] || [];
     if (treePresetList.length > 0) {
       var treeCount = _rngInt(4, 8);
@@ -2801,7 +2796,7 @@ export class GameScene2D implements GameScene {
       }
     }
 
-    // ---- 5c. GROUND DETAILS (theme-specific texture) ----
+    // ---- 6c. GROUND DETAILS (theme-specific texture) ----
     var groundDetailCount = _rngInt(12, 24);
     var gdSpacing = CONFIG.worldWidth / groundDetailCount;
     for (var gdi = 0; gdi < groundDetailCount; gdi++) {
@@ -2809,13 +2804,6 @@ export class GameScene2D implements GameScene {
       var gd = _drawGroundDetail(gdx, CONFIG.groundY);
       this.container.addChild(gd);
     }
-
-    // ---- 6. GROUND ----
-    var floorH = WH - CONFIG.groundY;
-    var ground = drawGroundStrip(WW, CONFIG.groundY, floorH, PAL.ground, PAL.groundTop, THEME);
-    this.container.addChild(ground);
-    var groundBody = createStaticBody(WW / 2, CONFIG.groundY + 4, WW, 8);
-    this.physics.addBody(groundBody);
 
     // ---- 7. PLATFORMS (PRNG layout based on levelShape) ----
     var platforms = _generatePlatforms();
@@ -2987,40 +2975,31 @@ export class GameScene2D implements GameScene {
     }
     engine.juice.breathe(this.playerGfx, 1.03, 1.2);
 
+    // Per-object filters: only player shadow (coins use built-in glow circle, no filter)
     var _PIXI = (window as any).PIXI;
-    if (_PIXI.filters && _PIXI.filters.GlowFilter) {
-      for (var fi = 0; fi < this.coins.length; fi++) {
-        if (this.coins[fi].gfx && !this.coins[fi].gfx.filters) {
-          this.coins[fi].gfx.filters = [new _PIXI.filters.GlowFilter({
-            distance: 12, outerStrength: 2.5, innerStrength: 0.4, color: PAL.coinGlow,
-          })];
-        }
-      }
-    }
     if (_PIXI.filters && _PIXI.filters.DropShadowFilter && !this.playerGfx.filters) {
       this.playerGfx.filters = [new _PIXI.filters.DropShadowFilter({
         offset: { x: 3, y: 5 }, blur: 5, alpha: 0.5, color: 0x000000,
       })];
     }
 
-    // ---- 15b. DYNAMIC WATER/LAVA SURFACE ----
+    // ---- 15b. DYNAMIC WATER/LAVA SURFACE (above ground so visible) ----
     try {
       if (THEME === 'ocean') {
-        var waterY2 = CONFIG.groundY + 20;
+        var waterY2 = CONFIG.groundY - 15;
         var waterH2 = CONFIG.worldHeight - waterY2;
         this.waterSurface = createWaterSurface(WW, waterY2, waterH2, 0x1a5276);
         this.container.addChild(this.waterSurface.container);
       } else if (THEME === 'forest') {
-        // Small pond — partial width, offset position
         var pondX = _rngRange(WW * 0.3, WW * 0.6);
         var pondW = _rngRange(300, 600);
-        var pondY = CONFIG.groundY + 10;
+        var pondY = CONFIG.groundY - 5;
         var pondH = CONFIG.worldHeight - pondY;
         this.waterSurface = createWaterSurface(pondW, pondY, pondH, 0x2d6a4f);
         this.waterSurface.container.x = pondX;
         this.container.addChild(this.waterSurface.container);
       } else if (THEME === 'volcanic') {
-        var lavaY2 = CONFIG.groundY + 30;
+        var lavaY2 = CONFIG.groundY - 10;
         var lavaH2 = CONFIG.worldHeight - lavaY2;
         this.lavaSurface = createLavaSurface(WW, lavaY2, lavaH2);
         this.container.addChild(this.lavaSurface.container);
@@ -3036,35 +3015,6 @@ export class GameScene2D implements GameScene {
 
     // ---- 17. POST-PROCESSING (biome color grading on world) ----
     try { applyBiomePostProcessing(THEME, this.container); } catch(e) {}
-
-    // ---- 17b. GODRAY FILTER (forest/sunset only) ----
-    try { this.godrayFilter = applyGodrayFilter(this.container, THEME); } catch(e) {}
-
-    // ---- 17c. DISPLACEMENT FILTER (volcanic heat shimmer) ----
-    if (THEME === 'volcanic' && PIXI.DisplacementFilter) {
-      try {
-        // Generate noise texture from canvas
-        var noiseCanvas = document.createElement('canvas');
-        noiseCanvas.width = 128; noiseCanvas.height = 128;
-        var nctx = noiseCanvas.getContext('2d');
-        if (nctx) {
-          var nid = nctx.createImageData(128, 128);
-          for (var ni = 0; ni < nid.data.length; ni += 4) {
-            var nv = Math.floor(Math.random() * 255);
-            nid.data[ni] = nv; nid.data[ni+1] = nv; nid.data[ni+2] = nv; nid.data[ni+3] = 255;
-          }
-          nctx.putImageData(nid, 0, 0);
-          var noiseTex = PIXI.Texture.from(noiseCanvas);
-          this._displacementSprite = new PIXI.Sprite(noiseTex);
-          this._displacementSprite.texture.source.wrapMode = 'repeat';
-          this._displacementSprite.width = W; this._displacementSprite.height = H;
-          this.container.addChild(this._displacementSprite);
-          var dispFilter = new PIXI.DisplacementFilter({ sprite: this._displacementSprite, scale: { x: 6, y: 8 } });
-          var existF = this.container.filters || [];
-          this.container.filters = existF.concat([dispFilter]);
-        }
-      } catch(e) {}
-    }
 
     // ---- 18. VIGNETTE (on UI layer, fixed position) ----
     try {
@@ -3229,15 +3179,6 @@ export class GameScene2D implements GameScene {
     // ---- Animate water/lava surfaces ----
     if (this.waterSurface) { try { this.waterSurface.update(engine.elapsed); } catch(e) {} }
     if (this.lavaSurface) { try { this.lavaSurface.update(engine.elapsed); } catch(e) {} }
-
-    // ---- Animate godray filter ----
-    if (this.godrayFilter) { this.godrayFilter.time += dt * 0.4; }
-
-    // ---- Displacement shimmer (volcanic) ----
-    if (this._displacementSprite) {
-      this._displacementSprite.y -= dt * 25;
-      this._displacementSprite.x += dt * 8;
-    }
 
     engine.input.endFrame();
   }
