@@ -1623,7 +1623,10 @@ An App Store listing has been analyzed and injected into the project context abo
 			tools,
 			stopWhen: stepCountIs(maxSteps),
 			toolChoice: "auto",
-			...(isGame2d ? { temperature: 0.7 } : {}),
+			// Kimi K2.5: tool calling needs low temperature (0.0-0.3) for deterministic
+			// file operations. Higher values cause hallucinated files (e.g. GameScene3D.ts
+			// instead of updating GameScene2D.ts). Seed variety comes from CreativeBrief, not temperature.
+			...(isGame2d ? { temperature: 0.2 } : {}),
 			onError: ({ error }) => {
 				generationError = error;
 				const errMsg = error instanceof Error ? error.message : String(error);
