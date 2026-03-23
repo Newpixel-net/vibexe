@@ -1957,6 +1957,13 @@ export function createWaterSurface(worldW: number, waterY: number, waterH: numbe
   var g = new PIXI.Graphics();
   container.addChild(g);
 
+  // Cache gradient and colors ONCE — never allocate per frame
+  var cachedGrad = hasFillGradient() ? makeLinearGradient(waterColor, darken(waterColor, 40), waterH) : null;
+  var fallbackFill = { color: waterColor, alpha: 0.7 };
+  var highlightColor = lighten(waterColor, 50);
+  var highlightStroke = { color: highlightColor, alpha: 0.3, width: 2 };
+  var sparkleFill = { color: 0xffffff, alpha: 0.5 };
+
   function waveHeight(x: number, time: number): number {
     return Math.sin(x * 0.02 + time * 1.5) * 4
          + Math.sin(x * 0.035 + time * 2.3) * 2.5
@@ -1974,26 +1981,22 @@ export function createWaterSurface(worldW: number, waterY: number, waterH: numbe
     g.lineTo(worldW, waterY + waterH);
     g.lineTo(0, waterY + waterH);
     g.closePath();
-    if (hasFillGradient()) {
-      var wGrad = makeLinearGradient(waterColor, darken(waterColor, 40), waterH);
-      g.fill(wGrad);
-    } else {
-      g.fill({ color: waterColor, alpha: 0.7 });
-    }
+    g.fill(cachedGrad || fallbackFill);
 
     // Surface highlight line
     g.moveTo(0, waterY + waveHeight(0, time) - 1);
     for (var x2 = step; x2 <= worldW; x2 += step) {
       g.lineTo(x2, waterY + waveHeight(x2, time) - 1);
     }
-    g.stroke({ color: lighten(waterColor, 50), alpha: 0.3, width: 2 });
+    g.stroke(highlightStroke);
 
     // Specular sparkles
     for (var sx = 0; sx < worldW; sx += 50 + Math.random() * 70) {
       var sparkleAlpha = Math.max(0, Math.sin(time * 3 + sx * 0.1)) * 0.5;
       if (sparkleAlpha > 0.1) {
         g.circle(sx, waterY + waveHeight(sx, time) - 2, 1.5);
-        g.fill({ color: 0xffffff, alpha: sparkleAlpha });
+        sparkleFill.alpha = sparkleAlpha;
+        g.fill(sparkleFill);
       }
     }
   }
@@ -2007,6 +2010,12 @@ export function createLavaSurface(worldW: number, lavaY: number, lavaH: number):
   var container = new PIXI.Container();
   var g = new PIXI.Graphics();
   container.addChild(g);
+
+  // Cache gradient and style objects ONCE — never allocate per frame
+  var cachedGrad = hasFillGradient() ? makeLinearGradient(0xcc2200, 0x660000, lavaH) : null;
+  var glowStroke = { color: 0xff8800, alpha: 0.35, width: 2 };
+  var crackStroke = { color: 0xff6600, alpha: 0.4, width: 2 };
+  var bubbleFill = { color: 0xff4400, alpha: 0.35 };
 
   function lavaWave(x: number, time: number): number {
     return Math.sin(x * 0.015 + time * 0.5) * 6
@@ -2025,12 +2034,7 @@ export function createLavaSurface(worldW: number, lavaY: number, lavaH: number):
     g.lineTo(worldW, lavaY + lavaH);
     g.lineTo(0, lavaY + lavaH);
     g.closePath();
-    if (hasFillGradient()) {
-      var lGrad = makeLinearGradient(0xcc2200, 0x660000, lavaH);
-      g.fill(lGrad);
-    } else {
-      g.fill(0x880000);
-    }
+    g.fill(cachedGrad || 0x880000);
 
     // Bright crust cracks
     for (var cx = 0; cx < worldW; cx += 30 + noise1D(cx * 0.05 + time * 0.3) * 50) {
@@ -2038,7 +2042,8 @@ export function createLavaSurface(worldW: number, lavaY: number, lavaH: number):
       g.moveTo(cx, crackY);
       g.lineTo(cx + 10 + noise1D(cx * 0.1) * 15, crackY + 2);
       g.lineTo(cx + 22 + noise1D(cx * 0.07) * 12, crackY - 1);
-      g.stroke({ color: 0xff6600, alpha: 0.4 + noise1D(cx * 0.02 + time * 0.5) * 0.4, width: 2 });
+      crackStroke.alpha = 0.4 + noise1D(cx * 0.02 + time * 0.5) * 0.4;
+      g.stroke(crackStroke);
     }
 
     // Animated bubbles
@@ -2048,7 +2053,8 @@ export function createLavaSurface(worldW: number, lavaY: number, lavaH: number):
         var br = bubblePhase * 18;
         var by = lavaY + lavaWave(bx, time) + 5 - bubblePhase * 12;
         g.circle(bx, by, br);
-        g.fill({ color: 0xff4400, alpha: 0.35 * (1 - bubblePhase / 0.25) });
+        bubbleFill.alpha = 0.35 * (1 - bubblePhase / 0.25);
+        g.fill(bubbleFill);
       }
     }
 
@@ -2057,7 +2063,7 @@ export function createLavaSurface(worldW: number, lavaY: number, lavaH: number):
     for (var x3 = step; x3 <= worldW; x3 += step) {
       g.lineTo(x3, lavaY + lavaWave(x3, time) - 1);
     }
-    g.stroke({ color: 0xff8800, alpha: 0.35, width: 2 });
+    g.stroke(glowStroke);
   }
 
   return { container: container, update: updateLava };
@@ -3505,6 +3511,10 @@ export class GameScene2D implements GameScene {
           }
           writeRow--;
         }
+      }
+      // Destroy invisible gems to prevent memory leak
+      for (var dr = writeRow; dr >= 0; dr--) {
+        if (this.grid[dr][c] && this.grid[dr][c].gfx) { this.grid[dr][c].gfx.destroy(); }
       }
       // Fill empty top rows
       for (var nr = writeRow; nr >= 0; nr--) {
