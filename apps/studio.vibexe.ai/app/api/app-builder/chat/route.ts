@@ -888,6 +888,9 @@ const supabase = createClient("${supabaseConfig.url}", "${supabaseConfig.anonKey
 			console.log(`[Chat API] 2D seed=${effectiveSeed}, genre=${subGenre}, theme=${game2dBrief.theme}, difficulty=${game2dBrief.difficultyProfile}`);
 		}
 
+		// Declare at outer scope so 2D addenda can reference sprites after the game block closes
+		let generatedSprites: Record<string, string> = {};
+
 		if (isGameProject || isGame2d || isGame3d) {
 			const existingPaths = new Set(existingFiles.map((f) => f.path));
 			// Use 3D templates for 3D games, 2D templates for 2D games
@@ -966,7 +969,6 @@ const supabase = createClient("${supabaseConfig.url}", "${supabaseConfig.anonKey
 			// ── HF Sprite Generation (FREE via Hugging Face Inference API) ───
 			// Generate 2D game sprites from the seed's creative brief using
 			// Flux-2D-Game-Assets-LoRA. Non-fatal: skips if HF_TOKEN not set.
-			let generatedSprites: Record<string, string> = {};
 			if (isGame2d && game2dBrief && process.env.HF_TOKEN) {
 				try {
 					const { generateSpritesBatch } = await import("@/lib/hf-sprite-batch");
