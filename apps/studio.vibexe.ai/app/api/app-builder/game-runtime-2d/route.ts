@@ -52,10 +52,9 @@ canvas{display:block;width:100%;height:100%}
   }
 
   window.PIXI = PIXI;
-  // Proton CDN exports an ES module object — normalize to the constructor
-  // so `new Proton()` works (template code expects Proton to be a constructor)
+  // Proton CDN exports an ES module object, normalize to the actual constructor
   var _ProtonCtor = (typeof Proton === 'function') ? Proton : (Proton.default || Proton);
-  // Merge all static members onto the constructor so Proton.Emitter, Proton.Rate etc. work
+  // Merge static members onto the constructor (Emitter, Rate, etc.)
   if (_ProtonCtor !== Proton) {
     for (var _pk in Proton) {
       if (Proton.hasOwnProperty(_pk) && _pk !== 'default') {
