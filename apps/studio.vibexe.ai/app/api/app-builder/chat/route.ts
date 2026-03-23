@@ -603,6 +603,25 @@ If any issues need fixing, end with exactly: '---\\n*Click **Fix Issues** below 
 		// Run orchestration engine (skipped for display-only data when pinned agent is set)
 		const plan = executeOrchestration(userPrompt, ALL_FLOWS, enrichedFileContext);
 
+		// Force 2D game developer agent when prompt contains 2D game keywords
+		// Must happen HERE (before developerAgent/primaryAgent) because isGameProject
+		// depends on app.projectType from DB which isn't set on the first message.
+		if (!pinnedAgent && (plan.intent.suggestedFlow === "game" || app.projectType === "game")) {
+			const prompt2dCheck = userPrompt.toLowerCase();
+			const has2dKeyword = ["2d game", "2d platformer", "side scroller", "side-scroller",
+				"sidescroller", "pixel game", "sprite game", "2d shooter", "2d puzzle",
+				"match-3", "match 3", "runner game", "endless runner", "2d adventure",
+				"retro game", "arcade game", "2d rpg", "flappy", "breakout", "pong",
+				"tetris", "snake game", "platformer game", "jumping game"].some(kw => prompt2dCheck.includes(kw));
+			if (has2dKeyword) {
+				const agent2d = getAgent("game-2d-developer");
+				if (agent2d) {
+					pinnedAgent = agent2d;
+					console.log(`[Chat API] Forcing game-2d-developer agent for 2D game (early detection)`);
+				}
+			}
+		}
+
 		// Find the developer agent (the one that actually writes files)
 		const developerAgent = pinnedAgent || plan.agents.find((a) => !a.readOnly);
 
