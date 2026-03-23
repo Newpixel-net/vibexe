@@ -1548,6 +1548,436 @@ export function drawShipShape(size: number, color: number, lightColor: number): 
   }
   return container;
 }
+
+// ============================================================================
+// POST-PROCESSING & ATMOSPHERE
+// ============================================================================
+
+/** Per-biome color grading applied to the world container via ColorMatrixFilter */
+export function applyBiomePostProcessing(theme: string, worldContainer: any): any {
+  if (!PIXI.ColorMatrixFilter) return null;
+  var cm = new PIXI.ColorMatrixFilter();
+  switch (theme) {
+    case 'forest':
+      cm.saturate(0.15, false);
+      cm.contrast(0.05, true);
+      cm.brightness(1.02, true);
+      break;
+    case 'sunset':
+      cm.kodachrome(false);
+      cm.brightness(1.04, true);
+      break;
+    case 'space':
+      cm.night(0.12, false);
+      cm.contrast(0.12, true);
+      cm.saturate(0.15, true);
+      break;
+    case 'volcanic':
+      cm.saturate(0.25, false);
+      cm.contrast(0.12, true);
+      cm.brightness(0.96, true);
+      break;
+    case 'candy':
+      cm.saturate(0.2, false);
+      cm.brightness(1.06, true);
+      break;
+    case 'arctic':
+      cm.contrast(0.08, false);
+      cm.brightness(1.04, true);
+      cm.saturate(-0.1, true);
+      break;
+    case 'dark':
+      cm.brightness(0.72, false);
+      cm.contrast(0.18, true);
+      cm.saturate(-0.15, true);
+      break;
+    case 'ocean':
+      cm.saturate(0.1, false);
+      cm.contrast(0.06, true);
+      break;
+  }
+  var existing = worldContainer.filters || [];
+  worldContainer.filters = existing.concat([cm]);
+  return cm;
+}
+
+/** Vignette overlay — darkens edges, cinematic framing. Add to UI layer (fixed position). */
+export function drawVignette(w: number, h: number): any {
+  var g = new PIXI.Graphics();
+  if (hasFillGradient()) {
+    var grad = new PIXI.FillGradient({
+      type: 'radial',
+      center: { x: 0.5, y: 0.5 },
+      innerRadius: 0.25,
+      outerCenter: { x: 0.5, y: 0.5 },
+      outerRadius: 0.7,
+      colorStops: [
+        { offset: 0, color: 'rgba(0,0,0,0)' },
+        { offset: 0.6, color: 'rgba(0,0,0,0)' },
+        { offset: 1, color: 'rgba(0,0,0,0.35)' },
+      ],
+    });
+    g.rect(0, 0, w, h);
+    g.fill(grad);
+  } else {
+    // Fallback: 4 gradient edge strips
+    g.rect(0, 0, w, h);
+    g.fill({ color: 0x000000, alpha: 0 });
+    // Top edge
+    g.rect(0, 0, w, h * 0.12);
+    g.fill({ color: 0x000000, alpha: 0.18 });
+    // Bottom edge
+    g.rect(0, h * 0.88, w, h * 0.12);
+    g.fill({ color: 0x000000, alpha: 0.22 });
+    // Left edge
+    g.rect(0, 0, w * 0.08, h);
+    g.fill({ color: 0x000000, alpha: 0.12 });
+    // Right edge
+    g.rect(w * 0.92, 0, w * 0.08, h);
+    g.fill({ color: 0x000000, alpha: 0.12 });
+  }
+  return g;
+}
+
+/** Atmospheric fog layers — blurred semi-transparent ellipses at different depths.
+ *  Returns array of containers for parallax scrolling in update(). */
+export function drawAtmosphericFog(worldW: number, groundY: number, theme: string): any[] {
+  var layers: any[] = [];
+  var fogColors: Record<string, number> = {
+    forest: 0x88aa66, sunset: 0xdd9955, space: 0x222244, volcanic: 0x553322,
+    candy: 0xffaacc, arctic: 0xbbccdd, dark: 0x221133, ocean: 0x446688,
+  };
+  var fogColor = fogColors[theme] || 0x888888;
+  var layerCount = 3;
+  for (var i = 0; i < layerCount; i++) {
+    var g = new PIXI.Graphics();
+    var depth = (i + 1) / layerCount;
+    var fogY = groundY * (0.55 + depth * 0.35);
+    var fogAlpha = 0.04 + depth * 0.06;
+    // Draw overlapping ellipses for soft cloud-like fog
+    for (var x = -200; x < worldW + 200; x += 60 + Math.random() * 80) {
+      var fw = 120 + Math.random() * 220;
+      var fh = 18 + Math.random() * 35;
+      g.ellipse(x, fogY + (Math.random() - 0.5) * 30, fw, fh);
+      g.fill({ color: fogColor, alpha: fogAlpha });
+    }
+    // Apply blur for soft edges
+    if (PIXI.BlurFilter) {
+      try { g.filters = [new PIXI.BlurFilter({ strength: 10 + i * 5 })]; } catch(e) {}
+    }
+    layers.push(g);
+  }
+  return layers;
+}
+
+/** L-system procedural tree — generates unique trees from simple rules.
+ *  Presets: oak, pine, palm, dead, willow, candy.
+ *  Uses seeded RNG for reproducible variety. Cache result via generateTexture(). */
+export function drawLSystemTree(x: number, y: number, preset: string, theme: string, seed: number): any {
+  var container = new PIXI.Container();
+  var g = new PIXI.Graphics();
+  var pal = PALETTES[theme] || PALETTES.forest;
+  var trunkColor = pal.foliage ? darken(pal.foliage, 40) : 0x5a3a1a;
+  var leafColor = pal.foliage || 0x44aa44;
+  var leafLight = pal.foliageLight || lighten(leafColor, 20);
+
+  // Simple seeded RNG local to this tree
+  var ts = seed;
+  function tr() { ts = (ts * 16807 + 0) % 2147483647; return (ts & 0x7fffffff) / 2147483647; }
+
+  var PRESETS: Record<string, { axiom: string; rule: string; angle: number; gen: number; lenScale: number; thickScale: number }> = {
+    oak:    { axiom: 'F', rule: 'FF+[+F-F-F]-[-F+F+F]', angle: 25, gen: 3, lenScale: 0.68, thickScale: 0.6 },
+    pine:   { axiom: 'F', rule: 'F[+F][-F]F', angle: 22, gen: 4, lenScale: 0.72, thickScale: 0.55 },
+    palm:   { axiom: 'F', rule: 'F[+F]', angle: 38, gen: 3, lenScale: 0.65, thickScale: 0.5 },
+    dead:   { axiom: 'F', rule: 'F[-F]F[+F]', angle: 28, gen: 3, lenScale: 0.7, thickScale: 0.6 },
+    willow: { axiom: 'F', rule: 'FF-[-F+F+F]+[+F-F-F]', angle: 20, gen: 3, lenScale: 0.72, thickScale: 0.58 },
+    candy:  { axiom: 'F', rule: 'F[+F][-F]', angle: 30, gen: 3, lenScale: 0.6, thickScale: 0.55 },
+  };
+  var p = PRESETS[preset] || PRESETS.oak;
+
+  // Expand L-system string
+  var str = p.axiom;
+  for (var gen = 0; gen < p.gen; gen++) {
+    var next = '';
+    for (var ci = 0; ci < str.length; ci++) {
+      next += str[ci] === 'F' ? p.rule : str[ci];
+    }
+    str = next;
+  }
+
+  // Turtle graphics interpretation
+  var stack: { cx: number; cy: number; ca: number; len: number; thick: number }[] = [];
+  var cx = 0, cy = 0, ca = -90; // start pointing up
+  var len = 18 + tr() * 8; // base segment length
+  var thick = 5 + tr() * 2;
+  var leaves: { x: number; y: number; r: number }[] = [];
+
+  for (var si = 0; si < str.length; si++) {
+    var ch = str[si];
+    if (ch === 'F') {
+      var nx = cx + Math.cos(ca * Math.PI / 180) * len;
+      var ny = cy + Math.sin(ca * Math.PI / 180) * len;
+      g.moveTo(cx, cy);
+      g.lineTo(nx, ny);
+      g.stroke({ color: thick > 2 ? trunkColor : lighten(trunkColor, 15), width: Math.max(thick, 1), alpha: 0.9 });
+      cx = nx;
+      cy = ny;
+    } else if (ch === '+') {
+      ca += p.angle + (tr() - 0.5) * 12;
+    } else if (ch === '-') {
+      ca -= p.angle + (tr() - 0.5) * 12;
+    } else if (ch === '[') {
+      stack.push({ cx: cx, cy: cy, ca: ca, len: len, thick: thick });
+      len *= p.lenScale;
+      thick *= p.thickScale;
+    } else if (ch === ']') {
+      // Add leaf at branch tip
+      if (preset !== 'dead') {
+        leaves.push({ x: cx, y: cy, r: 4 + tr() * 6 });
+      }
+      var s = stack.pop();
+      if (s) { cx = s.cx; cy = s.cy; ca = s.ca; len = s.len; thick = s.thick; }
+    }
+  }
+
+  // Draw leaves
+  if (preset === 'candy') {
+    // Candy: colorful circles
+    var candyColors = [0xff6699, 0x66ccff, 0xffcc33, 0x66ff99, 0xff66ff, 0xffaacc];
+    for (var li = 0; li < leaves.length; li++) {
+      var lf = leaves[li];
+      g.circle(lf.x, lf.y, lf.r * 1.2);
+      g.fill({ color: candyColors[li % candyColors.length], alpha: 0.8 });
+    }
+  } else {
+    for (var li2 = 0; li2 < leaves.length; li2++) {
+      var lf2 = leaves[li2];
+      g.circle(lf2.x, lf2.y, lf2.r);
+      g.fill({ color: lerpColor(leafColor, leafLight, tr()), alpha: 0.65 + tr() * 0.3 });
+    }
+  }
+
+  container.addChild(g);
+  container.x = x;
+  container.y = y;
+  container.pivot.set(0, 0); // anchor at base
+  return container;
+}
+
+/** Theme-to-tree-preset mapping */
+export var TREE_PRESETS: Record<string, string[]> = {
+  forest: ['oak', 'oak'],
+  sunset: ['oak', 'willow'],
+  space: [],
+  volcanic: ['dead'],
+  candy: ['candy', 'candy'],
+  arctic: ['pine', 'dead'],
+  dark: ['willow', 'dead'],
+  ocean: ['palm', 'palm'],
+};
+
+/** Draw a point light — radial gradient circle with additive blending */
+export function drawPointLight(x: number, y: number, radius: number, color: number, intensity: number): any {
+  var g = new PIXI.Graphics();
+  if (hasFillGradient()) {
+    var r = ((color >> 16) & 0xff), gn = ((color >> 8) & 0xff), b = (color & 0xff);
+    var centerCSS = 'rgba(' + r + ',' + gn + ',' + b + ',' + (intensity * 0.6) + ')';
+    var edgeCSS = 'rgba(' + r + ',' + gn + ',' + b + ',0)';
+    var grad = new PIXI.FillGradient({
+      type: 'radial',
+      center: { x: 0.5, y: 0.5 },
+      innerRadius: 0,
+      outerCenter: { x: 0.5, y: 0.5 },
+      outerRadius: 0.5,
+      colorStops: [
+        { offset: 0, color: centerCSS },
+        { offset: 0.4, color: centerCSS },
+        { offset: 1, color: edgeCSS },
+      ],
+    });
+    g.circle(0, 0, radius);
+    g.fill(grad);
+  } else {
+    g.circle(0, 0, radius);
+    g.fill({ color: color, alpha: intensity * 0.3 });
+    g.circle(0, 0, radius * 0.5);
+    g.fill({ color: color, alpha: intensity * 0.15 });
+  }
+  g.x = x;
+  g.y = y;
+  g.blendMode = 'add';
+  return g;
+}
+
+/** Create a lighting layer with theme-specific light sources.
+ *  Places radial additive lights at decoration positions and ambient spots. */
+export function createLightingLayer(theme: string, worldW: number, groundY: number, decorPositions: { x: number; y: number }[]): any {
+  var layer = new PIXI.Container();
+  layer.blendMode = 'add';
+  var lightDefs: Record<string, { color: number; radius: number; intensity: number; ambientColor: number; ambientR: number }> = {
+    forest:   { color: 0xffdd66, radius: 80, intensity: 0.4, ambientColor: 0x88aa44, ambientR: 200 },
+    sunset:   { color: 0xff8833, radius: 90, intensity: 0.35, ambientColor: 0xff6622, ambientR: 250 },
+    space:    { color: 0x4488ff, radius: 70, intensity: 0.5, ambientColor: 0x3366cc, ambientR: 180 },
+    volcanic: { color: 0xff4400, radius: 85, intensity: 0.6, ambientColor: 0xff2200, ambientR: 200 },
+    candy:    { color: 0xff88cc, radius: 70, intensity: 0.35, ambientColor: 0xffaaee, ambientR: 160 },
+    arctic:   { color: 0x88ccff, radius: 75, intensity: 0.3, ambientColor: 0x66aadd, ambientR: 200 },
+    dark:     { color: 0x8844cc, radius: 90, intensity: 0.55, ambientColor: 0x6633aa, ambientR: 220 },
+    ocean:    { color: 0x44ddaa, radius: 65, intensity: 0.4, ambientColor: 0x2288aa, ambientR: 180 },
+  };
+  var ld = lightDefs[theme] || lightDefs.forest;
+
+  // Lights at decoration positions
+  for (var i = 0; i < decorPositions.length; i++) {
+    var dp = decorPositions[i];
+    var light = drawPointLight(dp.x, dp.y - 20, ld.radius, ld.color, ld.intensity * (0.6 + Math.random() * 0.4));
+    layer.addChild(light);
+  }
+
+  // Ambient glow zones along the ground
+  var ambientCount = Math.floor(worldW / 600);
+  for (var a = 0; a < ambientCount; a++) {
+    var ax = (a + 0.5) * (worldW / ambientCount) + (Math.random() - 0.5) * 200;
+    var amb = drawPointLight(ax, groundY - 40, ld.ambientR, ld.ambientColor, ld.intensity * 0.3);
+    layer.addChild(amb);
+  }
+
+  return layer;
+}
+
+// ============================================================================
+// DYNAMIC WATER & LAVA SURFACES
+// ============================================================================
+
+/** Animated water surface — multi-sine waves redrawn each frame.
+ *  Returns { container, gfx, update(time) } — call update() every frame. */
+export function createWaterSurface(worldW: number, waterY: number, waterH: number, waterColor: number): any {
+  var container = new PIXI.Container();
+  var g = new PIXI.Graphics();
+  container.addChild(g);
+
+  function waveHeight(x: number, time: number): number {
+    return Math.sin(x * 0.02 + time * 1.5) * 4
+         + Math.sin(x * 0.035 + time * 2.3) * 2.5
+         + Math.sin(x * 0.008 + time * 0.7) * 8;
+  }
+
+  function updateWater(time: number) {
+    g.clear();
+    var step = 6;
+    // Water body
+    g.moveTo(0, waterY + waveHeight(0, time));
+    for (var x = step; x <= worldW; x += step) {
+      g.lineTo(x, waterY + waveHeight(x, time));
+    }
+    g.lineTo(worldW, waterY + waterH);
+    g.lineTo(0, waterY + waterH);
+    g.closePath();
+    if (hasFillGradient()) {
+      var wGrad = makeLinearGradient(waterColor, darken(waterColor, 40), waterH);
+      g.fill(wGrad);
+    } else {
+      g.fill({ color: waterColor, alpha: 0.7 });
+    }
+
+    // Surface highlight line
+    g.moveTo(0, waterY + waveHeight(0, time) - 1);
+    for (var x2 = step; x2 <= worldW; x2 += step) {
+      g.lineTo(x2, waterY + waveHeight(x2, time) - 1);
+    }
+    g.stroke({ color: lighten(waterColor, 50), alpha: 0.3, width: 2 });
+
+    // Specular sparkles
+    for (var sx = 0; sx < worldW; sx += 50 + Math.random() * 70) {
+      var sparkleAlpha = Math.max(0, Math.sin(time * 3 + sx * 0.1)) * 0.5;
+      if (sparkleAlpha > 0.1) {
+        g.circle(sx, waterY + waveHeight(sx, time) - 2, 1.5);
+        g.fill({ color: 0xffffff, alpha: sparkleAlpha });
+      }
+    }
+  }
+
+  return { container: container, update: updateWater };
+}
+
+/** Animated lava surface — slow undulating waves with noise-driven cracks and bubbles.
+ *  Returns { container, update(time) } */
+export function createLavaSurface(worldW: number, lavaY: number, lavaH: number): any {
+  var container = new PIXI.Container();
+  var g = new PIXI.Graphics();
+  container.addChild(g);
+
+  function lavaWave(x: number, time: number): number {
+    return Math.sin(x * 0.015 + time * 0.5) * 6
+         + Math.sin(x * 0.04 + time * 0.8) * 3;
+  }
+
+  function updateLava(time: number) {
+    g.clear();
+    var step = 6;
+
+    // Lava body
+    g.moveTo(0, lavaY + lavaWave(0, time));
+    for (var x = step; x <= worldW; x += step) {
+      g.lineTo(x, lavaY + lavaWave(x, time));
+    }
+    g.lineTo(worldW, lavaY + lavaH);
+    g.lineTo(0, lavaY + lavaH);
+    g.closePath();
+    if (hasFillGradient()) {
+      var lGrad = makeLinearGradient(0xcc2200, 0x660000, lavaH);
+      g.fill(lGrad);
+    } else {
+      g.fill(0x880000);
+    }
+
+    // Bright crust cracks
+    for (var cx = 0; cx < worldW; cx += 30 + noise1D(cx * 0.05 + time * 0.3) * 50) {
+      var crackY = lavaY + lavaWave(cx, time) + 3;
+      g.moveTo(cx, crackY);
+      g.lineTo(cx + 10 + noise1D(cx * 0.1) * 15, crackY + 2);
+      g.lineTo(cx + 22 + noise1D(cx * 0.07) * 12, crackY - 1);
+      g.stroke({ color: 0xff6600, alpha: 0.4 + noise1D(cx * 0.02 + time * 0.5) * 0.4, width: 2 });
+    }
+
+    // Animated bubbles
+    for (var bx = 0; bx < worldW; bx += 60 + noise1D(bx * 0.03) * 90) {
+      var bubblePhase = (time * 0.4 + noise1D(bx * 0.1)) % 1;
+      if (bubblePhase < 0.25) {
+        var br = bubblePhase * 18;
+        var by = lavaY + lavaWave(bx, time) + 5 - bubblePhase * 12;
+        g.circle(bx, by, br);
+        g.fill({ color: 0xff4400, alpha: 0.35 * (1 - bubblePhase / 0.25) });
+      }
+    }
+
+    // Surface glow line
+    g.moveTo(0, lavaY + lavaWave(0, time) - 1);
+    for (var x3 = step; x3 <= worldW; x3 += step) {
+      g.lineTo(x3, lavaY + lavaWave(x3, time) - 1);
+    }
+    g.stroke({ color: 0xff8800, alpha: 0.35, width: 2 });
+  }
+
+  return { container: container, update: updateLava };
+}
+
+/** GodrayFilter application for forest/sunset themes */
+export function applyGodrayFilter(container: any, theme: string): any {
+  if (!PIXI.filters || !PIXI.filters.GodrayFilter) return null;
+  if (theme !== 'forest' && theme !== 'sunset') return null;
+  try {
+    var godray = new PIXI.filters.GodrayFilter({
+      gain: theme === 'forest' ? 0.35 : 0.45,
+      lacunarity: 2.5,
+      parallel: true,
+      angle: theme === 'forest' ? 25 : 35,
+      time: 0,
+    });
+    var existing = container.filters || [];
+    container.filters = existing.concat([godray]);
+    return godray;
+  } catch(e) { return null; }
+}
 `;
 
 // ============================================================================
@@ -1783,7 +2213,7 @@ export default function Game2D({ onReady }: { onReady?: (engine: any) => void })
 export const GAME_2D_SCENE_STARTER = `import { Engine2D, GameScene, createGame2D, loadAssets, JuiceSystem } from "../engine/core";
 import { createBody, createStaticBody, createOneWayPlatform, PhysicsWorld, CharacterController } from "../engine/physics";
 import { createAmbientEffect, createSnowEffect, createRainEffect, getThemeEffects, onJumpDust, onLandImpact, onCollectSparkle, onDeathExplosion } from "../engine/effects";
-import { PALETTES, lerpColor, setNoiseSeed, drawSkyGradient, drawStars, drawMountainRange, drawCloud, drawTree, drawGroundStrip, drawPlatformBlock, drawPlayerCharacter, drawCoinToken, drawEnemySlime, drawHeart } from "../config/assets";
+import { PALETTES, lerpColor, setNoiseSeed, drawSkyGradient, drawStars, drawMountainRange, drawCloud, drawTree, drawGroundStrip, drawPlatformBlock, drawPlayerCharacter, drawCoinToken, drawEnemySlime, drawHeart, applyBiomePostProcessing, drawVignette, drawAtmosphericFog, drawLSystemTree, TREE_PRESETS, drawPointLight, createLightingLayer, createWaterSurface, createLavaSurface, applyGodrayFilter } from "../config/assets";
 import { _loadSpriteLib, _sheetCache } from "../utils/media-stock";
 
 const PIXI = (window as any).PIXI;
@@ -2153,6 +2583,11 @@ export class GameScene2D implements GameScene {
   private bgLayers: { gfx: any; factor: number }[] = [];
   private stars: any;
   private decorTrees: any[] = [];
+  private fogLayers: any[] = [];
+  private treeSway: any[] = [];
+  private waterSurface: any = null;
+  private lavaSurface: any = null;
+  private godrayFilter: any = null;
   private invincibleTimer = 0;
   private shakeTimer = 0;
   private shakeIntensity = 0;
@@ -2172,6 +2607,8 @@ export class GameScene2D implements GameScene {
     this.clouds = [];
     this.bgLayers = [];
     this.decorTrees = [];
+    this.fogLayers = [];
+    this.treeSway = [];
     this.invincibleTimer = 0;
     this.shakeTimer = 0;
 
@@ -2204,6 +2641,15 @@ export class GameScene2D implements GameScene {
       this.bgLayers.push({ gfx: mGfx, factor: 0.1 + mi * 0.15 });
     }
 
+    // ---- 3b. ATMOSPHERIC FOG LAYERS ----
+    try {
+      this.fogLayers = drawAtmosphericFog(WW, CONFIG.groundY, THEME);
+      for (var fi2 = 0; fi2 < this.fogLayers.length; fi2++) {
+        this.container.addChild(this.fogLayers[fi2]);
+        this.bgLayers.push({ gfx: this.fogLayers[fi2], factor: 0.05 + fi2 * 0.08 });
+      }
+    } catch(e) { /* fog optional */ }
+
     // ---- 4. CLOUDS / SKY OBJECTS (theme-aware) ----
     if (THEME !== 'space' && THEME !== 'dark') {
       var cloudCount = _rngInt(5, 10);
@@ -2231,7 +2677,22 @@ export class GameScene2D implements GameScene {
       this.decorTrees.push(dec);
     }
 
-    // ---- 5b. GROUND DETAILS (theme-specific texture) ----
+    // ---- 5b. L-SYSTEM TREES (theme-driven presets) ----
+    var treePresetList = TREE_PRESETS[THEME] || [];
+    if (treePresetList.length > 0) {
+      var treeCount = _rngInt(4, 8);
+      var treeSpacing = CONFIG.worldWidth / treeCount;
+      for (var ti = 0; ti < treeCount; ti++) {
+        var treePreset = treePresetList[_rngInt(0, treePresetList.length - 1)];
+        var treeX = ti * treeSpacing + _rngRange(50, treeSpacing - 50);
+        var treeSeed = _seed + ti * 137;
+        var tree = drawLSystemTree(treeX, CONFIG.groundY, treePreset, THEME, treeSeed);
+        this.container.addChild(tree);
+        this.treeSway.push(tree);
+      }
+    }
+
+    // ---- 5c. GROUND DETAILS (theme-specific texture) ----
     var groundDetailCount = _rngInt(12, 24);
     var gdSpacing = CONFIG.worldWidth / groundDetailCount;
     for (var gdi = 0; gdi < groundDetailCount; gdi++) {
@@ -2404,6 +2865,40 @@ export class GameScene2D implements GameScene {
       })];
     }
 
+    // ---- 15b. DYNAMIC WATER/LAVA SURFACE ----
+    try {
+      if (THEME === 'ocean' || THEME === 'forest') {
+        var waterY2 = CONFIG.groundY + 20;
+        var waterH2 = CONFIG.worldHeight - waterY2;
+        this.waterSurface = createWaterSurface(WW, waterY2, waterH2, THEME === 'ocean' ? 0x1a5276 : 0x2d6a4f);
+        this.container.addChild(this.waterSurface.container);
+      } else if (THEME === 'volcanic') {
+        var lavaY2 = CONFIG.groundY + 30;
+        var lavaH2 = CONFIG.worldHeight - lavaY2;
+        this.lavaSurface = createLavaSurface(WW, lavaY2, lavaH2);
+        this.container.addChild(this.lavaSurface.container);
+      }
+    } catch(e) { /* water/lava optional */ }
+
+    // ---- 16. LIGHTING LAYER (additive blend) ----
+    try {
+      var decorPositions = decData.map(function(d: any) { return { x: d.x, y: CONFIG.groundY }; });
+      var lightLayer = createLightingLayer(THEME, WW, CONFIG.groundY, decorPositions);
+      this.container.addChild(lightLayer);
+    } catch(e) { /* lighting optional */ }
+
+    // ---- 17. POST-PROCESSING (biome color grading on world) ----
+    try { applyBiomePostProcessing(THEME, this.container); } catch(e) {}
+
+    // ---- 17b. GODRAY FILTER (forest/sunset only) ----
+    try { this.godrayFilter = applyGodrayFilter(this.container, THEME); } catch(e) {}
+
+    // ---- 18. VIGNETTE (on UI layer, fixed position) ----
+    try {
+      var vig = drawVignette(W, H);
+      engine.ui.addChild(vig);
+    } catch(e) {}
+
     // === AI ENHANCEMENT ZONE ===
     // This game is fully playable. ENHANCE it based on the Creative Brief:
     // - Add themed decorations (torches, mushrooms, crystals, coral, etc.)
@@ -2535,6 +3030,25 @@ export class GameScene2D implements GameScene {
     if (this.playerCtrl && this.playerCtrl.body.y > CONFIG.worldHeight + 100) {
       engine.switchScene('gameover', { score: this.score });
     }
+
+    // ---- Vegetation sway (trees + decorations) ----
+    for (var sw = 0; sw < this.treeSway.length; sw++) {
+      var treeObj = this.treeSway[sw];
+      var swayA = Math.sin(engine.elapsed * 1.2 + treeObj.x * 0.008) * 0.018;
+      var swayB = Math.sin(engine.elapsed * 2.1 + treeObj.x * 0.015) * 0.008;
+      treeObj.skew.x = swayA + swayB;
+    }
+    for (var dw = 0; dw < this.decorTrees.length; dw++) {
+      var decObj = this.decorTrees[dw];
+      decObj.skew.x = Math.sin(engine.elapsed * 1.5 + decObj.x * 0.01) * 0.012;
+    }
+
+    // ---- Animate water/lava surfaces ----
+    if (this.waterSurface) { try { this.waterSurface.update(engine.elapsed); } catch(e) {} }
+    if (this.lavaSurface) { try { this.lavaSurface.update(engine.elapsed); } catch(e) {} }
+
+    // ---- Animate godray filter ----
+    if (this.godrayFilter) { this.godrayFilter.time += dt * 0.4; }
 
     engine.input.endFrame();
   }
