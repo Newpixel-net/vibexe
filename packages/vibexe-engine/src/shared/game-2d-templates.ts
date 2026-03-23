@@ -584,6 +584,34 @@ export const PALETTES: Record<string, any> = {
 };
 
 // ============================================================================
+// SEEDED NOISE (for procedural terrain variety)
+// ============================================================================
+
+var _noiseSeed = 42;
+export function setNoiseSeed(s: number) { _noiseSeed = s; }
+function _nhash(n: number): number { var s = Math.sin(n + _noiseSeed) * 43758.5453; return s - Math.floor(s); }
+function _smoothstep(t: number): number { return t * t * (3 - 2 * t); }
+function noise1D(x: number): number { var i = Math.floor(x), f = x - i; return _nhash(i) * (1 - _smoothstep(f)) + _nhash(i + 1) * _smoothstep(f); }
+function fbm(x: number, octaves: number, persistence: number, lacunarity: number, exponent?: number): number {
+  var total = 0, amplitude = 1, frequency = 1, maxVal = 0;
+  for (var i = 0; i < octaves; i++) { total += noise1D(x * frequency) * amplitude; maxVal += amplitude; amplitude *= persistence; frequency *= lacunarity; }
+  var v = total / maxVal;
+  return exponent ? Math.pow(Math.max(v, 0), exponent) : v;
+}
+
+// Theme-specific noise profiles for mountain silhouettes
+var MOUNTAIN_PROFILES: Record<string, { octaves: number; persistence: number; lacunarity: number; exponent: number; freq: number }> = {
+  forest:   { octaves: 3, persistence: 0.45, lacunarity: 2.0, exponent: 0.8, freq: 0.008 },
+  sunset:   { octaves: 3, persistence: 0.5,  lacunarity: 2.0, exponent: 0.9, freq: 0.006 },
+  space:    { octaves: 5, persistence: 0.6,  lacunarity: 2.5, exponent: 1.8, freq: 0.012 },
+  volcanic: { octaves: 5, persistence: 0.7,  lacunarity: 2.2, exponent: 2.0, freq: 0.010 },
+  candy:    { octaves: 2, persistence: 0.3,  lacunarity: 2.0, exponent: 0.5, freq: 0.004 },
+  arctic:   { octaves: 2, persistence: 0.25, lacunarity: 2.0, exponent: 0.6, freq: 0.005 },
+  dark:     { octaves: 6, persistence: 0.75, lacunarity: 2.8, exponent: 2.5, freq: 0.015 },
+  ocean:    { octaves: 3, persistence: 0.4,  lacunarity: 2.0, exponent: 0.7, freq: 0.007 },
+};
+
+// ============================================================================
 // SKY & ATMOSPHERE
 // ============================================================================
 
@@ -643,59 +671,72 @@ export function drawStars(worldW: number, skyH: number, count: number): any {
   return g;
 }
 
-/** Rolling hills with smooth bezier curves and gradient shading */
+/** Noise-based mountain silhouettes — unique shapes per theme and layer.
+ *  theme param drives the noise profile: rolling hills (forest), jagged peaks (volcanic), crystal spires (dark), etc. */
 export function drawMountainRange(
   worldW: number, baseY: number, color: number, alpha: number,
-  minH: number, maxH: number, spacing: number
+  minH: number, maxH: number, spacing: number, theme?: string, layerIdx?: number
 ): any {
   var container = new PIXI.Container();
-  // Shadow layer (darker, offset down)
+  var prof = MOUNTAIN_PROFILES[theme || 'forest'] || MOUNTAIN_PROFILES.forest;
+  var seedOffset = (layerIdx || 0) * 1000; // different seed per parallax layer
+  var step = 4; // sample every 4px for smooth curves
+
+  // Generate height points from noise
+  function _genProfile(yOff: number): number[] {
+    var pts: number[] = [];
+    for (var x = -20; x <= worldW + 20; x += step) {
+      var h = fbm((x + seedOffset) * prof.freq, prof.octaves, prof.persistence, prof.lacunarity, prof.exponent);
+      pts.push(baseY - minH - h * (maxH - minH) + yOff);
+    }
+    return pts;
+  }
+
+  // Draw a filled silhouette from height points
+  function _drawSilhouette(g: any, pts: number[], fillStyle: any) {
+    g.moveTo(-20, pts[0]);
+    for (var i = 1; i < pts.length; i++) {
+      var px = -20 + i * step;
+      // Smooth with quadratic curves every other point
+      if (i < pts.length - 1 && i % 2 === 0) {
+        var nx = -20 + (i + 1) * step;
+        g.quadraticCurveTo(px, pts[i], (px + nx) / 2, (pts[i] + pts[i + 1]) / 2);
+      } else {
+        g.lineTo(px, pts[i]);
+      }
+    }
+    g.lineTo(worldW + 40, baseY + 60);
+    g.lineTo(-20, baseY + 60);
+    g.closePath();
+    g.fill(fillStyle);
+  }
+
+  // Shadow layer
   var shadow = new PIXI.Graphics();
-  shadow.moveTo(-spacing, baseY + 8);
-  var cx = -spacing;
-  while (cx < worldW + spacing * 2) {
-    var peakH = minH + Math.random() * (maxH - minH);
-    var cw = spacing * (0.5 + Math.random() * 0.5);
-    shadow.bezierCurveTo(cx + cw * 0.3, baseY - peakH + 8, cx + cw * 0.7, baseY - peakH * 0.6 + 8, cx + cw, baseY + 8);
-    cx += cw;
-  }
-  shadow.lineTo(worldW + spacing, baseY + 50);
-  shadow.lineTo(-spacing, baseY + 50);
-  shadow.closePath();
-  shadow.fill({ color: darken(color, 30), alpha: alpha * 0.4 });
+  var shadowPts = _genProfile(10);
+  _drawSilhouette(shadow, shadowPts, { color: darken(color, 30), alpha: alpha * 0.35 });
   container.addChild(shadow);
-  // Main hills with gradient
+
+  // Main silhouette
   var g = new PIXI.Graphics();
-  g.moveTo(-spacing, baseY);
-  cx = -spacing;
-  while (cx < worldW + spacing * 2) {
-    var peakH2 = minH + Math.random() * (maxH - minH);
-    var cw2 = spacing * (0.5 + Math.random() * 0.5);
-    g.bezierCurveTo(cx + cw2 * 0.3, baseY - peakH2, cx + cw2 * 0.7, baseY - peakH2 * 0.6, cx + cw2, baseY);
-    cx += cw2;
-  }
-  g.lineTo(worldW + spacing, baseY + 50);
-  g.lineTo(-spacing, baseY + 50);
-  g.closePath();
+  var mainPts = _genProfile(0);
   var hillGrad = makeLinearGradient(lighten(color, 15), darken(color, 10), maxH);
-  g.fill(typeof hillGrad === 'number' ? { color: color, alpha: alpha } : hillGrad);
-  if (typeof hillGrad === 'number') g.fill({ color: color, alpha: alpha });
+  _drawSilhouette(g, mainPts, typeof hillGrad === 'number' ? { color: color, alpha: alpha } : hillGrad);
   container.addChild(g);
-  // Highlight strip along the top edge (simulates light catching hilltops)
-  var highlight = new PIXI.Graphics();
-  highlight.moveTo(-spacing, baseY);
-  cx = -spacing;
-  while (cx < worldW + spacing * 2) {
-    var peakH3 = minH + Math.random() * (maxH - minH);
-    var cw3 = spacing * (0.5 + Math.random() * 0.5);
-    highlight.bezierCurveTo(cx + cw3 * 0.3, baseY - peakH3, cx + cw3 * 0.7, baseY - peakH3 * 0.6, cx + cw3, baseY);
-    cx += cw3;
+
+  // Highlight edge
+  var hl = new PIXI.Graphics();
+  hl.moveTo(-20, mainPts[0]);
+  for (var hi = 1; hi < mainPts.length; hi++) {
+    hl.lineTo(-20 + hi * step, mainPts[hi] + 2);
   }
-  highlight.lineTo(worldW + spacing, baseY - 3);
-  highlight.lineTo(-spacing, baseY - 3);
-  highlight.closePath();
-  highlight.fill({ color: lighten(color, 30), alpha: alpha * 0.3 });
-  container.addChild(highlight);
+  for (var hj = mainPts.length - 1; hj >= 0; hj--) {
+    hl.lineTo(-20 + hj * step, mainPts[hj] - 1);
+  }
+  hl.closePath();
+  hl.fill({ color: lighten(color, 30), alpha: alpha * 0.25 });
+  container.addChild(hl);
+
   return container;
 }
 
@@ -807,99 +848,310 @@ export function drawTree(trunkH: number, leafR: number, trunkColor: number, leaf
 }
 
 /** Ground strip with organic curved top, rich gradient, thick grass */
+/** Multi-layer terrain with wavy top edge and theme-specific surface details.
+ *  theme param drives surface style: grass tufts, snow drifts, lava cracks, sprinkles, etc. */
 export function drawGroundStrip(
-  worldW: number, groundY: number, floorH: number, color: number, topColor: number
+  worldW: number, groundY: number, floorH: number, color: number, topColor: number, theme?: string
 ): any {
   var container = new PIXI.Container();
   var g = new PIXI.Graphics();
-  // Main ground fill with gradient
-  g.rect(0, groundY, worldW, floorH);
+  var th = theme || 'forest';
+  var step = 6;
+  // Generate wavy top edge with noise
+  var edgeFreq = th === 'candy' ? 0.003 : th === 'arctic' ? 0.004 : th === 'volcanic' ? 0.012 : 0.008;
+  var edgeAmp = th === 'candy' ? 3 : th === 'arctic' ? 5 : th === 'volcanic' ? 6 : 8;
+
+  // Wavy top surface
+  g.moveTo(0, groundY + edgeAmp);
+  for (var x = 0; x <= worldW; x += step) {
+    var ey = groundY + noise1D(x * edgeFreq + 100) * edgeAmp;
+    g.lineTo(x, ey);
+  }
+  g.lineTo(worldW, groundY + floorH);
+  g.lineTo(0, groundY + floorH);
+  g.closePath();
   var groundGrad = makeLinearGradient(color, darken(color, 50), floorH);
   g.fill(groundGrad);
-  // Top grass strip — thick and vibrant
-  g.rect(0, groundY - 2, worldW, 10);
-  g.fill(topColor);
-  // Highlight on grass top edge
-  g.rect(0, groundY - 2, worldW, 3);
-  g.fill(lighten(topColor, 20));
-  // Darker strip below grass (shadow under grass layer)
-  g.rect(0, groundY + 8, worldW, 4);
-  g.fill({ color: darken(color, 20), alpha: 0.4 });
-  // Thick grass tufts — varied sizes
-  for (var gx = 0; gx < worldW; gx += 8 + Math.random() * 6) {
-    var gh = 5 + Math.random() * 12;
-    var gw = 2 + Math.random() * 2;
-    // Main blade
-    g.moveTo(gx, groundY - 2);
-    g.quadraticCurveTo(gx + gw * 0.5, groundY - gh * 0.6, gx + gw * 0.3, groundY - gh);
-    g.quadraticCurveTo(gx + gw, groundY - gh * 0.4, gx + gw + 1, groundY - 2);
-    g.closePath();
-    g.fill(Math.random() > 0.3 ? topColor : lighten(topColor, 15));
+
+  // Second layer — subsurface stripe with different wave
+  var g2 = new PIXI.Graphics();
+  var subY = groundY + 12;
+  g2.moveTo(0, subY);
+  for (var x2 = 0; x2 <= worldW; x2 += step) {
+    g2.lineTo(x2, subY + noise1D(x2 * 0.006 + 500) * 4);
   }
-  // Scattered dirt/pebble dots
-  for (var dx = 0; dx < worldW; dx += 20 + Math.random() * 30) {
-    var dy = groundY + 12 + Math.random() * (floorH - 20);
-    var dr = 1 + Math.random() * 2.5;
-    g.circle(dx, dy, dr);
-    g.fill({ color: darken(color, 30), alpha: 0.2 });
-    // Tiny highlight on pebble
-    g.circle(dx - dr * 0.3, dy - dr * 0.3, dr * 0.3);
-    g.fill({ color: 0xffffff, alpha: 0.06 });
-  }
-  // Subtle horizontal strata lines
-  for (var sy = groundY + 20; sy < groundY + floorH - 10; sy += 15 + Math.random() * 10) {
-    g.moveTo(0, sy);
-    g.lineTo(worldW, sy + 1);
-    g.stroke({ color: darken(color, 15), alpha: 0.12, width: 1 });
-  }
+  g2.lineTo(worldW, groundY + floorH);
+  g2.lineTo(0, groundY + floorH);
+  g2.closePath();
+  g2.fill({ color: darken(color, 15), alpha: 0.5 });
   container.addChild(g);
+  container.addChild(g2);
+
+  // Third layer — deep bedrock
+  var g3 = new PIXI.Graphics();
+  g3.rect(0, groundY + floorH * 0.5, worldW, floorH * 0.5);
+  g3.fill({ color: darken(color, 40), alpha: 0.4 });
+  container.addChild(g3);
+
+  // Top surface strip
+  var gs = new PIXI.Graphics();
+  gs.moveTo(0, groundY - 2 + noise1D(100) * edgeAmp * 0.3);
+  for (var xs = 0; xs <= worldW; xs += step) {
+    gs.lineTo(xs, groundY - 2 + noise1D(xs * edgeFreq + 100) * edgeAmp * 0.3);
+  }
+  for (var xr = worldW; xr >= 0; xr -= step) {
+    gs.lineTo(xr, groundY + 8 + noise1D(xr * edgeFreq + 100) * edgeAmp * 0.3);
+  }
+  gs.closePath();
+  gs.fill(topColor);
+  container.addChild(gs);
+
+  // Theme-specific surface details
+  var detail = new PIXI.Graphics();
+  switch (th) {
+    case 'volcanic':
+      // Lava cracks in ground
+      for (var lx = 20; lx < worldW; lx += 40 + noise1D(lx * 0.1) * 60) {
+        detail.moveTo(lx, groundY + 2);
+        detail.lineTo(lx + 10 + noise1D(lx * 0.05) * 15, groundY + 6);
+        detail.lineTo(lx + 25 + noise1D(lx * 0.07) * 20, groundY + 3);
+        detail.stroke({ color: 0xff4400, alpha: 0.5 + noise1D(lx * 0.02) * 0.3, width: 2 });
+        // Glow dots at crack intersections
+        detail.circle(lx + 10, groundY + 5, 2);
+        detail.fill({ color: 0xff6600, alpha: 0.4 });
+      }
+      break;
+    case 'arctic':
+      // Snow drifts — soft overlapping ellipses
+      for (var sx = 0; sx < worldW; sx += 30 + noise1D(sx * 0.05) * 40) {
+        var sw = 20 + noise1D(sx * 0.03) * 30;
+        detail.ellipse(sx, groundY - 1, sw, 4 + noise1D(sx * 0.04) * 3);
+        detail.fill({ color: 0xeef4ff, alpha: 0.5 + noise1D(sx * 0.06) * 0.3 });
+      }
+      break;
+    case 'candy':
+      // Frosting drips + sprinkles
+      for (var cx = 5; cx < worldW; cx += 15 + noise1D(cx * 0.1) * 10) {
+        var ch = 4 + noise1D(cx * 0.08) * 8;
+        detail.moveTo(cx, groundY - 2);
+        detail.quadraticCurveTo(cx + 2, groundY + ch, cx + 4, groundY - 2);
+        detail.fill({ color: 0xffffff, alpha: 0.6 });
+      }
+      var sprColors = [0xff6699, 0x66ccff, 0xffcc33, 0x66ff99, 0xff66ff];
+      for (var sp = 0; sp < worldW; sp += 12 + noise1D(sp * 0.15) * 8) {
+        detail.circle(sp, groundY - 3 + noise1D(sp * 0.1) * 2, 1.5);
+        detail.fill(sprColors[Math.floor(noise1D(sp * 0.2) * sprColors.length)]);
+      }
+      break;
+    case 'space':
+      // Glowing circuit lines
+      for (var slx = 30; slx < worldW; slx += 50 + noise1D(slx * 0.05) * 60) {
+        detail.moveTo(slx, groundY + 3);
+        detail.lineTo(slx + 15, groundY + 3);
+        detail.lineTo(slx + 15, groundY + 10);
+        detail.lineTo(slx + 30, groundY + 10);
+        detail.stroke({ color: 0x4488ff, alpha: 0.35, width: 1.5 });
+        detail.circle(slx + 15, groundY + 3, 2);
+        detail.fill({ color: 0x4488ff, alpha: 0.5 });
+      }
+      break;
+    case 'dark':
+      // Purple mist wisps
+      for (var dmx = 0; dmx < worldW; dmx += 25 + noise1D(dmx * 0.04) * 35) {
+        detail.ellipse(dmx, groundY - 2, 18 + noise1D(dmx * 0.03) * 12, 5);
+        detail.fill({ color: 0x6633aa, alpha: 0.1 + noise1D(dmx * 0.05) * 0.08 });
+      }
+      break;
+    case 'ocean':
+      // Seafoam bubbles along shore
+      for (var ox = 0; ox < worldW; ox += 8 + noise1D(ox * 0.1) * 12) {
+        var or = 1.5 + noise1D(ox * 0.08) * 3;
+        detail.circle(ox, groundY - 1 + noise1D(ox * 0.12) * 3, or);
+        detail.fill({ color: 0xaaddff, alpha: 0.2 + noise1D(ox * 0.06) * 0.15 });
+      }
+      break;
+    default: // forest, sunset
+      // Grass tufts
+      for (var gx = 0; gx < worldW; gx += 6 + noise1D(gx * 0.15) * 5) {
+        var gh = 5 + noise1D(gx * 0.1) * 12;
+        var gw = 2 + noise1D(gx * 0.2) * 2;
+        detail.moveTo(gx, groundY - 2);
+        detail.quadraticCurveTo(gx + gw * 0.5, groundY - gh * 0.6, gx + gw * 0.3, groundY - gh);
+        detail.quadraticCurveTo(gx + gw, groundY - gh * 0.4, gx + gw + 1, groundY - 2);
+        detail.closePath();
+        detail.fill(noise1D(gx * 0.3) > 0.3 ? topColor : lighten(topColor, 15));
+      }
+      break;
+  }
+  container.addChild(detail);
+
+  // Strata lines (subtle geological layers)
+  var strata = new PIXI.Graphics();
+  for (var sty = groundY + 20; sty < groundY + floorH - 10; sty += 12 + noise1D(sty * 0.1) * 10) {
+    strata.moveTo(0, sty);
+    for (var stx = 0; stx <= worldW; stx += 20) {
+      strata.lineTo(stx, sty + noise1D(stx * 0.01 + sty) * 3);
+    }
+    strata.stroke({ color: darken(color, 15), alpha: 0.1, width: 1 });
+  }
+  container.addChild(strata);
+
   return container;
 }
 
-/** Platform block with thick colored border, inner gradient, grass lip.
- *  Fallback chain: sprite → Canvas 2D → PIXI.Graphics */
-export function drawPlatformBlock(w: number, h: number, mainColor: number, topColor: number): any {
+/** Theme-dispatched platform shapes — each theme gets a unique visual style.
+ *  Fallback chain: sprite → theme-specific PIXI.Graphics */
+export function drawPlatformBlock(w: number, h: number, mainColor: number, topColor: number, theme?: string): any {
   // Tier 1: Pre-made sprite (only for standard sizes ~120x30)
   if (_hasSpriteLib() && w >= 80 && w <= 200 && h >= 20 && h <= 60) {
     var spr = _getSprite('platforms', 'grass_block');
     if (spr) { spr.width = w; spr.height = h; spr.anchor.set(0.5); return spr; }
   }
-  // Tier 2: Canvas 2D (gradient fill + shadow + grass tufts)
-  if (hasCanvas()) {
-    try { return _drawPlatformCanvas(w, h, mainColor, topColor); } catch(e) {}
-  }
-  // Tier 3: PIXI.Graphics fallback
   var container = new PIXI.Container();
   var g = new PIXI.Graphics();
-  var bw = 3; // border width
-  // Thick colored border (outline)
+  var th = theme || 'forest';
+
+  // Base platform body (all themes share this foundation)
+  var bw = 3;
   g.roundRect(-w / 2 - bw, -h / 2 - bw, w + bw * 2, h + bw * 2, 8);
   g.fill(darken(mainColor, 35));
-  // Main body with gradient
   g.roundRect(-w / 2, -h / 2, w, h, 6);
   var platGrad = makeLinearGradient(lighten(mainColor, 20), darken(mainColor, 10), h);
   g.fill(platGrad);
-  // Inner shadow at bottom
-  g.roundRect(-w / 2 + 3, h / 2 - h * 0.35, w - 6, h * 0.35, 3);
-  g.fill({ color: 0x000000, alpha: 0.08 });
-  // Top highlight band
-  g.roundRect(-w / 2 + 2, -h / 2 + 1, w - 4, h * 0.25, 4);
-  g.fill({ color: 0xffffff, alpha: 0.15 });
-  // Top grass/color lip — thick and vibrant
-  g.roundRect(-w / 2 - 2, -h / 2 - 4, w + 4, 8, 4);
-  g.fill(topColor);
-  // Grass lip highlight
-  g.roundRect(-w / 2 - 1, -h / 2 - 4, w + 2, 3, 3);
-  g.fill(lighten(topColor, 20));
-  // Grass tufts on top — thick curved blades
-  for (var gx = -w / 2 + 5; gx < w / 2 - 5; gx += 6 + Math.random() * 4) {
-    var gh = 4 + Math.random() * 8;
-    g.moveTo(gx, -h / 2 - 4);
-    g.quadraticCurveTo(gx + 1, -h / 2 - gh * 0.7, gx + 0.5, -h / 2 - gh);
-    g.quadraticCurveTo(gx + 2, -h / 2 - gh * 0.3, gx + 3, -h / 2 - 4);
-    g.closePath();
-    g.fill(Math.random() > 0.4 ? topColor : lighten(topColor, 12));
+
+  // Theme-specific decorations on top of base
+  switch (th) {
+    case 'volcanic': {
+      // Jagged rock top + ember glow cracks
+      g.moveTo(-w / 2 - 2, -h / 2);
+      for (var vx = -w / 2; vx < w / 2; vx += 8 + Math.random() * 6) {
+        g.lineTo(vx, -h / 2 - 2 - Math.random() * 6);
+        g.lineTo(vx + 4, -h / 2);
+      }
+      g.lineTo(w / 2 + 2, -h / 2);
+      g.lineTo(-w / 2 - 2, -h / 2);
+      g.closePath();
+      g.fill(darken(mainColor, 15));
+      // Lava cracks
+      for (var vlx = -w / 2 + 10; vlx < w / 2 - 10; vlx += 20 + Math.random() * 25) {
+        g.moveTo(vlx, -h / 2 + 3);
+        g.lineTo(vlx + 5 + Math.random() * 8, h / 2 - 3);
+        g.stroke({ color: 0xff4400, alpha: 0.4, width: 1.5 });
+      }
+      break;
+    }
+    case 'arctic': {
+      // Ice surface + icicle drips below
+      g.roundRect(-w / 2 - 1, -h / 2 - 3, w + 2, 6, 3);
+      g.fill({ color: 0xeef4ff, alpha: 0.7 });
+      g.roundRect(-w / 2, -h / 2 - 3, w, 2, 2);
+      g.fill({ color: 0xffffff, alpha: 0.5 });
+      // Icicles
+      var icicleCount = Math.floor(w / 18);
+      for (var ic = 0; ic < icicleCount; ic++) {
+        var ix = -w / 2 + (ic + 0.5) * (w / icicleCount) + (Math.random() - 0.5) * 5;
+        var iLen = 6 + Math.random() * 16;
+        var iW = 1.5 + Math.random() * 2;
+        g.moveTo(ix - iW, h / 2);
+        g.quadraticCurveTo(ix - iW * 0.3, h / 2 + iLen * 0.6, ix, h / 2 + iLen);
+        g.quadraticCurveTo(ix + iW * 0.3, h / 2 + iLen * 0.6, ix + iW, h / 2);
+        g.closePath();
+        g.fill({ color: 0xccddff, alpha: 0.6 });
+      }
+      break;
+    }
+    case 'candy': {
+      // Frosted wafer with sprinkle dots
+      g.roundRect(-w / 2 - 2, -h / 2 - 5, w + 4, 8, 4);
+      g.fill(0xffffff); // white frosting
+      // Wavy frosting drips
+      for (var cdx = -w / 2 + 5; cdx < w / 2 - 5; cdx += 10 + Math.random() * 8) {
+        var cdh = 3 + Math.random() * 6;
+        g.moveTo(cdx, -h / 2 + 2);
+        g.quadraticCurveTo(cdx + 3, -h / 2 + cdh + 2, cdx + 6, -h / 2 + 2);
+        g.fill({ color: 0xffffff, alpha: 0.8 });
+      }
+      // Sprinkle dots on top
+      var sprC = [0xff6699, 0x66ccff, 0xffcc33, 0x66ff99, 0xff66ff];
+      for (var spx = -w / 2 + 8; spx < w / 2 - 8; spx += 6 + Math.random() * 5) {
+        g.circle(spx, -h / 2 - 2 + Math.random() * 3, 1.2);
+        g.fill(sprC[Math.floor(Math.random() * sprC.length)]);
+      }
+      break;
+    }
+    case 'space': {
+      // Holographic energy platform
+      g.roundRect(-w / 2, -h / 2 - 2, w, 3, 1);
+      g.fill({ color: 0x4488ff, alpha: 0.6 });
+      g.roundRect(-w / 2, h / 2 - 1, w, 3, 1);
+      g.fill({ color: 0x4488ff, alpha: 0.4 });
+      // Scan lines
+      for (var sly = -h / 2 + 4; sly < h / 2; sly += 4) {
+        g.rect(-w / 2 + 2, sly, w - 4, 1);
+        g.fill({ color: 0x6699ff, alpha: 0.08 });
+      }
+      // Corner dots
+      g.circle(-w / 2 + 4, -h / 2 + 4, 2); g.fill({ color: 0x44aaff, alpha: 0.7 });
+      g.circle(w / 2 - 4, -h / 2 + 4, 2); g.fill({ color: 0x44aaff, alpha: 0.7 });
+      break;
+    }
+    case 'dark': {
+      // Crystal slab — faceted edges + purple glow
+      g.moveTo(-w / 2, -h / 2 + 3);
+      g.lineTo(-w / 2 + 6, -h / 2 - 4);
+      g.lineTo(w / 2 - 6, -h / 2 - 4);
+      g.lineTo(w / 2, -h / 2 + 3);
+      g.lineTo(w / 2, -h / 2);
+      g.lineTo(-w / 2, -h / 2);
+      g.closePath();
+      g.fill({ color: lighten(mainColor, 30), alpha: 0.5 });
+      // Glowing veins
+      for (var dvx = -w / 2 + 15; dvx < w / 2 - 15; dvx += 25 + Math.random() * 20) {
+        g.moveTo(dvx, -h / 2 + 2);
+        g.lineTo(dvx + 3, h / 2 - 2);
+        g.stroke({ color: 0x8844cc, alpha: 0.35, width: 1 });
+      }
+      break;
+    }
+    case 'ocean': {
+      // Coral shelf with barnacle bumps
+      g.roundRect(-w / 2 - 2, -h / 2 - 3, w + 4, 6, 3);
+      g.fill(lighten(mainColor, 15));
+      // Barnacle bumps along bottom
+      for (var bx = -w / 2 + 6; bx < w / 2 - 6; bx += 8 + Math.random() * 6) {
+        var br = 2 + Math.random() * 3;
+        g.circle(bx, h / 2, br);
+        g.fill(darken(mainColor, 20));
+        g.circle(bx, h / 2, br * 0.4);
+        g.fill({ color: lighten(mainColor, 10), alpha: 0.5 });
+      }
+      // Seaweed strand hanging
+      if (Math.random() > 0.4) {
+        var swx = -w / 4 + Math.random() * w / 2;
+        g.moveTo(swx, h / 2);
+        g.quadraticCurveTo(swx + 8, h / 2 + 15, swx - 2, h / 2 + 25);
+        g.stroke({ color: 0x228855, alpha: 0.5, width: 2 });
+      }
+      break;
+    }
+    default: { // forest, sunset
+      // Classic grass lip + tufts
+      g.roundRect(-w / 2 - 2, -h / 2 - 4, w + 4, 8, 4);
+      g.fill(topColor);
+      g.roundRect(-w / 2 - 1, -h / 2 - 4, w + 2, 3, 3);
+      g.fill(lighten(topColor, 20));
+      for (var gx = -w / 2 + 5; gx < w / 2 - 5; gx += 6 + Math.random() * 4) {
+        var gh = 4 + Math.random() * 8;
+        g.moveTo(gx, -h / 2 - 4);
+        g.quadraticCurveTo(gx + 1, -h / 2 - gh * 0.7, gx + 0.5, -h / 2 - gh);
+        g.quadraticCurveTo(gx + 2, -h / 2 - gh * 0.3, gx + 3, -h / 2 - 4);
+        g.closePath();
+        g.fill(Math.random() > 0.4 ? topColor : lighten(topColor, 12));
+      }
+      break;
+    }
   }
+
   // Specular dot
   g.circle(-w / 4, -h / 4, 2);
   g.fill({ color: 0xffffff, alpha: 0.2 });
@@ -1531,7 +1783,7 @@ export default function Game2D({ onReady }: { onReady?: (engine: any) => void })
 export const GAME_2D_SCENE_STARTER = `import { Engine2D, GameScene, createGame2D, loadAssets, JuiceSystem } from "../engine/core";
 import { createBody, createStaticBody, createOneWayPlatform, PhysicsWorld, CharacterController } from "../engine/physics";
 import { createAmbientEffect, createSnowEffect, createRainEffect, getThemeEffects, onJumpDust, onLandImpact, onCollectSparkle, onDeathExplosion } from "../engine/effects";
-import { PALETTES, lerpColor, drawSkyGradient, drawStars, drawMountainRange, drawCloud, drawTree, drawGroundStrip, drawPlatformBlock, drawPlayerCharacter, drawCoinToken, drawEnemySlime, drawHeart } from "../config/assets";
+import { PALETTES, lerpColor, setNoiseSeed, drawSkyGradient, drawStars, drawMountainRange, drawCloud, drawTree, drawGroundStrip, drawPlatformBlock, drawPlayerCharacter, drawCoinToken, drawEnemySlime, drawHeart } from "../config/assets";
 import { _loadSpriteLib, _sheetCache } from "../utils/media-stock";
 
 const PIXI = (window as any).PIXI;
@@ -1924,6 +2176,7 @@ export class GameScene2D implements GameScene {
     this.shakeTimer = 0;
 
     await _loadSpriteLib(THEME);
+    setNoiseSeed(_seed); // Sync noise with game seed for reproducible terrain
 
     var W = engine.config.width;
     var H = engine.config.height;
@@ -1946,7 +2199,7 @@ export class GameScene2D implements GameScene {
       var mMaxH = 120 + mi * 50;
       var mSpacing = 250 - mi * 30;
       var mAlpha = 0.4 + mi * 0.2;
-      var mGfx = drawMountainRange(WW, mBaseY, mColor, mAlpha, mMinH, mMaxH, mSpacing);
+      var mGfx = drawMountainRange(WW, mBaseY, mColor, mAlpha, mMinH, mMaxH, mSpacing, THEME, mi);
       this.container.addChild(mGfx);
       this.bgLayers.push({ gfx: mGfx, factor: 0.1 + mi * 0.15 });
     }
@@ -1989,7 +2242,7 @@ export class GameScene2D implements GameScene {
 
     // ---- 6. GROUND ----
     var floorH = WH - CONFIG.groundY;
-    var ground = drawGroundStrip(WW, CONFIG.groundY, floorH, PAL.ground, PAL.groundTop);
+    var ground = drawGroundStrip(WW, CONFIG.groundY, floorH, PAL.ground, PAL.groundTop, THEME);
     this.container.addChild(ground);
     var groundBody = createStaticBody(WW / 2, CONFIG.groundY + 4, WW, 8);
     this.physics.addBody(groundBody);
@@ -1998,7 +2251,7 @@ export class GameScene2D implements GameScene {
     var platforms = _generatePlatforms();
     for (var pi = 0; pi < platforms.length; pi++) {
       var p = platforms[pi];
-      var platGfx = drawPlatformBlock(p.w, 24, PAL.platform, PAL.platformTop);
+      var platGfx = drawPlatformBlock(p.w, 24, PAL.platform, PAL.platformTop, THEME);
       platGfx.x = p.x;
       platGfx.y = p.y;
       this.container.addChild(platGfx);
