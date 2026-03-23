@@ -966,18 +966,19 @@ const supabase = createClient("${supabaseConfig.url}", "${supabaseConfig.anonKey
 				}
 			}
 
-			// ── HF Sprite Generation (FREE via Hugging Face Inference API) ───
-			// Generate 2D game sprites from the seed's creative brief using
-			// Flux-2D-Game-Assets-LoRA. Non-fatal: skips if HF_TOKEN not set.
-			if (isGame2d && game2dBrief && process.env.HF_TOKEN) {
-				try {
-					const { generateSpritesBatch } = await import("@/lib/hf-sprite-batch");
-					generatedSprites = await generateSpritesBatch(game2dBrief, appId);
-					console.log(`[Chat API] Generated ${Object.keys(generatedSprites).length} sprites from HF for seed=${game2dBrief.seed}`);
-				} catch (e) {
-					console.warn(`[Chat API] HF sprite generation failed (non-fatal):`, e instanceof Error ? e.message : e);
-				}
-			}
+			// ── HF Sprite Generation — DISABLED (credits depleted) ───
+			// Was: Flux-2D-Game-Assets-LoRA via HF Inference API.
+			// Drawing helpers (drawPlayerCharacter, drawPlatformBlock, etc.)
+			// serve as the primary visual system — no sprites needed.
+			// To re-enable: uncomment and ensure HF_TOKEN has credits.
+			// if (isGame2d && game2dBrief && process.env.HF_TOKEN) {
+			// 	try {
+			// 		const { generateSpritesBatch } = await import("@/lib/hf-sprite-batch");
+			// 		generatedSprites = await generateSpritesBatch(game2dBrief, appId);
+			// 	} catch (e) {
+			// 		console.warn(`[Chat API] HF sprite generation failed:`, e instanceof Error ? e.message : e);
+			// 	}
+			// }
 
 			// ── Genre-aware module pre-activation ─────────────────────────────
 			// Automatically create __game-settings.json with the RIGHT modules
