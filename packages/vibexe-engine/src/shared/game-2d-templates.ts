@@ -1524,11 +1524,279 @@ export default function Game2D({ onReady }: { onReady?: (engine: any) => void })
 ];
 
 // ============================================================================
-// GAME SCENE STARTERS — Injected based on detected game type
+// GAME SCENE SKELETONS — Injected as starter files, AI generates the content
 // ============================================================================
 
-/** Default platformer starter — professional quality programmatic graphics */
+/** Platformer skeleton — AI generates all gameplay in enter()/update() */
 export const GAME_2D_SCENE_STARTER = `import { Engine2D, GameScene, createGame2D, loadAssets, JuiceSystem } from "../engine/core";
+import { createBody, createStaticBody, createOneWayPlatform, PhysicsWorld, CharacterController } from "../engine/physics";
+import { createAmbientEffect, createSnowEffect, createRainEffect, getThemeEffects, onJumpDust, onLandImpact, onCollectSparkle, onDeathExplosion } from "../engine/effects";
+import { PALETTES, lerpColor, drawSkyGradient, drawStars, drawMountainRange, drawCloud, drawTree, drawGroundStrip, drawPlatformBlock, drawPlayerCharacter, drawCoinToken, drawEnemySlime, drawHeart } from "../config/assets";
+import { _loadSpriteLib, _sheetCache } from "../utils/media-stock";
+
+const PIXI = (window as any).PIXI;
+
+// ======================== CONFIGURATION ========================
+var THEME = 'sunset'; // Change to: forest, sunset, space, volcanic, candy, arctic, dark, ocean
+var PAL = PALETTES[THEME] || PALETTES.forest;
+
+var CONFIG = {
+  gravity: 980,
+  worldWidth: 4000,
+  worldHeight: 900,
+  groundY: 680,
+  playerSize: 48,
+  playerStartX: 250,
+  moveSpeed: 280,
+  jumpForce: 520,
+  coinRadius: 10,
+  enemySize: 44,
+  enemySpeed: 60,
+  lives: 3,
+};
+
+// SKELETON — The AI agent MUST generate the full game.
+// See the Creative Brief and Reference Pattern in the system prompt.
+
+export class GameScene2D implements GameScene {
+  name = 'game';
+  container: any;
+  private physics!: PhysicsWorld;
+
+  constructor() {
+    this.container = new PIXI.Container();
+  }
+
+  async enter(engine: Engine2D): Promise<void> {
+    this.physics = new PhysicsWorld(CONFIG.gravity);
+    await _loadSpriteLib(THEME);
+    var W = engine.config.width;
+    var H = engine.config.height;
+
+    // TODO: AI agent generates the full game here based on Creative Brief
+    // 1. Gradient sky background + parallax mountain/cloud layers
+    // 2. Ground with physics body
+    // 3. Platforms (procedurally placed, use CONFIG values)
+    // 4. Player character with CharacterController
+    // 5. Collectibles (coins/gems) with sparkle effects
+    // 6. Enemies with patrol behavior
+    // 7. Collision handling (collect items, take damage)
+    // 8. Score + lives UI in engine.ui
+    // 9. Ambient particle effects
+    // 10. Camera following the player
+  }
+
+  update(engine: Engine2D, dt: number): void {
+    this.physics.update(dt);
+    // TODO: AI agent generates update logic (movement, enemies, camera, animations)
+    engine.input.endFrame();
+  }
+
+  exit(engine: Engine2D): void {
+    engine.juice.killAll();
+    this.container.removeChildren();
+    engine.ui.removeChildren();
+  }
+}
+`;
+
+/** Runner skeleton — AI generates all gameplay in enter()/update() */
+export const GAME_2D_SCENE_STARTER_RUNNER = `import { Engine2D, GameScene, createGame2D, JuiceSystem } from "../engine/core";
+import { createBody, createStaticBody, PhysicsWorld } from "../engine/physics";
+import { createAmbientEffect, onJumpDust, onLandImpact, onDeathExplosion, onCollectSparkle } from "../engine/effects";
+import { PALETTES, lerpColor, drawSkyGradient, drawStars, drawMountainRange, drawCloud, drawGroundStrip, drawPlayerCharacter, drawCoinToken, drawEnemySlime, drawHeart } from "../config/assets";
+import { _loadSpriteLib, _sheetCache } from "../utils/media-stock";
+
+const PIXI = (window as any).PIXI;
+
+var THEME = 'space';
+var PAL = PALETTES[THEME] || PALETTES.forest;
+
+var CONFIG = {
+  gravity: 1400,
+  jumpForce: 650,
+  startSpeed: 280,
+  maxSpeed: 600,
+  speedRamp: 0.003,
+  groundY: 520,
+  playerX: 180,
+  playerSize: 42,
+  spawnInterval: 1.8,
+  coinInterval: 0.8,
+  lives: 1,
+};
+
+// SKELETON — The AI agent MUST generate the full runner game.
+
+export class GameScene2D implements GameScene {
+  name = 'game';
+  container: any;
+  private physics!: PhysicsWorld;
+
+  constructor() {
+    this.container = new PIXI.Container();
+  }
+
+  async enter(engine: Engine2D): Promise<void> {
+    this.physics = new PhysicsWorld(CONFIG.gravity);
+    await _loadSpriteLib(THEME);
+    var W = engine.config.width;
+    var H = engine.config.height;
+
+    // TODO: AI agent generates the full runner game based on Creative Brief
+    // 1. Scrolling background + parallax layers
+    // 2. Ground tiles that scroll and recycle
+    // 3. Player character with jump mechanic
+    // 4. Obstacle spawning system (procedural, speed-based)
+    // 5. Coin spawning with collect effects
+    // 6. Speed ramp over time
+    // 7. Collision detection (obstacle = death, coin = score)
+    // 8. Score + distance UI in engine.ui
+    // 9. Ambient particle effects
+  }
+
+  update(engine: Engine2D, dt: number): void {
+    this.physics.update(dt);
+    // TODO: AI agent generates update logic (scrolling, spawning, collisions)
+    engine.input.endFrame();
+  }
+
+  exit(engine: Engine2D): void {
+    engine.juice.killAll();
+    this.container.removeChildren();
+    engine.ui.removeChildren();
+  }
+}
+`;
+
+/** Puzzle skeleton — AI generates all gameplay in enter()/update() */
+export const GAME_2D_SCENE_STARTER_PUZZLE = `import { Engine2D, GameScene, createGame2D, JuiceSystem } from "../engine/core";
+import { createSparkleEffect, onCollectSparkle } from "../engine/effects";
+import { PALETTES, lerpColor, drawSkyGradient, drawHeart, drawGemShape } from "../config/assets";
+import { _loadSpriteLib, _sheetCache } from "../utils/media-stock";
+
+const PIXI = (window as any).PIXI;
+
+var THEME = 'candy';
+var PAL = PALETTES[THEME] || PALETTES.candy;
+
+var CONFIG = {
+  cols: 7,
+  rows: 6,
+  cellSize: 56,
+  padding: 4,
+  gemColors: [0xff4466, 0x44aaff, 0x44dd44, 0xffaa22, 0xcc44ff, 0x44ffdd],
+  matchMin: 3,
+  fallSpeed: 400,
+  swapSpeed: 0.15,
+};
+
+// SKELETON — The AI agent MUST generate the full puzzle game.
+
+export class GameScene2D implements GameScene {
+  name = 'game';
+  container: any;
+
+  constructor() {
+    this.container = new PIXI.Container();
+  }
+
+  async enter(engine: Engine2D): Promise<void> {
+    await _loadSpriteLib(THEME);
+    var W = engine.config.width;
+    var H = engine.config.height;
+
+    // TODO: AI agent generates the full puzzle game based on Creative Brief
+    // 1. Background (gradient or themed)
+    // 2. Board container with grid
+    // 3. Gem/tile creation with CONFIG.gemColors
+    // 4. Selection highlight
+    // 5. Swap mechanic (click two adjacent gems)
+    // 6. Match detection (CONFIG.matchMin in a row)
+    // 7. Cascade/fall animation
+    // 8. Score display in engine.ui
+    // 9. Sparkle effects on matches
+  }
+
+  update(engine: Engine2D, dt: number): void {
+    // TODO: AI agent generates update logic (animations, input, cascades)
+    engine.input.endFrame();
+  }
+
+  exit(engine: Engine2D): void {
+    this.container.removeChildren();
+    engine.ui.removeChildren();
+  }
+}
+`;
+
+/** Shooter skeleton — AI generates all gameplay in enter()/update() */
+export const GAME_2D_SCENE_STARTER_SHOOTER = `import { Engine2D, GameScene, createGame2D, JuiceSystem } from "../engine/core";
+import { createBody, createStaticBody, PhysicsWorld } from "../engine/physics";
+import { createExplosionEffect, createTrailEffect, createAmbientEffect, onDeathExplosion, onCollectSparkle } from "../engine/effects";
+import { PALETTES, lerpColor, drawSkyGradient, drawStars, drawCoinToken, drawHeart, drawShipShape } from "../config/assets";
+import { _loadSpriteLib, _sheetCache } from "../utils/media-stock";
+
+const PIXI = (window as any).PIXI;
+
+var THEME = 'space';
+var PAL = PALETTES[THEME] || PALETTES.space;
+
+var CONFIG = {
+  playerSpeed: 320,
+  bulletSpeed: 700,
+  fireRate: 0.12,
+  enemyBaseSpeed: 120,
+  enemySpawnRate: 1.2,
+  lives: 3,
+  playerSize: 36,
+};
+
+// SKELETON — The AI agent MUST generate the full shooter game.
+
+export class GameScene2D implements GameScene {
+  name = 'game';
+  container: any;
+
+  constructor() {
+    this.container = new PIXI.Container();
+  }
+
+  async enter(engine: Engine2D): Promise<void> {
+    await _loadSpriteLib(THEME);
+    var W = engine.config.width;
+    var H = engine.config.height;
+
+    // TODO: AI agent generates the full shooter game based on Creative Brief
+    // 1. Space background with stars + parallax
+    // 2. Player ship at bottom (drawShipShape or sprite)
+    // 3. Bullet firing system (CONFIG.fireRate)
+    // 4. Enemy wave spawning (CONFIG.enemySpawnRate)
+    // 5. Enemy movement patterns (straight, zigzag, dive)
+    // 6. Collision detection (bullet-enemy, enemy-player)
+    // 7. Explosion effects on hits
+    // 8. Score + lives UI in engine.ui
+    // 9. Wave progression (harder over time)
+  }
+
+  update(engine: Engine2D, dt: number): void {
+    // TODO: AI agent generates update logic (movement, bullets, enemies, collisions)
+    engine.input.endFrame();
+  }
+
+  exit(engine: Engine2D): void {
+    this.container.removeChildren();
+    engine.ui.removeChildren();
+  }
+}
+`;
+
+// ============================================================================
+// REFERENCE GAMES — Complete examples used in AI prompt for pattern learning
+// ============================================================================
+
+/** Reference platformer — complete example used in AI prompt for pattern learning */
+export const GAME_2D_REFERENCE_PLATFORMER = `import { Engine2D, GameScene, createGame2D, loadAssets, JuiceSystem } from "../engine/core";
 import { createBody, createStaticBody, createOneWayPlatform, PhysicsWorld, CharacterController } from "../engine/physics";
 import { createAmbientEffect, createSnowEffect, createRainEffect, getThemeEffects, onJumpDust, onLandImpact, onCollectSparkle, onDeathExplosion } from "../engine/effects";
 import { PALETTES, lerpColor, drawSkyGradient, drawStars, drawMountainRange, drawCloud, drawTree, drawGroundStrip, drawPlatformBlock, drawPlayerCharacter, drawCoinToken, drawEnemySlime, drawHeart } from "../config/assets";
@@ -1995,8 +2263,8 @@ export class GameScene2D implements GameScene {
 }
 `;
 
-/** Runner game starter — auto-scrolling with procedural generation */
-export const GAME_2D_SCENE_STARTER_RUNNER = `import { Engine2D, GameScene, createGame2D, JuiceSystem } from "../engine/core";
+/** Reference runner — complete example used in AI prompt for pattern learning */
+export const GAME_2D_REFERENCE_RUNNER = `import { Engine2D, GameScene, createGame2D, JuiceSystem } from "../engine/core";
 import { createBody, createStaticBody, PhysicsWorld } from "../engine/physics";
 import { createAmbientEffect, onJumpDust, onLandImpact, onDeathExplosion, onCollectSparkle } from "../engine/effects";
 import { PALETTES, lerpColor, drawSkyGradient, drawStars, drawMountainRange, drawCloud, drawGroundStrip, drawPlayerCharacter, drawCoinToken, drawEnemySlime, drawHeart } from "../config/assets";
@@ -2265,8 +2533,8 @@ export class GameScene2D implements GameScene {
 }
 `;
 
-/** Puzzle game starter — match-3 with polished graphics */
-export const GAME_2D_SCENE_STARTER_PUZZLE = `import { Engine2D, GameScene, createGame2D, JuiceSystem } from "../engine/core";
+/** Reference puzzle — complete example used in AI prompt for pattern learning */
+export const GAME_2D_REFERENCE_PUZZLE = `import { Engine2D, GameScene, createGame2D, JuiceSystem } from "../engine/core";
 import { createSparkleEffect, onCollectSparkle } from "../engine/effects";
 import { PALETTES, lerpColor, drawSkyGradient, drawHeart, drawGemShape } from "../config/assets";
 import { _loadSpriteLib, _sheetCache } from "../utils/media-stock";
@@ -2611,8 +2879,8 @@ export class GameScene2D implements GameScene {
 }
 `;
 
-/** Shooter game starter — top-down space shooter */
-export const GAME_2D_SCENE_STARTER_SHOOTER = `import { Engine2D, GameScene, createGame2D, JuiceSystem } from "../engine/core";
+/** Reference shooter — complete example used in AI prompt for pattern learning */
+export const GAME_2D_REFERENCE_SHOOTER = `import { Engine2D, GameScene, createGame2D, JuiceSystem } from "../engine/core";
 import { createBody, createStaticBody, PhysicsWorld } from "../engine/physics";
 import { createExplosionEffect, createTrailEffect, createAmbientEffect, onDeathExplosion, onCollectSparkle } from "../engine/effects";
 import { PALETTES, lerpColor, drawSkyGradient, drawStars, drawCoinToken, drawHeart, drawShipShape } from "../config/assets";
@@ -2916,67 +3184,6 @@ export class GameScene2D implements GameScene {
 // ============================================================================
 
 /**
- * Generate a seeded PRNG + procedural platform generation snippet.
- */
-function buildProceduralPlatformerBlock(brief: CreativeBrief): string {
-	return `    // ---- 7. PLATFORMS (procedurally generated from seed ${brief.seed}) ----
-    var _seed = ${brief.seed};
-    function _rng() { _seed |= 0; _seed = _seed + 0x6D2B79F5 | 0; var t = Math.imul(_seed ^ _seed >>> 15, 1 | _seed); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }
-    var _platCount = ${brief.platformCount};
-    var _spacing = (CONFIG.worldWidth - 500) / _platCount;
-    var platforms: { x: number; y: number; w: number }[] = [];
-    var _prevY = CONFIG.groundY - 120;
-    for (var _pi = 0; _pi < _platCount; _pi++) {
-      var _px = 350 + _pi * _spacing + (_rng() * _spacing * 0.5 - _spacing * 0.25);
-      var _maxJumpH = CONFIG.jumpForce * CONFIG.jumpForce / (2 * CONFIG.gravity) * 0.7;
-      var _dy = (_rng() - 0.45) * Math.min(_maxJumpH, 160);
-      _prevY = Math.max(CONFIG.groundY - 350, Math.min(CONFIG.groundY - 80, _prevY + _dy));
-      var _pw = 120 + _rng() * 100;
-      platforms.push({ x: Math.round(_px), y: Math.round(_prevY), w: Math.round(_pw) });
-    }`;
-}
-
-function buildProceduralCoinsBlock(brief: CreativeBrief): string {
-	return `    // ---- 9. COINS (procedurally placed near platforms + ground) ----
-    var coinPositions: { x: number; y: number }[] = [];
-    for (var _ci = 0; _ci < platforms.length; _ci++) {
-      var _cp = platforms[_ci];
-      var _coinCount = 1 + Math.floor(_rng() * 3);
-      for (var _cj = 0; _cj < _coinCount; _cj++) {
-        coinPositions.push({ x: _cp.x + _cj * 40 - (_coinCount - 1) * 20, y: _cp.y - 40 });
-      }
-    }
-    var _groundCoinCount = Math.max(5, ${brief.coinCount} - coinPositions.length);
-    for (var _gci = 0; _gci < _groundCoinCount; _gci++) {
-      coinPositions.push({ x: 300 + _gci * ((CONFIG.worldWidth - 400) / _groundCoinCount), y: CONFIG.groundY - 30 });
-    }`;
-}
-
-function buildProceduralEnemiesBlock(brief: CreativeBrief): string {
-	return `    // ---- 10. ENEMIES (procedurally placed from seed) ----
-    var enemyDefs: { x: number; range: number }[] = [];
-    var _enemyCount = ${brief.enemyCount};
-    var _enemySpacing = (CONFIG.worldWidth - 600) / _enemyCount;
-    for (var _ei = 0; _ei < _enemyCount; _ei++) {
-      var _ex = 500 + _ei * _enemySpacing + _rng() * (_enemySpacing * 0.4);
-      var _eRange = 80 + _rng() * 100;
-      enemyDefs.push({ x: Math.round(_ex), range: Math.round(_eRange) });
-    }`;
-}
-
-function buildProceduralTreesBlock(brief: CreativeBrief): string {
-	return `    // ---- 5. DECORATIVE TREES (procedurally placed from seed) ----
-    var _seed = ${brief.seed + 7}; // offset seed for tree variety
-    function _rng() { _seed |= 0; _seed = _seed + 0x6D2B79F5 | 0; var t = Math.imul(_seed ^ _seed >>> 15, 1 | _seed); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }
-    var _treeCount = 6 + Math.floor(_rng() * 6);
-    var _treeSpacing = (CONFIG.worldWidth - 200) / _treeCount;
-    var treePositions: number[] = [];
-    for (var _ti = 0; _ti < _treeCount; _ti++) {
-      treePositions.push(Math.round(100 + _ti * _treeSpacing + _rng() * _treeSpacing * 0.6));
-    }`;
-}
-
-/**
  * Build a platformer scene starter with CreativeBrief-derived values.
  */
 export function buildGame2dSceneStarter(brief: CreativeBrief): string {
@@ -3023,85 +3230,6 @@ export function buildGame2dSceneStarter(brief: CreativeBrief): string {
 			"};",
 		].join("\n"),
 	);
-
-	// Replace hardcoded tree positions with procedural
-	code = code.replace(
-		"    // ---- 5. DECORATIVE TREES ----\n    var treePositions = [150, 500, 900, 1400, 1900, 2300, 2800, 3200, 3600];",
-		buildProceduralTreesBlock(brief),
-	);
-
-	// Replace hardcoded platforms with procedural
-	const platformsOld = [
-		"    // ---- 7. PLATFORMS ----",
-		"    var platforms = [",
-		"      { x: 400, y: 540, w: 160 },",
-		"      { x: 700, y: 460, w: 140 },",
-		"      { x: 1000, y: 520, w: 180 },",
-		"      { x: 1350, y: 420, w: 150 },",
-		"      { x: 1650, y: 500, w: 200 },",
-		"      { x: 2000, y: 380, w: 160 },",
-		"      { x: 2300, y: 460, w: 140 },",
-		"      { x: 2600, y: 540, w: 180 },",
-		"      { x: 2900, y: 400, w: 160 },",
-		"      { x: 3200, y: 480, w: 200 },",
-		"      { x: 3500, y: 360, w: 150 },",
-		"    ];",
-	].join("\n");
-	code = code.replace(platformsOld, buildProceduralPlatformerBlock(brief));
-
-	// Replace hardcoded coins with procedural
-	const coinsOld = [
-		"    // ---- 9. COINS ----",
-		"    var coinPositions = [",
-		"      { x: 400, y: 500 }, { x: 440, y: 500 },",
-		"      { x: 700, y: 420 }, { x: 740, y: 420 },",
-		"      { x: 1000, y: 480 }, { x: 1050, y: 480 },",
-		"      { x: 1350, y: 380 }, { x: 1400, y: 380 },",
-		"      { x: 1650, y: 460 }, { x: 1700, y: 460 },",
-		"      { x: 2000, y: 340 }, { x: 2050, y: 340 },",
-		"      { x: 2300, y: 420 }, { x: 2600, y: 500 },",
-		"      { x: 2900, y: 360 }, { x: 3200, y: 440 },",
-		"      { x: 3500, y: 320 },",
-		"      // Ground coins",
-		"      { x: 550, y: 640 }, { x: 850, y: 640 },",
-		"      { x: 1200, y: 640 }, { x: 1500, y: 640 },",
-		"      { x: 1800, y: 640 }, { x: 2150, y: 640 },",
-		"      { x: 2450, y: 640 }, { x: 2750, y: 640 },",
-		"      { x: 3050, y: 640 }, { x: 3350, y: 640 },",
-		"    ];",
-	].join("\n");
-	code = code.replace(coinsOld, buildProceduralCoinsBlock(brief));
-
-	// Replace hardcoded enemies with procedural
-	const enemiesOld = [
-		"    // ---- 10. ENEMIES ----",
-		"    var enemyDefs = [",
-		"      { x: 600, range: 120 },",
-		"      { x: 1100, range: 100 },",
-		"      { x: 1700, range: 150 },",
-		"      { x: 2200, range: 100 },",
-		"      { x: 2800, range: 130 },",
-		"      { x: 3300, range: 120 },",
-		"    ];",
-	].join("\n");
-	code = code.replace(enemiesOld, buildProceduralEnemiesBlock(brief));
-
-	// Replace CharacterController flags based on special mechanic
-	if (brief.specialMechanic === "wall-slide") {
-		code = code.replace(
-			"doubleJump: true,\n      wallSlide: false,",
-			"doubleJump: false,\n      wallSlide: true,",
-		);
-	} else if (
-		brief.specialMechanic === "teleport-portals" ||
-		brief.specialMechanic === "time-slow"
-	) {
-		code = code.replace(
-			"doubleJump: true,\n      wallSlide: false,",
-			"doubleJump: false,\n      wallSlide: false,",
-		);
-	}
-	// default: doubleJump true stays
 
 	return code;
 }

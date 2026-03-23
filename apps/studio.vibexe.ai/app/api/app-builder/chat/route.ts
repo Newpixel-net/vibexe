@@ -1156,44 +1156,113 @@ After creating ALL files, end with a short summary. If the app has auth, include
 			if (isGame2d && game2dBrief) {
 				runtimeAddenda.push(buildCreativeBriefPrompt(game2dBrief));
 			}
-			// 2D game AI-generated sprites — inject URLs into prompt
+			// 2D game AI-generated sprites — inject URLs + loading pattern into prompt
 			if (isGame2d && Object.keys(generatedSprites).length > 0) {
-				const spriteList = Object.entries(generatedSprites)
-					.map(([cat, url]) => `- **${cat}**: \`${url}\``)
+				const spriteEntries = Object.entries(generatedSprites);
+				const spriteList = spriteEntries
+					.map(([cat, url]) => `- **${cat}**: Load with \`await PIXI.Assets.load("${url}")\``)
 					.join("\n");
-				runtimeAddenda.push(`## AI-Generated Sprites Available
-
-The following sprites were AI-generated for this game's theme and style. **USE THEM** instead of programmatic drawing:
+				const loadLines = spriteEntries
+					.map(([cat, url]) => `  PIXI.Assets.load("${url}").catch(() => null),`)
+					.join("\n");
+				const varNames = spriteEntries.map(([cat]) => `${cat}Tex`).join(", ");
+				runtimeAddenda.push(`## AI-Generated Sprites (LOAD THESE)
 
 ${spriteList}
 
-Load them in your GameScene2D.ts via PIXI.Assets:
+**Usage in GameScene2D.ts enter():**
 \`\`\`typescript
-const tex = await PIXI.Assets.load("${Object.values(generatedSprites)[0]}");
-const sprite = new PIXI.Sprite(tex);
-sprite.anchor.set(0.5, 1); // bottom-center anchor for characters
-sprite.width = 48; sprite.height = 64; // scale to game size
-this.container.addChild(sprite);
+// Load ALL generated sprites at the start of enter()
+const [${varNames}] = await Promise.all([
+${loadLines}
+]);
+
+// Use sprites (with fallback to drawing helpers)
+var playerGfx = playerTex
+  ? (() => { var s = new PIXI.Sprite(playerTex); s.width = 48; s.height = 64; s.anchor.set(0.5, 1); return s; })()
+  : drawPlayerCharacter(48, PAL.player, PAL.playerLight);
 \`\`\`
 
-**IMPORTANT**: These sprites have white backgrounds. For best results, set the sprite's blendMode or use alpha masking if needed.`);
+**IMPORTANT**: Always use \`.catch(() => null)\` and fallback to drawing helpers if sprite loading fails.
+These sprites have white backgrounds — set blendMode or use alpha masking if needed.`);
 			}
-			// 2D game "build" phase: tell AI that GameScene2D.ts is pre-created
+			// 2D game "build" phase: tell AI that GameScene2D.ts is a SKELETON
 			if (isGame2d) {
-				runtimeAddenda.push(`## CRITICAL: 2D Game — Pixi.js + Proton Engine Pattern
+				runtimeAddenda.push(`## CRITICAL: 2D Game — GameScene2D.ts is a SKELETON
 
-**\`src/scenes/GameScene2D.ts\` is PRE-CREATED** with a working starter that uses the Engine2D, PhysicsWorld, CharacterController, and Proton particle effects.
+**\`src/scenes/GameScene2D.ts\` is a SKELETON** with empty enter() and update() methods. You MUST generate the COMPLETE game.
 
 **You MUST follow this workflow:**
-1. Use \`read_file("src/scenes/GameScene2D.ts")\` FIRST to see the existing starter pattern
-2. Use \`update_file\` to REPLACE the content with your full game implementation
-3. Your replacement MUST use the pre-created engine files: core.ts, physics.ts, effects.ts, assets.ts
+1. Use \`read_file("src/scenes/GameScene2D.ts")\` to see the skeleton + CONFIG values
+2. Use \`update_file\` to REPLACE the skeleton with your full game implementation
+3. Your implementation MUST include ALL of these:
+   - Gradient sky background + parallax mountain/cloud layers
+   - Ground with physics body
+   - Platforms (procedurally placed, at least 8)
+   - Player character with CharacterController
+   - Collectibles (coins/gems/stars) with sparkle effects
+   - Enemies with patrol behavior
+   - Collision handling (collect items, take damage)
+   - Score display + lives display in engine.ui
+   - Ambient particle effects from the theme
+   - Jump dust + land impact particles
+   - Camera following the player
 4. ALWAYS apply SCALES when creating sprites — raw sprites are 800-3000px
-5. Add particle effects: at minimum theme ambient + gameplay triggers (jump dust, collect sparkle)
-6. Use createParallaxBackground() for environment backgrounds
-7. Call engine.input.endFrame() at the end of every update() method
+5. Call engine.input.endFrame() at the end of every update() method
+6. If AI-Generated Sprites are listed above, LOAD THEM and use them
 
-**MINIMUM**: Your GameScene2D.ts must have parallax background, physics, character controller, collectibles with sparkle effects, and a score display in engine.ui.`);
+**The result must be a COMPLETE, PLAYABLE game — not a skeleton.**`);
+
+				// Inject condensed reference pattern so AI knows HOW to build
+				runtimeAddenda.push(`## Reference: How to Build a 2D Game Scene
+
+Here is a CONDENSED example of a working platformer scene.
+Use this pattern but create YOUR OWN unique game based on the Creative Brief:
+
+\`\`\`typescript
+// In enter(): Create background
+var sky = drawSkyGradient(CONFIG.worldWidth, CONFIG.worldHeight, PAL.skyTop, PAL.skyBottom);
+this.container.addChild(sky);
+
+// Create parallax mountains (3 layers)
+for (var i = 0; i < 3; i++) {
+  var mtn = drawMountainRange(CONFIG.worldWidth, CONFIG.groundY - i * 60, PAL.mountain, 0.5 - i * 0.15, 40 + i * 30, 80 + i * 50, 60 + i * 20);
+  this.bgLayers.push({ gfx: mtn, factor: 0.1 + i * 0.1 });
+  this.container.addChild(mtn);
+}
+
+// Create ground
+var ground = drawGroundStrip(CONFIG.worldWidth, CONFIG.groundY, 220, PAL.ground, PAL.groundTop);
+var groundBody = createStaticBody(CONFIG.worldWidth / 2, CONFIG.groundY + 4, CONFIG.worldWidth, 8);
+this.container.addChild(ground);
+
+// Create platforms using procedural generation
+for (var i = 0; i < platformCount; i++) {
+  var platGfx = drawPlatformBlock(w, 24, PAL.platform, PAL.platformTop);
+  var platBody = createOneWayPlatform(x, y, w, 24);
+  this.container.addChild(platGfx);
+}
+
+// Create player with CharacterController
+var playerGfx = drawPlayerCharacter(48, PAL.player, PAL.playerLight);
+var playerBody = createBody(CONFIG.playerStartX, CONFIG.groundY - 60, 28, 44);
+var playerCtrl = new CharacterController(playerBody, {
+  moveSpeed: CONFIG.moveSpeed, jumpForce: CONFIG.jumpForce,
+  doubleJump: true, wallSlide: false,
+});
+
+// Collision handler
+physics.onSensorOverlap(function(a, b) { /* collect coins, take damage */ });
+
+// Ambient particles
+try { var fx = createAmbientEffect(PAL.ambient, W, H); engine.stage.addChild(fx); } catch(e) {}
+
+// UI: Score + Lives
+var scoreText = engine.createText('Score: 0', { fontSize: 28, fill: 0xffffff });
+engine.ui.addChild(scoreText);
+\`\`\`
+
+**CRITICAL**: Do NOT copy this example verbatim. Generate unique content based on the Creative Brief.`);
 			}
 		} else if (isReturningUser) {
 			// Normal existing project — edit/add files

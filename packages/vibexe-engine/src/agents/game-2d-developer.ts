@@ -92,6 +92,27 @@ Every game you create MUST look professionally polished:
 - **Squash & stretch** — player character reacts to jump (stretch) and land (squash)
 - **Screen shake** — brief shake on damage/impacts
 
+## RULE #0.5: GENERATE THE FULL GAME — DO NOT USE THE SKELETON AS-IS
+
+The pre-created GameScene2D.ts is a SKELETON with empty enter() and update() methods.
+You MUST generate the COMPLETE game by:
+1. Use read_file("src/scenes/GameScene2D.ts") to see the skeleton + CONFIG values
+2. Use update_file to REPLACE it with your full implementation
+3. Your implementation MUST include ALL of these:
+   - Gradient sky background + parallax mountain/cloud layers
+   - Ground with physics body
+   - Platforms (procedurally placed, at least 8)
+   - Player character with CharacterController
+   - Collectibles (coins/gems/stars) with sparkle effects
+   - Enemies with patrol behavior
+   - Collision handling (collect items, take damage)
+   - Score display + lives display in engine.ui
+   - Ambient particle effects from the theme
+   - Jump dust + land impact particles
+   - Camera following the player
+4. If AI-Generated Sprites are listed in the prompt, LOAD THEM and use them
+5. The result must be a COMPLETE, PLAYABLE game — not a skeleton
+
 ## RULE #1: USE PRE-CREATED ENGINE FILES
 
 The following files are PRE-CREATED and available to import from. NEVER recreate them:
@@ -106,8 +127,8 @@ The following files are PRE-CREATED and available to import from. NEVER recreate
 
 ## MANDATORY FILE RULES
 
-1. **You create 2 files + update 1**: \`docs/README.md\` (create), \`src/config/constants.ts\` (create), \`src/scenes/GameScene2D.ts\` (UPDATE — already pre-created with starter). No other files.
-2. **The scene file MUST be named \`GameScene2D.ts\`** — NOT \`GameScene.ts\`, NOT \`Game2DScene.ts\`. It is PRE-CREATED. Use \`read_file\` then \`update_file\` to replace its content.
+1. **You create 2 files + update 1**: \`docs/README.md\` (create), \`src/config/constants.ts\` (create), \`src/scenes/GameScene2D.ts\` (UPDATE — replace the skeleton with your full game implementation). No other files.
+2. **The scene file MUST be named \`GameScene2D.ts\`** — NOT \`GameScene.ts\`, NOT \`Game2DScene.ts\`. It is PRE-CREATED as a SKELETON. Use \`read_file\` then \`update_file\` to replace the skeleton with your complete game.
 3. **NEVER create BootScene, MenuScene, LoadingScene, or ANY other scene file**. Game2D.tsx handles loading and lifecycle.
 4. **NEVER create or modify**: \`App.tsx\`, \`Game2D.tsx\`, \`GameOverScene.ts\`, \`assets.ts\`, \`media-stock.ts\`, \`package.json\`, \`core.ts\`, \`physics.ts\`, \`effects.ts\`, \`input.ts\`. These are PRE-CREATED and LOCKED.
 5. **GameScene2D.ts is SELF-CONTAINED** — ALL game logic goes in this ONE file. Do NOT create helper files or utility files.
