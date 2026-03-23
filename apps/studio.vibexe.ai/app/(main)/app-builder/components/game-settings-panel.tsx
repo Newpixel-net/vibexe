@@ -328,6 +328,34 @@ export function GameSettingsContent({ settings, onChange, onSave, pickSpawnActiv
 			<div className="flex-1 overflow-y-auto scrollbar-thin p-3 space-y-2">
 				{activeTab === "player" && (
 					<>
+						{/* 2D Game Seed — only shown for 2D projects */}
+						{settings.game2d?.seed != null && (
+							<>
+								<SectionLabel tooltip="Unique seed that drives game variety — each seed creates a different game feel with different theme, difficulty, layout, and mechanics">
+									2D Game Seed
+								</SectionLabel>
+								<div className="flex items-center gap-2 mb-1">
+									<span className="text-lg font-mono font-bold text-violet-300 tracking-wider select-all">
+										{settings.game2d.seed}
+									</span>
+									<button
+										type="button"
+										onClick={() => {
+											const newSeed = Math.floor(Math.random() * 9000) + 1000;
+											onChange(deepMerge(settings, { game2d: { ...settings.game2d, seed: newSeed } }));
+										}}
+										className="text-[10px] text-white/40 hover:text-violet-400 transition-colors px-2 py-0.5 rounded bg-white/5 hover:bg-white/10 flex items-center gap-1"
+										title="Generate new seed"
+									>
+										<RotateCcw className="w-3 h-3" />
+										Reseed
+									</button>
+								</div>
+								<p className="text-[10px] text-white/25 mb-2">
+									{settings.game2d.subGenre ?? "platformer"} &middot; changes theme, difficulty, layout &amp; mechanics
+								</p>
+							</>
+						)}
 						{/* Character Selection sub-section */}
 						<SectionLabel tooltip="Select the player character model and adjust fit">Character</SectionLabel>
 						<CharacterPicker

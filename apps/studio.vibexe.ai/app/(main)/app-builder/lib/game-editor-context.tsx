@@ -120,6 +120,10 @@ export type QualityPreset = "low" | "medium" | "high" | "ultra";
 
 export interface GameSettings {
 	version?: number;
+	game2d?: {
+		seed?: number;
+		subGenre?: "platformer" | "runner" | "puzzle" | "shooter";
+	};
 	player?: {
 		spawnX?: number; spawnY?: number; spawnZ?: number;
 		startingLives?: number;

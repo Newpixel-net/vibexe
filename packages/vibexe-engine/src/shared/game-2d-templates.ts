@@ -7,6 +7,7 @@
  */
 
 import type { TemplateFile } from "./game-3d-templates";
+import type { CreativeBrief } from "./game-2d-seed";
 import { ENGINE_CORE_CONTENT } from "./game-2d-engine";
 import { ENGINE_INPUT_CONTENT, MEDIA_STOCK_2D_CONTENT } from "./game-2d-engine";
 import { ENGINE_PHYSICS_CONTENT } from "./game-2d-physics";
@@ -2903,3 +2904,337 @@ export class GameScene2D implements GameScene {
   }
 }
 `;
+
+// ============================================================================
+// BUILDER FUNCTIONS — Parameterized scene starters driven by CreativeBrief
+// ============================================================================
+
+/**
+ * Generate a seeded PRNG + procedural platform generation snippet.
+ */
+function buildProceduralPlatformerBlock(brief: CreativeBrief): string {
+	return `    // ---- 7. PLATFORMS (procedurally generated from seed ${brief.seed}) ----
+    var _seed = ${brief.seed};
+    function _rng() { _seed |= 0; _seed = _seed + 0x6D2B79F5 | 0; var t = Math.imul(_seed ^ _seed >>> 15, 1 | _seed); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }
+    var _platCount = ${brief.platformCount};
+    var _spacing = (CONFIG.worldWidth - 500) / _platCount;
+    var platforms: { x: number; y: number; w: number }[] = [];
+    var _prevY = CONFIG.groundY - 120;
+    for (var _pi = 0; _pi < _platCount; _pi++) {
+      var _px = 350 + _pi * _spacing + (_rng() * _spacing * 0.5 - _spacing * 0.25);
+      var _maxJumpH = CONFIG.jumpForce * CONFIG.jumpForce / (2 * CONFIG.gravity) * 0.7;
+      var _dy = (_rng() - 0.45) * Math.min(_maxJumpH, 160);
+      _prevY = Math.max(CONFIG.groundY - 350, Math.min(CONFIG.groundY - 80, _prevY + _dy));
+      var _pw = 120 + _rng() * 100;
+      platforms.push({ x: Math.round(_px), y: Math.round(_prevY), w: Math.round(_pw) });
+    }`;
+}
+
+function buildProceduralCoinsBlock(brief: CreativeBrief): string {
+	return `    // ---- 9. COINS (procedurally placed near platforms + ground) ----
+    var coinPositions: { x: number; y: number }[] = [];
+    for (var _ci = 0; _ci < platforms.length; _ci++) {
+      var _cp = platforms[_ci];
+      var _coinCount = 1 + Math.floor(_rng() * 3);
+      for (var _cj = 0; _cj < _coinCount; _cj++) {
+        coinPositions.push({ x: _cp.x + _cj * 40 - (_coinCount - 1) * 20, y: _cp.y - 40 });
+      }
+    }
+    var _groundCoinCount = Math.max(5, ${brief.coinCount} - coinPositions.length);
+    for (var _gci = 0; _gci < _groundCoinCount; _gci++) {
+      coinPositions.push({ x: 300 + _gci * ((CONFIG.worldWidth - 400) / _groundCoinCount), y: CONFIG.groundY - 30 });
+    }`;
+}
+
+function buildProceduralEnemiesBlock(brief: CreativeBrief): string {
+	return `    // ---- 10. ENEMIES (procedurally placed from seed) ----
+    var enemyDefs: { x: number; range: number }[] = [];
+    var _enemyCount = ${brief.enemyCount};
+    var _enemySpacing = (CONFIG.worldWidth - 600) / _enemyCount;
+    for (var _ei = 0; _ei < _enemyCount; _ei++) {
+      var _ex = 500 + _ei * _enemySpacing + _rng() * (_enemySpacing * 0.4);
+      var _eRange = 80 + _rng() * 100;
+      enemyDefs.push({ x: Math.round(_ex), range: Math.round(_eRange) });
+    }`;
+}
+
+function buildProceduralTreesBlock(brief: CreativeBrief): string {
+	return `    // ---- 5. DECORATIVE TREES (procedurally placed from seed) ----
+    var _seed = ${brief.seed + 7}; // offset seed for tree variety
+    function _rng() { _seed |= 0; _seed = _seed + 0x6D2B79F5 | 0; var t = Math.imul(_seed ^ _seed >>> 15, 1 | _seed); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }
+    var _treeCount = 6 + Math.floor(_rng() * 6);
+    var _treeSpacing = (CONFIG.worldWidth - 200) / _treeCount;
+    var treePositions: number[] = [];
+    for (var _ti = 0; _ti < _treeCount; _ti++) {
+      treePositions.push(Math.round(100 + _ti * _treeSpacing + _rng() * _treeSpacing * 0.6));
+    }`;
+}
+
+/**
+ * Build a platformer scene starter with CreativeBrief-derived values.
+ */
+export function buildGame2dSceneStarter(brief: CreativeBrief): string {
+	let code = GAME_2D_SCENE_STARTER;
+
+	// Replace THEME
+	code = code.replace(
+		"var THEME = 'sunset'; // Change to: forest, sunset, space, volcanic, candy, arctic, dark, ocean",
+		`var THEME = '${brief.theme}'; // Seed ${brief.seed} -- ${brief.difficultyProfile}, ${brief.mechanicEmphasis}`,
+	);
+
+	// Replace CONFIG values
+	code = code.replace(
+		[
+			"var CONFIG = {",
+			"  gravity: 980,",
+			"  worldWidth: 4000,",
+			"  worldHeight: 900,",
+			"  groundY: 680,",
+			"  playerSize: 48,",
+			"  playerStartX: 250,",
+			"  moveSpeed: 280,",
+			"  jumpForce: 520,",
+			"  coinRadius: 10,",
+			"  enemySize: 44,",
+			"  enemySpeed: 60,",
+			"  lives: 3,",
+			"};",
+		].join("\n"),
+		[
+			"var CONFIG = {",
+			`  gravity: ${brief.gravity},`,
+			`  worldWidth: ${brief.worldWidth},`,
+			"  worldHeight: 900,",
+			"  groundY: 680,",
+			"  playerSize: 48,",
+			"  playerStartX: 250,",
+			`  moveSpeed: ${brief.moveSpeed},`,
+			`  jumpForce: ${brief.jumpForce},`,
+			"  coinRadius: 10,",
+			"  enemySize: 44,",
+			`  enemySpeed: ${brief.difficultyProfile === "hard-intense" ? 100 : brief.difficultyProfile === "casual-easy" ? 40 : 60},`,
+			`  lives: ${brief.difficultyProfile === "casual-easy" ? 5 : brief.difficultyProfile === "hard-intense" ? 2 : 3},`,
+			"};",
+		].join("\n"),
+	);
+
+	// Replace hardcoded tree positions with procedural
+	code = code.replace(
+		"    // ---- 5. DECORATIVE TREES ----\n    var treePositions = [150, 500, 900, 1400, 1900, 2300, 2800, 3200, 3600];",
+		buildProceduralTreesBlock(brief),
+	);
+
+	// Replace hardcoded platforms with procedural
+	const platformsOld = [
+		"    // ---- 7. PLATFORMS ----",
+		"    var platforms = [",
+		"      { x: 400, y: 540, w: 160 },",
+		"      { x: 700, y: 460, w: 140 },",
+		"      { x: 1000, y: 520, w: 180 },",
+		"      { x: 1350, y: 420, w: 150 },",
+		"      { x: 1650, y: 500, w: 200 },",
+		"      { x: 2000, y: 380, w: 160 },",
+		"      { x: 2300, y: 460, w: 140 },",
+		"      { x: 2600, y: 540, w: 180 },",
+		"      { x: 2900, y: 400, w: 160 },",
+		"      { x: 3200, y: 480, w: 200 },",
+		"      { x: 3500, y: 360, w: 150 },",
+		"    ];",
+	].join("\n");
+	code = code.replace(platformsOld, buildProceduralPlatformerBlock(brief));
+
+	// Replace hardcoded coins with procedural
+	const coinsOld = [
+		"    // ---- 9. COINS ----",
+		"    var coinPositions = [",
+		"      { x: 400, y: 500 }, { x: 440, y: 500 },",
+		"      { x: 700, y: 420 }, { x: 740, y: 420 },",
+		"      { x: 1000, y: 480 }, { x: 1050, y: 480 },",
+		"      { x: 1350, y: 380 }, { x: 1400, y: 380 },",
+		"      { x: 1650, y: 460 }, { x: 1700, y: 460 },",
+		"      { x: 2000, y: 340 }, { x: 2050, y: 340 },",
+		"      { x: 2300, y: 420 }, { x: 2600, y: 500 },",
+		"      { x: 2900, y: 360 }, { x: 3200, y: 440 },",
+		"      { x: 3500, y: 320 },",
+		"      // Ground coins",
+		"      { x: 550, y: 640 }, { x: 850, y: 640 },",
+		"      { x: 1200, y: 640 }, { x: 1500, y: 640 },",
+		"      { x: 1800, y: 640 }, { x: 2150, y: 640 },",
+		"      { x: 2450, y: 640 }, { x: 2750, y: 640 },",
+		"      { x: 3050, y: 640 }, { x: 3350, y: 640 },",
+		"    ];",
+	].join("\n");
+	code = code.replace(coinsOld, buildProceduralCoinsBlock(brief));
+
+	// Replace hardcoded enemies with procedural
+	const enemiesOld = [
+		"    // ---- 10. ENEMIES ----",
+		"    var enemyDefs = [",
+		"      { x: 600, range: 120 },",
+		"      { x: 1100, range: 100 },",
+		"      { x: 1700, range: 150 },",
+		"      { x: 2200, range: 100 },",
+		"      { x: 2800, range: 130 },",
+		"      { x: 3300, range: 120 },",
+		"    ];",
+	].join("\n");
+	code = code.replace(enemiesOld, buildProceduralEnemiesBlock(brief));
+
+	// Replace CharacterController flags based on special mechanic
+	if (brief.specialMechanic === "wall-slide") {
+		code = code.replace(
+			"doubleJump: true,\n      wallSlide: false,",
+			"doubleJump: false,\n      wallSlide: true,",
+		);
+	} else if (
+		brief.specialMechanic === "teleport-portals" ||
+		brief.specialMechanic === "time-slow"
+	) {
+		code = code.replace(
+			"doubleJump: true,\n      wallSlide: false,",
+			"doubleJump: false,\n      wallSlide: false,",
+		);
+	}
+	// default: doubleJump true stays
+
+	return code;
+}
+
+/**
+ * Build a runner scene starter with CreativeBrief-derived values.
+ */
+export function buildGame2dSceneStarterRunner(brief: CreativeBrief): string {
+	let code = GAME_2D_SCENE_STARTER_RUNNER;
+
+	code = code.replace(
+		"var THEME = 'space';",
+		`var THEME = '${brief.theme}'; // Seed ${brief.seed}`,
+	);
+
+	code = code.replace(
+		[
+			"var CONFIG = {",
+			"  gravity: 1400,",
+			"  jumpForce: 650,",
+			"  startSpeed: 280,",
+			"  maxSpeed: 600,",
+			"  speedRamp: 0.003,",
+			"  groundY: 520,",
+			"  playerX: 180,",
+			"  playerSize: 42,",
+			"  spawnInterval: 1.8,",
+			"  coinInterval: 0.8,",
+			"  lives: 1,",
+			"};",
+		].join("\n"),
+		[
+			"var CONFIG = {",
+			`  gravity: ${brief.gravity},`,
+			`  jumpForce: ${brief.jumpForce},`,
+			`  startSpeed: ${brief.startSpeed},`,
+			`  maxSpeed: ${brief.maxSpeed},`,
+			`  speedRamp: ${brief.difficultyProfile === "hard-intense" ? 0.005 : brief.difficultyProfile === "casual-easy" ? 0.002 : 0.003},`,
+			"  groundY: 520,",
+			"  playerX: 180,",
+			"  playerSize: 42,",
+			`  spawnInterval: ${brief.spawnInterval},`,
+			`  coinInterval: ${brief.difficultyProfile === "casual-easy" ? 0.6 : 0.8},`,
+			`  lives: ${brief.difficultyProfile === "casual-easy" ? 3 : 1},`,
+			"};",
+		].join("\n"),
+	);
+
+	return code;
+}
+
+/**
+ * Build a puzzle scene starter with CreativeBrief-derived values.
+ */
+export function buildGame2dSceneStarterPuzzle(brief: CreativeBrief): string {
+	let code = GAME_2D_SCENE_STARTER_PUZZLE;
+
+	code = code.replace(
+		"var THEME = 'candy';",
+		`var THEME = '${brief.theme}'; // Seed ${brief.seed}`,
+	);
+
+	const allGemColors = [
+		"0xff4466",
+		"0x44aaff",
+		"0x44dd44",
+		"0xffaa22",
+		"0xcc44ff",
+		"0x44ffdd",
+		"0xff8844",
+	];
+	const gemColors = allGemColors.slice(0, brief.gemColorCount).join(", ");
+
+	code = code.replace(
+		[
+			"var CONFIG = {",
+			"  cols: 7,",
+			"  rows: 6,",
+			"  cellSize: 56,",
+			"  padding: 4,",
+			"  gemColors: [0xff4466, 0x44aaff, 0x44dd44, 0xffaa22, 0xcc44ff, 0x44ffdd],",
+			"  matchMin: 3,",
+			"  fallSpeed: 400,",
+			"  swapSpeed: 0.15,",
+			"};",
+		].join("\n"),
+		[
+			"var CONFIG = {",
+			`  cols: ${brief.gridCols},`,
+			`  rows: ${brief.gridRows},`,
+			`  cellSize: ${brief.gridCols > 7 ? 48 : 56},`,
+			"  padding: 4,",
+			`  gemColors: [${gemColors}],`,
+			"  matchMin: 3,",
+			`  fallSpeed: ${brief.difficultyProfile === "hard-intense" ? 500 : 400},`,
+			`  swapSpeed: ${brief.difficultyProfile === "hard-intense" ? 0.1 : 0.15},`,
+			"};",
+		].join("\n"),
+	);
+
+	return code;
+}
+
+/**
+ * Build a shooter scene starter with CreativeBrief-derived values.
+ */
+export function buildGame2dSceneStarterShooter(brief: CreativeBrief): string {
+	let code = GAME_2D_SCENE_STARTER_SHOOTER;
+
+	code = code.replace(
+		"var THEME = 'space';",
+		`var THEME = '${brief.theme}'; // Seed ${brief.seed}`,
+	);
+
+	code = code.replace(
+		[
+			"var CONFIG = {",
+			"  playerSpeed: 320,",
+			"  bulletSpeed: 700,",
+			"  fireRate: 0.12,",
+			"  enemyBaseSpeed: 120,",
+			"  enemySpawnRate: 1.2,",
+			"  lives: 3,",
+			"  playerSize: 36,",
+			"};",
+		].join("\n"),
+		[
+			"var CONFIG = {",
+			`  playerSpeed: ${brief.moveSpeed},`,
+			`  bulletSpeed: ${brief.difficultyProfile === "hard-intense" ? 800 : 700},`,
+			`  fireRate: ${brief.fireRate},`,
+			`  enemyBaseSpeed: ${brief.difficultyProfile === "hard-intense" ? 180 : brief.difficultyProfile === "casual-easy" ? 80 : 120},`,
+			`  enemySpawnRate: ${brief.enemySpawnRate},`,
+			`  lives: ${brief.difficultyProfile === "casual-easy" ? 5 : brief.difficultyProfile === "hard-intense" ? 2 : 3},`,
+			"  playerSize: 36,",
+			"};",
+		].join("\n"),
+	);
+
+	return code;
+}
+

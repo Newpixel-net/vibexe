@@ -17,6 +17,12 @@ import {
 	GAME_2D_SCENE_STARTER_RUNNER,
 	GAME_2D_SCENE_STARTER_PUZZLE,
 	GAME_2D_SCENE_STARTER_SHOOTER,
+	buildGame2dSceneStarter,
+	buildGame2dSceneStarterRunner,
+	buildGame2dSceneStarterPuzzle,
+	buildGame2dSceneStarterShooter,
+	expandSeed,
+	buildCreativeBriefPrompt,
 	GAME_2D_ASSETS_REFERENCE_BUILDER,
 	assemblePrompt,
 	executeOrchestration,
@@ -233,6 +239,7 @@ export async function POST(request: Request) {
 			mode = "generate",
 			modelId,
 			activeAgentId,
+			game2dSeed,
 		} = body as {
 			messages: UIMessage[];
 			appId: string;
@@ -240,6 +247,7 @@ export async function POST(request: Request) {
 			mode?: "generate" | "discussion" | "continue";
 			modelId?: string;
 			activeAgentId?: string;
+			game2dSeed?: number;
 		};
 
 		if (!appId) {
@@ -868,6 +876,18 @@ const supabase = createClient("${supabaseConfig.url}", "${supabaseConfig.anonKey
 				console.log(`[Chat API] Forcing game-2d-developer agent for 2D game`);
 			}
 		}
+
+		// ── 2D Game Seed Variety System ───────────────────────────────────
+		// Generate a creative brief from a 4-digit seed to ensure each new
+		// game session produces genuinely different output.
+		let game2dBrief: ReturnType<typeof expandSeed> | null = null;
+		if (isGame2d) {
+			const effectiveSeed = game2dSeed ?? Math.floor(Math.random() * 9000) + 1000;
+			const subGenre = isShooter2d ? "shooter" as const : isRunner2d ? "runner" as const : isPuzzle2d ? "puzzle" as const : "platformer" as const;
+			game2dBrief = expandSeed(effectiveSeed, subGenre);
+			console.log(`[Chat API] 2D seed=${effectiveSeed}, genre=${subGenre}, theme=${game2dBrief.theme}, difficulty=${game2dBrief.difficultyProfile}`);
+		}
+
 		if (isGameProject || isGame2d || isGame3d) {
 			const existingPaths = new Set(existingFiles.map((f) => f.path));
 			// Use 3D templates for 3D games, 2D templates for 2D games
@@ -905,19 +925,41 @@ const supabase = createClient("${supabaseConfig.url}", "${supabaseConfig.anonKey
 			}
 
 			// 2D games: inject GameScene2D.ts STARTER based on detected sub-genre
+			// Uses seed-parameterized builder when creative brief is available
 			if (isGame2d && !existingPaths.has("src/scenes/GameScene2D.ts")) {
 				try {
-					const sceneStarter2d = isShooter2d
-						? GAME_2D_SCENE_STARTER_SHOOTER
-						: isRunner2d
-							? GAME_2D_SCENE_STARTER_RUNNER
-							: isPuzzle2d
-								? GAME_2D_SCENE_STARTER_PUZZLE
-								: GAME_2D_SCENE_STARTER;
+					const sceneStarter2d = game2dBrief
+						? (isShooter2d
+							? buildGame2dSceneStarterShooter(game2dBrief)
+							: isRunner2d
+								? buildGame2dSceneStarterRunner(game2dBrief)
+								: isPuzzle2d
+									? buildGame2dSceneStarterPuzzle(game2dBrief)
+									: buildGame2dSceneStarter(game2dBrief))
+						: (isShooter2d
+							? GAME_2D_SCENE_STARTER_SHOOTER
+							: isRunner2d
+								? GAME_2D_SCENE_STARTER_RUNNER
+								: isPuzzle2d
+									? GAME_2D_SCENE_STARTER_PUZZLE
+									: GAME_2D_SCENE_STARTER);
 					await saveFile(appId, "src/scenes/GameScene2D.ts", sceneStarter2d, "typescript");
-					console.log(`[Chat API] 2D scene starter injected: src/scenes/GameScene2D.ts (shooter=${isShooter2d}, runner=${isRunner2d}, puzzle=${isPuzzle2d})`);
+					console.log(`[Chat API] 2D scene starter injected: src/scenes/GameScene2D.ts (seed=${game2dBrief?.seed ?? "none"}, shooter=${isShooter2d}, runner=${isRunner2d}, puzzle=${isPuzzle2d})`);
 				} catch (e) {
 					console.error(`[Chat API] 2D scene starter injection failed:`, e);
+				}
+			}
+
+			// Save 2D game seed to settings so UI can display it
+			if (isGame2d && game2dBrief && !existingPaths.has("src/__game-settings.json") && !existingPaths.has("__game-settings.json")) {
+				try {
+					const seedSettings = JSON.stringify({
+						game2d: { seed: game2dBrief.seed, subGenre: game2dBrief.subGenre },
+					}, null, 2);
+					await saveFile(appId, "src/__game-settings.json", seedSettings, "json");
+					console.log(`[Chat API] 2D seed settings saved: seed=${game2dBrief.seed}`);
+				} catch (e) {
+					console.error(`[Chat API] 2D seed settings save failed:`, e);
 				}
 			}
 
@@ -1095,6 +1137,10 @@ After creating ALL files, end with a short summary. If the app has auth, include
 
 **MINIMUM**: Your GameScene3D.ts must call at least 5 different factory helpers. Every platform, collectible, player, barrier, and decoration MUST use the corresponding factory.`);
 
+			}
+			// 2D game creative brief injection — drives variety per seed
+			if (isGame2d && game2dBrief) {
+				runtimeAddenda.push(buildCreativeBriefPrompt(game2dBrief));
 			}
 			// 2D game "build" phase: tell AI that GameScene2D.ts is pre-created
 			if (isGame2d) {
@@ -1470,6 +1516,7 @@ An App Store listing has been analyzed and injected into the project context abo
 			tools,
 			stopWhen: stepCountIs(maxSteps),
 			toolChoice: "auto",
+			...(isGame2d ? { temperature: 0.7 } : {}),
 			onError: ({ error }) => {
 				generationError = error;
 				const errMsg = error instanceof Error ? error.message : String(error);

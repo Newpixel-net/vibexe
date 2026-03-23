@@ -52,6 +52,7 @@ import type { AppFile } from "../adapters/file-adapter";
 import { toFileTypes } from "../adapters/file-adapter";
 import { toChatMessages } from "../adapters/message-adapter";
 import { useVisualEdit } from "../lib/visual-edit-context";
+import { useGameEditor } from "../lib/game-editor-context";
 import {
 	createDefaultProjectStages,
 	createPhaseFromToolEvent,
@@ -326,6 +327,9 @@ export function ChatColumn({
 	onGeneratingChange,
 	onStreamingDoc,
 }: ChatColumnProps) {
+	// Access game settings for 2D seed pass-through to chat API
+	const { gameSettings } = useGameEditor();
+
 	// Track if component has mounted (for hydration safety)
 	const [hasMounted, setHasMounted] = useState(false);
 	const searchParams = useSearchParams();
@@ -522,9 +526,10 @@ export function ChatColumn({
 					mode,
 					modelId: selectedModelId,
 					...(activeAgentId ? { activeAgentId } : {}),
+					...(gameSettings?.game2d?.seed ? { game2dSeed: gameSettings.game2d.seed } : {}),
 				},
 			}),
-		[appId, chatId, mode, selectedModelId, activeAgentId],
+		[appId, chatId, mode, selectedModelId, activeAgentId, gameSettings?.game2d?.seed],
 	);
 
 	// useChat hook for AI interaction
