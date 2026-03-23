@@ -1557,47 +1557,51 @@ export function drawShipShape(size: number, color: number, lightColor: number): 
 export function applyBiomePostProcessing(theme: string, worldContainer: any): any {
   if (!PIXI.ColorMatrixFilter) return null;
   var cm = new PIXI.ColorMatrixFilter();
+  // IMPORTANT: Never use cm.tint() — it multiplies ALL pixels by one color,
+  // destroying color variety and making the entire scene monochrome.
+  // Use only saturate/contrast/brightness/hue for subtle mood shifts.
   switch (theme) {
     case 'forest':
-      cm.saturate(0.15, false);
-      cm.tint(0x88cc66, true);
-      cm.contrast(0.05, true);
+      cm.saturate(0.12, false);
+      cm.contrast(0.06, true);
       cm.brightness(1.02, true);
       break;
     case 'sunset':
-      cm.kodachrome(false);
-      cm.brightness(1.04, true);
+      cm.saturate(0.1, false);
+      cm.contrast(0.08, true);
+      cm.brightness(1.03, true);
+      cm.hue(8, true); // slight warm shift
       break;
     case 'space':
-      cm.night(0.12, false);
-      cm.contrast(0.12, true);
-      cm.saturate(0.15, true);
+      cm.night(0.08, false);
+      cm.contrast(0.1, true);
+      cm.saturate(0.12, true);
       break;
     case 'volcanic':
-      cm.tint(0xff6644, true);
-      cm.saturate(0.25, true);
-      cm.contrast(0.12, true);
-      cm.brightness(0.96, true);
+      cm.saturate(0.15, false);
+      cm.contrast(0.1, true);
+      cm.brightness(0.97, true);
+      cm.hue(-5, true); // slight warm shift
       break;
     case 'candy':
-      cm.saturate(0.2, false);
-      cm.brightness(1.06, true);
+      cm.saturate(0.18, false);
+      cm.brightness(1.05, true);
       break;
     case 'arctic':
-      cm.tint(0xaaddff, true);
-      cm.contrast(0.08, true);
-      cm.brightness(1.04, true);
-      cm.saturate(-0.1, true);
+      cm.contrast(0.06, false);
+      cm.brightness(1.03, true);
+      cm.saturate(-0.08, true);
+      cm.hue(-10, true); // slight cool shift
       break;
     case 'dark':
-      cm.brightness(0.72, false);
-      cm.contrast(0.18, true);
-      cm.saturate(-0.15, true);
+      cm.brightness(0.75, false);
+      cm.contrast(0.15, true);
+      cm.saturate(-0.12, true);
       break;
     case 'ocean':
-      cm.tint(0x88bbdd, true);
-      cm.saturate(0.1, true);
-      cm.contrast(0.06, true);
+      cm.saturate(0.08, false);
+      cm.contrast(0.05, true);
+      cm.hue(-8, true); // slight cool shift
       break;
   }
   var existing = worldContainer.filters || [];
