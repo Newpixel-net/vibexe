@@ -3198,8 +3198,8 @@ export class GameScene2D implements GameScene {
 /** Runner skeleton — AI generates all gameplay in enter()/update() */
 export const GAME_2D_SCENE_STARTER_RUNNER = `import { Engine2D, GameScene, createGame2D, JuiceSystem } from "../engine/core";
 import { createBody, createStaticBody, PhysicsWorld } from "../engine/physics";
-import { createAmbientEffect, onJumpDust, onLandImpact, onDeathExplosion, onCollectSparkle } from "../engine/effects";
-import { PALETTES, lerpColor, drawSkyGradient, drawStars, drawMountainRange, drawCloud, drawGroundStrip, drawPlayerCharacter, drawCoinToken, drawEnemySlime, drawHeart } from "../config/assets";
+import { createAmbientEffect, createSnowEffect, createRainEffect, onJumpDust, onLandImpact, onDeathExplosion, onCollectSparkle } from "../engine/effects";
+import { PALETTES, lerpColor, setNoiseSeed, drawSkyGradient, drawStars, drawMountainRange, drawCloud, drawGroundStrip, drawPlayerCharacter, drawCoinToken, drawEnemySlime, drawHeart, applyBiomePostProcessing, drawVignette, drawAtmosphericFog, drawLSystemTree, TREE_PRESETS, drawPointLight, createLightingLayer } from "../config/assets";
 import { _loadSpriteLib, _sheetCache } from "../utils/media-stock";
 
 const PIXI = (window as any).PIXI;
@@ -3221,12 +3221,14 @@ var CONFIG = {
   lives: 1,
 };
 
-// SKELETON — The AI agent MUST generate the full runner game.
-
 export class GameScene2D implements GameScene {
   name = 'game';
   container: any;
   private physics!: PhysicsWorld;
+  private bgLayers: { gfx: any; factor: number }[] = [];
+  private clouds: { gfx: any; speed: number }[] = [];
+  private treeSway: any[] = [];
+  private decorTrees: any[] = [];
 
   constructor() {
     this.container = new PIXI.Container();
@@ -3235,23 +3237,56 @@ export class GameScene2D implements GameScene {
   async enter(engine: Engine2D): Promise<void> {
     this.physics = new PhysicsWorld(CONFIG.gravity);
     await _loadSpriteLib(THEME);
+    setNoiseSeed(Date.now() % 10000);
     var W = engine.config.width;
     var H = engine.config.height;
+    var WW = W * 5; // scrolling world width
 
-    // TODO: AI agent generates the full runner game based on Creative Brief
-    // 1. Scrolling background + parallax layers
-    // 2. Ground tiles that scroll and recycle
-    // 3. Player character with jump mechanic
-    // 4. Obstacle spawning system (procedural, speed-based)
-    // 5. Coin spawning with collect effects
-    // 6. Speed ramp over time
-    // 7. Collision detection (obstacle = death, coin = score)
-    // 8. Score + distance UI in engine.ui
-    // 9. Ambient particle effects
+    // ---- VISUAL ATMOSPHERE (shared across all genres) ----
+    var sky = drawSkyGradient(WW, H, PAL.skyTop, PAL.skyBottom);
+    this.container.addChild(sky);
+    var stars = drawStars(WW, H * 0.5, 60);
+    this.container.addChild(stars);
+    for (var mi = 0; mi < 3; mi++) {
+      var mGfx = drawMountainRange(WW, CONFIG.groundY - 30 - mi * 50, PAL.mountains[mi] || PAL.mountains[0], 0.4 + mi * 0.2, 50 + mi * 25, 100 + mi * 40, 250 - mi * 30, THEME, mi);
+      this.container.addChild(mGfx);
+      this.bgLayers.push({ gfx: mGfx, factor: 0.1 + mi * 0.15 });
+    }
+    try {
+      var fogLayers = drawAtmosphericFog(WW, CONFIG.groundY, THEME);
+      for (var fi = 0; fi < fogLayers.length; fi++) { this.container.addChild(fogLayers[fi]); }
+    } catch(e) {}
+    var ground = drawGroundStrip(WW, CONFIG.groundY, H - CONFIG.groundY, PAL.ground, PAL.groundTop, THEME);
+    this.container.addChild(ground);
+    var treePresetList = TREE_PRESETS[THEME] || [];
+    if (treePresetList.length > 0) {
+      for (var ti = 0; ti < 6; ti++) {
+        var tree = drawLSystemTree(ti * (WW / 6) + Math.random() * 200, CONFIG.groundY, treePresetList[ti % treePresetList.length], THEME, Date.now() + ti * 137);
+        this.container.addChild(tree);
+        this.treeSway.push(tree);
+      }
+    }
+    try {
+      var lightLayer = createLightingLayer(THEME, WW, CONFIG.groundY, []);
+      this.container.addChild(lightLayer);
+    } catch(e) {}
+    try { applyBiomePostProcessing(THEME, this.container); } catch(e) {}
+    try { engine.ui.addChild(drawVignette(W, H)); } catch(e) {}
+
+    // TODO: AI agent enhances with runner-specific gameplay:
+    // 1. Player character with auto-run + jump
+    // 2. Obstacle spawning system (speed-based)
+    // 3. Coin spawning with collect effects
+    // 4. Speed ramp over time
+    // 5. Score + distance UI
+    // DO NOT rewrite the visual atmosphere above — ADD gameplay on top
   }
 
   update(engine: Engine2D, dt: number): void {
     this.physics.update(dt);
+    for (var sw = 0; sw < this.treeSway.length; sw++) {
+      this.treeSway[sw].skew.x = Math.sin(engine.elapsed * 1.2 + this.treeSway[sw].x * 0.008) * 0.018;
+    }
     // TODO: AI agent generates update logic (scrolling, spawning, collisions)
     engine.input.endFrame();
   }
@@ -3266,8 +3301,8 @@ export class GameScene2D implements GameScene {
 
 /** Puzzle skeleton — AI generates all gameplay in enter()/update() */
 export const GAME_2D_SCENE_STARTER_PUZZLE = `import { Engine2D, GameScene, createGame2D, JuiceSystem } from "../engine/core";
-import { createSparkleEffect, onCollectSparkle } from "../engine/effects";
-import { PALETTES, lerpColor, drawSkyGradient, drawHeart, drawGemShape } from "../config/assets";
+import { createSparkleEffect, onCollectSparkle, createAmbientEffect } from "../engine/effects";
+import { PALETTES, lerpColor, setNoiseSeed, drawSkyGradient, drawStars, drawHeart, drawGemShape, applyBiomePostProcessing, drawVignette, drawAtmosphericFog, drawPointLight, createLightingLayer } from "../config/assets";
 import { _loadSpriteLib, _sheetCache } from "../utils/media-stock";
 
 const PIXI = (window as any).PIXI;
@@ -3286,8 +3321,6 @@ var CONFIG = {
   swapSpeed: 0.15,
 };
 
-// SKELETON — The AI agent MUST generate the full puzzle game.
-
 export class GameScene2D implements GameScene {
   name = 'game';
   container: any;
@@ -3298,19 +3331,38 @@ export class GameScene2D implements GameScene {
 
   async enter(engine: Engine2D): Promise<void> {
     await _loadSpriteLib(THEME);
+    setNoiseSeed(Date.now() % 10000);
     var W = engine.config.width;
     var H = engine.config.height;
 
-    // TODO: AI agent generates the full puzzle game based on Creative Brief
-    // 1. Background (gradient or themed)
-    // 2. Board container with grid
-    // 3. Gem/tile creation with CONFIG.gemColors
-    // 4. Selection highlight
-    // 5. Swap mechanic (click two adjacent gems)
-    // 6. Match detection (CONFIG.matchMin in a row)
-    // 7. Cascade/fall animation
-    // 8. Score display in engine.ui
-    // 9. Sparkle effects on matches
+    // ---- VISUAL ATMOSPHERE ----
+    var sky = drawSkyGradient(W, H, PAL.skyTop, PAL.skyBottom);
+    this.container.addChild(sky);
+    var stars = drawStars(W, H * 0.4, 40);
+    this.container.addChild(stars);
+    try {
+      var fogLayers = drawAtmosphericFog(W, H * 0.8, THEME);
+      for (var fi = 0; fi < fogLayers.length; fi++) { this.container.addChild(fogLayers[fi]); }
+    } catch(e) {}
+    try {
+      var lightLayer = createLightingLayer(THEME, W, H * 0.8, []);
+      this.container.addChild(lightLayer);
+    } catch(e) {}
+    try { applyBiomePostProcessing(THEME, this.container); } catch(e) {}
+    try { engine.ui.addChild(drawVignette(W, H)); } catch(e) {}
+    try {
+      if (PAL.ambient) {
+        var ambFx = createAmbientEffect(PAL.ambient as any, W, H);
+        if (ambFx && ambFx.emitter) engine.addEmitter(ambFx.emitter);
+      }
+    } catch(e) {}
+
+    // TODO: AI agent enhances with puzzle-specific gameplay:
+    // 1. Board container with grid
+    // 2. Gem/tile creation with CONFIG.gemColors
+    // 3. Selection + swap + match + cascade mechanics
+    // 4. Score display in engine.ui
+    // DO NOT rewrite the visual atmosphere above — ADD gameplay on top
   }
 
   update(engine: Engine2D, dt: number): void {
@@ -3329,7 +3381,7 @@ export class GameScene2D implements GameScene {
 export const GAME_2D_SCENE_STARTER_SHOOTER = `import { Engine2D, GameScene, createGame2D, JuiceSystem } from "../engine/core";
 import { createBody, createStaticBody, PhysicsWorld } from "../engine/physics";
 import { createExplosionEffect, createTrailEffect, createAmbientEffect, onDeathExplosion, onCollectSparkle } from "../engine/effects";
-import { PALETTES, lerpColor, drawSkyGradient, drawStars, drawCoinToken, drawHeart, drawShipShape } from "../config/assets";
+import { PALETTES, lerpColor, setNoiseSeed, drawSkyGradient, drawStars, drawCoinToken, drawHeart, drawShipShape, applyBiomePostProcessing, drawVignette, drawAtmosphericFog, drawPointLight, createLightingLayer } from "../config/assets";
 import { _loadSpriteLib, _sheetCache } from "../utils/media-stock";
 
 const PIXI = (window as any).PIXI;
@@ -3347,8 +3399,6 @@ var CONFIG = {
   playerSize: 36,
 };
 
-// SKELETON — The AI agent MUST generate the full shooter game.
-
 export class GameScene2D implements GameScene {
   name = 'game';
   container: any;
@@ -3359,19 +3409,39 @@ export class GameScene2D implements GameScene {
 
   async enter(engine: Engine2D): Promise<void> {
     await _loadSpriteLib(THEME);
+    setNoiseSeed(Date.now() % 10000);
     var W = engine.config.width;
     var H = engine.config.height;
 
-    // TODO: AI agent generates the full shooter game based on Creative Brief
-    // 1. Space background with stars + parallax
-    // 2. Player ship at bottom (drawShipShape or sprite)
-    // 3. Bullet firing system (CONFIG.fireRate)
-    // 4. Enemy wave spawning (CONFIG.enemySpawnRate)
-    // 5. Enemy movement patterns (straight, zigzag, dive)
-    // 6. Collision detection (bullet-enemy, enemy-player)
-    // 7. Explosion effects on hits
-    // 8. Score + lives UI in engine.ui
-    // 9. Wave progression (harder over time)
+    // ---- VISUAL ATMOSPHERE ----
+    var sky = drawSkyGradient(W, H, PAL.skyTop, PAL.skyBottom);
+    this.container.addChild(sky);
+    var stars = drawStars(W, H, 120);
+    this.container.addChild(stars);
+    try {
+      var fogLayers = drawAtmosphericFog(W, H * 0.9, THEME);
+      for (var fi = 0; fi < fogLayers.length; fi++) { this.container.addChild(fogLayers[fi]); }
+    } catch(e) {}
+    try {
+      var lightLayer = createLightingLayer(THEME, W, H, []);
+      this.container.addChild(lightLayer);
+    } catch(e) {}
+    try { applyBiomePostProcessing(THEME, this.container); } catch(e) {}
+    try { engine.ui.addChild(drawVignette(W, H)); } catch(e) {}
+    try {
+      if (PAL.ambient) {
+        var ambFx = createAmbientEffect(PAL.ambient as any, W, H);
+        if (ambFx && ambFx.emitter) engine.addEmitter(ambFx.emitter);
+      }
+    } catch(e) {}
+
+    // TODO: AI agent enhances with shooter-specific gameplay:
+    // 1. Player ship at bottom (drawShipShape or sprite)
+    // 2. Bullet firing system
+    // 3. Enemy wave spawning + movement patterns
+    // 4. Collision detection + explosion effects
+    // 5. Score + lives UI
+    // DO NOT rewrite the visual atmosphere above — ADD gameplay on top
   }
 
   update(engine: Engine2D, dt: number): void {
