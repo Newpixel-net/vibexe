@@ -324,28 +324,28 @@ import { createGameSprite, createAnimatedGameSprite, createParallaxBackground, S
 const PIXI = (window as any).PIXI;
 const Proton = (window as any).Proton;
 
-// GAME CONFIGURATION — AI should customize these
 const CONFIG = {
-  playerCharacter: 'robot',
-  environment: 'nature',
-  theme: 'nature' as const,
   gravity: 980,
   worldWidth: 3000,
   worldHeight: 800,
+  platformColor: 0x44aa44,
+  playerColor: 0x4488ff,
+  coinColor: 0xffdd00,
+  bgColor: 0x1a1a2e,
+  groundY: 550,
 };
-
-// ======== YOUR GAME CODE GOES BELOW ========
-// Implement GameScene interface: enter(), update(), exit()
-// Use engine.switchScene('gameover', { score }) when player dies
-// Use engine.switchScene('menu') for menu screen
 
 export class GameScene2D implements GameScene {
   name = 'game';
   container: any;
   private physics!: PhysicsWorld;
-  private player: any;
+  private playerSprite: any;
   private playerCtrl!: CharacterController;
   private score = 0;
+  private scoreText: any;
+  private coins: { sprite: any; body: any }[] = [];
+  private bgLayers: any[] = [];
+  private bgFactors: number[] = [];
 
   constructor() {
     this.container = new PIXI.Container();
@@ -354,35 +354,192 @@ export class GameScene2D implements GameScene {
   async enter(engine: Engine2D): Promise<void> {
     this.physics = new PhysicsWorld(CONFIG.gravity);
     this.score = 0;
+    this.coins = [];
 
-    // TODO: Set up your game world here
-    // 1. Load parallax background
-    // 2. Create platforms
-    // 3. Create player with physics body
-    // 4. Add collectibles, enemies
-    // 5. Add particle effects
-    // 6. Set up camera follow
+    const W = engine.config.width;
+    const H = engine.config.height;
+
+    // Sky gradient background
+    const sky = new PIXI.Graphics();
+    sky.rect(0, 0, CONFIG.worldWidth, CONFIG.worldHeight);
+    sky.fill(0x2c3e6b);
+    this.container.addChild(sky);
+
+    // Parallax mountains (simple shapes)
+    for (let layer = 0; layer < 3; layer++) {
+      const mountains = new PIXI.Graphics();
+      const baseY = CONFIG.groundY - 50 - layer * 80;
+      const alpha = 0.15 + layer * 0.1;
+      const color = [0x334466, 0x445577, 0x556688][layer];
+      for (let x = 0; x < CONFIG.worldWidth; x += 200 + layer * 100) {
+        const peakH = 80 + Math.random() * 120 + layer * 40;
+        const peakW = 150 + Math.random() * 100 + layer * 50;
+        mountains.moveTo(x, baseY);
+        mountains.lineTo(x + peakW / 2, baseY - peakH);
+        mountains.lineTo(x + peakW, baseY);
+        mountains.closePath();
+        mountains.fill({ color, alpha });
+      }
+      this.container.addChild(mountains);
+      this.bgLayers.push(mountains);
+      this.bgFactors.push(0.1 + layer * 0.15);
+    }
+
+    // Ground
+    const ground = new PIXI.Graphics();
+    ground.rect(0, CONFIG.groundY, CONFIG.worldWidth, CONFIG.worldHeight - CONFIG.groundY);
+    ground.fill(0x3a5a2a);
+    ground.rect(0, CONFIG.groundY, CONFIG.worldWidth, 8);
+    ground.fill(0x5a8a3a);
+    this.container.addChild(ground);
+    const groundBody = createStaticBody(CONFIG.worldWidth / 2, CONFIG.groundY + 4, CONFIG.worldWidth, 8);
+    this.physics.addBody(groundBody);
+
+    // Platforms
+    const platforms = [
+      { x: 350, y: 430, w: 180 },
+      { x: 650, y: 350, w: 150 },
+      { x: 950, y: 400, w: 200 },
+      { x: 1250, y: 320, w: 160 },
+      { x: 1550, y: 380, w: 180 },
+      { x: 1850, y: 300, w: 200 },
+      { x: 2150, y: 430, w: 150 },
+      { x: 2450, y: 350, w: 180 },
+    ];
+    for (const p of platforms) {
+      const plat = new PIXI.Graphics();
+      plat.roundRect(-p.w / 2, -12, p.w, 24, 6);
+      plat.fill(CONFIG.platformColor);
+      plat.roundRect(-p.w / 2, -12, p.w, 6, 3);
+      plat.fill(0x66cc66);
+      plat.x = p.x;
+      plat.y = p.y;
+      this.container.addChild(plat);
+      const body = createOneWayPlatform(p.x, p.y, p.w, 24);
+      this.physics.addBody(body);
+    }
+
+    // Player
+    this.playerSprite = new PIXI.Graphics();
+    this.playerSprite.roundRect(-16, -24, 32, 48, 4);
+    this.playerSprite.fill(CONFIG.playerColor);
+    this.playerSprite.circle(0, -14, 10);
+    this.playerSprite.fill(0x66aaff);
+    this.playerSprite.rect(-4, -4, 3, 6);
+    this.playerSprite.rect(1, -4, 3, 6);
+    this.playerSprite.fill(0xffffff);
+    this.playerSprite.x = 200;
+    this.playerSprite.y = CONFIG.groundY - 30;
+    this.container.addChild(this.playerSprite);
+
+    const playerBody = createBody(200, CONFIG.groundY - 30, 28, 44);
+    playerBody.sprite = this.playerSprite;
+    playerBody.tag = 'player';
+    this.physics.addBody(playerBody);
+    this.playerCtrl = new CharacterController(playerBody, {
+      moveSpeed: 300, jumpForce: 520, doubleJump: true, wallSlide: false,
+    });
+
+    // Coins
+    const coinPositions = [
+      { x: 350, y: 390 }, { x: 400, y: 390 },
+      { x: 650, y: 310 }, { x: 700, y: 310 },
+      { x: 950, y: 360 }, { x: 1000, y: 360 },
+      { x: 1250, y: 280 }, { x: 1300, y: 280 },
+      { x: 1550, y: 340 }, { x: 1850, y: 260 },
+      { x: 2150, y: 390 }, { x: 2450, y: 310 },
+      { x: 300, y: 510 }, { x: 500, y: 510 },
+      { x: 800, y: 510 }, { x: 1100, y: 510 },
+    ];
+    for (const cp of coinPositions) {
+      const coin = new PIXI.Graphics();
+      coin.circle(0, 0, 10);
+      coin.fill(CONFIG.coinColor);
+      coin.circle(0, 0, 6);
+      coin.fill(0xffee66);
+      coin.x = cp.x;
+      coin.y = cp.y;
+      this.container.addChild(coin);
+      const coinBody = createBody(cp.x, cp.y, 18, 18, { isStatic: true, isSensor: true, tag: 'coin' });
+      coinBody.sprite = coin;
+      this.physics.addBody(coinBody);
+      this.coins.push({ sprite: coin, body: coinBody });
+    }
+
+    // Collision handler
+    this.physics.onSensorOverlap((a, b) => {
+      const coin = a.tag === 'coin' ? a : b.tag === 'coin' ? b : null;
+      const player = a.tag === 'player' ? a : b.tag === 'player' ? b : null;
+      if (coin && player) {
+        onCollectSparkle(engine.proton, coin.x, coin.y);
+        if (coin.sprite) { coin.sprite.visible = false; }
+        coin.enabled = false;
+        this.score += 10;
+        if (this.scoreText) this.scoreText.text = 'Score: ' + this.score;
+      }
+    });
+
+    // Ambient particle effects
+    const ambient = createAmbientEffect('fireflies', W, H);
+    engine.addEmitter(ambient.emitter);
+
+    // Score display (UI layer — fixed on screen)
+    this.scoreText = engine.createText('Score: 0', { fontSize: 28, fill: 0xffffff });
+    this.scoreText.x = 16;
+    this.scoreText.y = 16;
+    engine.ui.addChild(this.scoreText);
+
+    // Controls hint
+    const hint = engine.createText('WASD / Arrows to move, Space to jump', { fontSize: 14, fill: 0xaaaaaa });
+    hint.x = 16;
+    hint.y = H - 30;
+    engine.ui.addChild(hint);
+
+    // Camera follow
+    engine.camera.follow(playerBody);
+    engine.camera.worldWidth = CONFIG.worldWidth;
+    engine.camera.worldHeight = CONFIG.worldHeight;
+    engine.camera.smoothing = 0.08;
   }
 
   update(engine: Engine2D, dt: number): void {
-    // Update physics
     this.physics.update(dt);
 
-    // Update character controller
     if (this.playerCtrl) {
+      const wasOnGround = this.playerCtrl.body.onGround;
       this.playerCtrl.update({
         left: engine.input.left,
         right: engine.input.right,
         jump: engine.input.jump,
       }, dt);
+      // Jump dust
+      if (!this.playerCtrl.body.onGround && wasOnGround && this.playerCtrl.body.vy < 0) {
+        onJumpDust(engine.proton, this.playerCtrl.body.x, this.playerCtrl.body.y + 22);
+      }
+      // Land impact
+      if (this.playerCtrl.body.onGround && !wasOnGround) {
+        onLandImpact(engine.proton, this.playerCtrl.body.x, this.playerCtrl.body.y + 22);
+      }
     }
 
-    // Clear one-shot inputs
+    // Fall death
+    if (this.playerCtrl && this.playerCtrl.body.y > CONFIG.worldHeight + 100) {
+      engine.switchScene('gameover', { score: this.score });
+    }
+
+    // Animate coins (bob up and down)
+    for (const c of this.coins) {
+      if (c.sprite.visible) {
+        c.sprite.y = c.body.y + Math.sin(engine.elapsed * 3 + c.body.x) * 4;
+      }
+    }
+
     engine.input.endFrame();
   }
 
   exit(engine: Engine2D): void {
     this.container.removeChildren();
+    engine.ui.removeChildren();
   }
 }
 `;
