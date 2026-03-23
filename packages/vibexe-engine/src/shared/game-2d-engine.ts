@@ -825,7 +825,7 @@ export async function loadSpriteSheet(jsonPath: string): Promise<any> {
 const _spriteCache: Record<string, any> = {};
 
 /** Internal cache of loaded animated sprite sheet data */
-const _sheetCache: Record<string, any> = {};
+export const _sheetCache: Record<string, any> = {};
 
 /** Whether the sprite library has been loaded */
 let _spriteLibLoaded = false;
@@ -875,12 +875,28 @@ export async function _loadSpriteLib(style?: string): Promise<void> {
     } catch (e) { /* sprite not available yet — fallback chain handles it */ }
   }
 
-  // Load character sprite sheets (silently skip failures)
+  // Load character sprite sheets — manually parse for reliable AnimatedSprite support
   for (var charName of Object.keys(CHARACTER_SHEETS)) {
     try {
-      var sheetUrl = spriteUrl(CHARACTER_SHEETS[charName]);
-      var sheet = await PIXI.Assets.load(sheetUrl);
-      if (sheet) { _sheetCache[charName] = sheet; loaded++; }
+      var jsonUrl = spriteUrl(CHARACTER_SHEETS[charName]);
+      var pngPath = CHARACTER_SHEETS[charName].replace('/sheet.json', '/sheet.png');
+      var pngUrl = spriteUrl(pngPath);
+
+      // Load JSON metadata + PNG texture in parallel
+      var [jsonResp, baseTex] = await Promise.all([
+        fetch(jsonUrl).then(r => r.ok ? r.json() : null),
+        PIXI.Assets.load(pngUrl).catch(() => null)
+      ]);
+      if (!jsonResp || !baseTex) continue;
+
+      // Create and parse PIXI.Spritesheet from texture + JSON data
+      var spritesheet = new PIXI.Spritesheet(baseTex, jsonResp);
+      await spritesheet.parse();
+      if (spritesheet.animations && Object.keys(spritesheet.animations).length > 0) {
+        _sheetCache[charName] = spritesheet;
+        loaded++;
+        console.log('[sprite-lib] Parsed sheet: ' + charName + ' (' + Object.keys(spritesheet.animations).join(', ') + ')');
+      }
     } catch (e) { /* character sheet not available yet */ }
   }
 

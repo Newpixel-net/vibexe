@@ -1532,7 +1532,7 @@ export const GAME_2D_SCENE_STARTER = `import { Engine2D, GameScene, createGame2D
 import { createBody, createStaticBody, createOneWayPlatform, PhysicsWorld, CharacterController } from "../engine/physics";
 import { createAmbientEffect, createSnowEffect, createRainEffect, getThemeEffects, onJumpDust, onLandImpact, onCollectSparkle, onDeathExplosion } from "../engine/effects";
 import { PALETTES, lerpColor, drawSkyGradient, drawStars, drawMountainRange, drawCloud, drawTree, drawGroundStrip, drawPlatformBlock, drawPlayerCharacter, drawCoinToken, drawEnemySlime, drawHeart } from "../config/assets";
-import { _loadSpriteLib } from "../utils/media-stock";
+import { _loadSpriteLib, _sheetCache } from "../utils/media-stock";
 
 const PIXI = (window as any).PIXI;
 
@@ -1577,6 +1577,7 @@ export class GameScene2D implements GameScene {
   private shakeTimer = 0;
   private shakeIntensity = 0;
   private lastPlayerFacing = 1;
+  private _lastAnim = '';
 
   constructor() {
     this.container = new PIXI.Container();
@@ -1880,6 +1881,25 @@ export class GameScene2D implements GameScene {
       if (engine.input.right) this.lastPlayerFacing = 1;
       this.playerGfx.scale.x = this.lastPlayerFacing;
 
+      // AnimatedSprite animation switching (when sprite sheets are loaded)
+      if (this.playerGfx.textures && this.playerGfx.play) {
+        var _sheet = _sheetCache && _sheetCache['hero'];
+        if (_sheet && _sheet.animations) {
+          var _anim = 'idle';
+          if (!this.playerCtrl.body.onGround) {
+            _anim = 'jump';
+          } else if (engine.input.left || engine.input.right) {
+            _anim = 'walk';
+          }
+          if (this._lastAnim !== _anim && _sheet.animations[_anim]) {
+            this.playerGfx.textures = _sheet.animations[_anim];
+            this.playerGfx.animationSpeed = _anim === 'walk' ? 0.12 : 0.08;
+            this.playerGfx.play();
+            this._lastAnim = _anim;
+          }
+        }
+      }
+
       // Squash & stretch
       if (!this.playerCtrl.body.onGround) {
         var vy = this.playerCtrl.body.vy;
@@ -1974,7 +1994,7 @@ export const GAME_2D_SCENE_STARTER_RUNNER = `import { Engine2D, GameScene, creat
 import { createBody, createStaticBody, PhysicsWorld } from "../engine/physics";
 import { createAmbientEffect, onJumpDust, onLandImpact, onDeathExplosion, onCollectSparkle } from "../engine/effects";
 import { PALETTES, lerpColor, drawSkyGradient, drawStars, drawMountainRange, drawCloud, drawGroundStrip, drawPlayerCharacter, drawCoinToken, drawEnemySlime, drawHeart } from "../config/assets";
-import { _loadSpriteLib } from "../utils/media-stock";
+import { _loadSpriteLib, _sheetCache } from "../utils/media-stock";
 
 const PIXI = (window as any).PIXI;
 
@@ -2244,7 +2264,7 @@ export class GameScene2D implements GameScene {
 export const GAME_2D_SCENE_STARTER_PUZZLE = `import { Engine2D, GameScene, createGame2D, JuiceSystem } from "../engine/core";
 import { createSparkleEffect, onCollectSparkle } from "../engine/effects";
 import { PALETTES, lerpColor, drawSkyGradient, drawHeart, drawGemShape } from "../config/assets";
-import { _loadSpriteLib } from "../utils/media-stock";
+import { _loadSpriteLib, _sheetCache } from "../utils/media-stock";
 
 const PIXI = (window as any).PIXI;
 
@@ -2591,7 +2611,7 @@ export const GAME_2D_SCENE_STARTER_SHOOTER = `import { Engine2D, GameScene, crea
 import { createBody, createStaticBody, PhysicsWorld } from "../engine/physics";
 import { createExplosionEffect, createTrailEffect, createAmbientEffect, onDeathExplosion, onCollectSparkle } from "../engine/effects";
 import { PALETTES, lerpColor, drawSkyGradient, drawStars, drawCoinToken, drawHeart, drawShipShape } from "../config/assets";
-import { _loadSpriteLib } from "../utils/media-stock";
+import { _loadSpriteLib, _sheetCache } from "../utils/media-stock";
 
 const PIXI = (window as any).PIXI;
 
