@@ -868,7 +868,7 @@ const supabase = createClient("${supabaseConfig.url}", "${supabaseConfig.anonKey
 				console.log(`[Chat API] Forcing game-2d-developer agent for 2D game`);
 			}
 		}
-		if (isGameProject) {
+		if (isGameProject || isGame2d || isGame3d) {
 			const existingPaths = new Set(existingFiles.map((f) => f.path));
 			// Use 3D templates for 3D games, 2D templates for 2D games
 			const templateFiles = isGame2d ? GAME_2D_TEMPLATE_FILES : GAME_3D_TEMPLATE_FILES;
@@ -1165,7 +1165,7 @@ ${injectedFiles.map((f) => `- \`${f}\``).join("\n")}
 - Use \`engine.world\` for game objects (scrolls with camera), \`engine.ui\` for HUD (fixed on screen)`);
 			}
 		}
-		if (isGameProject) {
+		if (isGameProject || isGame2d || isGame3d) {
 			if (isGame3d) {
 				// 3D game — inject 3D asset catalog
 				runtimeAddenda.push(GAME_3D_ASSETS_REFERENCE);
@@ -1342,7 +1342,7 @@ An App Store listing has been analyzed and injected into the project context abo
 
 		// Build file creation filter options for game projects
 		let fileToolsOptions: FileToolsOptions | undefined;
-		if (isGameProject) {
+		if (isGameProject || isGame2d || isGame3d) {
 			const templateFiles = GAME_3D_TEMPLATE_FILES;
 			const protectedPaths = new Set(templateFiles.map((t) => t.path));
 			const forbiddenPatterns: RegExp[] = [

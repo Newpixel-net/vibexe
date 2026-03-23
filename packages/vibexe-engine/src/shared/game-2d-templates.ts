@@ -22,6 +22,22 @@ const VISUAL_HELPERS_CONTENT = `
 const PIXI = (window as any).PIXI;
 
 // ============================================================================
+// RUNTIME FEATURE DETECTION
+// ============================================================================
+
+function hasFilters(): boolean {
+  return !!(PIXI.filters && PIXI.filters.DropShadowFilter);
+}
+
+function hasGsap(): boolean {
+  return !!(window as any).gsap;
+}
+
+function hasFillGradient(): boolean {
+  return !!PIXI.FillGradient;
+}
+
+// ============================================================================
 // COLOR UTILITIES
 // ============================================================================
 
@@ -46,6 +62,38 @@ function lighten(color: number, amount: number): number {
   var g = Math.min(255, ((color >> 8) & 0xff) + amount);
   var b = Math.min(255, (color & 0xff) + amount);
   return (r << 16) | (g << 8) | b;
+}
+
+function hexToStr(color: number): string {
+  return '#' + ('000000' + color.toString(16)).slice(-6);
+}
+
+/** Create a linear FillGradient (top→bottom). Falls back to topColor if FillGradient unavailable. */
+function makeLinearGradient(topColor: number, bottomColor: number, height: number): any {
+  if (!hasFillGradient()) return topColor;
+  var grad = new PIXI.FillGradient({
+    type: 'linear',
+    colorStops: [
+      { offset: 0, color: hexToStr(topColor) },
+      { offset: 1, color: hexToStr(bottomColor) },
+    ],
+    x0: 0, y0: 0, x1: 0, y1: height,
+  });
+  return grad;
+}
+
+/** Create a radial FillGradient (inner→outer). Falls back to innerColor if FillGradient unavailable. */
+function makeRadialGradient(innerColor: number, outerColor: number, radius: number): any {
+  if (!hasFillGradient()) return innerColor;
+  var grad = new PIXI.FillGradient({
+    type: 'radial',
+    colorStops: [
+      { offset: 0, color: hexToStr(innerColor) },
+      { offset: 1, color: hexToStr(outerColor) },
+    ],
+    x0: 0, y0: 0, r0: 0, x1: 0, y1: 0, r1: radius,
+  });
+  return grad;
 }
 
 // ============================================================================
@@ -147,16 +195,22 @@ export const PALETTES: Record<string, any> = {
 // SKY & ATMOSPHERE
 // ============================================================================
 
-/** Smooth gradient sky using 32 color strips in a single Graphics object */
+/** Smooth gradient sky — uses FillGradient for pixel-perfect result, falls back to 32 strips */
 export function drawSkyGradient(worldW: number, worldH: number, topColor: number, bottomColor: number): any {
   var g = new PIXI.Graphics();
-  var strips = 32;
-  var stripH = Math.ceil(worldH / strips);
-  for (var i = 0; i < strips; i++) {
-    var t = i / (strips - 1);
-    var color = lerpColor(topColor, bottomColor, t);
-    g.rect(0, i * stripH, worldW, stripH + 1);
-    g.fill(color);
+  if (hasFillGradient()) {
+    var grad = makeLinearGradient(topColor, bottomColor, worldH);
+    g.rect(0, 0, worldW, worldH);
+    g.fill(grad);
+  } else {
+    var strips = 32;
+    var stripH = Math.ceil(worldH / strips);
+    for (var i = 0; i < strips; i++) {
+      var t = i / (strips - 1);
+      var color = lerpColor(topColor, bottomColor, t);
+      g.rect(0, i * stripH, worldW, stripH + 1);
+      g.fill(color);
+    }
   }
   return g;
 }
@@ -194,8 +248,9 @@ export function drawMountainRange(
   return g;
 }
 
-/** Soft cloud made of overlapping ellipses */
+/** Soft cloud made of overlapping ellipses — BlurFilter for soft edges */
 export function drawCloud(w: number, h: number): any {
+  var container = new PIXI.Container();
   var g = new PIXI.Graphics();
   g.ellipse(0, 0, w * 0.5, h * 0.5);
   g.fill({ color: 0xffffff, alpha: 0.15 });
@@ -203,39 +258,48 @@ export function drawCloud(w: number, h: number): any {
   g.fill({ color: 0xffffff, alpha: 0.12 });
   g.ellipse(w * 0.25, h * 0.05, w * 0.4, h * 0.45);
   g.fill({ color: 0xffffff, alpha: 0.1 });
-  return g;
+  container.addChild(g);
+  if (hasFilters()) {
+    container.filters = [new PIXI.filters.BlurFilter({ strength: 3 })];
+  }
+  return container;
 }
 
 // ============================================================================
 // TERRAIN & PLATFORMS
 // ============================================================================
 
-/** Tree with trunk and layered circular canopy */
+/** Tree with gradient trunk and radial gradient canopy layers */
 export function drawTree(trunkH: number, leafR: number, trunkColor: number, leafColor: number): any {
   var g = new PIXI.Graphics();
-  // Trunk
+  // Trunk with gradient
   g.roundRect(-6, -trunkH, 12, trunkH, 3);
-  g.fill(trunkColor);
+  var trunkGrad = makeLinearGradient(lighten(trunkColor, 20), darken(trunkColor, 20), trunkH);
+  g.fill(trunkGrad);
   g.roundRect(-4, -trunkH, 4, trunkH, 2);
   g.fill({ color: 0xffffff, alpha: 0.08 });
-  // Canopy layers (bottom to top, bigger to smaller)
+  // Canopy layers with radial gradients (bottom to top, bigger to smaller)
   g.circle(0, -trunkH, leafR);
-  g.fill(darken(leafColor, 20));
+  var canopy1Grad = makeRadialGradient(leafColor, darken(leafColor, 30), leafR);
+  g.fill(canopy1Grad);
   g.circle(-leafR * 0.3, -trunkH - leafR * 0.3, leafR * 0.8);
-  g.fill(leafColor);
+  var canopy2Grad = makeRadialGradient(lighten(leafColor, 10), darken(leafColor, 10), leafR * 0.8);
+  g.fill(canopy2Grad);
   g.circle(leafR * 0.2, -trunkH - leafR * 0.5, leafR * 0.6);
-  g.fill(lighten(leafColor, 15));
+  var canopy3Grad = makeRadialGradient(lighten(leafColor, 25), leafColor, leafR * 0.6);
+  g.fill(canopy3Grad);
   return g;
 }
 
-/** Ground strip with textured surface and grass tufts on top */
+/** Ground strip with gradient fill, grass tufts, and texture dots */
 export function drawGroundStrip(
   worldW: number, groundY: number, floorH: number, color: number, topColor: number
 ): any {
   var g = new PIXI.Graphics();
-  // Main ground fill
+  // Main ground fill with gradient (topColor fading to darker underground)
   g.rect(0, groundY, worldW, floorH);
-  g.fill(color);
+  var groundGrad = makeLinearGradient(color, darken(color, 40), floorH);
+  g.fill(groundGrad);
   // Top grass strip
   g.rect(0, groundY, worldW, 6);
   g.fill(topColor);
@@ -260,15 +324,14 @@ export function drawGroundStrip(
   return g;
 }
 
-/** Platform block with shadow, highlight, and optional grass tufts */
+/** Platform block with gradient fill, real DropShadow, and grass tufts */
 export function drawPlatformBlock(w: number, h: number, mainColor: number, topColor: number): any {
+  var container = new PIXI.Container();
   var g = new PIXI.Graphics();
-  // Drop shadow
-  g.roundRect(-w / 2 + 4, -h / 2 + 4, w, h, 6);
-  g.fill({ color: 0x000000, alpha: 0.25 });
-  // Main body
+  // Main body with gradient
   g.roundRect(-w / 2, -h / 2, w, h, 6);
-  g.fill(mainColor);
+  var platGrad = makeLinearGradient(lighten(mainColor, 15), darken(mainColor, 15), h);
+  g.fill(platGrad);
   // Top highlight strip
   g.roundRect(-w / 2 + 3, -h / 2 + 1, w - 6, h * 0.3, 3);
   g.fill({ color: 0xffffff, alpha: 0.12 });
@@ -287,15 +350,22 @@ export function drawPlatformBlock(w: number, h: number, mainColor: number, topCo
     g.closePath();
     g.fill(topColor);
   }
-  return g;
+  container.addChild(g);
+  if (hasFilters()) {
+    container.filters = [new PIXI.filters.DropShadowFilter({
+      offset: { x: 3, y: 4 }, blur: 4, alpha: 0.3, color: 0x000000,
+    })];
+  }
+  return container;
 }
 
 // ============================================================================
 // CHARACTERS & ENTITIES
 // ============================================================================
 
-/** Multi-part character with body, head, eyes, hat, and feet */
+/** Multi-part character with gradient body, outline, eye shine, and hat */
 export function drawPlayerCharacter(size: number, bodyColor: number, lightColor: number): any {
+  var container = new PIXI.Container();
   var g = new PIXI.Graphics();
   var s = size;
   // Feet (behind body)
@@ -303,18 +373,19 @@ export function drawPlayerCharacter(size: number, bodyColor: number, lightColor:
   g.fill(darken(bodyColor, 40));
   g.ellipse(s * 0.18, s * 0.42, s * 0.13, s * 0.07);
   g.fill(darken(bodyColor, 40));
-  // Body
+  // Body with gradient (lighter top → darker bottom)
   g.roundRect(-s * 0.3, -s * 0.2, s * 0.6, s * 0.65, s * 0.15);
-  g.fill(bodyColor);
+  var bodyGrad = makeLinearGradient(lightColor, darken(bodyColor, 15), s * 0.65);
+  g.fill(bodyGrad);
   // Body highlight
   g.roundRect(-s * 0.22, -s * 0.15, s * 0.2, s * 0.4, s * 0.08);
-  g.fill({ color: 0xffffff, alpha: 0.12 });
+  g.fill({ color: 0xffffff, alpha: 0.15 });
   // Head
   g.circle(0, -s * 0.35, s * 0.25);
   g.fill(bodyColor);
   // Head highlight
   g.circle(-s * 0.06, -s * 0.42, s * 0.1);
-  g.fill({ color: 0xffffff, alpha: 0.1 });
+  g.fill({ color: 0xffffff, alpha: 0.12 });
   // Hat/cap
   g.roundRect(-s * 0.2, -s * 0.62, s * 0.4, s * 0.12, 4);
   g.fill(darken(bodyColor, 30));
@@ -330,49 +401,71 @@ export function drawPlayerCharacter(size: number, bodyColor: number, lightColor:
   g.fill(0x111122);
   g.circle(s * 0.12, -s * 0.35, s * 0.035);
   g.fill(0x111122);
+  // Eye shine dots
+  g.circle(-s * 0.08, -s * 0.37, s * 0.018);
+  g.fill({ color: 0xffffff, alpha: 0.8 });
+  g.circle(s * 0.1, -s * 0.37, s * 0.018);
+  g.fill({ color: 0xffffff, alpha: 0.8 });
   // Mouth
   g.moveTo(-s * 0.05, -s * 0.24);
   g.quadraticCurveTo(0, -s * 0.2, s * 0.05, -s * 0.24);
   g.stroke({ color: darken(bodyColor, 50), width: 1.5 });
-  return g;
-}
-
-/** Coin with inner shine and outer glow ring */
-export function drawCoinToken(radius: number, color: number, glowColor: number): any {
-  var container = new PIXI.Container();
-  // Outer glow
-  var glow = new PIXI.Graphics();
-  glow.circle(0, 0, radius * 1.8);
-  glow.fill({ color: glowColor, alpha: 0.15 });
-  glow.circle(0, 0, radius * 1.4);
-  glow.fill({ color: glowColor, alpha: 0.1 });
-  container.addChild(glow);
-  // Main coin
-  var coin = new PIXI.Graphics();
-  coin.circle(0, 0, radius);
-  coin.fill(color);
-  coin.circle(0, 0, radius * 0.75);
-  coin.fill(lighten(color, 30));
-  // Star shine
-  coin.circle(-radius * 0.2, -radius * 0.2, radius * 0.2);
-  coin.fill({ color: 0xffffff, alpha: 0.3 });
-  container.addChild(coin);
+  container.addChild(g);
+  // Sticker-style outline
+  if (hasFilters()) {
+    container.filters = [new PIXI.filters.OutlineFilter({
+      thickness: 2, color: darken(bodyColor, 60),
+    })];
+  }
   return container;
 }
 
-/** Slime enemy with blob shape and eyes */
+/** Coin with radial gradient inner shine and real GlowFilter */
+export function drawCoinToken(radius: number, color: number, glowColor: number): any {
+  var container = new PIXI.Container();
+  // Main coin with radial gradient
+  var coin = new PIXI.Graphics();
+  coin.circle(0, 0, radius);
+  var coinGrad = makeRadialGradient(lighten(color, 40), color, radius);
+  coin.fill(coinGrad);
+  coin.circle(0, 0, radius * 0.75);
+  coin.fill({ color: 0xffffff, alpha: 0.12 });
+  // Star shine
+  coin.circle(-radius * 0.2, -radius * 0.2, radius * 0.2);
+  coin.fill({ color: 0xffffff, alpha: 0.35 });
+  container.addChild(coin);
+  // Real glow via filter, or fallback to manual glow rings
+  if (hasFilters()) {
+    container.filters = [new PIXI.filters.GlowFilter({
+      distance: radius * 0.8, outerStrength: 1.5, innerStrength: 0.3,
+      color: glowColor,
+    })];
+  } else {
+    var glow = new PIXI.Graphics();
+    glow.circle(0, 0, radius * 1.8);
+    glow.fill({ color: glowColor, alpha: 0.15 });
+    glow.circle(0, 0, radius * 1.4);
+    glow.fill({ color: glowColor, alpha: 0.1 });
+    container.addChildAt(glow, 0);
+  }
+  return container;
+}
+
+/** Slime enemy with radial gradient body, outline, and angry eyes */
 export function drawEnemySlime(size: number, color: number, lightColor: number): any {
+  var container = new PIXI.Container();
   var g = new PIXI.Graphics();
   var s = size;
-  // Body blob
+  // Body blob with radial gradient
   g.ellipse(0, s * 0.1, s * 0.4, s * 0.35);
-  g.fill(color);
+  var bodyGrad = makeRadialGradient(lightColor, darken(color, 15), s * 0.4);
+  g.fill(bodyGrad);
   // Top bump
   g.circle(0, -s * 0.15, s * 0.25);
   g.fill(color);
   // Highlight
   g.circle(-s * 0.08, -s * 0.2, s * 0.12);
-  g.fill({ color: lightColor, alpha: 0.3 });
+  g.fill({ color: lightColor, alpha: 0.35 });
   // Eyes (angry)
   g.circle(-s * 0.1, -s * 0.1, s * 0.08);
   g.fill(0xffffff);
@@ -390,7 +483,13 @@ export function drawEnemySlime(size: number, color: number, lightColor: number):
   g.moveTo(s * 0.18, -s * 0.22);
   g.lineTo(s * 0.04, -s * 0.16);
   g.stroke({ color: darken(color, 60), width: 2 });
-  return g;
+  container.addChild(g);
+  if (hasFilters()) {
+    container.filters = [new PIXI.filters.OutlineFilter({
+      thickness: 1.5, color: darken(color, 50),
+    })];
+  }
+  return container;
 }
 
 /** Heart shape for lives display */
@@ -405,6 +504,72 @@ export function drawHeart(size: number, color: number): any {
   g.circle(-s * 0.12, -s * 0.15, s * 0.08);
   g.fill({ color: 0xffffff, alpha: 0.3 });
   return g;
+}
+
+/** Hexagonal gem shape with radial gradient and GlowFilter */
+export function drawGemShape(radius: number, color: number): any {
+  var container = new PIXI.Container();
+  var g = new PIXI.Graphics();
+  // Hexagonal gem via regular polygon
+  g.regularPoly(0, 0, radius, 6);
+  var gemGrad = makeRadialGradient(lighten(color, 40), darken(color, 10), radius);
+  g.fill(gemGrad);
+  // Inner facet
+  g.regularPoly(0, 0, radius * 0.6, 6);
+  g.fill({ color: 0xffffff, alpha: 0.1 });
+  // Shine
+  g.circle(-radius * 0.2, -radius * 0.25, radius * 0.15);
+  g.fill({ color: 0xffffff, alpha: 0.45 });
+  g.circle(radius * 0.1, -radius * 0.3, radius * 0.07);
+  g.fill({ color: 0xffffff, alpha: 0.6 });
+  container.addChild(g);
+  if (hasFilters()) {
+    container.filters = [new PIXI.filters.GlowFilter({
+      distance: radius * 0.6, outerStrength: 1.2, innerStrength: 0.2, color: color,
+    })];
+  }
+  return container;
+}
+
+/** Sleek ship shape with gradient body and engine glow */
+export function drawShipShape(size: number, color: number, lightColor: number): any {
+  var container = new PIXI.Container();
+  var g = new PIXI.Graphics();
+  var s = size;
+  // Engine glow
+  g.circle(0, s * 0.4, s * 0.15);
+  g.fill({ color: 0xff6600, alpha: 0.4 });
+  // Wings
+  g.moveTo(-s * 0.45, s * 0.3);
+  g.lineTo(-s * 0.15, -s * 0.1);
+  g.lineTo(-s * 0.15, s * 0.3);
+  g.closePath();
+  g.fill(color);
+  g.moveTo(s * 0.45, s * 0.3);
+  g.lineTo(s * 0.15, -s * 0.1);
+  g.lineTo(s * 0.15, s * 0.3);
+  g.closePath();
+  g.fill(color);
+  // Body with gradient
+  g.moveTo(0, -s * 0.5);
+  g.lineTo(-s * 0.15, s * 0.3);
+  g.lineTo(s * 0.15, s * 0.3);
+  g.closePath();
+  var shipGrad = makeLinearGradient(lightColor, darken(color, 15), s * 0.8);
+  g.fill(shipGrad);
+  // Cockpit
+  g.circle(0, -s * 0.1, s * 0.08);
+  g.fill(0x88ddff);
+  g.circle(-s * 0.02, -s * 0.12, s * 0.03);
+  g.fill({ color: 0xffffff, alpha: 0.5 });
+  container.addChild(g);
+  // Engine glow filter
+  if (hasFilters()) {
+    container.filters = [new PIXI.filters.GlowFilter({
+      distance: 6, outerStrength: 0.8, color: 0xff6600,
+    })];
+  }
+  return container;
 }
 `;
 
@@ -639,7 +804,7 @@ export default function Game2D({ onReady }: { onReady?: (engine: any) => void })
 // ============================================================================
 
 /** Default platformer starter — professional quality programmatic graphics */
-export const GAME_2D_SCENE_STARTER = `import { Engine2D, GameScene, createGame2D, loadAssets } from "../engine/core";
+export const GAME_2D_SCENE_STARTER = `import { Engine2D, GameScene, createGame2D, loadAssets, JuiceSystem } from "../engine/core";
 import { createBody, createStaticBody, createOneWayPlatform, PhysicsWorld, CharacterController } from "../engine/physics";
 import { createAmbientEffect, createSnowEffect, createRainEffect, getThemeEffects, onJumpDust, onLandImpact, onCollectSparkle, onDeathExplosion } from "../engine/effects";
 import { PALETTES, lerpColor, drawSkyGradient, drawStars, drawMountainRange, drawCloud, drawTree, drawGroundStrip, drawPlatformBlock, drawPlayerCharacter, drawCoinToken, drawEnemySlime, drawHeart } from "../config/assets";
@@ -864,14 +1029,18 @@ export class GameScene2D implements GameScene {
         if (coin.sprite) coin.sprite.visible = false;
         coin.enabled = false;
         self.score += 10;
-        if (self.scoreText) self.scoreText.text = String(self.score);
+        if (self.scoreText) {
+          self.scoreText.text = String(self.score);
+          engine.juice.scalePop(self.scoreText, 1.4, 0.25);
+        }
       }
       if (enemy && player && enemy.enabled !== false && self.invincibleTimer <= 0) {
-        // Player hit by enemy
+        // Player hit by enemy — juice feedback
         self.lives--;
         self.invincibleTimer = 1.5;
-        self.shakeTimer = 0.2;
-        self.shakeIntensity = 8;
+        engine.juice.screenShake(engine.world, 10, 0.3);
+        engine.juice.hitPause(engine.app, 80);
+        engine.juice.colorFlash(self.playerGfx, 0xff0000, 0.15);
         onDeathExplosion(engine.proton, enemy.x, enemy.y, '#ff4444');
         // Bounce player up
         self.playerBody.vy = -350;
@@ -927,6 +1096,22 @@ export class GameScene2D implements GameScene {
     engine.camera.worldWidth = CONFIG.worldWidth;
     engine.camera.worldHeight = CONFIG.worldHeight;
     engine.camera.smoothing = 0.08;
+
+    // ---- 15. JUICE EFFECTS ----
+    // Float coins with GSAP bobbing
+    for (var ji = 0; ji < this.coins.length; ji++) {
+      engine.juice.float(this.coins[ji].gfx, 5, 2 + Math.random() * 0.5);
+    }
+    // Breathe player idle
+    engine.juice.breathe(this.playerGfx, 1.03, 1.2);
+
+    // Add DropShadow to player if filters available
+    var _PIXI = (window as any).PIXI;
+    if (_PIXI.filters && _PIXI.filters.DropShadowFilter && !this.playerGfx.filters) {
+      this.playerGfx.filters = [new _PIXI.filters.DropShadowFilter({
+        offset: { x: 2, y: 3 }, blur: 3, alpha: 0.35, color: 0x000000,
+      })];
+    }
   }
 
   private updateLivesDisplay(engine: Engine2D): void {
@@ -973,10 +1158,10 @@ export class GameScene2D implements GameScene {
       if (!this.playerCtrl.body.onGround && wasOnGround && this.playerCtrl.body.vy < 0) {
         onJumpDust(engine.proton, this.playerCtrl.body.x, this.playerCtrl.body.y + 22);
       }
-      // Land impact + squash
+      // Land impact + squash & stretch via juice system
       if (this.playerCtrl.body.onGround && !wasOnGround) {
         onLandImpact(engine.proton, this.playerCtrl.body.x, this.playerCtrl.body.y + 22);
-        this.playerGfx.scale.y = 0.75; // Squash on land
+        engine.juice.squashStretch(this.playerGfx, 0.7, 1.15);
       }
     }
 
@@ -986,13 +1171,6 @@ export class GameScene2D implements GameScene {
       this.playerGfx.alpha = Math.sin(this.invincibleTimer * 20) > 0 ? 1 : 0.3;
     } else {
       this.playerGfx.alpha = 1;
-    }
-
-    // ---- Screen shake ----
-    if (this.shakeTimer > 0) {
-      this.shakeTimer -= dt;
-      engine.world.x += (Math.random() - 0.5) * this.shakeIntensity;
-      engine.world.y += (Math.random() - 0.5) * this.shakeIntensity;
     }
 
     // ---- Animate coins (bob + glow pulse) ----
@@ -1045,6 +1223,7 @@ export class GameScene2D implements GameScene {
   }
 
   exit(engine: Engine2D): void {
+    engine.juice.killAll();
     this.container.removeChildren();
     engine.ui.removeChildren();
   }
@@ -1052,7 +1231,7 @@ export class GameScene2D implements GameScene {
 `;
 
 /** Runner game starter — auto-scrolling with procedural generation */
-export const GAME_2D_SCENE_STARTER_RUNNER = `import { Engine2D, GameScene, createGame2D } from "../engine/core";
+export const GAME_2D_SCENE_STARTER_RUNNER = `import { Engine2D, GameScene, createGame2D, JuiceSystem } from "../engine/core";
 import { createBody, createStaticBody, PhysicsWorld } from "../engine/physics";
 import { createAmbientEffect, onJumpDust, onLandImpact, onDeathExplosion, onCollectSparkle } from "../engine/effects";
 import { PALETTES, lerpColor, drawSkyGradient, drawStars, drawMountainRange, drawCloud, drawGroundStrip, drawPlayerCharacter, drawCoinToken, drawEnemySlime, drawHeart } from "../config/assets";
@@ -1173,9 +1352,13 @@ export class GameScene2D implements GameScene {
         if (coin.sprite) coin.sprite.visible = false;
         coin.enabled = false;
         self.score += 50;
+        if (self.scoreText) engine.juice.scalePop(self.scoreText, 1.3, 0.2);
       }
       if (obs && player && !self.gameOver) {
         self.gameOver = true;
+        engine.juice.screenShake(engine.world, 12, 0.4);
+        engine.juice.hitPause(engine.app, 100);
+        engine.juice.colorFlash(self.playerGfx, 0xff0000, 0.15);
         onDeathExplosion(engine.proton, self.playerBody.x, self.playerBody.y);
         setTimeout(function() { engine.switchScene('gameover', { score: self.score }); }, 800);
       }
@@ -1224,14 +1407,13 @@ export class GameScene2D implements GameScene {
     }
     if (this.playerBody.onGround && this.isJumping) {
       onLandImpact(engine.proton, this.playerBody.x, this.playerBody.y + 20);
+      engine.juice.squashStretch(this.playerGfx, 0.75, 1.12);
       this.isJumping = false;
     }
 
-    // Squash & stretch
+    // Squash & stretch (airborne only — landing handled by juice)
     if (!this.playerBody.onGround) {
       this.playerGfx.scale.y = this.playerBody.vy < 0 ? 1.12 : 0.92;
-    } else {
-      this.playerGfx.scale.y += (1 - this.playerGfx.scale.y) * 0.15;
     }
 
     // Scroll ground tiles
@@ -1309,6 +1491,7 @@ export class GameScene2D implements GameScene {
   }
 
   exit(engine: Engine2D): void {
+    engine.juice.killAll();
     this.container.removeChildren();
     engine.ui.removeChildren();
   }
@@ -1316,9 +1499,9 @@ export class GameScene2D implements GameScene {
 `;
 
 /** Puzzle game starter — match-3 with polished graphics */
-export const GAME_2D_SCENE_STARTER_PUZZLE = `import { Engine2D, GameScene, createGame2D } from "../engine/core";
+export const GAME_2D_SCENE_STARTER_PUZZLE = `import { Engine2D, GameScene, createGame2D, JuiceSystem } from "../engine/core";
 import { createSparkleEffect, onCollectSparkle } from "../engine/effects";
-import { PALETTES, lerpColor, drawSkyGradient, drawHeart } from "../config/assets";
+import { PALETTES, lerpColor, drawSkyGradient, drawHeart, drawGemShape } from "../config/assets";
 
 const PIXI = (window as any).PIXI;
 
@@ -1336,26 +1519,7 @@ var CONFIG = {
   swapSpeed: 0.15,
 };
 
-function drawGem(radius: number, color: number): any {
-  var PIXI = (window as any).PIXI;
-  var g = new PIXI.Graphics();
-  // Shadow
-  g.circle(2, 2, radius);
-  g.fill({ color: 0x000000, alpha: 0.2 });
-  // Body
-  g.circle(0, 0, radius);
-  g.fill(color);
-  // Inner ring
-  g.circle(0, 0, radius * 0.7);
-  g.fill({ color: 0xffffff, alpha: 0.1 });
-  // Shine
-  g.circle(-radius * 0.25, -radius * 0.25, radius * 0.2);
-  g.fill({ color: 0xffffff, alpha: 0.4 });
-  // Small sparkle
-  g.circle(radius * 0.15, -radius * 0.3, radius * 0.08);
-  g.fill({ color: 0xffffff, alpha: 0.6 });
-  return g;
-}
+// Use drawGemShape from assets for professional hexagonal gems with glow
 
 export class GameScene2D implements GameScene {
   name = 'game';
@@ -1461,7 +1625,7 @@ export class GameScene2D implements GameScene {
     } while (avoidMatch && attempts < 20 && this.wouldMatch(row, col, colorIdx));
 
     var radius = (CONFIG.cellSize - CONFIG.padding * 2) / 2 - 2;
-    var gem = drawGem(radius, CONFIG.gemColors[colorIdx]);
+    var gem = drawGemShape(radius, CONFIG.gemColors[colorIdx]);
     gem.x = this.boardX + col * CONFIG.cellSize + CONFIG.cellSize / 2;
     gem.y = this.boardY + row * CONFIG.cellSize + CONFIG.cellSize / 2;
     gem.eventMode = 'static';
@@ -1555,33 +1719,54 @@ export class GameScene2D implements GameScene {
     this.isAnimating = true;
     var self = this;
 
-    // Remove matched gems
+    // Scale pop matched gems before removing
     for (var m = 0; m < matches.length; m++) {
       var pos = matches[m];
       var gem = this.grid[pos.row][pos.col];
       if (gem) {
+        engine.juice.scalePop(gem, 1.4, 0.15);
         onCollectSparkle(engine.proton, gem.x, gem.y);
-        this.boardContainer.removeChild(gem);
       }
-      this.grid[pos.row][pos.col] = null;
-      this.gridColors[pos.row][pos.col] = -1;
-      this.score += 10;
     }
-    if (this.scoreText) this.scoreText.text = String(this.score);
 
-    // Gravity fill after delay
-    setTimeout(function() {
-      self.gravityFill();
-      // Check for chain matches
-      setTimeout(function() {
-        var newMatches = self.findMatches();
-        if (newMatches.length > 0) {
-          self.resolveMatches(newMatches, engine);
-        } else {
-          self.isAnimating = false;
+    // Remove after brief delay for pop animation
+    var gsap = (window as any).gsap;
+    var removeDelay = gsap ? 0.15 : 0;
+    var doRemove = function() {
+      for (var m = 0; m < matches.length; m++) {
+        var pos = matches[m];
+        var gem = self.grid[pos.row][pos.col];
+        if (gem) {
+          self.boardContainer.removeChild(gem);
         }
-      }, 200);
-    }, 150);
+        self.grid[pos.row][pos.col] = null;
+        self.gridColors[pos.row][pos.col] = -1;
+        self.score += 10;
+      }
+      if (self.scoreText) {
+        self.scoreText.text = String(self.score);
+        engine.juice.scalePop(self.scoreText, 1.3, 0.2);
+      }
+      // Screen shake on big combos (4+ gems)
+      if (matches.length >= 4) {
+        engine.juice.screenShake(engine.world, 5 + matches.length, 0.2);
+      }
+
+      // Gravity fill after delay
+      setTimeout(function() {
+        self.gravityFill();
+        // Check for chain matches
+        setTimeout(function() {
+          var newMatches = self.findMatches();
+          if (newMatches.length > 0) {
+            self.resolveMatches(newMatches, engine);
+          } else {
+            self.isAnimating = false;
+          }
+        }, 200);
+      }, 150);
+    };
+    if (gsap) { gsap.delayedCall(removeDelay, doRemove); } else { doRemove(); }
   }
 
   private gravityFill(): void {
@@ -1649,6 +1834,7 @@ export class GameScene2D implements GameScene {
   }
 
   exit(engine: Engine2D): void {
+    engine.juice.killAll();
     this.container.removeChildren();
     engine.ui.removeChildren();
   }
@@ -1656,10 +1842,10 @@ export class GameScene2D implements GameScene {
 `;
 
 /** Shooter game starter — top-down space shooter */
-export const GAME_2D_SCENE_STARTER_SHOOTER = `import { Engine2D, GameScene, createGame2D } from "../engine/core";
+export const GAME_2D_SCENE_STARTER_SHOOTER = `import { Engine2D, GameScene, createGame2D, JuiceSystem } from "../engine/core";
 import { createBody, createStaticBody, PhysicsWorld } from "../engine/physics";
 import { createExplosionEffect, createTrailEffect, createAmbientEffect, onDeathExplosion, onCollectSparkle } from "../engine/effects";
-import { PALETTES, lerpColor, drawSkyGradient, drawStars, drawCoinToken, drawHeart } from "../config/assets";
+import { PALETTES, lerpColor, drawSkyGradient, drawStars, drawCoinToken, drawHeart, drawShipShape } from "../config/assets";
 
 const PIXI = (window as any).PIXI;
 
@@ -1676,37 +1862,7 @@ var CONFIG = {
   playerSize: 36,
 };
 
-function drawShip(size: number, color: number, lightColor: number): any {
-  var PIXI = (window as any).PIXI;
-  var g = new PIXI.Graphics();
-  var s = size;
-  // Engine glow
-  g.circle(0, s * 0.4, s * 0.15);
-  g.fill({ color: 0xff6600, alpha: 0.4 });
-  // Wings
-  g.moveTo(-s * 0.45, s * 0.3);
-  g.lineTo(-s * 0.15, -s * 0.1);
-  g.lineTo(-s * 0.15, s * 0.3);
-  g.closePath();
-  g.fill(color);
-  g.moveTo(s * 0.45, s * 0.3);
-  g.lineTo(s * 0.15, -s * 0.1);
-  g.lineTo(s * 0.15, s * 0.3);
-  g.closePath();
-  g.fill(color);
-  // Body
-  g.moveTo(0, -s * 0.5);
-  g.lineTo(-s * 0.15, s * 0.3);
-  g.lineTo(s * 0.15, s * 0.3);
-  g.closePath();
-  g.fill(lightColor);
-  // Cockpit
-  g.circle(0, -s * 0.1, s * 0.08);
-  g.fill(0x88ddff);
-  g.circle(-s * 0.02, -s * 0.12, s * 0.03);
-  g.fill({ color: 0xffffff, alpha: 0.5 });
-  return g;
-}
+// Player ship now uses drawShipShape from assets (gradient body + engine glow filter)
 
 function drawEnemyShip(size: number, color: number): any {
   var PIXI = (window as any).PIXI;
@@ -1784,7 +1940,7 @@ export class GameScene2D implements GameScene {
     this.container.addChild(this.stars);
 
     // Player
-    this.playerGfx = drawShip(CONFIG.playerSize, PAL.player, PAL.playerLight);
+    this.playerGfx = drawShipShape(CONFIG.playerSize, PAL.player, PAL.playerLight);
     this.playerX = W / 2;
     this.playerY = H - 80;
     this.playerGfx.x = this.playerX;
@@ -1846,8 +2002,14 @@ export class GameScene2D implements GameScene {
     this.playerY = Math.max(40, Math.min(H - 40, this.playerY));
     this.playerGfx.x = this.playerX;
     this.playerGfx.y = this.playerY;
-    // Tilt on strafe
-    this.playerGfx.rotation = engine.input.left ? -0.15 : engine.input.right ? 0.15 : 0;
+    // Smooth tilt on strafe via GSAP
+    var targetRot = engine.input.left ? -0.2 : engine.input.right ? 0.2 : 0;
+    var gsap = (window as any).gsap;
+    if (gsap) {
+      gsap.to(this.playerGfx, { rotation: targetRot, duration: 0.15, ease: 'power2.out', overwrite: true });
+    } else {
+      this.playerGfx.rotation = targetRot;
+    }
 
     // Fire
     this.fireCooldown -= dt;
@@ -1913,6 +2075,7 @@ export class GameScene2D implements GameScene {
 
       if (hit) {
         onDeathExplosion(engine.proton, en.x, en.y, '#ff6600');
+        engine.juice.screenShake(engine.world, 4, 0.15);
         this.container.removeChild(en.gfx);
         this.enemies.splice(ei, 1);
         this.score += 100 * this.wave;
@@ -1921,13 +2084,19 @@ export class GameScene2D implements GameScene {
           this.wave++;
           if ((this as any)._waveText) (this as any)._waveText.text = 'WAVE ' + this.wave;
         }
-        if (this.scoreText) this.scoreText.text = String(this.score);
+        if (this.scoreText) {
+          this.scoreText.text = String(this.score);
+          engine.juice.scalePop(this.scoreText, 1.2, 0.15);
+        }
         continue;
       }
 
       // Enemy-player collision
       if (Math.abs(en.x - this.playerX) < 25 && Math.abs(en.y - this.playerY) < 25) {
         onDeathExplosion(engine.proton, en.x, en.y);
+        engine.juice.screenShake(engine.world, 10, 0.3);
+        engine.juice.hitPause(engine.app, 60);
+        engine.juice.colorFlash(this.playerGfx, 0xff0000, 0.15);
         this.container.removeChild(en.gfx);
         this.enemies.splice(ei, 1);
         this.lives--;
@@ -1955,6 +2124,7 @@ export class GameScene2D implements GameScene {
   }
 
   exit(engine: Engine2D): void {
+    engine.juice.killAll();
     this.container.removeChildren();
     engine.ui.removeChildren();
   }

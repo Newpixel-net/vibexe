@@ -167,6 +167,7 @@ export class Engine2D {
 
   switchScene(name: SceneName, data?: any): void {
     if (this.currentScene) {
+      this.juice.killAll();
       this.currentScene.exit(this);
       this.world.removeChild(this.currentScene.container);
       this.ui.removeChildren();
@@ -234,7 +235,11 @@ export class Engine2D {
     emitter.destroy();
   }
 
+  // Juice system for professional game feel
+  juice: JuiceSystem = new JuiceSystem();
+
   destroy(): void {
+    this.juice.killAll();
     this.input.destroy();
     if (this.proton) this.proton.destroy();
     if (this.app) this.app.destroy(true, { children: true, texture: true });
@@ -525,6 +530,121 @@ export async function createGame2D(config: Partial<Engine2DConfig> = {}): Promis
   });
   await engine.init();
   return engine;
+}
+
+// ---------------------------------------------------------------------------
+// JuiceSystem — GSAP-powered game feel effects
+// ---------------------------------------------------------------------------
+
+export class JuiceSystem {
+  private gsap: any = (window as any).gsap || null;
+  private activeKillFns: (() => void)[] = [];
+
+  /** Bounce scale up then back (e.g. coin collect, score change) */
+  scalePop(obj: any, scale = 1.3, duration = 0.2): void {
+    if (!this.gsap || !obj) return;
+    this.gsap.to(obj.scale, {
+      x: scale, y: scale, duration: duration * 0.4,
+      ease: 'back.out(3)',
+      onComplete: () => {
+        this.gsap.to(obj.scale, { x: 1, y: 1, duration: duration * 0.6, ease: 'elastic.out(1, 0.4)' });
+      }
+    });
+  }
+
+  /** GSAP-powered camera shake — smooth decaying random offsets */
+  screenShake(container: any, intensity = 8, duration = 0.3): void {
+    if (!this.gsap || !container) return;
+    var origX = container.x, origY = container.y;
+    var tl = this.gsap.timeline();
+    var steps = Math.ceil(duration / 0.03);
+    for (var i = 0; i < steps; i++) {
+      var t = i / steps;
+      var decay = 1 - t;
+      tl.to(container, {
+        x: origX + (Math.random() - 0.5) * intensity * decay * 2,
+        y: origY + (Math.random() - 0.5) * intensity * decay * 2,
+        duration: 0.03, ease: 'none',
+      });
+    }
+    tl.to(container, { x: origX, y: origY, duration: 0.05 });
+  }
+
+  /** Freeze the ticker briefly for impact feel */
+  hitPause(app: any, ms = 80): void {
+    if (!app || !app.ticker) return;
+    app.ticker.stop();
+    setTimeout(function() { app.ticker.start(); }, ms);
+  }
+
+  /** Flash a tint color then restore original */
+  colorFlash(obj: any, color = 0xffffff, duration = 0.15): void {
+    if (!obj) return;
+    var origTint = obj.tint !== undefined ? obj.tint : 0xffffff;
+    obj.tint = color;
+    if (this.gsap) {
+      this.gsap.delayedCall(duration, function() { obj.tint = origTint; });
+    } else {
+      setTimeout(function() { obj.tint = origTint; }, duration * 1000);
+    }
+  }
+
+  /** Sine-wave bobbing (returns kill function). Use for floating coins, powerups. */
+  float(obj: any, amplitude = 6, speed = 2): () => void {
+    if (!this.gsap || !obj) return function(){};
+    var baseY = obj.y;
+    var tween = this.gsap.to(obj, {
+      y: baseY - amplitude, duration: 1 / speed,
+      ease: 'sine.inOut', yoyo: true, repeat: -1,
+    });
+    var kill = function() { tween.kill(); obj.y = baseY; };
+    this.activeKillFns.push(kill);
+    return kill;
+  }
+
+  /** Idle breathing pulse (returns kill function). */
+  breathe(obj: any, scale = 1.05, speed = 1.5): () => void {
+    if (!this.gsap || !obj) return function(){};
+    var tween = this.gsap.to(obj.scale, {
+      x: scale, y: scale, duration: 1 / speed,
+      ease: 'sine.inOut', yoyo: true, repeat: -1,
+    });
+    var kill = function() { tween.kill(); obj.scale.set(1); };
+    this.activeKillFns.push(kill);
+    return kill;
+  }
+
+  /** Spring squash & stretch on landing */
+  squashStretch(obj: any, squashY = 0.7, stretchY = 1.15): void {
+    if (!this.gsap || !obj) return;
+    this.gsap.timeline()
+      .set(obj.scale, { y: squashY, x: 1 / squashY })
+      .to(obj.scale, { y: stretchY, x: 1 / stretchY, duration: 0.1, ease: 'power2.out' })
+      .to(obj.scale, { y: 1, x: 1, duration: 0.3, ease: 'elastic.out(1, 0.3)' });
+  }
+
+  /** Character-by-character text reveal */
+  typewriter(textObj: any, text: string, speed = 0.04): void {
+    if (!textObj) return;
+    textObj.text = '';
+    var idx = 0;
+    var interval = setInterval(function() {
+      if (idx >= text.length) { clearInterval(interval); return; }
+      textObj.text += text[idx];
+      idx++;
+    }, speed * 1000);
+  }
+
+  /** Cleanup all active looping tweens */
+  killAll(): void {
+    for (var i = 0; i < this.activeKillFns.length; i++) {
+      try { this.activeKillFns[i](); } catch(e) {}
+    }
+    this.activeKillFns = [];
+    if (this.gsap) {
+      try { this.gsap.killTweensOf('*'); } catch(e) {}
+    }
+  }
 }
 `;
 

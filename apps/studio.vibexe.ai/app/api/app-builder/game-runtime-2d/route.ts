@@ -35,9 +35,12 @@ canvas{display:block;width:100%;height:100%}
 <!-- Runtime bootstrap globals (injected dynamically) -->
 <script id="vibexe-bootstrap"></script>
 
-<!-- Pixi.js v8 + Proton particle engine -->
+<!-- Pixi.js v8 + Proton particle engine + pixi-filters + GSAP -->
 <script src="https://cdn.jsdelivr.net/npm/pixi.js@8.9.2/dist/pixi.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/proton-engine@7.1.5/build/proton.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/pixi-filters@6.1.5/dist/pixi-filters.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/gsap@3/dist/gsap.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/gsap@3/dist/PixiPlugin.min.js"></script>
 
 <script>
 (function() {
@@ -67,6 +70,29 @@ canvas{display:block;width:100%;height:100%}
 
   console.log('[2D Runtime] Pixi.js v' + PIXI.VERSION + ' loaded');
   console.log('[2D Runtime] Proton particle engine loaded (constructor: ' + (typeof _ProtonCtor === 'function') + ')');
+
+  // Register GSAP PixiPlugin if available
+  if (typeof gsap !== 'undefined' && typeof PixiPlugin !== 'undefined') {
+    gsap.registerPlugin(PixiPlugin);
+    PixiPlugin.registerPIXI(PIXI);
+    console.log('[2D Runtime] GSAP + PixiPlugin registered');
+  } else {
+    console.warn('[2D Runtime] GSAP or PixiPlugin not available — juice effects disabled');
+  }
+
+  // Verify pixi-filters
+  if (PIXI.filters && PIXI.filters.DropShadowFilter) {
+    console.log('[2D Runtime] pixi-filters loaded (DropShadow, Glow, Outline, Bloom available)');
+  } else {
+    console.warn('[2D Runtime] pixi-filters not available — filter effects disabled');
+  }
+
+  // Verify FillGradient
+  if (PIXI.FillGradient) {
+    console.log('[2D Runtime] PIXI.FillGradient available');
+  } else {
+    console.warn('[2D Runtime] PIXI.FillGradient not available — gradient fills use strip fallback');
+  }
 
   // Signal libraries ready (both 2D-specific and generic flag for GameRuntimeIframe fallback)
   window.__vibexe_2d_libs_ready__ = true;
@@ -138,6 +164,10 @@ window.addEventListener('unhandledrejection', function(e) {
           if (window.__vibexe_eventCleanup__) {
             try { window.__vibexe_eventCleanup__(); } catch(e) {}
             window.__vibexe_eventCleanup__ = null;
+          }
+          // Kill all GSAP tweens
+          if (window.gsap) {
+            try { window.gsap.killTweensOf('*'); } catch(e) {}
           }
           // Destroy Proton instance
           if (window.__vibexe_proton__) {

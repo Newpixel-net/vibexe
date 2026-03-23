@@ -85,7 +85,7 @@ The following files are PRE-CREATED and available to import from. NEVER recreate
 - \`src/engine/effects.ts\` — All Proton particle effect factories (rain, snow, fire, smoke, explosion, sparkle, dust, blood, trail, bubble, magic, ambient)
 - \`src/engine/input.ts\` — VirtualJoystick, onTapZone (mobile input utilities)
 - \`src/utils/media-stock.ts\` — spriteUrl(), loadSprite(), loadSprites() (for future sprite assets)
-- \`src/config/assets.ts\` — PALETTES, drawing helpers (drawSkyGradient, drawPlayerCharacter, drawPlatformBlock, drawCoinToken, drawEnemySlime, etc.)
+- \`src/config/assets.ts\` — PALETTES, drawing helpers (drawSkyGradient, drawPlayerCharacter, drawPlatformBlock, drawCoinToken, drawEnemySlime, drawGemShape, drawShipShape, etc.)
 - \`src/components/Game2D.tsx\` — React wrapper component
 - \`src/scenes/GameOverScene.ts\` — Default game over screen with particle effects
 
@@ -104,7 +104,7 @@ The following files are PRE-CREATED and available to import from. NEVER recreate
 import { Engine2D, GameScene, createGame2D, loadAssets } from "../engine/core";
 import { PhysicsWorld, createBody, createStaticBody, createOneWayPlatform, CharacterController } from "../engine/physics";
 import { createAmbientEffect, createRainEffect, createSnowEffect, onJumpDust, onLandImpact, onCollectSparkle, onDeathExplosion } from "../engine/effects";
-import { PALETTES, lerpColor, drawSkyGradient, drawStars, drawMountainRange, drawCloud, drawTree, drawGroundStrip, drawPlatformBlock, drawPlayerCharacter, drawCoinToken, drawEnemySlime, drawHeart } from "../config/assets";
+import { PALETTES, lerpColor, drawSkyGradient, drawStars, drawMountainRange, drawCloud, drawTree, drawGroundStrip, drawPlatformBlock, drawPlayerCharacter, drawCoinToken, drawEnemySlime, drawHeart, drawGemShape, drawShipShape } from "../config/assets";
 
 const PIXI = (window as any).PIXI;
 
@@ -128,10 +128,12 @@ drawGroundStrip(worldW, groundY, floorH, PAL.ground, PAL.groundTop) // textured 
 drawPlatformBlock(w, h, PAL.platform, PAL.platformTop) // rounded rect + shadow + highlight + grass
 
 // CHARACTERS & ENTITIES
-drawPlayerCharacter(size, PAL.player, PAL.playerLight) // body + head + eyes + hat + feet
-drawCoinToken(radius, PAL.coin, PAL.coinGlow) // circle + glow ring (returns Container)
-drawEnemySlime(size, PAL.enemy, PAL.enemyLight) // blob + angry eyes
+drawPlayerCharacter(size, PAL.player, PAL.playerLight) // gradient body + outline filter + eye shine
+drawCoinToken(radius, PAL.coin, PAL.coinGlow) // radial gradient + GlowFilter (returns Container)
+drawEnemySlime(size, PAL.enemy, PAL.enemyLight) // radial gradient blob + OutlineFilter
 drawHeart(size, 0xff3355) // heart shape for lives
+drawGemShape(radius, color) // hexagonal gem with radial gradient + GlowFilter
+drawShipShape(size, color, lightColor) // sleek ship with gradient body + engine glow
 
 // COLOR HELPERS
 lerpColor(colorA, colorB, t) // interpolate between hex colors
@@ -198,6 +200,49 @@ engine.input.pointer.x, .y, .down, .justDown
 engine.input.endFrame() // CRITICAL: call at end of every update()
 \`\`\`
 
+### Juice System (engine.juice.*)
+
+\`\`\`typescript
+engine.juice.scalePop(obj, 1.3, 0.2)        // Bounce scale up then back — use on score change, coin collect
+engine.juice.screenShake(container, 8, 0.3)   // GSAP-powered camera shake — smooth decaying
+engine.juice.hitPause(engine.app, 80)         // Freeze ticker briefly for impact feel
+engine.juice.colorFlash(obj, 0xff0000, 0.15)  // Flash tint then restore — use on damage
+engine.juice.float(obj, 6, 2)                 // Sine bobbing (returns kill fn) — coins, powerups
+engine.juice.breathe(obj, 1.05, 1.5)          // Idle pulse (returns kill fn) — idle player
+engine.juice.squashStretch(obj, 0.7, 1.15)    // Spring squash/stretch — use on land
+engine.juice.typewriter(textObj, text, 0.04)  // Character-by-character text reveal
+engine.juice.killAll()                        // Cleanup — ALWAYS call in exit()
+\`\`\`
+
+### pixi-filters (CDN loaded — use guards)
+
+\`\`\`typescript
+var PIXI = (window as any).PIXI;
+// Check availability:
+if (PIXI.filters && PIXI.filters.DropShadowFilter) { ... }
+
+// Common filters (create in enter(), assign once):
+new PIXI.filters.DropShadowFilter({ offset: { x: 2, y: 3 }, blur: 4, alpha: 0.3, color: 0x000000 })
+new PIXI.filters.GlowFilter({ distance: 10, outerStrength: 1.5, innerStrength: 0.3, color: 0xffdd00 })
+new PIXI.filters.OutlineFilter({ thickness: 2, color: 0x000000 })
+new PIXI.filters.BlurFilter({ strength: 3 })
+new PIXI.filters.BloomFilter({ strength: 1.5 })
+new PIXI.filters.MotionBlurFilter({ velocity: { x: 10, y: 0 } })
+\`\`\`
+
+### GSAP Tweening (CDN loaded — use guards)
+
+\`\`\`typescript
+var gsap = (window as any).gsap;
+if (gsap) {
+  gsap.to(obj, { x: 100, y: 200, duration: 0.5, ease: 'power2.out' });
+  gsap.to(obj.scale, { x: 1.3, y: 1.3, duration: 0.2, yoyo: true, repeat: 1 });
+  gsap.timeline().to(a, {...}).to(b, {...}); // Sequential chain
+  gsap.delayedCall(0.5, callback); // Use instead of setTimeout
+}
+// Key easing: 'back.out(3)', 'elastic.out(1, 0.3)', 'bounce.out', 'power2.out', 'sine.inOut'
+\`\`\`
+
 ## Visual Quality Patterns
 
 ### PLATFORMER — Must include:
@@ -258,6 +303,9 @@ engine.input.endFrame() // CRITICAL: call at end of every update()
 10. **NEVER make all objects same depth** — use parallax layers for depth
 11. **NEVER create effects every frame** — create in enter(), trigger in update()
 12. **NEVER use absolute pixel sizes for UI** — use engine.config.width/height
+13. **NEVER create filters in update()** — create in enter(), assign once to .filters array
+14. **NEVER forget engine.juice.killAll()** in exit() — leaks GSAP tweens
+15. **NEVER use setTimeout for animations** — use gsap.delayedCall() or gsap.to()
 
 ${buildAssetReferencePrompt()}
 `,
