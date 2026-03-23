@@ -837,6 +837,15 @@ const supabase = createClient("${supabaseConfig.url}", "${supabaseConfig.anonKey
 			const agent2d = getAgent("game-2d-developer");
 			if (agent2d) {
 				pinnedAgent = agent2d;
+				// Re-assemble prompt with the 2D agent (primaryAgent was computed before detection)
+				const skills2d = resolveSkills(agent2d, plan.intent.techStack || []);
+				assembledPrompt = assemblePrompt(
+					agent2d,
+					skills2d,
+					enrichedFileContext,
+					userPrompt,
+					plan.intent.complexity,
+				);
 				console.log(`[Chat API] Forcing game-2d-developer agent for 2D game`);
 			}
 		}
