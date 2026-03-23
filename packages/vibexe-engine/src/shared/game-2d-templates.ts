@@ -195,15 +195,16 @@ export const PALETTES: Record<string, any> = {
 // SKY & ATMOSPHERE
 // ============================================================================
 
-/** Smooth gradient sky — uses FillGradient for pixel-perfect result, falls back to 32 strips */
+/** Smooth gradient sky with subtle light rays from horizon */
 export function drawSkyGradient(worldW: number, worldH: number, topColor: number, bottomColor: number): any {
+  var container = new PIXI.Container();
   var g = new PIXI.Graphics();
   if (hasFillGradient()) {
     var grad = makeLinearGradient(topColor, bottomColor, worldH);
     g.rect(0, 0, worldW, worldH);
     g.fill(grad);
   } else {
-    var strips = 32;
+    var strips = 48;
     var stripH = Math.ceil(worldH / strips);
     for (var i = 0; i < strips; i++) {
       var t = i / (strips - 1);
@@ -212,10 +213,24 @@ export function drawSkyGradient(worldW: number, worldH: number, topColor: number
       g.fill(color);
     }
   }
-  return g;
+  container.addChild(g);
+  // Subtle light rays from bottom-center
+  var rays = new PIXI.Graphics();
+  for (var ri = 0; ri < 8; ri++) {
+    var angle = -0.6 + ri * 0.15;
+    var rx = worldW * 0.5 + Math.sin(angle) * worldH * 1.2;
+    var rw = 40 + ri * 15;
+    rays.moveTo(worldW * 0.5, worldH);
+    rays.lineTo(rx - rw, 0);
+    rays.lineTo(rx + rw, 0);
+    rays.closePath();
+    rays.fill({ color: 0xffffff, alpha: 0.015 + Math.random() * 0.01 });
+  }
+  container.addChild(rays);
+  return container;
 }
 
-/** Scattered star dots with varied sizes and alpha */
+/** Scattered star dots with varied sizes, alpha, and cross-sparkle on bright ones */
 export function drawStars(worldW: number, skyH: number, count: number): any {
   var g = new PIXI.Graphics();
   for (var i = 0; i < count; i++) {
@@ -225,42 +240,103 @@ export function drawStars(worldW: number, skyH: number, count: number): any {
     var sa = 0.3 + Math.random() * 0.7;
     g.circle(sx, sy, sr);
     g.fill({ color: 0xffffff, alpha: sa });
+    // Cross sparkle on brighter stars
+    if (sa > 0.7 && sr > 1) {
+      g.moveTo(sx - sr * 2, sy); g.lineTo(sx + sr * 2, sy);
+      g.stroke({ color: 0xffffff, alpha: sa * 0.3, width: 0.5 });
+      g.moveTo(sx, sy - sr * 2); g.lineTo(sx, sy + sr * 2);
+      g.stroke({ color: 0xffffff, alpha: sa * 0.3, width: 0.5 });
+    }
   }
   return g;
 }
 
-/** Mountain range as connected triangular peaks */
+/** Rolling hills with smooth bezier curves and gradient shading */
 export function drawMountainRange(
   worldW: number, baseY: number, color: number, alpha: number,
   minH: number, maxH: number, spacing: number
 ): any {
-  var g = new PIXI.Graphics();
-  // Draw as a filled polygon across the world width
-  g.moveTo(-spacing, baseY);
-  for (var x = -spacing; x < worldW + spacing * 2; x += spacing * (0.5 + Math.random() * 0.5)) {
+  var container = new PIXI.Container();
+  // Shadow layer (darker, offset down)
+  var shadow = new PIXI.Graphics();
+  shadow.moveTo(-spacing, baseY + 8);
+  var cx = -spacing;
+  while (cx < worldW + spacing * 2) {
     var peakH = minH + Math.random() * (maxH - minH);
-    g.lineTo(x, baseY - peakH);
-    g.lineTo(x + spacing * 0.3, baseY - peakH * 0.7);
+    var cw = spacing * (0.5 + Math.random() * 0.5);
+    shadow.bezierCurveTo(cx + cw * 0.3, baseY - peakH + 8, cx + cw * 0.7, baseY - peakH * 0.6 + 8, cx + cw, baseY + 8);
+    cx += cw;
   }
-  g.lineTo(worldW + spacing, baseY);
+  shadow.lineTo(worldW + spacing, baseY + 50);
+  shadow.lineTo(-spacing, baseY + 50);
+  shadow.closePath();
+  shadow.fill({ color: darken(color, 30), alpha: alpha * 0.4 });
+  container.addChild(shadow);
+  // Main hills with gradient
+  var g = new PIXI.Graphics();
+  g.moveTo(-spacing, baseY);
+  cx = -spacing;
+  while (cx < worldW + spacing * 2) {
+    var peakH2 = minH + Math.random() * (maxH - minH);
+    var cw2 = spacing * (0.5 + Math.random() * 0.5);
+    g.bezierCurveTo(cx + cw2 * 0.3, baseY - peakH2, cx + cw2 * 0.7, baseY - peakH2 * 0.6, cx + cw2, baseY);
+    cx += cw2;
+  }
+  g.lineTo(worldW + spacing, baseY + 50);
+  g.lineTo(-spacing, baseY + 50);
   g.closePath();
-  g.fill({ color: color, alpha: alpha });
-  return g;
+  var hillGrad = makeLinearGradient(lighten(color, 15), darken(color, 10), maxH);
+  g.fill(typeof hillGrad === 'number' ? { color: color, alpha: alpha } : hillGrad);
+  if (typeof hillGrad === 'number') g.fill({ color: color, alpha: alpha });
+  container.addChild(g);
+  // Highlight strip along the top edge (simulates light catching hilltops)
+  var highlight = new PIXI.Graphics();
+  highlight.moveTo(-spacing, baseY);
+  cx = -spacing;
+  while (cx < worldW + spacing * 2) {
+    var peakH3 = minH + Math.random() * (maxH - minH);
+    var cw3 = spacing * (0.5 + Math.random() * 0.5);
+    highlight.bezierCurveTo(cx + cw3 * 0.3, baseY - peakH3, cx + cw3 * 0.7, baseY - peakH3 * 0.6, cx + cw3, baseY);
+    cx += cw3;
+  }
+  highlight.lineTo(worldW + spacing, baseY - 3);
+  highlight.lineTo(-spacing, baseY - 3);
+  highlight.closePath();
+  highlight.fill({ color: lighten(color, 30), alpha: alpha * 0.3 });
+  container.addChild(highlight);
+  return container;
 }
 
-/** Soft cloud made of overlapping ellipses — BlurFilter for soft edges */
+/** Puffy volumetric cloud with 3D shading — light top, shadowed bottom */
 export function drawCloud(w: number, h: number): any {
   var container = new PIXI.Container();
   var g = new PIXI.Graphics();
-  g.ellipse(0, 0, w * 0.5, h * 0.5);
-  g.fill({ color: 0xffffff, alpha: 0.15 });
-  g.ellipse(-w * 0.25, h * 0.1, w * 0.35, h * 0.4);
-  g.fill({ color: 0xffffff, alpha: 0.12 });
-  g.ellipse(w * 0.25, h * 0.05, w * 0.4, h * 0.45);
-  g.fill({ color: 0xffffff, alpha: 0.1 });
+  // Shadow base (darker, offset down)
+  g.ellipse(0, h * 0.15, w * 0.48, h * 0.38);
+  g.fill({ color: 0x8899aa, alpha: 0.08 });
+  // Main cloud body — multiple overlapping puffy circles
+  var puffs = [
+    { x: 0, y: 0, rx: w * 0.42, ry: h * 0.4, a: 0.7 },
+    { x: -w * 0.22, y: h * 0.05, rx: w * 0.3, ry: h * 0.32, a: 0.6 },
+    { x: w * 0.22, y: h * 0.03, rx: w * 0.32, ry: h * 0.35, a: 0.6 },
+    { x: -w * 0.1, y: -h * 0.12, rx: w * 0.25, ry: h * 0.25, a: 0.5 },
+    { x: w * 0.12, y: -h * 0.1, rx: w * 0.22, ry: h * 0.22, a: 0.5 },
+  ];
+  for (var pi = 0; pi < puffs.length; pi++) {
+    var p = puffs[pi];
+    // Bottom shadow of each puff
+    g.ellipse(p.x, p.y + h * 0.06, p.rx * 0.95, p.ry * 0.9);
+    g.fill({ color: 0xaabbcc, alpha: p.a * 0.15 });
+    // Main puff
+    g.ellipse(p.x, p.y, p.rx, p.ry);
+    g.fill({ color: 0xffffff, alpha: p.a * 0.25 });
+    // Top highlight
+    g.ellipse(p.x - p.rx * 0.1, p.y - p.ry * 0.2, p.rx * 0.5, p.ry * 0.4);
+    g.fill({ color: 0xffffff, alpha: p.a * 0.12 });
+  }
   container.addChild(g);
   if (PIXI.BlurFilter) {
-    container.filters = [new PIXI.BlurFilter(3)];
+    container.filters = [new PIXI.BlurFilter(4)];
   }
   return container;
 }
@@ -269,91 +345,153 @@ export function drawCloud(w: number, h: number): any {
 // TERRAIN & PLATFORMS
 // ============================================================================
 
-/** Tree with gradient trunk and radial gradient canopy layers */
+/** Tree with 3D-shaded spherical canopy and textured trunk */
 export function drawTree(trunkH: number, leafR: number, trunkColor: number, leafColor: number): any {
+  var container = new PIXI.Container();
   var g = new PIXI.Graphics();
+  // Trunk shadow
+  g.roundRect(-4, -trunkH + 2, 12, trunkH, 3);
+  g.fill({ color: 0x000000, alpha: 0.15 });
   // Trunk with gradient
   g.roundRect(-6, -trunkH, 12, trunkH, 3);
-  var trunkGrad = makeLinearGradient(lighten(trunkColor, 20), darken(trunkColor, 20), trunkH);
+  var trunkGrad = makeLinearGradient(lighten(trunkColor, 25), darken(trunkColor, 25), trunkH);
   g.fill(trunkGrad);
-  g.roundRect(-4, -trunkH, 4, trunkH, 2);
-  g.fill({ color: 0xffffff, alpha: 0.08 });
-  // Canopy layers with radial gradients (bottom to top, bigger to smaller)
+  // Trunk highlight (left side light)
+  g.roundRect(-5, -trunkH + 2, 4, trunkH - 4, 2);
+  g.fill({ color: 0xffffff, alpha: 0.1 });
+  // Bark texture lines
+  for (var bi = 0; bi < trunkH; bi += 8 + Math.random() * 6) {
+    g.moveTo(-4, -trunkH + bi);
+    g.lineTo(4, -trunkH + bi + 2);
+    g.stroke({ color: darken(trunkColor, 20), alpha: 0.2, width: 0.8 });
+  }
+  // Branch stubs
+  g.moveTo(6, -trunkH * 0.4);
+  g.lineTo(12, -trunkH * 0.5);
+  g.stroke({ color: trunkColor, width: 3 });
+  g.moveTo(-6, -trunkH * 0.6);
+  g.lineTo(-10, -trunkH * 0.68);
+  g.stroke({ color: trunkColor, width: 2.5 });
+  // Canopy — 3D shaded spheres (dark bottom, bright top)
+  // Back canopy (darker, larger)
+  g.circle(0, -trunkH - leafR * 0.1, leafR * 1.05);
+  g.fill(darken(leafColor, 25));
+  // Main canopy sphere
   g.circle(0, -trunkH, leafR);
-  var canopy1Grad = makeRadialGradient(leafColor, darken(leafColor, 30), leafR);
-  g.fill(canopy1Grad);
-  g.circle(-leafR * 0.3, -trunkH - leafR * 0.3, leafR * 0.8);
-  var canopy2Grad = makeRadialGradient(lighten(leafColor, 10), darken(leafColor, 10), leafR * 0.8);
-  g.fill(canopy2Grad);
-  g.circle(leafR * 0.2, -trunkH - leafR * 0.5, leafR * 0.6);
-  var canopy3Grad = makeRadialGradient(lighten(leafColor, 25), leafColor, leafR * 0.6);
-  g.fill(canopy3Grad);
-  return g;
+  var canopyGrad = makeRadialGradient(lighten(leafColor, 20), darken(leafColor, 20), leafR);
+  g.fill(canopyGrad);
+  // Left sub-sphere
+  g.circle(-leafR * 0.5, -trunkH + leafR * 0.1, leafR * 0.6);
+  var subGrad1 = makeRadialGradient(lighten(leafColor, 10), darken(leafColor, 15), leafR * 0.6);
+  g.fill(subGrad1);
+  // Right sub-sphere
+  g.circle(leafR * 0.4, -trunkH - leafR * 0.15, leafR * 0.55);
+  var subGrad2 = makeRadialGradient(lighten(leafColor, 15), darken(leafColor, 10), leafR * 0.55);
+  g.fill(subGrad2);
+  // Top puff
+  g.circle(leafR * 0.1, -trunkH - leafR * 0.6, leafR * 0.45);
+  var topGrad = makeRadialGradient(lighten(leafColor, 30), leafColor, leafR * 0.45);
+  g.fill(topGrad);
+  // Specular highlight (top-left)
+  g.ellipse(-leafR * 0.2, -trunkH - leafR * 0.35, leafR * 0.25, leafR * 0.18);
+  g.fill({ color: 0xffffff, alpha: 0.15 });
+  // Bottom shadow on canopy
+  g.ellipse(0, -trunkH + leafR * 0.7, leafR * 0.7, leafR * 0.15);
+  g.fill({ color: 0x000000, alpha: 0.08 });
+  container.addChild(g);
+  return container;
 }
 
-/** Ground strip with gradient fill, grass tufts, and texture dots */
+/** Ground strip with organic curved top, rich gradient, thick grass */
 export function drawGroundStrip(
   worldW: number, groundY: number, floorH: number, color: number, topColor: number
 ): any {
+  var container = new PIXI.Container();
   var g = new PIXI.Graphics();
-  // Main ground fill with gradient (topColor fading to darker underground)
+  // Main ground fill with gradient
   g.rect(0, groundY, worldW, floorH);
-  var groundGrad = makeLinearGradient(color, darken(color, 40), floorH);
+  var groundGrad = makeLinearGradient(color, darken(color, 50), floorH);
   g.fill(groundGrad);
-  // Top grass strip
-  g.rect(0, groundY, worldW, 6);
+  // Top grass strip — thick and vibrant
+  g.rect(0, groundY - 2, worldW, 10);
   g.fill(topColor);
-  // Darker strip below grass
-  g.rect(0, groundY + 6, worldW, 3);
-  g.fill(darken(color, 15));
-  // Grass tufts along top edge
-  for (var gx = 0; gx < worldW; gx += 12 + Math.random() * 8) {
-    var gh = 4 + Math.random() * 8;
-    g.moveTo(gx, groundY);
-    g.lineTo(gx + 1.5, groundY - gh);
-    g.lineTo(gx + 3, groundY);
+  // Highlight on grass top edge
+  g.rect(0, groundY - 2, worldW, 3);
+  g.fill(lighten(topColor, 20));
+  // Darker strip below grass (shadow under grass layer)
+  g.rect(0, groundY + 8, worldW, 4);
+  g.fill({ color: darken(color, 20), alpha: 0.4 });
+  // Thick grass tufts — varied sizes
+  for (var gx = 0; gx < worldW; gx += 8 + Math.random() * 6) {
+    var gh = 5 + Math.random() * 12;
+    var gw = 2 + Math.random() * 2;
+    // Main blade
+    g.moveTo(gx, groundY - 2);
+    g.quadraticCurveTo(gx + gw * 0.5, groundY - gh * 0.6, gx + gw * 0.3, groundY - gh);
+    g.quadraticCurveTo(gx + gw, groundY - gh * 0.4, gx + gw + 1, groundY - 2);
     g.closePath();
-    g.fill(topColor);
+    g.fill(Math.random() > 0.3 ? topColor : lighten(topColor, 15));
   }
-  // Scattered dirt dots for texture
-  for (var dx = 0; dx < worldW; dx += 30 + Math.random() * 40) {
-    var dy = groundY + 15 + Math.random() * (floorH - 25);
-    g.circle(dx, dy, 1 + Math.random() * 2);
-    g.fill({ color: darken(color, 25), alpha: 0.3 });
+  // Scattered dirt/pebble dots
+  for (var dx = 0; dx < worldW; dx += 20 + Math.random() * 30) {
+    var dy = groundY + 12 + Math.random() * (floorH - 20);
+    var dr = 1 + Math.random() * 2.5;
+    g.circle(dx, dy, dr);
+    g.fill({ color: darken(color, 30), alpha: 0.2 });
+    // Tiny highlight on pebble
+    g.circle(dx - dr * 0.3, dy - dr * 0.3, dr * 0.3);
+    g.fill({ color: 0xffffff, alpha: 0.06 });
   }
-  return g;
+  // Subtle horizontal strata lines
+  for (var sy = groundY + 20; sy < groundY + floorH - 10; sy += 15 + Math.random() * 10) {
+    g.moveTo(0, sy);
+    g.lineTo(worldW, sy + 1);
+    g.stroke({ color: darken(color, 15), alpha: 0.12, width: 1 });
+  }
+  container.addChild(g);
+  return container;
 }
 
-/** Platform block with gradient fill, real DropShadow, and grass tufts */
+/** Platform block with thick colored border, inner gradient, grass lip */
 export function drawPlatformBlock(w: number, h: number, mainColor: number, topColor: number): any {
   var container = new PIXI.Container();
   var g = new PIXI.Graphics();
+  var bw = 3; // border width
+  // Thick colored border (outline)
+  g.roundRect(-w / 2 - bw, -h / 2 - bw, w + bw * 2, h + bw * 2, 8);
+  g.fill(darken(mainColor, 35));
   // Main body with gradient
   g.roundRect(-w / 2, -h / 2, w, h, 6);
-  var platGrad = makeLinearGradient(lighten(mainColor, 15), darken(mainColor, 15), h);
+  var platGrad = makeLinearGradient(lighten(mainColor, 20), darken(mainColor, 10), h);
   g.fill(platGrad);
-  // Top highlight strip
-  g.roundRect(-w / 2 + 3, -h / 2 + 1, w - 6, h * 0.3, 3);
-  g.fill({ color: 0xffffff, alpha: 0.12 });
-  // Top colored strip
-  g.roundRect(-w / 2, -h / 2, w, 5, 3);
+  // Inner shadow at bottom
+  g.roundRect(-w / 2 + 3, h / 2 - h * 0.35, w - 6, h * 0.35, 3);
+  g.fill({ color: 0x000000, alpha: 0.08 });
+  // Top highlight band
+  g.roundRect(-w / 2 + 2, -h / 2 + 1, w - 4, h * 0.25, 4);
+  g.fill({ color: 0xffffff, alpha: 0.15 });
+  // Top grass/color lip — thick and vibrant
+  g.roundRect(-w / 2 - 2, -h / 2 - 4, w + 4, 8, 4);
   g.fill(topColor);
-  // Bottom shadow edge
-  g.roundRect(-w / 2 + 2, h / 2 - 4, w - 4, 3, 2);
-  g.fill({ color: 0x000000, alpha: 0.15 });
-  // Grass tufts on top
-  for (var gx = -w / 2 + 6; gx < w / 2 - 6; gx += 7 + Math.random() * 5) {
-    var gh = 3 + Math.random() * 5;
-    g.moveTo(gx, -h / 2);
-    g.lineTo(gx + 1.5, -h / 2 - gh);
-    g.lineTo(gx + 3, -h / 2);
+  // Grass lip highlight
+  g.roundRect(-w / 2 - 1, -h / 2 - 4, w + 2, 3, 3);
+  g.fill(lighten(topColor, 20));
+  // Grass tufts on top — thick curved blades
+  for (var gx = -w / 2 + 5; gx < w / 2 - 5; gx += 6 + Math.random() * 4) {
+    var gh = 4 + Math.random() * 8;
+    g.moveTo(gx, -h / 2 - 4);
+    g.quadraticCurveTo(gx + 1, -h / 2 - gh * 0.7, gx + 0.5, -h / 2 - gh);
+    g.quadraticCurveTo(gx + 2, -h / 2 - gh * 0.3, gx + 3, -h / 2 - 4);
     g.closePath();
-    g.fill(topColor);
+    g.fill(Math.random() > 0.4 ? topColor : lighten(topColor, 12));
   }
+  // Specular dot
+  g.circle(-w / 4, -h / 4, 2);
+  g.fill({ color: 0xffffff, alpha: 0.2 });
   container.addChild(g);
   if (hasFilters()) {
     container.filters = [new PIXI.filters.DropShadowFilter({
-      offset: { x: 4, y: 6 }, blur: 6, alpha: 0.5, color: 0x000000,
+      offset: { x: 4, y: 6 }, blur: 8, alpha: 0.45, color: 0x000000,
     })];
   }
   return container;
@@ -363,55 +501,83 @@ export function drawPlatformBlock(w: number, h: number, mainColor: number, topCo
 // CHARACTERS & ENTITIES
 // ============================================================================
 
-/** Multi-part character with gradient body, outline, eye shine, and hat */
+/** Professional character with round body, 3D shading, expressive face */
 export function drawPlayerCharacter(size: number, bodyColor: number, lightColor: number): any {
   var container = new PIXI.Container();
   var g = new PIXI.Graphics();
   var s = size;
-  // Feet (behind body)
-  g.ellipse(-s * 0.18, s * 0.42, s * 0.13, s * 0.07);
-  g.fill(darken(bodyColor, 40));
-  g.ellipse(s * 0.18, s * 0.42, s * 0.13, s * 0.07);
-  g.fill(darken(bodyColor, 40));
-  // Body with gradient (lighter top → darker bottom)
-  g.roundRect(-s * 0.3, -s * 0.2, s * 0.6, s * 0.65, s * 0.15);
-  var bodyGrad = makeLinearGradient(lightColor, darken(bodyColor, 15), s * 0.65);
+  // Ground shadow
+  g.ellipse(0, s * 0.48, s * 0.28, s * 0.06);
+  g.fill({ color: 0x000000, alpha: 0.2 });
+  // Feet (round, behind body)
+  g.ellipse(-s * 0.16, s * 0.42, s * 0.12, s * 0.07);
+  g.fill(darken(bodyColor, 45));
+  g.ellipse(-s * 0.16, s * 0.40, s * 0.10, s * 0.04);
+  g.fill({ color: 0xffffff, alpha: 0.08 });
+  g.ellipse(s * 0.16, s * 0.42, s * 0.12, s * 0.07);
+  g.fill(darken(bodyColor, 45));
+  g.ellipse(s * 0.16, s * 0.40, s * 0.10, s * 0.04);
+  g.fill({ color: 0xffffff, alpha: 0.08 });
+  // Body — round blob with 3D gradient
+  g.roundRect(-s * 0.3, -s * 0.18, s * 0.6, s * 0.62, s * 0.2);
+  var bodyGrad = makeLinearGradient(lightColor, darken(bodyColor, 20), s * 0.62);
   g.fill(bodyGrad);
-  // Body highlight
-  g.roundRect(-s * 0.22, -s * 0.15, s * 0.2, s * 0.4, s * 0.08);
+  // Body inner shadow (bottom)
+  g.ellipse(0, s * 0.28, s * 0.25, s * 0.1);
+  g.fill({ color: darken(bodyColor, 30), alpha: 0.2 });
+  // Body specular highlight (top-left)
+  g.ellipse(-s * 0.1, -s * 0.05, s * 0.12, s * 0.18);
   g.fill({ color: 0xffffff, alpha: 0.15 });
-  // Head
-  g.circle(0, -s * 0.35, s * 0.25);
-  g.fill(bodyColor);
-  // Head highlight
-  g.circle(-s * 0.06, -s * 0.42, s * 0.1);
+  // Head — sphere with gradient
+  g.circle(0, -s * 0.35, s * 0.26);
+  var headGrad = makeRadialGradient(lighten(bodyColor, 15), darken(bodyColor, 10), s * 0.26);
+  g.fill(headGrad);
+  // Head specular highlight
+  g.ellipse(-s * 0.07, -s * 0.44, s * 0.1, s * 0.07);
+  g.fill({ color: 0xffffff, alpha: 0.18 });
+  // Hat/cap with shading
+  g.roundRect(-s * 0.22, -s * 0.63, s * 0.44, s * 0.14, 5);
+  var hatGrad = makeLinearGradient(darken(bodyColor, 20), darken(bodyColor, 40), s * 0.14);
+  g.fill(hatGrad);
+  g.roundRect(-s * 0.3, -s * 0.54, s * 0.6, s * 0.07, 4);
+  g.fill(darken(bodyColor, 30));
+  // Hat highlight
+  g.roundRect(-s * 0.18, -s * 0.62, s * 0.2, s * 0.04, 2);
   g.fill({ color: 0xffffff, alpha: 0.12 });
-  // Hat/cap
-  g.roundRect(-s * 0.2, -s * 0.62, s * 0.4, s * 0.12, 4);
-  g.fill(darken(bodyColor, 30));
-  g.roundRect(-s * 0.28, -s * 0.54, s * 0.56, s * 0.06, 3);
-  g.fill(darken(bodyColor, 30));
-  // Eyes (white)
-  g.circle(-s * 0.09, -s * 0.35, s * 0.07);
+  // Eyes — larger, more expressive
+  g.circle(-s * 0.1, -s * 0.36, s * 0.08);
   g.fill(0xffffff);
-  g.circle(s * 0.09, -s * 0.35, s * 0.07);
+  g.circle(s * 0.1, -s * 0.36, s * 0.08);
   g.fill(0xffffff);
-  // Pupils
-  g.circle(-s * 0.06, -s * 0.35, s * 0.035);
+  // Eye inner shadow
+  g.ellipse(-s * 0.1, -s * 0.33, s * 0.07, s * 0.04);
+  g.fill({ color: 0xddddee, alpha: 0.3 });
+  g.ellipse(s * 0.1, -s * 0.33, s * 0.07, s * 0.04);
+  g.fill({ color: 0xddddee, alpha: 0.3 });
+  // Pupils — with direction
+  g.circle(-s * 0.07, -s * 0.36, s * 0.04);
   g.fill(0x111122);
-  g.circle(s * 0.12, -s * 0.35, s * 0.035);
+  g.circle(s * 0.13, -s * 0.36, s * 0.04);
   g.fill(0x111122);
-  // Eye shine dots
-  g.circle(-s * 0.08, -s * 0.37, s * 0.018);
-  g.fill({ color: 0xffffff, alpha: 0.8 });
-  g.circle(s * 0.1, -s * 0.37, s * 0.018);
-  g.fill({ color: 0xffffff, alpha: 0.8 });
-  // Mouth
-  g.moveTo(-s * 0.05, -s * 0.24);
-  g.quadraticCurveTo(0, -s * 0.2, s * 0.05, -s * 0.24);
-  g.stroke({ color: darken(bodyColor, 50), width: 1.5 });
+  // Eye shine — dual highlights per eye
+  g.circle(-s * 0.09, -s * 0.39, s * 0.022);
+  g.fill({ color: 0xffffff, alpha: 0.9 });
+  g.circle(-s * 0.05, -s * 0.37, s * 0.012);
+  g.fill({ color: 0xffffff, alpha: 0.6 });
+  g.circle(s * 0.11, -s * 0.39, s * 0.022);
+  g.fill({ color: 0xffffff, alpha: 0.9 });
+  g.circle(s * 0.15, -s * 0.37, s * 0.012);
+  g.fill({ color: 0xffffff, alpha: 0.6 });
+  // Smile
+  g.moveTo(-s * 0.06, -s * 0.24);
+  g.quadraticCurveTo(0, -s * 0.18, s * 0.06, -s * 0.24);
+  g.stroke({ color: darken(bodyColor, 55), width: 2 });
+  // Rosy cheeks
+  g.ellipse(-s * 0.15, -s * 0.27, s * 0.04, s * 0.025);
+  g.fill({ color: 0xff6688, alpha: 0.15 });
+  g.ellipse(s * 0.15, -s * 0.27, s * 0.04, s * 0.025);
+  g.fill({ color: 0xff6688, alpha: 0.15 });
   container.addChild(g);
-  // Sticker-style outline
   if (hasFilters()) {
     container.filters = [new PIXI.filters.OutlineFilter({
       thickness: 3, color: darken(bodyColor, 80),
@@ -420,69 +586,115 @@ export function drawPlayerCharacter(size: number, bodyColor: number, lightColor:
   return container;
 }
 
-/** Coin with radial gradient inner shine and real GlowFilter */
+/** Coin with 3D depth, strong radial gradient, and real glow */
 export function drawCoinToken(radius: number, color: number, glowColor: number): any {
   var container = new PIXI.Container();
-  // Main coin with radial gradient
   var coin = new PIXI.Graphics();
+  // Outer ring (darker edge)
   coin.circle(0, 0, radius);
-  var coinGrad = makeRadialGradient(lighten(color, 40), color, radius);
+  coin.fill(darken(color, 20));
+  // Inner coin face with radial gradient
+  coin.circle(0, 0, radius * 0.88);
+  var coinGrad = makeRadialGradient(lighten(color, 50), color, radius * 0.88);
   coin.fill(coinGrad);
-  coin.circle(0, 0, radius * 0.75);
-  coin.fill({ color: 0xffffff, alpha: 0.12 });
-  // Star shine
-  coin.circle(-radius * 0.2, -radius * 0.2, radius * 0.2);
-  coin.fill({ color: 0xffffff, alpha: 0.35 });
+  // Inner ring detail
+  coin.circle(0, 0, radius * 0.65);
+  coin.stroke({ color: darken(color, 15), alpha: 0.3, width: 1 });
+  // Dollar/star symbol in center
+  coin.moveTo(0, -radius * 0.25);
+  coin.lineTo(0, radius * 0.25);
+  coin.stroke({ color: darken(color, 20), alpha: 0.3, width: 1.5 });
+  coin.moveTo(-radius * 0.15, -radius * 0.15);
+  coin.lineTo(radius * 0.15, radius * 0.15);
+  coin.stroke({ color: darken(color, 20), alpha: 0.2, width: 1 });
+  // Specular highlight (bright spot top-left)
+  coin.ellipse(-radius * 0.2, -radius * 0.22, radius * 0.22, radius * 0.15);
+  coin.fill({ color: 0xffffff, alpha: 0.4 });
+  // Small sparkle
+  coin.circle(radius * 0.15, -radius * 0.3, radius * 0.08);
+  coin.fill({ color: 0xffffff, alpha: 0.6 });
   container.addChild(coin);
-  // Real glow via filter, or fallback to manual glow rings
   if (hasFilters()) {
     container.filters = [new PIXI.filters.GlowFilter({
-      distance: radius * 1.2, outerStrength: 3.0, innerStrength: 0.5,
+      distance: radius * 1.5, outerStrength: 3.5, innerStrength: 0.5,
       color: glowColor,
     })];
   } else {
     var glow = new PIXI.Graphics();
-    glow.circle(0, 0, radius * 1.8);
+    glow.circle(0, 0, radius * 2.0);
+    glow.fill({ color: glowColor, alpha: 0.2 });
+    glow.circle(0, 0, radius * 1.5);
     glow.fill({ color: glowColor, alpha: 0.15 });
-    glow.circle(0, 0, radius * 1.4);
-    glow.fill({ color: glowColor, alpha: 0.1 });
     container.addChildAt(glow, 0);
   }
   return container;
 }
 
-/** Slime enemy with radial gradient body, outline, and angry eyes */
+/** Slime enemy — organic blob with 3D shading, expressive angry face */
 export function drawEnemySlime(size: number, color: number, lightColor: number): any {
   var container = new PIXI.Container();
   var g = new PIXI.Graphics();
   var s = size;
-  // Body blob with radial gradient
-  g.ellipse(0, s * 0.1, s * 0.4, s * 0.35);
-  var bodyGrad = makeRadialGradient(lightColor, darken(color, 15), s * 0.4);
+  // Ground shadow
+  g.ellipse(0, s * 0.42, s * 0.35, s * 0.06);
+  g.fill({ color: 0x000000, alpha: 0.2 });
+  // Body blob with organic curves — dark underside
+  g.ellipse(0, s * 0.15, s * 0.42, s * 0.3);
+  g.fill(darken(color, 20));
+  // Main body with radial gradient (3D sphere look)
+  g.ellipse(0, s * 0.08, s * 0.4, s * 0.34);
+  var bodyGrad = makeRadialGradient(lightColor, darken(color, 10), s * 0.4);
   g.fill(bodyGrad);
-  // Top bump
-  g.circle(0, -s * 0.15, s * 0.25);
-  g.fill(color);
-  // Highlight
-  g.circle(-s * 0.08, -s * 0.2, s * 0.12);
-  g.fill({ color: lightColor, alpha: 0.35 });
-  // Eyes (angry)
-  g.circle(-s * 0.1, -s * 0.1, s * 0.08);
+  // Top bump — creates rounded top
+  g.circle(0, -s * 0.15, s * 0.27);
+  var topGrad = makeRadialGradient(lighten(color, 10), color, s * 0.27);
+  g.fill(topGrad);
+  // Body specular highlight (top-left)
+  g.ellipse(-s * 0.1, -s * 0.2, s * 0.13, s * 0.09);
+  g.fill({ color: 0xffffff, alpha: 0.2 });
+  // Small secondary highlight
+  g.circle(-s * 0.18, -s * 0.08, s * 0.05);
+  g.fill({ color: 0xffffff, alpha: 0.12 });
+  // Eyes — larger, angrier
+  g.circle(-s * 0.11, -s * 0.1, s * 0.09);
   g.fill(0xffffff);
-  g.circle(s * 0.1, -s * 0.1, s * 0.08);
+  g.circle(s * 0.11, -s * 0.1, s * 0.09);
   g.fill(0xffffff);
+  // Eye shadows
+  g.ellipse(-s * 0.11, -s * 0.07, s * 0.08, s * 0.04);
+  g.fill({ color: 0xddddee, alpha: 0.25 });
+  g.ellipse(s * 0.11, -s * 0.07, s * 0.08, s * 0.04);
+  g.fill({ color: 0xddddee, alpha: 0.25 });
   // Angry pupils
-  g.circle(-s * 0.08, -s * 0.08, s * 0.04);
+  g.circle(-s * 0.09, -s * 0.09, s * 0.045);
   g.fill(0x111111);
-  g.circle(s * 0.12, -s * 0.08, s * 0.04);
+  g.circle(s * 0.13, -s * 0.09, s * 0.045);
   g.fill(0x111111);
-  // Angry brows
-  g.moveTo(-s * 0.18, -s * 0.22);
-  g.lineTo(-s * 0.04, -s * 0.16);
-  g.stroke({ color: darken(color, 60), width: 2 });
-  g.moveTo(s * 0.18, -s * 0.22);
-  g.lineTo(s * 0.04, -s * 0.16);
-  g.stroke({ color: darken(color, 60), width: 2 });
+  // Eye shine
+  g.circle(-s * 0.11, -s * 0.13, s * 0.02);
+  g.fill({ color: 0xffffff, alpha: 0.85 });
+  g.circle(s * 0.11, -s * 0.13, s * 0.02);
+  g.fill({ color: 0xffffff, alpha: 0.85 });
+  // Angry brows — thicker
+  g.moveTo(-s * 0.2, -s * 0.24);
+  g.lineTo(-s * 0.04, -s * 0.17);
+  g.stroke({ color: darken(color, 65), width: 2.5 });
+  g.moveTo(s * 0.2, -s * 0.24);
+  g.lineTo(s * 0.04, -s * 0.17);
+  g.stroke({ color: darken(color, 65), width: 2.5 });
+  // Mouth — open angry
+  g.moveTo(-s * 0.08, s * 0.02);
+  g.quadraticCurveTo(0, s * 0.1, s * 0.08, s * 0.02);
+  g.fill(darken(color, 50));
+  // Teeth
+  g.moveTo(-s * 0.04, s * 0.02);
+  g.lineTo(-s * 0.02, s * 0.06);
+  g.lineTo(0, s * 0.02);
+  g.fill(0xffffff);
+  g.moveTo(0, s * 0.02);
+  g.lineTo(s * 0.02, s * 0.06);
+  g.lineTo(s * 0.04, s * 0.02);
+  g.fill(0xffffff);
   container.addChild(g);
   if (hasFilters()) {
     container.filters = [new PIXI.filters.OutlineFilter({
@@ -492,54 +704,85 @@ export function drawEnemySlime(size: number, color: number, lightColor: number):
   return container;
 }
 
-/** Heart shape for lives display */
+/** Heart shape with 3D shading for lives display */
 export function drawHeart(size: number, color: number): any {
+  var container = new PIXI.Container();
   var g = new PIXI.Graphics();
   var s = size;
+  // Shadow
+  g.moveTo(1, s * 0.32);
+  g.bezierCurveTo(-s * 0.48, -s * 0.08, -s * 0.48, -s * 0.48, 1, -s * 0.18);
+  g.bezierCurveTo(s * 0.52, -s * 0.48, s * 0.52, -s * 0.08, 1, s * 0.32);
+  g.fill({ color: 0x000000, alpha: 0.2 });
+  // Main heart
   g.moveTo(0, s * 0.3);
   g.bezierCurveTo(-s * 0.5, -s * 0.1, -s * 0.5, -s * 0.5, 0, -s * 0.2);
   g.bezierCurveTo(s * 0.5, -s * 0.5, s * 0.5, -s * 0.1, 0, s * 0.3);
-  g.fill(color);
-  // Shine
-  g.circle(-s * 0.12, -s * 0.15, s * 0.08);
-  g.fill({ color: 0xffffff, alpha: 0.3 });
-  return g;
+  var heartGrad = makeLinearGradient(lighten(color, 25), darken(color, 15), s * 0.8);
+  g.fill(heartGrad);
+  // Specular highlight
+  g.ellipse(-s * 0.12, -s * 0.22, s * 0.1, s * 0.08);
+  g.fill({ color: 0xffffff, alpha: 0.35 });
+  g.circle(-s * 0.08, -s * 0.28, s * 0.04);
+  g.fill({ color: 0xffffff, alpha: 0.5 });
+  container.addChild(g);
+  return container;
 }
 
-/** Hexagonal gem shape with radial gradient and GlowFilter */
+/** Hexagonal gem with 3D faceted look and strong glow */
 export function drawGemShape(radius: number, color: number): any {
   var container = new PIXI.Container();
   var g = new PIXI.Graphics();
-  // Hexagonal gem via regular polygon
+  // Shadow
+  g.regularPoly(2, 2, radius, 6);
+  g.fill({ color: 0x000000, alpha: 0.2 });
+  // Dark base
   g.regularPoly(0, 0, radius, 6);
-  var gemGrad = makeRadialGradient(lighten(color, 40), darken(color, 10), radius);
+  g.fill(darken(color, 20));
+  // Inner facet with gradient
+  g.regularPoly(0, 0, radius * 0.85, 6);
+  var gemGrad = makeRadialGradient(lighten(color, 50), darken(color, 5), radius * 0.85);
   g.fill(gemGrad);
-  // Inner facet
-  g.regularPoly(0, 0, radius * 0.6, 6);
-  g.fill({ color: 0xffffff, alpha: 0.1 });
-  // Shine
-  g.circle(-radius * 0.2, -radius * 0.25, radius * 0.15);
-  g.fill({ color: 0xffffff, alpha: 0.45 });
-  g.circle(radius * 0.1, -radius * 0.3, radius * 0.07);
-  g.fill({ color: 0xffffff, alpha: 0.6 });
+  // Inner facet highlight ring
+  g.regularPoly(0, -radius * 0.05, radius * 0.55, 6);
+  g.fill({ color: 0xffffff, alpha: 0.12 });
+  // Top facet shine
+  g.ellipse(-radius * 0.15, -radius * 0.25, radius * 0.2, radius * 0.12);
+  g.fill({ color: 0xffffff, alpha: 0.5 });
+  // Small sparkle
+  g.circle(radius * 0.12, -radius * 0.32, radius * 0.06);
+  g.fill({ color: 0xffffff, alpha: 0.7 });
   container.addChild(g);
   if (hasFilters()) {
     container.filters = [new PIXI.filters.GlowFilter({
-      distance: radius * 1.0, outerStrength: 2.5, innerStrength: 0.4, color: color,
+      distance: radius * 1.2, outerStrength: 3.0, innerStrength: 0.5, color: color,
     })];
   }
   return container;
 }
 
-/** Sleek ship shape with gradient body and engine glow */
+/** Ship with gradient body, engine glow, and wing detail */
 export function drawShipShape(size: number, color: number, lightColor: number): any {
   var container = new PIXI.Container();
   var g = new PIXI.Graphics();
   var s = size;
-  // Engine glow
-  g.circle(0, s * 0.4, s * 0.15);
-  g.fill({ color: 0xff6600, alpha: 0.4 });
-  // Wings
+  // Engine glow (behind ship)
+  g.ellipse(0, s * 0.42, s * 0.12, s * 0.2);
+  g.fill({ color: 0xff6600, alpha: 0.35 });
+  g.ellipse(0, s * 0.38, s * 0.08, s * 0.12);
+  g.fill({ color: 0xffaa00, alpha: 0.5 });
+  // Wing shadows
+  g.moveTo(-s * 0.47, s * 0.32);
+  g.lineTo(-s * 0.15, -s * 0.08);
+  g.lineTo(-s * 0.15, s * 0.32);
+  g.closePath();
+  g.fill(darken(color, 25));
+  g.moveTo(s * 0.47, s * 0.32);
+  g.lineTo(s * 0.15, -s * 0.08);
+  g.lineTo(s * 0.15, s * 0.32);
+  g.closePath();
+  g.fill(darken(color, 25));
+  // Wings with gradient
   g.moveTo(-s * 0.45, s * 0.3);
   g.lineTo(-s * 0.15, -s * 0.1);
   g.lineTo(-s * 0.15, s * 0.3);
@@ -550,23 +793,34 @@ export function drawShipShape(size: number, color: number, lightColor: number): 
   g.lineTo(s * 0.15, s * 0.3);
   g.closePath();
   g.fill(color);
+  // Wing highlights
+  g.moveTo(-s * 0.35, s * 0.25);
+  g.lineTo(-s * 0.18, s * 0.0);
+  g.lineTo(-s * 0.18, s * 0.25);
+  g.closePath();
+  g.fill({ color: 0xffffff, alpha: 0.1 });
   // Body with gradient
   g.moveTo(0, -s * 0.5);
   g.lineTo(-s * 0.15, s * 0.3);
   g.lineTo(s * 0.15, s * 0.3);
   g.closePath();
-  var shipGrad = makeLinearGradient(lightColor, darken(color, 15), s * 0.8);
+  var shipGrad = makeLinearGradient(lighten(lightColor, 15), darken(color, 15), s * 0.8);
   g.fill(shipGrad);
-  // Cockpit
-  g.circle(0, -s * 0.1, s * 0.08);
+  // Body highlight stripe
+  g.moveTo(0, -s * 0.45);
+  g.lineTo(-s * 0.06, s * 0.25);
+  g.lineTo(s * 0.02, s * 0.25);
+  g.closePath();
+  g.fill({ color: 0xffffff, alpha: 0.1 });
+  // Cockpit with glass effect
+  g.circle(0, -s * 0.1, s * 0.09);
   g.fill(0x88ddff);
-  g.circle(-s * 0.02, -s * 0.12, s * 0.03);
+  g.ellipse(-s * 0.02, -s * 0.13, s * 0.04, s * 0.03);
   g.fill({ color: 0xffffff, alpha: 0.5 });
   container.addChild(g);
-  // Engine glow filter
   if (hasFilters()) {
     container.filters = [new PIXI.filters.GlowFilter({
-      distance: 10, outerStrength: 2.0, color: 0xff6600,
+      distance: 12, outerStrength: 2.5, color: 0xff6600,
     })];
   }
   return container;
