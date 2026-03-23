@@ -1,479 +1,279 @@
 /**
- * 2D Game Assets Reference — Catalog for 2D game generation agents.
+ * 2D Game Visual Reference — Catalog for 2D game generation agents.
  *
  * Injected into 2D game agent prompt. Edit HERE to update all 2D game generation.
- * Assets served from: /opt/vibexe/media-stock/games/ via /api/app-builder/media-stock/
  *
- * 20,454 sprites total. Rebuilt from server inventory.
- *
- * All packs use cartoon/pixel art style (PNG, web-ready).
- * Raw sprites are 800-3000px — ALWAYS apply SCALES when creating sprites.
+ * ALL visuals are PROGRAMMATIC — PIXI.Graphics shapes, canvas gradients,
+ * Proton particles. No external sprite files needed.
  */
 
 // ============================================================================
-// SCALE PRESETS — Raw PNGs are oversized, must be scaled down
+// COLOR PALETTES — Theme-based visual presets
 // ============================================================================
 
-export const SCALES_2D: Record<string, number> = {
-	// Characters
-	player: 0.15,
-	enemy: 0.12,
-	npc: 0.12,
-	boss: 0.2,
-	// Platforms & tiles
-	platform: 0.2,
-	tile: 0.125,
-	block: 0.15,
-	// Items & collectibles
-	collectible: 0.08,
-	powerup: 0.1,
-	coin: 0.06,
-	// Projectiles
-	projectile: 0.05,
-	bullet: 0.04,
-	// Environment
-	background: 1.0,
-	parallaxLayer: 1.0,
-	decoration: 0.15,
-	prop: 0.12,
-	// UI
-	button: 0.2,
-	icon: 0.08,
-	heart: 0.06,
+export interface ColorPalette {
+	name: string;
+	skyTop: number;
+	skyBottom: number;
+	mountains: number[];
+	ground: number;
+	groundTop: number;
+	platform: number;
+	platformTop: number;
+	player: number;
+	playerLight: number;
+	coin: number;
+	coinGlow: number;
+	enemy: number;
+	enemyLight: number;
+	foliage: number;
+	foliageLight: number;
+	water: number;
+	ambient: string;
+	weather: string | null;
+}
+
+export const PALETTES: Record<string, ColorPalette> = {
+	forest: {
+		name: "Enchanted Forest",
+		skyTop: 0x0a0a2e,
+		skyBottom: 0x1a4a3a,
+		mountains: [0x0d1a0d, 0x1a2d1a, 0x2a3d2a],
+		ground: 0x2d5a27,
+		groundTop: 0x4a8a3a,
+		platform: 0x5a3a1a,
+		platformTop: 0x7a5a3a,
+		player: 0x44aaff,
+		playerLight: 0x77ccff,
+		coin: 0xffdd00,
+		coinGlow: 0xffaa00,
+		enemy: 0xcc3333,
+		enemyLight: 0xff5555,
+		foliage: 0x339933,
+		foliageLight: 0x55cc55,
+		water: 0x2266aa,
+		ambient: "fireflies",
+		weather: null,
+	},
+	sunset: {
+		name: "Golden Sunset",
+		skyTop: 0x1a0533,
+		skyBottom: 0xff6633,
+		mountains: [0x1a1133, 0x2d1a44, 0x442d55],
+		ground: 0x3a5a2a,
+		groundTop: 0x5a8a3a,
+		platform: 0x6a4a2a,
+		platformTop: 0x8a6a4a,
+		player: 0x44ccaa,
+		playerLight: 0x66eebb,
+		coin: 0xffdd00,
+		coinGlow: 0xff8800,
+		enemy: 0xaa2244,
+		enemyLight: 0xdd4466,
+		foliage: 0x447733,
+		foliageLight: 0x66aa55,
+		water: 0x334488,
+		ambient: "fireflies",
+		weather: null,
+	},
+	space: {
+		name: "Cosmic Void",
+		skyTop: 0x000011,
+		skyBottom: 0x0a0a33,
+		mountains: [0x111133, 0x1a1a44, 0x222255],
+		ground: 0x333355,
+		groundTop: 0x444477,
+		platform: 0x555577,
+		platformTop: 0x6666aa,
+		player: 0x44ffaa,
+		playerLight: 0x77ffcc,
+		coin: 0xffaa33,
+		coinGlow: 0xff6600,
+		enemy: 0xff44aa,
+		enemyLight: 0xff77cc,
+		foliage: 0x4466aa,
+		foliageLight: 0x6688cc,
+		water: 0x223366,
+		ambient: "dust",
+		weather: null,
+	},
+	volcanic: {
+		name: "Lava Realm",
+		skyTop: 0x1a0000,
+		skyBottom: 0x4a1500,
+		mountains: [0x1a0505, 0x2d0a0a, 0x3d1515],
+		ground: 0x2a1a0a,
+		groundTop: 0x4a2a1a,
+		platform: 0x3a2a1a,
+		platformTop: 0x5a3a2a,
+		player: 0x44aaff,
+		playerLight: 0x77ccff,
+		coin: 0xffdd00,
+		coinGlow: 0xff4400,
+		enemy: 0xff6600,
+		enemyLight: 0xff8833,
+		foliage: 0x553322,
+		foliageLight: 0x774433,
+		water: 0xff3300,
+		ambient: "embers",
+		weather: null,
+	},
+	candy: {
+		name: "Candy Kingdom",
+		skyTop: 0xffaacc,
+		skyBottom: 0xaaccff,
+		mountains: [0xddaacc, 0xccbbdd, 0xbbccee],
+		ground: 0x88cc77,
+		groundTop: 0xaaee99,
+		platform: 0xcc88aa,
+		platformTop: 0xeeaacc,
+		player: 0xff6699,
+		playerLight: 0xff99bb,
+		coin: 0xffdd00,
+		coinGlow: 0xff88ff,
+		enemy: 0x9944cc,
+		enemyLight: 0xbb66ee,
+		foliage: 0x77cc55,
+		foliageLight: 0x99ee77,
+		water: 0x6699ff,
+		ambient: "pollen",
+		weather: null,
+	},
+	arctic: {
+		name: "Frozen Tundra",
+		skyTop: 0x1a2a4a,
+		skyBottom: 0x7799bb,
+		mountains: [0x334455, 0x445566, 0x556677],
+		ground: 0x889999,
+		groundTop: 0xaabbcc,
+		platform: 0x778899,
+		platformTop: 0x99aabb,
+		player: 0xff6644,
+		playerLight: 0xff8866,
+		coin: 0xffdd00,
+		coinGlow: 0xffaa00,
+		enemy: 0x4488cc,
+		enemyLight: 0x66aaee,
+		foliage: 0x446666,
+		foliageLight: 0x668888,
+		water: 0x5588aa,
+		ambient: "dust",
+		weather: "snow",
+	},
+	dark: {
+		name: "Shadow Depths",
+		skyTop: 0x050510,
+		skyBottom: 0x0a0a20,
+		mountains: [0x0a0a15, 0x10101d, 0x151525],
+		ground: 0x1a1a2a,
+		groundTop: 0x2a2a3a,
+		platform: 0x222233,
+		platformTop: 0x333344,
+		player: 0x00ccff,
+		playerLight: 0x44eeff,
+		coin: 0xffdd00,
+		coinGlow: 0x00ff88,
+		enemy: 0xff2244,
+		enemyLight: 0xff4466,
+		foliage: 0x1a2a1a,
+		foliageLight: 0x2a3a2a,
+		water: 0x112244,
+		ambient: "embers",
+		weather: null,
+	},
+	ocean: {
+		name: "Deep Ocean",
+		skyTop: 0x001133,
+		skyBottom: 0x0055aa,
+		mountains: [0x002244, 0x003355, 0x004466],
+		ground: 0x224455,
+		groundTop: 0x336677,
+		platform: 0x335566,
+		platformTop: 0x447788,
+		player: 0xffaa33,
+		playerLight: 0xffcc66,
+		coin: 0xffdd00,
+		coinGlow: 0x44ffaa,
+		enemy: 0xcc44aa,
+		enemyLight: 0xee66cc,
+		foliage: 0x228855,
+		foliageLight: 0x33aa77,
+		water: 0x1155aa,
+		ambient: "dust",
+		weather: null,
+	},
 };
 
-// ============================================================================
-// ASSET PACK DEFINITIONS
-// ============================================================================
+// Keep SCALES_2D for backward compat (used in index.ts export)
+export const SCALES_2D: Record<string, number> = {};
 
+// Keep types for backward compat
 export interface AssetPack2D {
 	id: string;
 	name: string;
-	style: "cartoon" | "pixel" | "hand-drawn" | "vector";
+	style: string;
 	spriteCount: number;
 	serverPath: string;
 	description: string;
 	categories: Record<string, string[]>;
 }
-
-export const PACKS_2D: AssetPack2D[] = [
-	// ---- CHARACTER PACKS ----
-	{
-		id: "robot",
-		name: "Robot Character Pack",
-		style: "cartoon",
-		spriteCount: 120,
-		serverPath: "robot",
-		description:
-			"Robot character with full walk/run/jump/idle/attack animations. Individual frame PNGs.",
-		categories: {
-			idle: [
-				"idle_01.png",
-				"idle_02.png",
-				"idle_03.png",
-				"idle_04.png",
-				"idle_05.png",
-				"idle_06.png",
-				"idle_07.png",
-				"idle_08.png",
-				"idle_09.png",
-				"idle_10.png",
-			],
-			walk: [
-				"walk_01.png",
-				"walk_02.png",
-				"walk_03.png",
-				"walk_04.png",
-				"walk_05.png",
-				"walk_06.png",
-				"walk_07.png",
-				"walk_08.png",
-			],
-			run: [
-				"run_01.png",
-				"run_02.png",
-				"run_03.png",
-				"run_04.png",
-				"run_05.png",
-				"run_06.png",
-				"run_07.png",
-				"run_08.png",
-			],
-			jump: ["jump_01.png", "jump_02.png", "jump_03.png", "jump_04.png"],
-			attack: [
-				"attack_01.png",
-				"attack_02.png",
-				"attack_03.png",
-				"attack_04.png",
-				"attack_05.png",
-				"attack_06.png",
-			],
-			hurt: ["hurt_01.png", "hurt_02.png"],
-			death: [
-				"death_01.png",
-				"death_02.png",
-				"death_03.png",
-				"death_04.png",
-				"death_05.png",
-				"death_06.png",
-				"death_07.png",
-				"death_08.png",
-			],
-		},
-	},
-	{
-		id: "zombie",
-		name: "Zombie Character Pack",
-		style: "cartoon",
-		spriteCount: 80,
-		serverPath: "zombie",
-		description:
-			"Zombie enemy character with walk/attack/death animations. Individual frame PNGs.",
-		categories: {
-			walk: [
-				"walk_01.png",
-				"walk_02.png",
-				"walk_03.png",
-				"walk_04.png",
-				"walk_05.png",
-				"walk_06.png",
-				"walk_07.png",
-				"walk_08.png",
-			],
-			attack: [
-				"attack_01.png",
-				"attack_02.png",
-				"attack_03.png",
-				"attack_04.png",
-				"attack_05.png",
-				"attack_06.png",
-			],
-			hurt: ["hurt_01.png", "hurt_02.png"],
-			death: [
-				"death_01.png",
-				"death_02.png",
-				"death_03.png",
-				"death_04.png",
-				"death_05.png",
-				"death_06.png",
-			],
-		},
-	},
-	{
-		id: "alien",
-		name: "Alien Character Pack",
-		style: "cartoon",
-		spriteCount: 60,
-		serverPath: "alien",
-		description:
-			"Alien character with walk/jump/attack animations. Individual frame PNGs.",
-		categories: {
-			idle: ["idle_01.png", "idle_02.png", "idle_03.png", "idle_04.png"],
-			walk: [
-				"walk_01.png",
-				"walk_02.png",
-				"walk_03.png",
-				"walk_04.png",
-				"walk_05.png",
-				"walk_06.png",
-			],
-			jump: ["jump_01.png", "jump_02.png", "jump_03.png"],
-			attack: [
-				"attack_01.png",
-				"attack_02.png",
-				"attack_03.png",
-				"attack_04.png",
-			],
-		},
-	},
-
-	// ---- ENVIRONMENT PACKS ----
-	{
-		id: "environments-nature",
-		name: "Nature Environment",
-		style: "cartoon",
-		spriteCount: 11,
-		serverPath: "environments/nature",
-		description:
-			"Nature parallax background — 11 layers (sky, mountains, trees, ground). 1920x1080 PNGs.",
-		categories: {
-			layers: [
-				"1.png",
-				"2.png",
-				"3.png",
-				"4.png",
-				"5.png",
-				"6.png",
-				"7.png",
-				"8.png",
-				"9.png",
-				"10.png",
-				"11.png",
-			],
-		},
-	},
-	{
-		id: "environments-forest",
-		name: "Forest Environment",
-		style: "cartoon",
-		spriteCount: 8,
-		serverPath: "environments/forest",
-		description:
-			"Forest parallax background — 8 layers (sky, trees, fog, ground). 1920x1080 PNGs.",
-		categories: {
-			layers: [
-				"1.png",
-				"2.png",
-				"3.png",
-				"4.png",
-				"5.png",
-				"6.png",
-				"7.png",
-				"8.png",
-			],
-		},
-	},
-	{
-		id: "environments-dark",
-		name: "Dark Environment",
-		style: "cartoon",
-		spriteCount: 7,
-		serverPath: "environments/dark",
-		description:
-			"Dark/horror parallax background — 7 layers. 1920x1080 PNGs.",
-		categories: {
-			layers: [
-				"1.png",
-				"2.png",
-				"3.png",
-				"4.png",
-				"5.png",
-				"6.png",
-				"7.png",
-			],
-		},
-	},
-	{
-		id: "environments-mountains",
-		name: "Mountain Environment",
-		style: "cartoon",
-		spriteCount: 6,
-		serverPath: "environments/mountains",
-		description:
-			"Mountain parallax background — 6 layers (sky, peaks, valleys). 1920x1080 PNGs.",
-		categories: {
-			layers: ["1.png", "2.png", "3.png", "4.png", "5.png", "6.png"],
-		},
-	},
-	{
-		id: "environments-simple",
-		name: "Simple Environment",
-		style: "cartoon",
-		spriteCount: 4,
-		serverPath: "environments/simple",
-		description:
-			"Simple parallax background — 4 layers (sky, hills, ground). 1920x1080 PNGs.",
-		categories: {
-			layers: ["1.png", "2.png", "3.png", "4.png"],
-		},
-	},
-	{
-		id: "environments-space",
-		name: "Space Environment",
-		style: "cartoon",
-		spriteCount: 5,
-		serverPath: "environments/space",
-		description:
-			"Space parallax background — 5 layers (stars, nebula, planets). 1920x1080 PNGs.",
-		categories: {
-			layers: ["1.png", "2.png", "3.png", "4.png", "5.png"],
-		},
-	},
-
-	// ---- PLATFORM & TILE PACKS ----
-	{
-		id: "platforms",
-		name: "Platform Tiles",
-		style: "cartoon",
-		spriteCount: 50,
-		serverPath: "platforms",
-		description:
-			"Assorted platform tiles — grass, stone, dirt, ice. Various sizes. PNG.",
-		categories: {
-			grass: [
-				"grass_left.png",
-				"grass_mid.png",
-				"grass_right.png",
-				"grass_single.png",
-			],
-			stone: [
-				"stone_left.png",
-				"stone_mid.png",
-				"stone_right.png",
-				"stone_single.png",
-			],
-			dirt: [
-				"dirt_left.png",
-				"dirt_mid.png",
-				"dirt_right.png",
-				"dirt_single.png",
-			],
-			ice: [
-				"ice_left.png",
-				"ice_mid.png",
-				"ice_right.png",
-				"ice_single.png",
-			],
-		},
-	},
-
-	// ---- ITEMS & COLLECTIBLES ----
-	{
-		id: "items",
-		name: "Items & Collectibles",
-		style: "cartoon",
-		spriteCount: 40,
-		serverPath: "items",
-		description:
-			"Coins, gems, hearts, keys, potions. Individual PNG sprites.",
-		categories: {
-			coins: [
-				"coin_gold.png",
-				"coin_silver.png",
-				"coin_bronze.png",
-				"coin_spin_01.png",
-				"coin_spin_02.png",
-				"coin_spin_03.png",
-				"coin_spin_04.png",
-				"coin_spin_05.png",
-			],
-			gems: ["gem_red.png", "gem_blue.png", "gem_green.png", "gem_purple.png"],
-			hearts: ["heart_full.png", "heart_half.png", "heart_empty.png"],
-			keys: ["key_gold.png", "key_silver.png"],
-			potions: [
-				"potion_red.png",
-				"potion_blue.png",
-				"potion_green.png",
-				"potion_purple.png",
-			],
-		},
-	},
-];
+export const PACKS_2D: AssetPack2D[] = [];
 
 // ============================================================================
-// ENVIRONMENT PARALLAX MAPPING
-// ============================================================================
-
-export interface ParallaxConfig {
-	packId: string;
-	layers: { file: string; factor: number }[];
-}
-
-export const PARALLAX_CONFIGS: Record<string, ParallaxConfig> = {
-	nature: {
-		packId: "environments-nature",
-		layers: [
-			{ file: "1.png", factor: 0.0 },
-			{ file: "2.png", factor: 0.05 },
-			{ file: "3.png", factor: 0.1 },
-			{ file: "4.png", factor: 0.15 },
-			{ file: "5.png", factor: 0.2 },
-			{ file: "6.png", factor: 0.3 },
-			{ file: "7.png", factor: 0.4 },
-			{ file: "8.png", factor: 0.5 },
-			{ file: "9.png", factor: 0.6 },
-			{ file: "10.png", factor: 0.7 },
-			{ file: "11.png", factor: 0.8 },
-		],
-	},
-	forest: {
-		packId: "environments-forest",
-		layers: [
-			{ file: "1.png", factor: 0.0 },
-			{ file: "2.png", factor: 0.1 },
-			{ file: "3.png", factor: 0.2 },
-			{ file: "4.png", factor: 0.35 },
-			{ file: "5.png", factor: 0.5 },
-			{ file: "6.png", factor: 0.6 },
-			{ file: "7.png", factor: 0.7 },
-			{ file: "8.png", factor: 0.85 },
-		],
-	},
-	dark: {
-		packId: "environments-dark",
-		layers: [
-			{ file: "1.png", factor: 0.0 },
-			{ file: "2.png", factor: 0.1 },
-			{ file: "3.png", factor: 0.2 },
-			{ file: "4.png", factor: 0.35 },
-			{ file: "5.png", factor: 0.5 },
-			{ file: "6.png", factor: 0.65 },
-			{ file: "7.png", factor: 0.8 },
-		],
-	},
-	mountains: {
-		packId: "environments-mountains",
-		layers: [
-			{ file: "1.png", factor: 0.0 },
-			{ file: "2.png", factor: 0.15 },
-			{ file: "3.png", factor: 0.3 },
-			{ file: "4.png", factor: 0.5 },
-			{ file: "5.png", factor: 0.7 },
-			{ file: "6.png", factor: 0.85 },
-		],
-	},
-	simple: {
-		packId: "environments-simple",
-		layers: [
-			{ file: "1.png", factor: 0.0 },
-			{ file: "2.png", factor: 0.3 },
-			{ file: "3.png", factor: 0.6 },
-			{ file: "4.png", factor: 0.9 },
-		],
-	},
-	space: {
-		packId: "environments-space",
-		layers: [
-			{ file: "1.png", factor: 0.0 },
-			{ file: "2.png", factor: 0.1 },
-			{ file: "3.png", factor: 0.25 },
-			{ file: "4.png", factor: 0.5 },
-			{ file: "5.png", factor: 0.8 },
-		],
-	},
-};
-
-// ============================================================================
-// ASSET REFERENCE STRING — Injected into agent prompt
+// VISUAL REFERENCE STRING — Injected into agent prompt
 // ============================================================================
 
 export function buildAssetReferencePrompt(): string {
 	const lines: string[] = [
-		"## 2D Game Assets Reference",
+		"## Visual Quality Reference (Programmatic Graphics)",
 		"",
-		"Assets are served via `/api/app-builder/media-stock/{path}`. Use `spriteUrl(path)` helper.",
+		"ALL visuals are created with PIXI.Graphics — no external sprites needed.",
+		"The helper functions in src/config/assets.ts create professional-looking graphics.",
 		"",
-		"### IMPORTANT: Always apply SCALES_2D",
-		"Raw sprites are 800-3000px. ALWAYS scale down when creating sprites.",
-		"Example: `sprite.scale.set(SCALES_2D.player)` for characters.",
+		"### Color Palettes (import { PALETTES } from '../config/assets')",
+		"",
+		"8 palettes: forest, sunset, space, volcanic, candy, arctic, dark, ocean.",
+		"Each palette has: skyTop, skyBottom, mountains[], ground, groundTop,",
+		"platform, platformTop, player, playerLight, coin, coinGlow, enemy, enemyLight,",
+		"foliage, foliageLight, water, ambient (particle type), weather (null or 'snow'/'rain').",
+		"",
+		"### Drawing Helpers (import from '../config/assets')",
+		"",
+		"- lerpColor(a, b, t) — interpolate between two hex colors",
+		"- drawSkyGradient(worldW, worldH, topColor, bottomColor) — smooth sky with 32 strips",
+		"- drawStars(worldW, skyH, count) — scattered twinkling dots",
+		"- drawMountainRange(worldW, baseY, color, alpha, minH, maxH, spacing) — triangle peaks",
+		"- drawCloud(w, h) — soft white ellipse cluster",
+		"- drawTree(trunkH, leafR, trunkColor, leafColor) — trunk + layered canopy",
+		"- drawPlatformBlock(w, h, mainColor, topColor) — rounded rect + shadow + highlight + grass tufts",
+		"- drawPlayerCharacter(size, bodyColor, lightColor) — multi-part character with eyes, hat, feet",
+		"- drawCoinToken(radius, color, glowColor) — circle + inner shine + outer glow ring",
+		"- drawEnemySlime(size, color, lightColor) — blob shape with eyes and highlights",
+		"- drawHeart(size, color) — heart shape for lives display",
+		"- drawGroundStrip(worldW, groundY, floorH, color, topColor) — textured ground with grass tufts",
+		"",
+		"### Visual Techniques (MUST USE in every game)",
+		"",
+		"1. **Gradient Sky**: drawSkyGradient() — NEVER use a flat-color background",
+		"2. **Parallax Mountains**: 3 layers with decreasing alpha at different scroll speeds",
+		"3. **Atmospheric Clouds**: 5-8 clouds that drift slowly",
+		"4. **Decorative Trees/Props**: Scattered between platforms",
+		"5. **Grass Tufts**: On ground and platform surfaces",
+		"6. **Glow Effects**: Coins and powerups pulse with alpha animation",
+		"7. **Squash & Stretch**: Player character reacts to jump/land (scale.y changes)",
+		"8. **Screen Shake**: Brief container offset on impacts",
+		"9. **Proton Particles**: Theme ambient + gameplay triggers (jump dust, collect sparkle, enemy death explosion)",
+		"10. **Polished UI**: Score with text stroke, animated number changes, heart-based lives",
+		"",
+		"### Anti-Patterns (NEVER DO)",
+		"",
+		"- NEVER use flat single-color backgrounds — always gradient sky",
+		"- NEVER make player a plain rectangle — use drawPlayerCharacter()",
+		"- NEVER skip particles — every game needs ambient + gameplay effects",
+		"- NEVER use untextured platforms — drawPlatformBlock() adds highlights and grass",
+		"- NEVER put ALL game objects at same depth — use parallax layers",
 		"",
 	];
-
-	for (const pack of PACKS_2D) {
-		lines.push(`### ${pack.name} (${pack.id})`);
-		lines.push(`Path prefix: \`${pack.serverPath}/\``);
-		lines.push(`${pack.description}`);
-		lines.push("");
-		for (const [cat, files] of Object.entries(pack.categories)) {
-			lines.push(`  ${cat}: ${files.join(", ")}`);
-		}
-		lines.push("");
-	}
-
-	lines.push("### Parallax Environments");
-	lines.push("6 environments: nature (11 layers), forest (8), dark (7), mountains (6), simple (4), space (5)");
-	lines.push("Use PIXI.TilingSprite for each layer with parallax scrolling factor.");
-	lines.push("");
 
 	return lines.join("\n");
 }

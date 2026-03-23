@@ -75,8 +75,8 @@ export type { AssetPack3D } from "./shared/game-assets-reference-3d";
 
 // 2D game templates & assets (Pixi.js + Proton)
 export { GAME_2D_TEMPLATE_FILES, GAME_2D_SCENE_STARTER, GAME_2D_SCENE_STARTER_RUNNER, GAME_2D_SCENE_STARTER_PUZZLE, GAME_2D_SCENE_STARTER_SHOOTER } from "./shared/game-2d-templates";
-export { PACKS_2D, SCALES_2D, buildAssetReferencePrompt as GAME_2D_ASSETS_REFERENCE_BUILDER } from "./shared/game-2d-assets";
-export type { AssetPack2D } from "./shared/game-2d-assets";
+export { PACKS_2D, SCALES_2D, PALETTES, buildAssetReferencePrompt as GAME_2D_ASSETS_REFERENCE_BUILDER } from "./shared/game-2d-assets";
+export type { AssetPack2D, ColorPalette } from "./shared/game-2d-assets";
 
 // Module system
 export {
