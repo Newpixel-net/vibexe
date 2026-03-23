@@ -963,6 +963,20 @@ const supabase = createClient("${supabaseConfig.url}", "${supabaseConfig.anonKey
 				}
 			}
 
+			// ── HF Sprite Generation (FREE via Hugging Face Inference API) ───
+			// Generate 2D game sprites from the seed's creative brief using
+			// Flux-2D-Game-Assets-LoRA. Non-fatal: skips if HF_TOKEN not set.
+			let generatedSprites: Record<string, string> = {};
+			if (isGame2d && game2dBrief && process.env.HF_TOKEN) {
+				try {
+					const { generateSpritesBatch } = await import("@/lib/hf-sprite-batch");
+					generatedSprites = await generateSpritesBatch(game2dBrief, appId);
+					console.log(`[Chat API] Generated ${Object.keys(generatedSprites).length} sprites from HF for seed=${game2dBrief.seed}`);
+				} catch (e) {
+					console.warn(`[Chat API] HF sprite generation failed (non-fatal):`, e instanceof Error ? e.message : e);
+				}
+			}
+
 			// ── Genre-aware module pre-activation ─────────────────────────────
 			// Automatically create __game-settings.json with the RIGHT modules
 			// and settings for the detected game genre. Each genre has its own
@@ -1141,6 +1155,28 @@ After creating ALL files, end with a short summary. If the app has auth, include
 			// 2D game creative brief injection — drives variety per seed
 			if (isGame2d && game2dBrief) {
 				runtimeAddenda.push(buildCreativeBriefPrompt(game2dBrief));
+			}
+			// 2D game AI-generated sprites — inject URLs into prompt
+			if (isGame2d && Object.keys(generatedSprites).length > 0) {
+				const spriteList = Object.entries(generatedSprites)
+					.map(([cat, url]) => `- **${cat}**: \`${url}\``)
+					.join("\n");
+				runtimeAddenda.push(`## AI-Generated Sprites Available
+
+The following sprites were AI-generated for this game's theme and style. **USE THEM** instead of programmatic drawing:
+
+${spriteList}
+
+Load them in your GameScene2D.ts via PIXI.Assets:
+\`\`\`typescript
+const tex = await PIXI.Assets.load("${Object.values(generatedSprites)[0]}");
+const sprite = new PIXI.Sprite(tex);
+sprite.anchor.set(0.5, 1); // bottom-center anchor for characters
+sprite.width = 48; sprite.height = 64; // scale to game size
+this.container.addChild(sprite);
+\`\`\`
+
+**IMPORTANT**: These sprites have white backgrounds. For best results, set the sprite's blendMode or use alpha masking if needed.`);
 			}
 			// 2D game "build" phase: tell AI that GameScene2D.ts is pre-created
 			if (isGame2d) {
