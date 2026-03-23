@@ -182,17 +182,26 @@ export function createFileTools(appId: string, options?: FileToolsOptions) {
 				if (blocked) {
 					return { success: false, action: "updated", path, error: blocked };
 				}
-				// Hard line count limit for 2D GameScene — prevents full rewrites that crash
+				// Hard line count limits for 2D GameScene — prevents rewrites AND replacements
 				const is2DScene = /GameScene2D\.ts$/i.test(path);
 				if (is2DScene) {
 					const lineCount = content.split("\n").length;
 					if (lineCount > 600) {
-						console.log(`[FileTools] BLOCKED GameScene2D.ts update: ${lineCount} lines (max 600). This is a rewrite, not an enhancement.`);
+						console.log(`[FileTools] BLOCKED GameScene2D.ts update: ${lineCount} lines (max 600). Full rewrite.`);
 						return {
 							success: false,
 							action: "updated",
 							path,
-							error: `BLOCKED: GameScene2D.ts has ${lineCount} lines — max allowed is 600. The hybrid starter is ~350 lines. You are REWRITING instead of ENHANCING. Use read_file first, then add only 50-150 lines of enhancements. Do NOT rewrite the entire file.`,
+							error: `BLOCKED: GameScene2D.ts has ${lineCount} lines — max allowed is 600. The hybrid starter is ~150-350 lines. You are REWRITING instead of ENHANCING. Use read_file first, then add only 50-150 lines of enhancements. Do NOT rewrite the entire file.`,
+						};
+					}
+					if (lineCount < 120) {
+						console.log(`[FileTools] BLOCKED GameScene2D.ts update: ${lineCount} lines (min 120). Replacement with skeleton.`);
+						return {
+							success: false,
+							action: "updated",
+							path,
+							error: `BLOCKED: GameScene2D.ts has only ${lineCount} lines — the hybrid starter has 150-350 lines of working game code. You are REPLACING the full game with a skeleton. Use read_file to see the existing code, then use update_file with the FULL existing code PLUS your additions.`,
 						};
 					}
 				}
