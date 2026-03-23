@@ -1781,15 +1781,19 @@ export class GameScene2D implements GameScene {
     });
 
     // ---- 12. AMBIENT PARTICLES ----
-    if (PAL.weather === 'snow') {
-      var snowFx = createSnowEffect(W, H, 0.4);
-      engine.addEmitter(snowFx.emitter);
-    } else if (PAL.weather === 'rain') {
-      var rainFx = createRainEffect(W, H, 0.5);
-      engine.addEmitter(rainFx.emitter);
-    }
-    var ambientFx = createAmbientEffect(PAL.ambient as any, W, H);
-    engine.addEmitter(ambientFx.emitter);
+    try {
+      if (PAL.weather === 'snow') {
+        var snowFx = createSnowEffect(W, H, 0.4);
+        if (snowFx && snowFx.emitter) engine.addEmitter(snowFx.emitter);
+      } else if (PAL.weather === 'rain') {
+        var rainFx = createRainEffect(W, H, 0.5);
+        if (rainFx && rainFx.emitter) engine.addEmitter(rainFx.emitter);
+      }
+      if (PAL.ambient) {
+        var ambientFx = createAmbientEffect(PAL.ambient as any, W, H);
+        if (ambientFx && ambientFx.emitter) engine.addEmitter(ambientFx.emitter);
+      }
+    } catch(e) { /* particle effects optional */ }
 
     // ---- 13. UI LAYER ----
     // Score
@@ -2129,8 +2133,7 @@ export class GameScene2D implements GameScene {
     });
 
     // Ambient effects
-    var ambientFx = createAmbientEffect(PAL.ambient as any, W, H);
-    engine.addEmitter(ambientFx.emitter);
+    if (PAL.ambient) { try { var ambientFx = createAmbientEffect(PAL.ambient as any, W, H); if (ambientFx && ambientFx.emitter) engine.addEmitter(ambientFx.emitter); } catch(e) {} }
 
     // UI
     this.scoreText = engine.createText('0', {
