@@ -1560,6 +1560,7 @@ export function applyBiomePostProcessing(theme: string, worldContainer: any): an
   switch (theme) {
     case 'forest':
       cm.saturate(0.15, false);
+      cm.tint(0x88cc66, true);
       cm.contrast(0.05, true);
       cm.brightness(1.02, true);
       break;
@@ -1573,7 +1574,8 @@ export function applyBiomePostProcessing(theme: string, worldContainer: any): an
       cm.saturate(0.15, true);
       break;
     case 'volcanic':
-      cm.saturate(0.25, false);
+      cm.tint(0xff6644, true);
+      cm.saturate(0.25, true);
       cm.contrast(0.12, true);
       cm.brightness(0.96, true);
       break;
@@ -1582,7 +1584,8 @@ export function applyBiomePostProcessing(theme: string, worldContainer: any): an
       cm.brightness(1.06, true);
       break;
     case 'arctic':
-      cm.contrast(0.08, false);
+      cm.tint(0xaaddff, true);
+      cm.contrast(0.08, true);
       cm.brightness(1.04, true);
       cm.saturate(-0.1, true);
       break;
@@ -1592,7 +1595,8 @@ export function applyBiomePostProcessing(theme: string, worldContainer: any): an
       cm.saturate(-0.15, true);
       break;
     case 'ocean':
-      cm.saturate(0.1, false);
+      cm.tint(0x88bbdd, true);
+      cm.saturate(0.1, true);
       cm.contrast(0.06, true);
       break;
   }
@@ -1671,8 +1675,8 @@ export function drawAtmosphericFog(worldW: number, groundY: number, theme: strin
 }
 
 /** L-system procedural tree — generates unique trees from simple rules.
- *  Presets: oak, pine, palm, dead, willow, candy.
- *  Uses seeded RNG for reproducible variety. Cache result via generateTexture(). */
+ *  Special presets: candy = lollipop shape, palm = curved trunk + fronds.
+ *  Other presets use L-system branching. Cached as sprite via generateTexture(). */
 export function drawLSystemTree(x: number, y: number, preset: string, theme: string, seed: number): any {
   var container = new PIXI.Container();
   var g = new PIXI.Graphics();
@@ -1685,13 +1689,86 @@ export function drawLSystemTree(x: number, y: number, preset: string, theme: str
   var ts = seed;
   function tr() { ts = (ts * 16807 + 0) % 2147483647; return (ts & 0x7fffffff) / 2147483647; }
 
+  // ---- CANDY: Lollipop shape (straight stick + spiral candy top) ----
+  if (preset === 'candy') {
+    var stickH = 50 + tr() * 30;
+    var headR = 16 + tr() * 10;
+    var candyColors2 = [0xff6699, 0x66ccff, 0xffcc33, 0x66ff99, 0xff66ff];
+    var cColor = candyColors2[Math.floor(tr() * candyColors2.length)];
+    // Stick
+    g.roundRect(-2, -stickH, 4, stickH, 2);
+    g.fill(0xddccaa);
+    // Candy head
+    g.circle(0, -stickH - headR, headR);
+    g.fill(cColor);
+    // Spiral pattern
+    for (var sp = 0; sp < 3; sp++) {
+      var sa = sp * Math.PI * 0.66 + tr() * 0.5;
+      g.arc(0, -stickH - headR, headR * 0.7, sa, sa + Math.PI * 0.5);
+      g.stroke({ color: 0xffffff, alpha: 0.6, width: 3 });
+    }
+    // Shine highlight
+    g.circle(-headR * 0.3, -stickH - headR - headR * 0.3, headR * 0.2);
+    g.fill({ color: 0xffffff, alpha: 0.5 });
+    container.addChild(g);
+    container.x = x; container.y = y;
+    return container;
+  }
+
+  // ---- PALM: Curved trunk + fan fronds at top ----
+  if (preset === 'palm') {
+    var palmH = 70 + tr() * 40;
+    var curve = 15 + tr() * 20;
+    var curveDir = tr() > 0.5 ? 1 : -1;
+    // Curved trunk via bezier
+    g.moveTo(0, 0);
+    g.bezierCurveTo(curveDir * curve * 0.3, -palmH * 0.3, curveDir * curve, -palmH * 0.7, curveDir * curve * 0.5, -palmH);
+    g.stroke({ color: trunkColor, width: 7 });
+    g.moveTo(0, 0);
+    g.bezierCurveTo(curveDir * curve * 0.3, -palmH * 0.3, curveDir * curve, -palmH * 0.7, curveDir * curve * 0.5, -palmH);
+    g.stroke({ color: lighten(trunkColor, 15), width: 3 });
+    // Bark rings
+    for (var br = 0; br < 5; br++) {
+      var bt = (br + 1) / 6;
+      var bx = curveDir * curve * 0.5 * bt * bt;
+      var by = -palmH * bt;
+      g.ellipse(bx, by, 5, 1.5);
+      g.stroke({ color: darken(trunkColor, 15), width: 1, alpha: 0.4 });
+    }
+    // Fan fronds
+    var topX = curveDir * curve * 0.5;
+    var topY = -palmH;
+    var frondCount = 5 + Math.floor(tr() * 3);
+    for (var fr = 0; fr < frondCount; fr++) {
+      var fa = (fr / frondCount) * Math.PI * 1.6 - Math.PI * 0.8;
+      var fLen = 30 + tr() * 20;
+      var fx = topX + Math.cos(fa) * fLen;
+      var fy = topY + Math.sin(fa) * fLen * 0.7;
+      g.moveTo(topX, topY);
+      g.quadraticCurveTo(topX + Math.cos(fa) * fLen * 0.6, topY + Math.sin(fa) * fLen * 0.3 - 8, fx, fy);
+      g.stroke({ color: leafColor, width: 2.5, alpha: 0.8 });
+      // Leaf blade
+      g.moveTo(topX, topY);
+      g.quadraticCurveTo(topX + Math.cos(fa) * fLen * 0.5, topY + Math.sin(fa) * fLen * 0.25 - 10, fx, fy);
+      g.quadraticCurveTo(topX + Math.cos(fa) * fLen * 0.5, topY + Math.sin(fa) * fLen * 0.25 + 5, topX, topY);
+      g.fill({ color: leafColor, alpha: 0.35 });
+    }
+    // Coconuts
+    for (var co = 0; co < 2 + Math.floor(tr() * 2); co++) {
+      g.circle(topX + (tr() - 0.5) * 10, topY + 3 + tr() * 6, 3);
+      g.fill(0x886633);
+    }
+    container.addChild(g);
+    container.x = x; container.y = y;
+    return container;
+  }
+
+  // ---- L-SYSTEM TREES (oak, pine, dead, willow) ----
   var PRESETS: Record<string, { axiom: string; rule: string; angle: number; gen: number; lenScale: number; thickScale: number }> = {
     oak:    { axiom: 'F', rule: 'FF+[+F-F-F]-[-F+F+F]', angle: 25, gen: 3, lenScale: 0.68, thickScale: 0.6 },
     pine:   { axiom: 'F', rule: 'F[+F][-F]F', angle: 22, gen: 4, lenScale: 0.72, thickScale: 0.55 },
-    palm:   { axiom: 'F', rule: 'F[+F]', angle: 38, gen: 3, lenScale: 0.65, thickScale: 0.5 },
     dead:   { axiom: 'F', rule: 'F[-F]F[+F]', angle: 28, gen: 3, lenScale: 0.7, thickScale: 0.6 },
     willow: { axiom: 'F', rule: 'FF-[-F+F+F]+[+F-F-F]', angle: 20, gen: 3, lenScale: 0.72, thickScale: 0.58 },
-    candy:  { axiom: 'F', rule: 'F[+F][-F]', angle: 30, gen: 3, lenScale: 0.6, thickScale: 0.55 },
   };
   var p = PRESETS[preset] || PRESETS.oak;
 
@@ -1707,8 +1784,8 @@ export function drawLSystemTree(x: number, y: number, preset: string, theme: str
 
   // Turtle graphics interpretation
   var stack: { cx: number; cy: number; ca: number; len: number; thick: number }[] = [];
-  var cx = 0, cy = 0, ca = -90; // start pointing up
-  var len = 18 + tr() * 8; // base segment length
+  var cx = 0, cy = 0, ca = -90;
+  var len = 18 + tr() * 8;
   var thick = 5 + tr() * 2;
   var leaves: { x: number; y: number; r: number }[] = [];
 
@@ -1720,18 +1797,15 @@ export function drawLSystemTree(x: number, y: number, preset: string, theme: str
       g.moveTo(cx, cy);
       g.lineTo(nx, ny);
       g.stroke({ color: thick > 2 ? trunkColor : lighten(trunkColor, 15), width: Math.max(thick, 1), alpha: 0.9 });
-      cx = nx;
-      cy = ny;
+      cx = nx; cy = ny;
     } else if (ch === '+') {
       ca += p.angle + (tr() - 0.5) * 12;
     } else if (ch === '-') {
       ca -= p.angle + (tr() - 0.5) * 12;
     } else if (ch === '[') {
       stack.push({ cx: cx, cy: cy, ca: ca, len: len, thick: thick });
-      len *= p.lenScale;
-      thick *= p.thickScale;
+      len *= p.lenScale; thick *= p.thickScale;
     } else if (ch === ']') {
-      // Add leaf at branch tip
       if (preset !== 'dead') {
         leaves.push({ x: cx, y: cy, r: 4 + tr() * 6 });
       }
@@ -1740,27 +1814,27 @@ export function drawLSystemTree(x: number, y: number, preset: string, theme: str
     }
   }
 
-  // Draw leaves
-  if (preset === 'candy') {
-    // Candy: colorful circles
-    var candyColors = [0xff6699, 0x66ccff, 0xffcc33, 0x66ff99, 0xff66ff, 0xffaacc];
-    for (var li = 0; li < leaves.length; li++) {
-      var lf = leaves[li];
-      g.circle(lf.x, lf.y, lf.r * 1.2);
-      g.fill({ color: candyColors[li % candyColors.length], alpha: 0.8 });
-    }
-  } else {
-    for (var li2 = 0; li2 < leaves.length; li2++) {
-      var lf2 = leaves[li2];
-      g.circle(lf2.x, lf2.y, lf2.r);
-      g.fill({ color: lerpColor(leafColor, leafLight, tr()), alpha: 0.65 + tr() * 0.3 });
-    }
+  // Draw leaves for non-dead trees
+  for (var li2 = 0; li2 < leaves.length; li2++) {
+    var lf2 = leaves[li2];
+    g.circle(lf2.x, lf2.y, lf2.r);
+    g.fill({ color: lerpColor(leafColor, leafLight, tr()), alpha: 0.65 + tr() * 0.3 });
   }
 
   container.addChild(g);
-  container.x = x;
-  container.y = y;
-  container.pivot.set(0, 0); // anchor at base
+
+  // Cache as sprite texture for performance
+  try {
+    if (PIXI.Application && PIXI.Application._instance && PIXI.Application._instance.renderer) {
+      var tex = PIXI.Application._instance.renderer.generateTexture({ target: container, resolution: 1 });
+      var cached = new PIXI.Sprite(tex);
+      cached.anchor.set(0.5, 1);
+      cached.x = x; cached.y = y;
+      return cached;
+    }
+  } catch(e) { /* fallback to raw graphics */ }
+
+  container.x = x; container.y = y;
   return container;
 }
 
@@ -1833,12 +1907,46 @@ export function createLightingLayer(theme: string, worldW: number, groundY: numb
     layer.addChild(light);
   }
 
+  // Theme-specific special lights
+  if (theme === 'dark') {
+    // Moonlight from above — wide soft white-blue light at top center
+    var moon = drawPointLight(worldW * 0.4, -80, 400, 0x6677aa, 0.2);
+    layer.addChild(moon);
+  } else if (theme === 'arctic') {
+    // Aurora shimmer — 3 wide colored bands across the sky
+    var auroraColors = [0x44ff88, 0x4488ff, 0xaa44ff];
+    for (var au = 0; au < 3; au++) {
+      var auroraLight = drawPointLight(worldW * (0.2 + au * 0.3), groundY * 0.2, 300, auroraColors[au], 0.12);
+      layer.addChild(auroraLight);
+    }
+  } else if (theme === 'volcanic') {
+    // Extra red glow along the ground line
+    for (var vg = 0; vg < 5; vg++) {
+      var vgx = worldW * (vg + 0.5) / 5;
+      var volcGlow = drawPointLight(vgx, groundY + 10, 120, 0xff2200, 0.25);
+      layer.addChild(volcGlow);
+    }
+  } else if (theme === 'sunset') {
+    // Warm horizon glow — wide orange light at horizon
+    var horizonGlow = drawPointLight(worldW * 0.5, groundY * 0.7, 500, 0xff6622, 0.15);
+    layer.addChild(horizonGlow);
+  }
+
   // Ambient glow zones along the ground
   var ambientCount = Math.floor(worldW / 600);
   for (var a = 0; a < ambientCount; a++) {
     var ax = (a + 0.5) * (worldW / ambientCount) + (Math.random() - 0.5) * 200;
     var amb = drawPointLight(ax, groundY - 40, ld.ambientR, ld.ambientColor, ld.intensity * 0.3);
     layer.addChild(amb);
+  }
+
+  // AdvancedBloomFilter on light layer for glow bleed
+  if (PIXI.filters && PIXI.filters.AdvancedBloomFilter) {
+    try {
+      layer.filters = [new PIXI.filters.AdvancedBloomFilter({
+        threshold: 0.3, bloomScale: 0.6, brightness: 1.0, blur: 6, quality: 4,
+      })];
+    } catch(e) {}
   }
 
   return layer;
@@ -2588,6 +2696,7 @@ export class GameScene2D implements GameScene {
   private waterSurface: any = null;
   private lavaSurface: any = null;
   private godrayFilter: any = null;
+  private _displacementSprite: any = null;
   private invincibleTimer = 0;
   private shakeTimer = 0;
   private shakeIntensity = 0;
@@ -2796,11 +2905,23 @@ export class GameScene2D implements GameScene {
       }
     });
 
-    // ---- 12. AMBIENT PARTICLES ----
+    // ---- 12. AMBIENT PARTICLES (enhanced) ----
     try {
       if (PAL.weather === 'snow') {
-        var snowFx = createSnowEffect(W, H, 0.4);
+        var snowFx = createSnowEffect(W, H, 0.5);
         if (snowFx && snowFx.emitter) engine.addEmitter(snowFx.emitter);
+        // Snow accumulation dots on platforms
+        for (var spi = 0; spi < platforms.length; spi++) {
+          var sp2 = platforms[spi];
+          for (var sd = 0; sd < sp2.w / 8; sd++) {
+            var snowDot = new PIXI.Graphics();
+            snowDot.circle(0, 0, 1 + Math.random() * 1.5);
+            snowDot.fill({ color: 0xeef4ff, alpha: 0.6 + Math.random() * 0.3 });
+            snowDot.x = sp2.x - sp2.w / 2 + sd * 8 + Math.random() * 6;
+            snowDot.y = sp2.y - 2 - Math.random() * 3;
+            this.container.addChild(snowDot);
+          }
+        }
       } else if (PAL.weather === 'rain') {
         var rainFx = createRainEffect(W, H, 0.5);
         if (rainFx && rainFx.emitter) engine.addEmitter(rainFx.emitter);
@@ -2808,6 +2929,23 @@ export class GameScene2D implements GameScene {
       if (PAL.ambient) {
         var ambientFx = createAmbientEffect(PAL.ambient as any, W, H);
         if (ambientFx && ambientFx.emitter) engine.addEmitter(ambientFx.emitter);
+      }
+      // Extra firefly glow for forest/dark
+      if (THEME === 'forest' || THEME === 'dark') {
+        var fireflyCount = _rngInt(6, 14);
+        for (var ffi = 0; ffi < fireflyCount; ffi++) {
+          var ffGlow = new PIXI.Graphics();
+          var ffColor = THEME === 'forest' ? 0xddff44 : 0xaa55ff;
+          ffGlow.circle(0, 0, 3);
+          ffGlow.fill({ color: ffColor, alpha: 0.6 });
+          ffGlow.circle(0, 0, 8);
+          ffGlow.fill({ color: ffColor, alpha: 0.15 });
+          ffGlow.x = _rngRange(100, WW - 100);
+          ffGlow.y = _rngRange(CONFIG.groundY * 0.3, CONFIG.groundY - 50);
+          ffGlow.blendMode = 'add';
+          this.container.addChild(ffGlow);
+          this.decorTrees.push(ffGlow); // reuse sway for gentle float
+        }
       }
     } catch(e) { /* particle effects optional */ }
 
@@ -2867,10 +3005,19 @@ export class GameScene2D implements GameScene {
 
     // ---- 15b. DYNAMIC WATER/LAVA SURFACE ----
     try {
-      if (THEME === 'ocean' || THEME === 'forest') {
+      if (THEME === 'ocean') {
         var waterY2 = CONFIG.groundY + 20;
         var waterH2 = CONFIG.worldHeight - waterY2;
-        this.waterSurface = createWaterSurface(WW, waterY2, waterH2, THEME === 'ocean' ? 0x1a5276 : 0x2d6a4f);
+        this.waterSurface = createWaterSurface(WW, waterY2, waterH2, 0x1a5276);
+        this.container.addChild(this.waterSurface.container);
+      } else if (THEME === 'forest') {
+        // Small pond — partial width, offset position
+        var pondX = _rngRange(WW * 0.3, WW * 0.6);
+        var pondW = _rngRange(300, 600);
+        var pondY = CONFIG.groundY + 10;
+        var pondH = CONFIG.worldHeight - pondY;
+        this.waterSurface = createWaterSurface(pondW, pondY, pondH, 0x2d6a4f);
+        this.waterSurface.container.x = pondX;
         this.container.addChild(this.waterSurface.container);
       } else if (THEME === 'volcanic') {
         var lavaY2 = CONFIG.groundY + 30;
@@ -2892,6 +3039,32 @@ export class GameScene2D implements GameScene {
 
     // ---- 17b. GODRAY FILTER (forest/sunset only) ----
     try { this.godrayFilter = applyGodrayFilter(this.container, THEME); } catch(e) {}
+
+    // ---- 17c. DISPLACEMENT FILTER (volcanic heat shimmer) ----
+    if (THEME === 'volcanic' && PIXI.DisplacementFilter) {
+      try {
+        // Generate noise texture from canvas
+        var noiseCanvas = document.createElement('canvas');
+        noiseCanvas.width = 128; noiseCanvas.height = 128;
+        var nctx = noiseCanvas.getContext('2d');
+        if (nctx) {
+          var nid = nctx.createImageData(128, 128);
+          for (var ni = 0; ni < nid.data.length; ni += 4) {
+            var nv = Math.floor(Math.random() * 255);
+            nid.data[ni] = nv; nid.data[ni+1] = nv; nid.data[ni+2] = nv; nid.data[ni+3] = 255;
+          }
+          nctx.putImageData(nid, 0, 0);
+          var noiseTex = PIXI.Texture.from(noiseCanvas);
+          this._displacementSprite = new PIXI.Sprite(noiseTex);
+          this._displacementSprite.texture.source.wrapMode = 'repeat';
+          this._displacementSprite.width = W; this._displacementSprite.height = H;
+          this.container.addChild(this._displacementSprite);
+          var dispFilter = new PIXI.DisplacementFilter({ sprite: this._displacementSprite, scale: { x: 6, y: 8 } });
+          var existF = this.container.filters || [];
+          this.container.filters = existF.concat([dispFilter]);
+        }
+      } catch(e) {}
+    }
 
     // ---- 18. VIGNETTE (on UI layer, fixed position) ----
     try {
@@ -3012,15 +3185,6 @@ export class GameScene2D implements GameScene {
       en.gfx.scale.y = 1 + Math.sin(engine.elapsed * 5 + e) * 0.08;
     }
 
-    // ---- Animate clouds ----
-    for (var cl = 0; cl < this.clouds.length; cl++) {
-      var cloud = this.clouds[cl];
-      cloud.gfx.x += cloud.speed * dt;
-      if (cloud.gfx.x > CONFIG.worldWidth + 150) {
-        cloud.gfx.x = -150;
-      }
-    }
-
     // ---- Star twinkle ----
     if (this.stars) {
       this.stars.alpha = 0.6 + 0.4 * Math.sin(engine.elapsed * 0.5);
@@ -3031,16 +3195,35 @@ export class GameScene2D implements GameScene {
       engine.switchScene('gameover', { score: this.score });
     }
 
-    // ---- Vegetation sway (trees + decorations) ----
+    // ---- Fog drift ----
+    for (var fg = 0; fg < this.fogLayers.length; fg++) {
+      this.fogLayers[fg].x += (0.3 + fg * 0.2) * dt;
+      if (this.fogLayers[fg].x > CONFIG.worldWidth * 0.1) this.fogLayers[fg].x = 0;
+    }
+
+    // ---- Wind system ----
+    var _windStr = 0.5 + 0.5 * Math.sin(engine.elapsed * 0.15);
+    var _windDir = Math.sin(engine.elapsed * 0.07) > 0 ? 1 : -1;
+
+    // ---- Vegetation sway (wind-driven) ----
     for (var sw = 0; sw < this.treeSway.length; sw++) {
       var treeObj = this.treeSway[sw];
-      var swayA = Math.sin(engine.elapsed * 1.2 + treeObj.x * 0.008) * 0.018;
+      var swayA = Math.sin(engine.elapsed * 1.2 + treeObj.x * 0.008) * 0.018 * (0.5 + _windStr);
       var swayB = Math.sin(engine.elapsed * 2.1 + treeObj.x * 0.015) * 0.008;
-      treeObj.skew.x = swayA + swayB;
+      treeObj.skew.x = (swayA + swayB) * _windDir;
     }
     for (var dw = 0; dw < this.decorTrees.length; dw++) {
       var decObj = this.decorTrees[dw];
-      decObj.skew.x = Math.sin(engine.elapsed * 1.5 + decObj.x * 0.01) * 0.012;
+      decObj.skew.x = Math.sin(engine.elapsed * 1.5 + decObj.x * 0.01) * 0.012 * (0.5 + _windStr) * _windDir;
+    }
+
+    // ---- Animate clouds (wind-affected) ----
+    for (var cl = 0; cl < this.clouds.length; cl++) {
+      var cloud2 = this.clouds[cl];
+      cloud2.gfx.x += (cloud2.speed * (0.6 + _windStr * 0.8)) * dt;
+      if (cloud2.gfx.x > CONFIG.worldWidth + 150) {
+        cloud2.gfx.x = -150;
+      }
     }
 
     // ---- Animate water/lava surfaces ----
@@ -3049,6 +3232,12 @@ export class GameScene2D implements GameScene {
 
     // ---- Animate godray filter ----
     if (this.godrayFilter) { this.godrayFilter.time += dt * 0.4; }
+
+    // ---- Displacement shimmer (volcanic) ----
+    if (this._displacementSprite) {
+      this._displacementSprite.y -= dt * 25;
+      this._displacementSprite.x += dt * 8;
+    }
 
     engine.input.endFrame();
   }
