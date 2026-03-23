@@ -1496,45 +1496,69 @@ An App Store listing has been analyzed and injected into the project context abo
 		// Build file creation filter options for game projects
 		let fileToolsOptions: FileToolsOptions | undefined;
 		if (isGameProject || isGame2d || isGame3d) {
-			const templateFiles = GAME_3D_TEMPLATE_FILES;
+			const templateFiles = isGame2d ? GAME_2D_TEMPLATE_FILES : GAME_3D_TEMPLATE_FILES;
 			const protectedPaths = new Set(templateFiles.map((t) => t.path));
-			const forbiddenPatterns: RegExp[] = [
-				// Block ALL helper scenes — Game3D.tsx provides loading/menu/restart
-				/(?:^|\/)(?:Boot|Menu|Loading|Title|Splash|Intro|Main)Scene(?:3D)?\.ts$/i,
-			];
+			const forbiddenPatterns: RegExp[] = isGame2d
+				? [
+					// Block helper scenes + prevent AI from creating 3D scenes in 2D projects
+					/(?:^|\/)(?:Boot|Menu|Loading|Title|Splash|Intro|Main)Scene(?:2D)?\.ts$/i,
+					/GameScene3D\.ts$/i, // Block 3D scene in 2D projects
+					/GameOverScene3D\.ts$/i,
+				]
+				: [
+					// Block ALL helper scenes — Game3D.tsx provides loading/menu/restart
+					/(?:^|\/)(?:Boot|Menu|Loading|Title|Splash|Intro|Main)Scene(?:3D)?\.ts$/i,
+				];
 			// Path rewrites: AI consistently creates wrong filenames
-			const pathRewrites = new Map([
-				// Name corrections: wrong GameScene filename → GameScene3D.ts
-				["src/scenes/GameScene.ts", "src/scenes/GameScene3D.ts"],
-				["src/scenes/Game3DScene.ts", "src/scenes/GameScene3D.ts"],
-				["src/scenes/GameScene3d.ts", "src/scenes/GameScene3D.ts"],
-				// GameOver name corrections
-				["src/scenes/GameOverScene.ts", "src/scenes/GameOverScene3D.ts"],
-				["src/scenes/GameOver.ts", "src/scenes/GameOverScene3D.ts"],
-				["src/scenes/GameOverScene3d.ts", "src/scenes/GameOverScene3D.ts"],
-				// AI creates constants at wrong paths
-				["src/config/constants-3d.ts", "src/config/constants.ts"],
-				["src/constants.ts", "src/config/constants.ts"],
-				["src/scenes/constants.ts", "src/config/constants.ts"],
-				["src/game-config.ts", "src/config/constants.ts"],
-				["constants.ts", "src/config/constants.ts"],
-			]);
-			// 3D games: allowlist — AI can ONLY create these files (everything else is blocked)
-			const allowedPathPatterns: RegExp[] = [
-				/^docs\//, // Any doc file
-				/^src\/config\/constants(?:-3d)?\.ts$/, // Game constants (+ re-export shim)
-				/^src\/scenes\/GameScene3D\.ts$/, // Main scene (ONLY scene AI should create)
-				/^src\/objects\//, // Optional: Player.ts, Enemy.ts
-				/^src\/utils\/level-builder\.ts$/, // Optional: level generation
-			];
+			const pathRewrites = isGame2d
+				? new Map([
+					// 2D: wrong GameScene names → GameScene2D.ts
+					["src/scenes/GameScene.ts", "src/scenes/GameScene2D.ts"],
+					["src/scenes/Game2DScene.ts", "src/scenes/GameScene2D.ts"],
+					["src/scenes/GameScene2d.ts", "src/scenes/GameScene2D.ts"],
+					// AI creates constants at wrong paths
+					["src/constants.ts", "src/config/constants.ts"],
+					["src/scenes/constants.ts", "src/config/constants.ts"],
+					["src/game-config.ts", "src/config/constants.ts"],
+					["constants.ts", "src/config/constants.ts"],
+				])
+				: new Map([
+					// 3D: wrong GameScene names → GameScene3D.ts
+					["src/scenes/GameScene.ts", "src/scenes/GameScene3D.ts"],
+					["src/scenes/Game3DScene.ts", "src/scenes/GameScene3D.ts"],
+					["src/scenes/GameScene3d.ts", "src/scenes/GameScene3D.ts"],
+					["src/scenes/GameOverScene.ts", "src/scenes/GameOverScene3D.ts"],
+					["src/scenes/GameOver.ts", "src/scenes/GameOverScene3D.ts"],
+					["src/scenes/GameOverScene3d.ts", "src/scenes/GameOverScene3D.ts"],
+					["src/config/constants-3d.ts", "src/config/constants.ts"],
+					["src/constants.ts", "src/config/constants.ts"],
+					["src/scenes/constants.ts", "src/config/constants.ts"],
+					["src/game-config.ts", "src/config/constants.ts"],
+					["constants.ts", "src/config/constants.ts"],
+				]);
+			const allowedPathPatterns: RegExp[] = isGame2d
+				? [
+					/^docs\//, // Any doc file
+					/^src\/config\/constants\.ts$/, // Game constants
+					/^src\/scenes\/GameScene2D\.ts$/, // Main 2D scene (ONLY scene AI should create/update)
+				]
+				: [
+					/^docs\//, // Any doc file
+					/^src\/config\/constants(?:-3d)?\.ts$/, // Game constants (+ re-export shim)
+					/^src\/scenes\/GameScene3D\.ts$/, // Main 3D scene (ONLY scene AI should create)
+					/^src\/objects\//, // Optional: Player.ts, Enemy.ts
+					/^src\/utils\/level-builder\.ts$/, // Optional: level generation
+				];
 			// Import path rewrites: fix import references that don't match path-rewritten filenames
-			const importRewrites: [RegExp, string][] = [
-				// AI writes import from "constants-3d" but file is rewritten to "constants"
-				[/from\s+"\.\.\/config\/constants-3d"/g, 'from "../config/constants"'],
-				[/from\s+'\.\.\/config\/constants-3d'/g, "from '../config/constants'"],
-				[/from\s+"\.\/constants-3d"/g, 'from "./constants"'],
-				[/from\s+'\.\/constants-3d'/g, "from './constants'"],
-			];
+			const importRewrites: [RegExp, string][] = isGame2d
+				? [] // 2D imports are straightforward
+				: [
+					// AI writes import from "constants-3d" but file is rewritten to "constants"
+					[/from\s+"\.\.\/config\/constants-3d"/g, 'from "../config/constants"'],
+					[/from\s+'\.\.\/config\/constants-3d'/g, "from '../config/constants'"],
+					[/from\s+"\.\/constants-3d"/g, 'from "./constants"'],
+					[/from\s+'\.\/constants-3d'/g, "from './constants'"],
+				];
 			fileToolsOptions = { protectedPaths, forbiddenPatterns, pathRewrites, allowedPathPatterns, importRewrites };
 			console.log(`[Chat API] File filter active: ${protectedPaths.size} protected, ${forbiddenPatterns.length} forbidden, ${pathRewrites.size} rewrites, ${allowedPathPatterns.length} allowed patterns`);
 		}
