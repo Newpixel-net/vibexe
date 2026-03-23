@@ -1628,14 +1628,14 @@ function _generateEnemies() {
 }
 
 function _generateDecorations() {
-  var count = _rngInt(8, 16);
+  var count = _rngInt(10, 18);
   var decs: { x: number; type: number; size: number; flip: boolean }[] = [];
   var spacing = CONFIG.worldWidth / count;
   for (var i = 0; i < count; i++) {
     decs.push({
       x: i * spacing + _rngRange(20, spacing - 20),
       type: _rngInt(0, 3), // 4 variants per theme
-      size: _rngRange(0.7, 1.3),
+      size: _rngRange(1.8, 3.2),
       flip: _rng() > 0.5,
     });
   }
@@ -1838,39 +1838,45 @@ function _drawGroundDetail(x: number, groundY: number): any {
   var g = new PIXI.Graphics();
   g.x = x;
   g.y = groundY;
+  var ds = 2.5; // ground detail scale
   switch (THEME) {
     case 'volcanic':
       // Lava cracks
-      g.lineStyle(2, 0xff4400, 0.6); g.moveTo(-8, 2); g.lineTo(0, -3); g.lineTo(8, 1); g.lineTo(12, 4);
-      g.lineStyle(1, 0xff6600, 0.3); g.moveTo(-5, 5); g.lineTo(3, 0); g.lineTo(10, 6);
+      g.lineStyle(3, 0xff4400, 0.7); g.moveTo(-20 * ds, 4); g.lineTo(0, -6); g.lineTo(20 * ds, 2); g.lineTo(28 * ds, 8);
+      g.lineStyle(2, 0xff6600, 0.4); g.moveTo(-12 * ds, 8); g.lineTo(6 * ds, -2); g.lineTo(22 * ds, 10);
+      g.beginFill(0xff3300, 0.2); g.drawEllipse(0, 2, 16 * ds, 4); g.endFill();
       break;
     case 'arctic':
       // Snow mound
-      g.beginFill(0xddeeff, 0.6); g.drawEllipse(0, 0, 18, 5); g.endFill();
+      g.beginFill(0xddeeff, 0.7); g.drawEllipse(0, 0, 35, 10); g.endFill();
+      g.beginFill(0xeef4ff, 0.5); g.drawEllipse(5, -3, 22, 6); g.endFill();
       break;
     case 'candy':
       // Sprinkles on ground
-      var sc = [0xff6699, 0x66ccff, 0xffcc33, 0x66ff99];
-      for (var j = 0; j < 4; j++) { g.beginFill(sc[j]); g.drawCircle(_rngRange(-10, 10), _rngRange(-2, 2), 1.5); g.endFill(); }
+      var sc = [0xff6699, 0x66ccff, 0xffcc33, 0x66ff99, 0xff66ff];
+      for (var j = 0; j < 8; j++) { g.beginFill(sc[j % sc.length]); g.drawRoundedRect(_rngRange(-20, 20), _rngRange(-4, 4), 8, 3, 1); g.endFill(); }
       break;
     case 'space':
       // Glowing crack
-      g.lineStyle(1, 0x4488ff, 0.5); g.moveTo(-6, 2); g.lineTo(0, -2); g.lineTo(7, 3);
-      g.beginFill(0x4488ff, 0.15); g.drawCircle(0, 0, 8); g.endFill();
+      g.lineStyle(2, 0x4488ff, 0.6); g.moveTo(-15, 4); g.lineTo(0, -4); g.lineTo(18, 6);
+      g.beginFill(0x4488ff, 0.2); g.drawCircle(0, 0, 16); g.endFill();
+      g.beginFill(0x88aaff, 0.1); g.drawCircle(0, 0, 25); g.endFill();
       break;
     case 'dark':
       // Purple mist
-      g.beginFill(0x6633aa, 0.12); g.drawEllipse(0, -3, 20, 8); g.endFill();
+      g.beginFill(0x6633aa, 0.15); g.drawEllipse(0, -5, 40, 14); g.endFill();
+      g.beginFill(0x8844cc, 0.08); g.drawEllipse(0, -8, 55, 18); g.endFill();
       break;
     case 'ocean':
       // Bubbles
-      g.beginFill(0x66aadd, 0.3); g.drawCircle(-3, -5, 3); g.drawCircle(4, -8, 2); g.drawCircle(0, -12, 1.5); g.endFill();
+      g.beginFill(0x66aadd, 0.35); g.drawCircle(-6, -8, 6); g.drawCircle(8, -14, 4.5); g.drawCircle(0, -22, 3); g.drawCircle(-10, -18, 2.5); g.endFill();
       break;
     default:
       // Grass tufts
-      g.beginFill(0x55aa33, 0.5);
-      g.moveTo(-5, 0); g.lineTo(-3, -8); g.lineTo(-1, 0);
-      g.moveTo(2, 0); g.lineTo(4, -6); g.lineTo(6, 0);
+      g.beginFill(0x55aa33, 0.6);
+      g.moveTo(-10, 0); g.lineTo(-6, -16); g.lineTo(-2, 0);
+      g.moveTo(4, 0); g.lineTo(8, -12); g.lineTo(12, 0);
+      g.moveTo(-3, 0); g.lineTo(1, -10); g.lineTo(5, 0);
       g.endFill();
       break;
   }
