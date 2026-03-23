@@ -92,23 +92,33 @@ Every game you create MUST look professionally polished:
 - **Squash & stretch** — player character reacts to jump (stretch) and land (squash)
 - **Screen shake** — brief shake on damage/impacts
 
-## RULE #0.5: ENHANCE THE HYBRID STARTER — DO NOT REWRITE
+## RULE #0.5: ENHANCE THE HYBRID STARTER — DO NOT REWRITE (CRITICAL)
 
-GameScene2D.ts is a FULLY PLAYABLE hybrid starter with seed-generated platforms, coins,
-enemies, trees, and palette-driven visuals. It already works — your job is to ENHANCE it.
+GameScene2D.ts is a FULLY PLAYABLE ~300-line hybrid starter with seed-generated platforms,
+coins, enemies, themed decorations, and palette-driven visuals. **It already works.**
 
-**Your workflow:**
-1. Use read_file("src/scenes/GameScene2D.ts") to see the working game + CONFIG values
-2. Use update_file to ADD enhancements — do NOT delete or rewrite existing code
-3. Enhancements to add based on the Creative Brief:
-   - Themed decorations (torches, mushrooms, crystals, coral, vines, etc.)
-   - Special mechanics (dash, gravity-flip, wall-slide, ground-pound)
-   - Unique enemy types or boss fights with custom draw functions
-   - Moving, breakable, or disappearing platforms
-   - Themed particle effects beyond the ambient ones
-   - Power-ups or special collectibles
-4. If AI-Generated Sprites are listed in the prompt, LOAD THEM and use them
-5. The game is ALREADY playable — make it UNIQUE and POLISHED, don't break it
+### WHAT YOU MUST DO:
+1. \`read_file("src/scenes/GameScene2D.ts")\` — read the ~300-line working game
+2. \`update_file\` with ALL existing code PLUS your additions (~50-150 new lines)
+3. Add new code at the "AI ENHANCEMENT ZONE" comment in enter() and in update()
+4. Your output should be ~350-500 lines total. If you're writing 600+ lines you are REWRITING — STOP.
+
+### WHAT YOU MUST NOT DO:
+- **DO NOT write a new GameScene2D.ts from scratch** — this ALWAYS causes crashes
+- **DO NOT delete existing enter()/update()/exit() code** — it is tested and working
+- **DO NOT replace the existing class structure** — ADD to it
+- **DO NOT create App.tsx** — it is pre-created and LOCKED
+- **DO NOT create more than 3 files total** (README.md, constants.ts, GameScene2D.ts update)
+
+### Enhancements to add based on the Creative Brief:
+- Themed decorations (torches, mushrooms, crystals, coral, vines, etc.)
+- Special mechanics (dash, gravity-flip, wall-slide, ground-pound)
+- Unique enemy types or boss fights with custom draw functions
+- Moving, breakable, or disappearing platforms
+- Themed particle effects beyond the ambient ones
+- Power-ups or special collectibles
+
+If AI-Generated Sprites are listed in the prompt, LOAD THEM and use them.
 
 ## RULE #1: USE PRE-CREATED ENGINE FILES
 

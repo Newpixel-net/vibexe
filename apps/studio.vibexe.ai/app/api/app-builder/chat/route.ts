@@ -1193,24 +1193,28 @@ These sprites have white backgrounds — set blendMode or use alpha masking if n
 		if (isGame2d) {
 			runtimeAddenda.push(`## CRITICAL: 2D Game — GameScene2D.ts is a WORKING HYBRID STARTER
 
-**\`src/scenes/GameScene2D.ts\` is a FULLY PLAYABLE game** with seed-generated
-platforms, coins, enemies, and visual variety from the palette system.
+**\`src/scenes/GameScene2D.ts\` is a FULLY PLAYABLE game** (~300 lines) with seed-generated
+platforms, coins, enemies, themed decorations, and visual variety from the palette system.
 
-**Your workflow:**
-1. Use \`read_file("src/scenes/GameScene2D.ts")\` to see the working game
-2. Use \`update_file\` to ADD enhancements — do NOT rewrite from scratch
-3. Enhancements to add:
-   - Themed decorations matching the Creative Brief atmosphere (torches, mushrooms, crystals, coral, etc.)
-   - Special mechanics from Creative Brief (e.g., dash, gravity-flip, wall-slide)
-   - Unique enemy types or boss fights (new draw functions, new patrol patterns)
+### STRICT RULES — VIOLATION WILL BREAK THE GAME:
+1. **DO NOT rewrite GameScene2D.ts from scratch** — it is a working game. Rewriting it causes crashes.
+2. **DO NOT create src/App.tsx** — it is pre-created and LOCKED.
+3. **DO NOT create src/components/Game2D.tsx** — it is pre-created and LOCKED.
+4. **You may ONLY create/update**: \`docs/README.md\`, \`src/config/constants.ts\`, \`src/scenes/GameScene2D.ts\`
+5. **When updating GameScene2D.ts**: use \`read_file\` first, then \`update_file\` with the FULL existing code PLUS your additions. Add new code at the marked "AI ENHANCEMENT ZONE" comment and in the update() method. Keep ALL existing code intact.
+
+### Your enhancement workflow:
+1. Use \`read_file("src/scenes/GameScene2D.ts")\` — read the ~300 line working game
+2. Copy ALL existing code, then ADD your enhancements:
+   - Themed decorations matching the Creative Brief atmosphere
+   - Special mechanics from Creative Brief (dash, gravity-flip, wall-slide)
+   - Unique enemy types or boss fights
    - Moving/breakable/disappearing platforms
-   - Enhanced particle effects beyond ambient
-   - Themed power-ups or collectibles
-4. ALWAYS keep existing code intact — ADD to it, do NOT delete or rewrite
-5. Call engine.input.endFrame() at the end of every update() method
-6. If AI-Generated Sprites are listed above, LOAD THEM and use them
+   - Enhanced particle effects
+3. Use \`update_file\` with the full content (existing + new). Output should be ~350-500 lines, NOT 800+.
+4. ALWAYS keep engine.input.endFrame() at the end of update()
 
-**The starter is already playable. Make it UNIQUE and POLISHED.**`);
+**The starter is already playable. Make it UNIQUE and POLISHED — but do NOT delete or replace existing code.**`);
 
 			// Enhancement examples instead of build-from-scratch reference
 			runtimeAddenda.push(`## Reference: How to ENHANCE the Hybrid Starter
@@ -1488,6 +1492,8 @@ An App Store listing has been analyzed and injected into the project context abo
 					/(?:^|\/)(?:Boot|Menu|Loading|Title|Splash|Intro|Main)Scene(?:2D)?\.ts$/i,
 					/GameScene3D\.ts$/i, // Block 3D scene in 2D projects
 					/GameOverScene3D\.ts$/i,
+					/(?:^|\/)App\.tsx$/i, // App.tsx is PRE-CREATED, AI must not touch it
+					/(?:^|\/)Game2D\.tsx$/i, // Game2D.tsx is PRE-CREATED, AI must not touch it
 				]
 				: [
 					// Block ALL helper scenes — Game3D.tsx provides loading/menu/restart

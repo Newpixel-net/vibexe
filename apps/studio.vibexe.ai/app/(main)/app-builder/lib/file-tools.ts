@@ -90,6 +90,11 @@ export function createFileTools(appId: string, options?: FileToolsOptions) {
 			const isAllowed = allowedPathPatterns.some((p) => p.test(filePath));
 			if (!isAllowed) {
 				console.log(`[FileTools] BLOCKED by allowlist: ${filePath}`);
+				// Detect 2D vs 3D by checking what's allowed
+				const is2D = allowedPathPatterns.some((p) => p.toString().includes("GameScene2D"));
+				if (is2D) {
+					return `File "${filePath}" is not allowed. For 2D games you may ONLY create/update: src/scenes/GameScene2D.ts, src/config/constants.ts, docs/*.md. Do NOT create App.tsx, Game2D.tsx, or any other files. Put ALL game logic in GameScene2D.ts.`;
+				}
 				return `File "${filePath}" is not allowed. Only create: src/scenes/GameScene3D.ts, src/config/constants.ts, docs/*.md, src/objects/*.ts, src/utils/level-builder.ts. Put ALL game logic in GameScene3D.ts.`;
 			}
 		}
