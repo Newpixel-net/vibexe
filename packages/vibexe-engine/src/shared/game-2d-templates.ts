@@ -3197,262 +3197,483 @@ export class GameScene2D implements GameScene {
 
 /** Runner skeleton — AI generates all gameplay in enter()/update() */
 export const GAME_2D_SCENE_STARTER_RUNNER = `import { Engine2D, GameScene, createGame2D, JuiceSystem } from "../engine/core";
-import { createBody, createStaticBody, PhysicsWorld } from "../engine/physics";
+import { createBody, createStaticBody, PhysicsWorld, CharacterController } from "../engine/physics";
 import { createAmbientEffect, createSnowEffect, createRainEffect, onJumpDust, onLandImpact, onDeathExplosion, onCollectSparkle } from "../engine/effects";
-import { PALETTES, lerpColor, setNoiseSeed, drawSkyGradient, drawStars, drawMountainRange, drawCloud, drawGroundStrip, drawPlayerCharacter, drawCoinToken, drawEnemySlime, drawHeart, applyBiomePostProcessing, drawVignette, drawAtmosphericFog, drawLSystemTree, TREE_PRESETS, drawPointLight, createLightingLayer } from "../config/assets";
+import { PALETTES, lerpColor, setNoiseSeed, drawSkyGradient, drawStars, drawMountainRange, drawCloud, drawGroundStrip, drawPlatformBlock, drawPlayerCharacter, drawCoinToken, drawEnemySlime, drawHeart, applyBiomePostProcessing, drawVignette, drawAtmosphericFog, drawLSystemTree, TREE_PRESETS, drawPointLight, createLightingLayer } from "../config/assets";
 import { _loadSpriteLib, _sheetCache } from "../utils/media-stock";
 
 const PIXI = (window as any).PIXI;
-
-var THEME = 'space';
+var THEME = 'sunset';
 var PAL = PALETTES[THEME] || PALETTES.forest;
-
 var CONFIG = {
-  gravity: 1400,
-  jumpForce: 650,
-  startSpeed: 280,
-  maxSpeed: 600,
-  speedRamp: 0.003,
-  groundY: 520,
-  playerX: 180,
-  playerSize: 42,
-  spawnInterval: 1.8,
-  coinInterval: 0.8,
-  lives: 1,
+  gravity: 1400, jumpForce: 620, groundY: 600, playerX: 150, playerSize: 44,
+  startSpeed: 220, maxSpeed: 550, speedRamp: 0.4, gapChance: 0.25,
+  coinChance: 0.6, platformMinW: 120, platformMaxW: 280, lives: 1,
 };
 
 export class GameScene2D implements GameScene {
   name = 'game';
   container: any;
   private physics!: PhysicsWorld;
+  private playerGfx: any; private playerBody: any; private playerCtrl!: CharacterController;
+  private score = 0; private distance = 0; private speed = CONFIG.startSpeed;
+  private scoreText: any; private distText: any;
+  private platforms: { gfx: any; body: any; w: number }[] = [];
+  private coins: { gfx: any; body: any }[] = [];
+  private obstacles: { gfx: any; body: any }[] = [];
   private bgLayers: { gfx: any; factor: number }[] = [];
-  private clouds: { gfx: any; speed: number }[] = [];
   private treeSway: any[] = [];
-  private decorTrees: any[] = [];
+  private gameOver = false;
 
-  constructor() {
-    this.container = new PIXI.Container();
-  }
+  constructor() { this.container = new PIXI.Container(); }
 
   async enter(engine: Engine2D): Promise<void> {
     this.physics = new PhysicsWorld(CONFIG.gravity);
+    this.speed = CONFIG.startSpeed; this.score = 0; this.distance = 0; this.gameOver = false;
+    this.platforms = []; this.coins = []; this.obstacles = []; this.bgLayers = []; this.treeSway = [];
     await _loadSpriteLib(THEME);
     setNoiseSeed(Date.now() % 10000);
-    var W = engine.config.width;
-    var H = engine.config.height;
-    var WW = W * 5; // scrolling world width
+    var W = engine.config.width, H = engine.config.height, WW = W * 4;
 
-    // ---- VISUAL ATMOSPHERE (shared across all genres) ----
-    var sky = drawSkyGradient(WW, H, PAL.skyTop, PAL.skyBottom);
-    this.container.addChild(sky);
-    var stars = drawStars(WW, H * 0.5, 60);
-    this.container.addChild(stars);
+    // ---- VISUAL ATMOSPHERE ----
+    this.container.addChild(drawSkyGradient(WW, H, PAL.skyTop, PAL.skyBottom));
+    this.container.addChild(drawStars(WW, H * 0.4, 50));
     for (var mi = 0; mi < 3; mi++) {
-      var mGfx = drawMountainRange(WW, CONFIG.groundY - 30 - mi * 50, PAL.mountains[mi] || PAL.mountains[0], 0.4 + mi * 0.2, 50 + mi * 25, 100 + mi * 40, 250 - mi * 30, THEME, mi);
-      this.container.addChild(mGfx);
-      this.bgLayers.push({ gfx: mGfx, factor: 0.1 + mi * 0.15 });
+      var mGfx = drawMountainRange(WW, CONFIG.groundY - 20 - mi * 40, PAL.mountains[mi] || PAL.mountains[0], 0.4 + mi * 0.2, 40 + mi * 20, 80 + mi * 35, 220 - mi * 25, THEME, mi);
+      this.container.addChild(mGfx); this.bgLayers.push({ gfx: mGfx, factor: 0.1 + mi * 0.12 });
     }
-    try {
-      var fogLayers = drawAtmosphericFog(WW, CONFIG.groundY, THEME);
-      for (var fi = 0; fi < fogLayers.length; fi++) { this.container.addChild(fogLayers[fi]); }
-    } catch(e) {}
-    var ground = drawGroundStrip(WW, CONFIG.groundY, H - CONFIG.groundY, PAL.ground, PAL.groundTop, THEME);
-    this.container.addChild(ground);
-    var treePresetList = TREE_PRESETS[THEME] || [];
-    if (treePresetList.length > 0) {
-      for (var ti = 0; ti < 6; ti++) {
-        var tree = drawLSystemTree(ti * (WW / 6) + Math.random() * 200, CONFIG.groundY, treePresetList[ti % treePresetList.length], THEME, Date.now() + ti * 137);
-        this.container.addChild(tree);
-        this.treeSway.push(tree);
+    try { var fl = drawAtmosphericFog(WW, CONFIG.groundY, THEME); for (var f = 0; f < fl.length; f++) this.container.addChild(fl[f]); } catch(e) {}
+
+    // ---- INITIAL GROUND PLATFORMS ----
+    var px = 0;
+    while (px < WW) {
+      var pw = CONFIG.platformMinW + Math.random() * (CONFIG.platformMaxW - CONFIG.platformMinW);
+      var platGfx = drawPlatformBlock(pw, 30, PAL.ground, PAL.groundTop, THEME);
+      platGfx.x = px; platGfx.y = CONFIG.groundY;
+      this.container.addChild(platGfx);
+      var platBody = createStaticBody(px + pw / 2, CONFIG.groundY + 4, pw, 8);
+      this.physics.addBody(platBody);
+      this.platforms.push({ gfx: platGfx, body: platBody, w: pw });
+      // Coin above platform
+      if (Math.random() < CONFIG.coinChance) {
+        var coinGfx = drawCoinToken(8, PAL.coin, PAL.coinGlow);
+        coinGfx.x = px + pw / 2; coinGfx.y = CONFIG.groundY - 50;
+        this.container.addChild(coinGfx);
+        var coinBody = createBody(coinGfx.x, coinGfx.y, 14, 14, { isStatic: true, isSensor: true, tag: 'coin' });
+        coinBody.sprite = coinGfx; this.physics.addBody(coinBody);
+        this.coins.push({ gfx: coinGfx, body: coinBody });
       }
+      px += pw + (Math.random() < CONFIG.gapChance ? 60 + Math.random() * 80 : 0);
     }
-    try {
-      var lightLayer = createLightingLayer(THEME, WW, CONFIG.groundY, []);
-      this.container.addChild(lightLayer);
-    } catch(e) {}
+
+    // ---- TREES ----
+    var tp = TREE_PRESETS[THEME] || [];
+    if (tp.length > 0) { for (var ti = 0; ti < 5; ti++) {
+      var tree = drawLSystemTree(ti * (WW / 5) + Math.random() * 150, CONFIG.groundY, tp[ti % tp.length], THEME, Date.now() + ti);
+      this.container.addChild(tree); this.treeSway.push(tree);
+    }}
+
+    // ---- LIGHTING + POST-PROCESSING ----
+    try { this.container.addChild(createLightingLayer(THEME, WW, CONFIG.groundY, [])); } catch(e) {}
     try { applyBiomePostProcessing(THEME, this.container); } catch(e) {}
+
+    // ---- PLAYER ----
+    this.playerGfx = drawPlayerCharacter(CONFIG.playerSize, PAL.player, PAL.playerLight);
+    this.playerGfx.x = CONFIG.playerX; this.playerGfx.y = CONFIG.groundY - 30;
+    this.container.addChild(this.playerGfx);
+    this.playerBody = createBody(CONFIG.playerX, CONFIG.groundY - 30, 26, 40);
+    this.playerBody.sprite = this.playerGfx; this.playerBody.tag = 'player';
+    this.physics.addBody(this.playerBody);
+    this.playerCtrl = new CharacterController(this.playerBody, { moveSpeed: 0, jumpForce: CONFIG.jumpForce, doubleJump: true, wallSlide: false });
+
+    // ---- COLLISION ----
+    var self = this;
+    this.physics.onSensorOverlap(function(a: any, b: any) {
+      var coin = a.tag === 'coin' ? a : b.tag === 'coin' ? b : null;
+      if (coin && coin.enabled !== false) { onCollectSparkle(engine.proton, coin.x, coin.y); coin.sprite.visible = false; coin.enabled = false; self.score += 10; }
+    });
+
+    // ---- UI ----
+    this.scoreText = engine.createText('0', { fontSize: 28, fill: 0xffffff, fontWeight: 'bold', stroke: { color: 0x000000, width: 4 } });
+    this.scoreText.x = 20; this.scoreText.y = 20; engine.ui.addChild(this.scoreText);
+    var lbl = engine.createText('DISTANCE', { fontSize: 11, fill: 0x888888 }); lbl.x = 20; lbl.y = 52; engine.ui.addChild(lbl);
+    this.distText = engine.createText('0m', { fontSize: 18, fill: 0xffdd44 }); this.distText.x = 20; this.distText.y = 64; engine.ui.addChild(this.distText);
     try { engine.ui.addChild(drawVignette(W, H)); } catch(e) {}
 
-    // TODO: AI agent enhances with runner-specific gameplay:
-    // 1. Player character with auto-run + jump
-    // 2. Obstacle spawning system (speed-based)
-    // 3. Coin spawning with collect effects
-    // 4. Speed ramp over time
-    // 5. Score + distance UI
-    // DO NOT rewrite the visual atmosphere above — ADD gameplay on top
+    // ---- CAMERA ----
+    engine.camera.follow(this.playerBody); engine.camera.worldWidth = WW; engine.camera.worldHeight = H; engine.camera.smoothing = 0.06;
+    engine.juice.breathe(this.playerGfx, 1.03, 1.5);
+    try { if (PAL.ambient) { var af = createAmbientEffect(PAL.ambient as any, W, H); if (af && af.emitter) engine.addEmitter(af.emitter); } } catch(e) {}
   }
 
   update(engine: Engine2D, dt: number): void {
+    if (this.gameOver) { engine.input.endFrame(); return; }
     this.physics.update(dt);
-    for (var sw = 0; sw < this.treeSway.length; sw++) {
-      this.treeSway[sw].skew.x = Math.sin(engine.elapsed * 1.2 + this.treeSway[sw].x * 0.008) * 0.018;
+
+    // Auto-run: move player right at current speed
+    if (this.playerBody) {
+      this.playerBody.vx = this.speed;
+      this.playerGfx.x = this.playerBody.x; this.playerGfx.y = this.playerBody.y;
     }
-    // TODO: AI agent generates update logic (scrolling, spawning, collisions)
+    // Jump on input
+    if (this.playerCtrl) { this.playerCtrl.update({ left: false, right: false, jump: engine.input.jump }, dt); }
+    // Speed ramp
+    this.speed = Math.min(CONFIG.maxSpeed, this.speed + CONFIG.speedRamp * dt);
+    this.distance += this.speed * dt * 0.01;
+    if (this.distText) this.distText.text = Math.floor(this.distance) + 'm';
+    if (this.scoreText) this.scoreText.text = String(this.score + Math.floor(this.distance));
+
+    // Coin bob
+    for (var c = 0; c < this.coins.length; c++) {
+      if (this.coins[c].gfx.visible) this.coins[c].gfx.y += Math.sin(engine.elapsed * 3 + c) * 0.3;
+    }
+    // Tree sway
+    for (var sw = 0; sw < this.treeSway.length; sw++) {
+      this.treeSway[sw].skew.x = Math.sin(engine.elapsed * 1.2 + this.treeSway[sw].x * 0.008) * 0.015;
+    }
+    // Fall death
+    if (this.playerBody && this.playerBody.y > CONFIG.groundY + 200) {
+      this.gameOver = true;
+      engine.switchScene('gameover', { score: this.score + Math.floor(this.distance) });
+    }
     engine.input.endFrame();
   }
 
-  exit(engine: Engine2D): void {
-    engine.juice.killAll();
-    this.container.removeChildren();
-    engine.ui.removeChildren();
-  }
+  exit(engine: Engine2D): void { engine.juice.killAll(); this.container.removeChildren(); engine.ui.removeChildren(); }
 }
 `;
 
-/** Puzzle skeleton — AI generates all gameplay in enter()/update() */
+/** Puzzle hybrid starter — fully playable match-3 gem game */
 export const GAME_2D_SCENE_STARTER_PUZZLE = `import { Engine2D, GameScene, createGame2D, JuiceSystem } from "../engine/core";
-import { createSparkleEffect, onCollectSparkle, createAmbientEffect } from "../engine/effects";
+import { onCollectSparkle, createAmbientEffect } from "../engine/effects";
 import { PALETTES, lerpColor, setNoiseSeed, drawSkyGradient, drawStars, drawHeart, drawGemShape, applyBiomePostProcessing, drawVignette, drawAtmosphericFog, drawPointLight, createLightingLayer } from "../config/assets";
 import { _loadSpriteLib, _sheetCache } from "../utils/media-stock";
 
 const PIXI = (window as any).PIXI;
-
 var THEME = 'candy';
 var PAL = PALETTES[THEME] || PALETTES.candy;
-
 var CONFIG = {
-  cols: 7,
-  rows: 6,
-  cellSize: 56,
-  padding: 4,
+  cols: 7, rows: 7, cellSize: 52, padding: 3,
   gemColors: [0xff4466, 0x44aaff, 0x44dd44, 0xffaa22, 0xcc44ff, 0x44ffdd],
-  matchMin: 3,
-  fallSpeed: 400,
-  swapSpeed: 0.15,
+  matchMin: 3, fallSpeed: 500, swapDur: 0.15,
 };
 
 export class GameScene2D implements GameScene {
   name = 'game';
   container: any;
+  private board: any; private grid: { color: number; gfx: any; row: number; col: number }[][] = [];
+  private score = 0; private scoreText: any;
+  private selected: { r: number; c: number } | null = null;
+  private animating = false;
+  private boardX = 0; private boardY = 0;
 
-  constructor() {
-    this.container = new PIXI.Container();
-  }
+  constructor() { this.container = new PIXI.Container(); }
 
   async enter(engine: Engine2D): Promise<void> {
+    this.score = 0; this.selected = null; this.animating = false; this.grid = [];
     await _loadSpriteLib(THEME);
     setNoiseSeed(Date.now() % 10000);
-    var W = engine.config.width;
-    var H = engine.config.height;
+    var W = engine.config.width, H = engine.config.height;
 
     // ---- VISUAL ATMOSPHERE ----
-    var sky = drawSkyGradient(W, H, PAL.skyTop, PAL.skyBottom);
-    this.container.addChild(sky);
-    var stars = drawStars(W, H * 0.4, 40);
-    this.container.addChild(stars);
-    try {
-      var fogLayers = drawAtmosphericFog(W, H * 0.8, THEME);
-      for (var fi = 0; fi < fogLayers.length; fi++) { this.container.addChild(fogLayers[fi]); }
-    } catch(e) {}
-    try {
-      var lightLayer = createLightingLayer(THEME, W, H * 0.8, []);
-      this.container.addChild(lightLayer);
-    } catch(e) {}
+    this.container.addChild(drawSkyGradient(W, H, PAL.skyTop, PAL.skyBottom));
+    this.container.addChild(drawStars(W, H * 0.35, 35));
+    try { var fl = drawAtmosphericFog(W, H * 0.85, THEME); for (var f = 0; f < fl.length; f++) this.container.addChild(fl[f]); } catch(e) {}
+    try { this.container.addChild(createLightingLayer(THEME, W, H * 0.85, [])); } catch(e) {}
     try { applyBiomePostProcessing(THEME, this.container); } catch(e) {}
-    try { engine.ui.addChild(drawVignette(W, H)); } catch(e) {}
-    try {
-      if (PAL.ambient) {
-        var ambFx = createAmbientEffect(PAL.ambient as any, W, H);
-        if (ambFx && ambFx.emitter) engine.addEmitter(ambFx.emitter);
+    try { if (PAL.ambient) { var af = createAmbientEffect(PAL.ambient as any, W, H); if (af && af.emitter) engine.addEmitter(af.emitter); } } catch(e) {}
+
+    // ---- BOARD ----
+    var bw = CONFIG.cols * (CONFIG.cellSize + CONFIG.padding);
+    var bh = CONFIG.rows * (CONFIG.cellSize + CONFIG.padding);
+    this.boardX = (W - bw) / 2; this.boardY = (H - bh) / 2 + 30;
+    this.board = new PIXI.Container(); this.board.x = this.boardX; this.board.y = this.boardY;
+    // Board background
+    var bg = new PIXI.Graphics(); bg.roundRect(-10, -10, bw + 20, bh + 20, 12); bg.fill({ color: 0x000000, alpha: 0.3 });
+    this.board.addChild(bg);
+    this.container.addChild(this.board);
+
+    // Fill grid (no initial matches)
+    for (var r = 0; r < CONFIG.rows; r++) {
+      this.grid[r] = [];
+      for (var c = 0; c < CONFIG.cols; c++) {
+        var ci2 = Math.floor(Math.random() * CONFIG.gemColors.length);
+        // Prevent 3-in-a-row on creation
+        while ((c >= 2 && this.grid[r][c-1] && this.grid[r][c-2] && CONFIG.gemColors[ci2] === this.grid[r][c-1].color && CONFIG.gemColors[ci2] === this.grid[r][c-2].color) ||
+               (r >= 2 && this.grid[r-1] && this.grid[r-2] && this.grid[r-1][c] && this.grid[r-2][c] && CONFIG.gemColors[ci2] === this.grid[r-1][c].color && CONFIG.gemColors[ci2] === this.grid[r-2][c].color)) {
+          ci2 = (ci2 + 1) % CONFIG.gemColors.length;
+        }
+        var gem = this._createGem(c, r, CONFIG.gemColors[ci2]);
+        this.grid[r][c] = gem;
       }
-    } catch(e) {}
+    }
 
-    // TODO: AI agent enhances with puzzle-specific gameplay:
-    // 1. Board container with grid
-    // 2. Gem/tile creation with CONFIG.gemColors
-    // 3. Selection + swap + match + cascade mechanics
-    // 4. Score display in engine.ui
-    // DO NOT rewrite the visual atmosphere above — ADD gameplay on top
+    // ---- INPUT (click to select/swap) ----
+    var self = this;
+    this.board.eventMode = 'static';
+    this.board.on('pointerdown', function(e: any) {
+      if (self.animating) return;
+      var lp = self.board.toLocal(e.global);
+      var col = Math.floor(lp.x / (CONFIG.cellSize + CONFIG.padding));
+      var row = Math.floor(lp.y / (CONFIG.cellSize + CONFIG.padding));
+      if (col < 0 || col >= CONFIG.cols || row < 0 || row >= CONFIG.rows) return;
+      if (!self.selected) { self.selected = { r: row, c: col }; self.grid[row][col].gfx.alpha = 0.6; return; }
+      var dr = Math.abs(self.selected.r - row), dc = Math.abs(self.selected.c - col);
+      self.grid[self.selected.r][self.selected.c].gfx.alpha = 1;
+      if ((dr === 1 && dc === 0) || (dr === 0 && dc === 1)) { self._swap(self.selected.r, self.selected.c, row, col, engine); }
+      self.selected = null;
+    });
+
+    // ---- UI ----
+    var lbl = engine.createText('SCORE', { fontSize: 13, fill: 0xaaaaaa }); lbl.x = W / 2; lbl.y = 12; lbl.anchor.set(0.5, 0); engine.ui.addChild(lbl);
+    this.scoreText = engine.createText('0', { fontSize: 32, fill: 0xffffff, fontWeight: 'bold', stroke: { color: 0x000000, width: 4 } });
+    this.scoreText.x = W / 2; this.scoreText.y = 28; this.scoreText.anchor.set(0.5, 0); engine.ui.addChild(this.scoreText);
+    try { engine.ui.addChild(drawVignette(W, H)); } catch(e) {}
   }
 
-  update(engine: Engine2D, dt: number): void {
-    // TODO: AI agent generates update logic (animations, input, cascades)
-    engine.input.endFrame();
+  private _createGem(col: number, row: number, color: number): any {
+    var s = CONFIG.cellSize;
+    var g = new PIXI.Graphics();
+    g.roundRect(0, 0, s, s, 8); g.fill(color);
+    g.roundRect(3, 3, s * 0.4, s * 0.3, 4); g.fill({ color: 0xffffff, alpha: 0.25 });
+    g.x = col * (s + CONFIG.padding); g.y = row * (s + CONFIG.padding);
+    this.board.addChild(g);
+    return { color: color, gfx: g, row: row, col: col };
   }
 
-  exit(engine: Engine2D): void {
-    this.container.removeChildren();
-    engine.ui.removeChildren();
+  private _swap(r1: number, c1: number, r2: number, c2: number, engine: Engine2D): void {
+    this.animating = true;
+    var a = this.grid[r1][c1], b = this.grid[r2][c2];
+    // Swap in grid
+    this.grid[r1][c1] = b; this.grid[r2][c2] = a;
+    b.row = r1; b.col = c1; a.row = r2; a.col = c2;
+    var s = CONFIG.cellSize + CONFIG.padding;
+    var self = this;
+    // Animate positions
+    var gsap = (window as any).gsap;
+    if (gsap) {
+      gsap.to(a.gfx, { x: c2 * s, y: r2 * s, duration: CONFIG.swapDur });
+      gsap.to(b.gfx, { x: c1 * s, y: r1 * s, duration: CONFIG.swapDur, onComplete: function() { self._checkMatches(engine); } });
+    } else { a.gfx.x = c2 * s; a.gfx.y = r2 * s; b.gfx.x = c1 * s; b.gfx.y = r1 * s; self._checkMatches(engine); }
   }
+
+  private _checkMatches(engine: Engine2D): void {
+    var matched: boolean[][] = [];
+    for (var r = 0; r < CONFIG.rows; r++) { matched[r] = []; for (var c = 0; c < CONFIG.cols; c++) matched[r][c] = false; }
+    // Horizontal
+    for (var r2 = 0; r2 < CONFIG.rows; r2++) {
+      for (var c2 = 0; c2 < CONFIG.cols - 2; c2++) {
+        if (this.grid[r2][c2].color === this.grid[r2][c2+1].color && this.grid[r2][c2].color === this.grid[r2][c2+2].color) {
+          matched[r2][c2] = matched[r2][c2+1] = matched[r2][c2+2] = true;
+        }
+      }
+    }
+    // Vertical
+    for (var c3 = 0; c3 < CONFIG.cols; c3++) {
+      for (var r3 = 0; r3 < CONFIG.rows - 2; r3++) {
+        if (this.grid[r3][c3].color === this.grid[r3+1][c3].color && this.grid[r3][c3].color === this.grid[r3+2][c3].color) {
+          matched[r3][c3] = matched[r3+1][c3] = matched[r3+2][c3] = true;
+        }
+      }
+    }
+    // Remove matched
+    var count = 0;
+    for (var r4 = 0; r4 < CONFIG.rows; r4++) {
+      for (var c4 = 0; c4 < CONFIG.cols; c4++) {
+        if (matched[r4][c4]) { count++; this.grid[r4][c4].gfx.visible = false; try { onCollectSparkle(engine.proton, this.boardX + c4 * (CONFIG.cellSize + CONFIG.padding) + CONFIG.cellSize / 2, this.boardY + r4 * (CONFIG.cellSize + CONFIG.padding) + CONFIG.cellSize / 2); } catch(e) {} }
+      }
+    }
+    if (count === 0) { this.animating = false; return; }
+    this.score += count * 10;
+    if (this.scoreText) { this.scoreText.text = String(this.score); engine.juice.scalePop(this.scoreText, 1.3, 0.2); }
+    // Cascade: drop gems down, fill top
+    var self = this;
+    setTimeout(function() { self._cascade(engine); }, 200);
+  }
+
+  private _cascade(engine: Engine2D): void {
+    var s = CONFIG.cellSize + CONFIG.padding;
+    var gsap = (window as any).gsap;
+    for (var c = 0; c < CONFIG.cols; c++) {
+      var writeRow = CONFIG.rows - 1;
+      for (var r = CONFIG.rows - 1; r >= 0; r--) {
+        if (this.grid[r][c].gfx.visible) {
+          if (r !== writeRow) {
+            var gem = this.grid[r][c];
+            this.grid[writeRow][c] = gem; gem.row = writeRow; gem.col = c;
+            if (gsap) gsap.to(gem.gfx, { y: writeRow * s, duration: 0.15 }); else gem.gfx.y = writeRow * s;
+          }
+          writeRow--;
+        }
+      }
+      // Fill empty top rows
+      for (var nr = writeRow; nr >= 0; nr--) {
+        var ci = Math.floor(Math.random() * CONFIG.gemColors.length);
+        var newGem = this._createGem(c, nr, CONFIG.gemColors[ci]);
+        newGem.gfx.y = -s; // start above board
+        this.grid[nr][c] = newGem;
+        if (gsap) gsap.to(newGem.gfx, { y: nr * s, duration: 0.2, delay: (writeRow - nr) * 0.03 }); else newGem.gfx.y = nr * s;
+      }
+    }
+    var self = this;
+    setTimeout(function() { self._checkMatches(engine); }, 300);
+  }
+
+  update(engine: Engine2D, dt: number): void { engine.input.endFrame(); }
+  exit(engine: Engine2D): void { this.container.removeChildren(); engine.ui.removeChildren(); }
 }
 `;
 
-/** Shooter skeleton — AI generates all gameplay in enter()/update() */
+/** Shooter hybrid starter — fully playable space shooter */
 export const GAME_2D_SCENE_STARTER_SHOOTER = `import { Engine2D, GameScene, createGame2D, JuiceSystem } from "../engine/core";
-import { createBody, createStaticBody, PhysicsWorld } from "../engine/physics";
-import { createExplosionEffect, createTrailEffect, createAmbientEffect, onDeathExplosion, onCollectSparkle } from "../engine/effects";
+import { createExplosionEffect, createAmbientEffect, onDeathExplosion, onCollectSparkle } from "../engine/effects";
 import { PALETTES, lerpColor, setNoiseSeed, drawSkyGradient, drawStars, drawCoinToken, drawHeart, drawShipShape, applyBiomePostProcessing, drawVignette, drawAtmosphericFog, drawPointLight, createLightingLayer } from "../config/assets";
 import { _loadSpriteLib, _sheetCache } from "../utils/media-stock";
 
 const PIXI = (window as any).PIXI;
-
 var THEME = 'space';
 var PAL = PALETTES[THEME] || PALETTES.space;
-
 var CONFIG = {
-  playerSpeed: 320,
-  bulletSpeed: 700,
-  fireRate: 0.12,
-  enemyBaseSpeed: 120,
-  enemySpawnRate: 1.2,
-  lives: 3,
-  playerSize: 36,
+  playerSpeed: 320, bulletSpeed: 650, fireRate: 0.14,
+  enemyBaseSpeed: 100, enemySpawnRate: 1.4, lives: 3, playerSize: 38,
+  enemySize: 30, bulletW: 4, bulletH: 14,
 };
 
 export class GameScene2D implements GameScene {
   name = 'game';
   container: any;
+  private playerGfx: any;
+  private score = 0; private lives = CONFIG.lives; private fireCooldown = 0; private spawnTimer = 0; private wave = 1;
+  private scoreText: any; private livesContainer: any;
+  private bullets: { gfx: any; vy: number }[] = [];
+  private enemies: { gfx: any; vx: number; vy: number; hp: number }[] = [];
+  private stars: any;
 
-  constructor() {
-    this.container = new PIXI.Container();
-  }
+  constructor() { this.container = new PIXI.Container(); }
 
   async enter(engine: Engine2D): Promise<void> {
+    this.score = 0; this.lives = CONFIG.lives; this.fireCooldown = 0; this.spawnTimer = 0; this.wave = 1;
+    this.bullets = []; this.enemies = [];
     await _loadSpriteLib(THEME);
     setNoiseSeed(Date.now() % 10000);
-    var W = engine.config.width;
-    var H = engine.config.height;
+    var W = engine.config.width, H = engine.config.height;
 
     // ---- VISUAL ATMOSPHERE ----
-    var sky = drawSkyGradient(W, H, PAL.skyTop, PAL.skyBottom);
-    this.container.addChild(sky);
-    var stars = drawStars(W, H, 120);
-    this.container.addChild(stars);
-    try {
-      var fogLayers = drawAtmosphericFog(W, H * 0.9, THEME);
-      for (var fi = 0; fi < fogLayers.length; fi++) { this.container.addChild(fogLayers[fi]); }
-    } catch(e) {}
-    try {
-      var lightLayer = createLightingLayer(THEME, W, H, []);
-      this.container.addChild(lightLayer);
-    } catch(e) {}
+    this.container.addChild(drawSkyGradient(W, H, PAL.skyTop, PAL.skyBottom));
+    this.stars = drawStars(W, H, 100); this.container.addChild(this.stars);
+    try { var fl = drawAtmosphericFog(W, H * 0.9, THEME); for (var f = 0; f < fl.length; f++) this.container.addChild(fl[f]); } catch(e) {}
+    try { this.container.addChild(createLightingLayer(THEME, W, H, [])); } catch(e) {}
     try { applyBiomePostProcessing(THEME, this.container); } catch(e) {}
-    try { engine.ui.addChild(drawVignette(W, H)); } catch(e) {}
-    try {
-      if (PAL.ambient) {
-        var ambFx = createAmbientEffect(PAL.ambient as any, W, H);
-        if (ambFx && ambFx.emitter) engine.addEmitter(ambFx.emitter);
-      }
-    } catch(e) {}
+    try { if (PAL.ambient) { var af = createAmbientEffect(PAL.ambient as any, W, H); if (af && af.emitter) engine.addEmitter(af.emitter); } } catch(e) {}
 
-    // TODO: AI agent enhances with shooter-specific gameplay:
-    // 1. Player ship at bottom (drawShipShape or sprite)
-    // 2. Bullet firing system
-    // 3. Enemy wave spawning + movement patterns
-    // 4. Collision detection + explosion effects
-    // 5. Score + lives UI
-    // DO NOT rewrite the visual atmosphere above — ADD gameplay on top
+    // ---- PLAYER SHIP ----
+    this.playerGfx = drawShipShape(CONFIG.playerSize, PAL.player, PAL.playerLight);
+    this.playerGfx.x = W / 2; this.playerGfx.y = H - 80;
+    this.container.addChild(this.playerGfx);
+
+    // ---- UI ----
+    this.scoreText = engine.createText('0', { fontSize: 28, fill: 0xffffff, fontWeight: 'bold', stroke: { color: 0x000000, width: 4 } });
+    this.scoreText.x = 20; this.scoreText.y = 16; engine.ui.addChild(this.scoreText);
+    var lbl = engine.createText('WAVE 1', { fontSize: 13, fill: 0x888888 }); lbl.x = 20; lbl.y = 48; engine.ui.addChild(lbl);
+    this.livesContainer = new PIXI.Container(); this.livesContainer.x = W - 20; this.livesContainer.y = 24;
+    engine.ui.addChild(this.livesContainer); this._updateLives(engine);
+    try { engine.ui.addChild(drawVignette(W, H)); } catch(e) {}
+  }
+
+  private _updateLives(engine: Engine2D): void {
+    this.livesContainer.removeChildren();
+    for (var i = 0; i < this.lives; i++) { var h = drawHeart(12, 0xff3355); h.x = -(i * 24) - 12; this.livesContainer.addChild(h); }
+  }
+
+  private _spawnEnemy(W: number): void {
+    var g = new PIXI.Graphics();
+    var sz = CONFIG.enemySize;
+    var eColor = [0xff4444, 0xff8844, 0xffaa00, 0xcc44ff, 0x44ffaa][Math.floor(Math.random() * 5)];
+    g.moveTo(0, sz * 0.6); g.lineTo(-sz * 0.4, -sz * 0.3); g.lineTo(-sz * 0.15, -sz * 0.15);
+    g.lineTo(0, -sz * 0.5); g.lineTo(sz * 0.15, -sz * 0.15); g.lineTo(sz * 0.4, -sz * 0.3); g.closePath();
+    g.fill(eColor);
+    g.circle(0, 0, sz * 0.15); g.fill({ color: 0xffffff, alpha: 0.4 });
+    g.x = 40 + Math.random() * (W - 80); g.y = -30;
+    this.container.addChild(g);
+    var vx = (Math.random() - 0.5) * 60;
+    var vy = CONFIG.enemyBaseSpeed * (0.8 + Math.random() * 0.4 + this.wave * 0.08);
+    this.enemies.push({ gfx: g, vx: vx, vy: vy, hp: 1 });
+  }
+
+  private _fireBullet(): void {
+    var g = new PIXI.Graphics();
+    g.roundRect(-CONFIG.bulletW / 2, -CONFIG.bulletH, CONFIG.bulletW, CONFIG.bulletH, 2);
+    g.fill(0x44ddff);
+    g.roundRect(-CONFIG.bulletW / 2 + 1, -CONFIG.bulletH + 2, CONFIG.bulletW - 2, CONFIG.bulletH * 0.4, 1);
+    g.fill({ color: 0xffffff, alpha: 0.6 });
+    g.x = this.playerGfx.x; g.y = this.playerGfx.y - 20;
+    this.container.addChild(g);
+    this.bullets.push({ gfx: g, vy: -CONFIG.bulletSpeed });
   }
 
   update(engine: Engine2D, dt: number): void {
-    // TODO: AI agent generates update logic (movement, bullets, enemies, collisions)
+    var W = engine.config.width, H = engine.config.height;
+
+    // Player movement
+    if (this.playerGfx) {
+      if (engine.input.left) this.playerGfx.x -= CONFIG.playerSpeed * dt;
+      if (engine.input.right) this.playerGfx.x += CONFIG.playerSpeed * dt;
+      this.playerGfx.x = Math.max(30, Math.min(W - 30, this.playerGfx.x));
+    }
+
+    // Auto-fire
+    this.fireCooldown -= dt;
+    if ((engine.input.jump || true) && this.fireCooldown <= 0) { this._fireBullet(); this.fireCooldown = CONFIG.fireRate; }
+
+    // Move bullets
+    for (var bi = this.bullets.length - 1; bi >= 0; bi--) {
+      var b = this.bullets[bi];
+      b.gfx.y += b.vy * dt;
+      if (b.gfx.y < -20) { b.gfx.destroy(); this.bullets.splice(bi, 1); }
+    }
+
+    // Spawn enemies
+    this.spawnTimer -= dt;
+    if (this.spawnTimer <= 0) { this._spawnEnemy(W); this.spawnTimer = CONFIG.enemySpawnRate * Math.max(0.3, 1 - this.wave * 0.05); }
+
+    // Move enemies
+    for (var ei = this.enemies.length - 1; ei >= 0; ei--) {
+      var en = this.enemies[ei];
+      en.gfx.x += en.vx * dt; en.gfx.y += en.vy * dt;
+      en.gfx.rotation = Math.sin(engine.elapsed * 3 + ei) * 0.1;
+      // Off screen
+      if (en.gfx.y > H + 40) { en.gfx.destroy(); this.enemies.splice(ei, 1); continue; }
+      // Hit player
+      if (this.playerGfx && Math.abs(en.gfx.x - this.playerGfx.x) < 28 && Math.abs(en.gfx.y - this.playerGfx.y) < 28) {
+        try { onDeathExplosion(engine.proton, en.gfx.x, en.gfx.y, '#ff4444'); } catch(e) {}
+        en.gfx.destroy(); this.enemies.splice(ei, 1);
+        this.lives--; this._updateLives(engine);
+        engine.juice.screenShake(engine.world, 8, 0.25);
+        if (this.lives <= 0) { engine.switchScene('gameover', { score: this.score }); }
+        continue;
+      }
+      // Bullet-enemy collision
+      for (var bj = this.bullets.length - 1; bj >= 0; bj--) {
+        var bl = this.bullets[bj];
+        if (Math.abs(bl.gfx.x - en.gfx.x) < 20 && Math.abs(bl.gfx.y - en.gfx.y) < 22) {
+          try { onCollectSparkle(engine.proton, en.gfx.x, en.gfx.y); } catch(e) {}
+          en.gfx.destroy(); this.enemies.splice(ei, 1);
+          bl.gfx.destroy(); this.bullets.splice(bj, 1);
+          this.score += 100; if (this.scoreText) { this.scoreText.text = String(this.score); engine.juice.scalePop(this.scoreText, 1.3, 0.15); }
+          // Wave progression
+          if (this.score > 0 && this.score % 1000 === 0) { this.wave++; }
+          break;
+        }
+      }
+    }
+
+    // Star scroll
+    if (this.stars) this.stars.y += 15 * dt;
+
     engine.input.endFrame();
   }
 
-  exit(engine: Engine2D): void {
-    this.container.removeChildren();
-    engine.ui.removeChildren();
-  }
+  exit(engine: Engine2D): void { this.container.removeChildren(); engine.ui.removeChildren(); }
 }
 `;
 
