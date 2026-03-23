@@ -105,6 +105,8 @@ canvas{display:block;width:100%;height:100%}
 <!-- Global error handlers -->
 <script>
 window.onerror = function(msg, url, line, col, err) {
+  // Ignore cross-origin "Script error" noise from CDN libs (GSAP, pixi-filters)
+  if (msg === 'Script error.' && !url) return true;
   console.error('[2D Runtime Error]', msg, 'at', url + ':' + line + ':' + col);
   try { window.parent.postMessage({ type: 'vibexe-runtime-error', error: String(msg), line: line, col: col }, '*'); } catch(e) {}
   return true;
