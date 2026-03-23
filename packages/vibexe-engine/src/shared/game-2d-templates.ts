@@ -3535,8 +3535,8 @@ var THEME = 'space';
 var PAL = PALETTES[THEME] || PALETTES.space;
 var CONFIG = {
   playerSpeed: 320, bulletSpeed: 650, fireRate: 0.14,
-  enemyBaseSpeed: 100, enemySpawnRate: 1.4, lives: 3, playerSize: 38,
-  enemySize: 30, bulletW: 4, bulletH: 14,
+  enemyBaseSpeed: 100, enemySpawnRate: 1.4, lives: 3, playerSize: 48,
+  enemySize: 44, bulletW: 6, bulletH: 18,
 };
 
 export class GameScene2D implements GameScene {
@@ -3558,17 +3558,23 @@ export class GameScene2D implements GameScene {
     setNoiseSeed(Date.now() % 10000);
     var W = engine.config.width, H = engine.config.height;
 
-    // ---- VISUAL ATMOSPHERE ----
-    this.container.addChild(drawSkyGradient(W, H, PAL.skyTop, PAL.skyBottom));
-    this.stars = drawStars(W, H, 100); this.container.addChild(this.stars);
-    try { var fl = drawAtmosphericFog(W, H * 0.9, THEME); for (var f = 0; f < fl.length; f++) this.container.addChild(fl[f]); } catch(e) {}
-    try { this.container.addChild(createLightingLayer(THEME, W, H, [])); } catch(e) {}
-    try { applyBiomePostProcessing(THEME, this.container); } catch(e) {}
+    // ---- VISUAL ATMOSPHERE (brighter for shooter visibility) ----
+    // Use a slightly lighter sky gradient for shooters
+    var skyT = PAL.skyTop, skyB = PAL.skyBottom;
+    var skyGfx = new PIXI.Graphics();
+    if (PIXI.FillGradient) {
+      var sg = new PIXI.FillGradient({ type: 'linear', start: { x: 0, y: 0 }, end: { x: 0, y: 1 },
+        colorStops: [{ offset: 0, color: '#0a0a2e' }, { offset: 0.5, color: '#1a1a4e' }, { offset: 1, color: '#2a1a3e' }] });
+      skyGfx.rect(0, 0, W, H); skyGfx.fill(sg);
+    } else { skyGfx.rect(0, 0, W, H); skyGfx.fill(0x0a0a2e); }
+    this.container.addChild(skyGfx);
+    this.stars = drawStars(W, H, 150); this.container.addChild(this.stars);
+    // Skip heavy fog/lighting/color grading — shooter needs bright, clear visuals
     try { if (PAL.ambient) { var af = createAmbientEffect(PAL.ambient as any, W, H); if (af && af.emitter) engine.addEmitter(af.emitter); } } catch(e) {}
 
-    // ---- PLAYER SHIP ----
+    // ---- PLAYER SHIP (larger, with glow) ----
     this.playerGfx = drawShipShape(CONFIG.playerSize, PAL.player, PAL.playerLight);
-    this.playerGfx.x = W / 2; this.playerGfx.y = H - 80;
+    this.playerGfx.x = W / 2; this.playerGfx.y = H - 90;
     this.container.addChild(this.playerGfx);
 
     // ---- UI ----
@@ -3586,27 +3592,48 @@ export class GameScene2D implements GameScene {
   }
 
   private _spawnEnemy(W: number): void {
+    var container = new PIXI.Container();
     var g = new PIXI.Graphics();
     var sz = CONFIG.enemySize;
     var eColor = [0xff4444, 0xff8844, 0xffaa00, 0xcc44ff, 0x44ffaa][Math.floor(Math.random() * 5)];
-    g.moveTo(0, sz * 0.6); g.lineTo(-sz * 0.4, -sz * 0.3); g.lineTo(-sz * 0.15, -sz * 0.15);
-    g.lineTo(0, -sz * 0.5); g.lineTo(sz * 0.15, -sz * 0.15); g.lineTo(sz * 0.4, -sz * 0.3); g.closePath();
+    // Body — angular alien ship shape
+    g.moveTo(0, sz * 0.5); g.lineTo(-sz * 0.45, -sz * 0.2); g.lineTo(-sz * 0.2, -sz * 0.15);
+    g.lineTo(0, -sz * 0.5); g.lineTo(sz * 0.2, -sz * 0.15); g.lineTo(sz * 0.45, -sz * 0.2); g.closePath();
     g.fill(eColor);
-    g.circle(0, 0, sz * 0.15); g.fill({ color: 0xffffff, alpha: 0.4 });
-    g.x = 40 + Math.random() * (W - 80); g.y = -30;
-    this.container.addChild(g);
-    var vx = (Math.random() - 0.5) * 60;
+    // Bright cockpit
+    g.circle(0, -sz * 0.05, sz * 0.12); g.fill(0xffffff);
+    g.circle(0, -sz * 0.05, sz * 0.08); g.fill(eColor);
+    // Wing accents
+    g.moveTo(-sz * 0.35, -sz * 0.1); g.lineTo(-sz * 0.2, sz * 0.1); g.lineTo(-sz * 0.15, -sz * 0.05); g.closePath();
+    g.fill({ color: 0xffffff, alpha: 0.2 });
+    g.moveTo(sz * 0.35, -sz * 0.1); g.lineTo(sz * 0.2, sz * 0.1); g.lineTo(sz * 0.15, -sz * 0.05); g.closePath();
+    g.fill({ color: 0xffffff, alpha: 0.2 });
+    container.addChild(g);
+    // Glow for visibility
+    if (PIXI.filters && PIXI.filters.GlowFilter) {
+      try { container.filters = [new PIXI.filters.GlowFilter({ distance: 8, outerStrength: 1.5, color: eColor })]; } catch(e) {}
+    }
+    container.x = 40 + Math.random() * (W - 80); container.y = -40;
+    this.container.addChild(container);
+    var vx = (Math.random() - 0.5) * 80;
     var vy = CONFIG.enemyBaseSpeed * (0.8 + Math.random() * 0.4 + this.wave * 0.08);
-    this.enemies.push({ gfx: g, vx: vx, vy: vy, hp: 1 });
+    this.enemies.push({ gfx: container, vx: vx, vy: vy, hp: 1 });
   }
 
   private _fireBullet(): void {
     var g = new PIXI.Graphics();
-    g.roundRect(-CONFIG.bulletW / 2, -CONFIG.bulletH, CONFIG.bulletW, CONFIG.bulletH, 2);
+    var bw = CONFIG.bulletW, bh = CONFIG.bulletH;
+    // Outer glow
+    g.roundRect(-bw, -bh - 2, bw * 2, bh + 4, 3);
+    g.fill({ color: 0x44ddff, alpha: 0.3 });
+    // Core bullet
+    g.roundRect(-bw / 2, -bh, bw, bh, 2);
     g.fill(0x44ddff);
-    g.roundRect(-CONFIG.bulletW / 2 + 1, -CONFIG.bulletH + 2, CONFIG.bulletW - 2, CONFIG.bulletH * 0.4, 1);
-    g.fill({ color: 0xffffff, alpha: 0.6 });
-    g.x = this.playerGfx.x; g.y = this.playerGfx.y - 20;
+    // Hot center
+    g.roundRect(-bw / 2 + 1, -bh + 2, bw - 2, bh * 0.5, 1);
+    g.fill({ color: 0xffffff, alpha: 0.8 });
+    g.blendMode = 'add';
+    g.x = this.playerGfx.x; g.y = this.playerGfx.y - 25;
     this.container.addChild(g);
     this.bullets.push({ gfx: g, vy: -CONFIG.bulletSpeed });
   }
