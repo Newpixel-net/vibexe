@@ -391,25 +391,25 @@ export function createFileTools(appId: string, options?: FileToolsOptions) {
 			inputSchema: z.object({
 				theme: z.string().describe("Game theme palette key: forest, sunset, space, volcanic, candy, arctic, dark, ocean"),
 				genre: z.string().describe("Game genre: platformer, runner, shooter, puzzle"),
-				features: z.array(z.object({
-					id: z.string().describe("Feature Bank snippet ID (e.g., 'double-jump')"),
-					config: z.record(z.any()).describe("Parameter overrides for this feature"),
-				})).describe("Features to compose from the bank"),
+				features: z.string().describe("JSON array of features: [{\"id\":\"double-jump\",\"config\":{\"maxJumps\":2}},...]"),
 				customCode: z.string().optional().describe("Additional custom code to inject into the scene's enter() method (for mechanics not in the bank)"),
-				layout: z.object({
-					worldWidth: z.number().default(4000),
-					worldHeight: z.number().default(800),
-					platformCount: z.number().optional(),
-					coinCount: z.number().optional(),
-					enemyCount: z.number().optional(),
-				}).describe("Level layout parameters"),
-				wiring: z.array(z.object({
-					event: z.string().describe("Event name (e.g., 'player.collect.coin')"),
-					actions: z.array(z.string()).describe("Actions to trigger"),
-				})).optional().describe("Event wiring between features"),
+				worldWidth: z.number().optional().describe("World width in pixels (default: 4000)"),
+				worldHeight: z.number().optional().describe("World height in pixels (default: 800)"),
+				platformCount: z.number().optional().describe("Number of platforms (default: 12)"),
+				coinCount: z.number().optional().describe("Number of coins (default: 20)"),
+				enemyCount: z.number().optional().describe("Number of enemies (default: 5)"),
 			}),
-			execute: async ({ theme, genre, features, customCode, layout, wiring }) => {
+			execute: async ({ theme, genre, features: featuresJson, customCode, worldWidth, worldHeight, platformCount, coinCount, enemyCount }) => {
 				try {
+					// Parse features from JSON string
+					let features: Array<{ id: string; config: Record<string, any> }> = [];
+					try {
+						features = JSON.parse(featuresJson || "[]");
+					} catch {
+						return { success: false, action: "composed", error: "Invalid features JSON. Expected: [{\"id\":\"double-jump\",\"config\":{}}]" };
+					}
+					const layout = { worldWidth: worldWidth || 4000, worldHeight: worldHeight || 800, platformCount, coinCount, enemyCount };
+
 					// Fetch all requested feature code from the bank
 					const featureIds = features.map(f => f.id);
 					const bankFeatures = featureIds.length > 0
