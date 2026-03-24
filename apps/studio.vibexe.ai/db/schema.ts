@@ -2610,3 +2610,53 @@ export const builderAppGitHubSyncRelations = relations(
 
 export type BuilderAppGitHubSync = typeof builderAppGitHubSync.$inferSelect;
 export type NewBuilderAppGitHubSync = typeof builderAppGitHubSync.$inferInsert;
+
+// ---------------------------------------------------------------------------
+// Feature Bank — composable game feature snippets
+// ---------------------------------------------------------------------------
+
+export const featureBankSnippets = pgTable(
+	"feature_bank_snippets",
+	{
+		id: text("id").primaryKey(), // unique slug: "double-jump"
+		dbId: serial("db_id").unique(),
+		name: text("name").notNull(),
+		description: text("description").notNull(),
+		category: text("category").notNull(), // "Mechanics/Movement"
+		type: text("type").notNull(), // "instruction" | "condition" | "event"
+		engine: text("engine").notNull(), // "2d" | "3d" | "shared"
+		version: text("version").notNull().default("1.0.0"),
+		keywords: jsonb("keywords").$type<string[]>().default([]),
+		parameters: jsonb("parameters")
+			.$type<
+				Array<{
+					name: string;
+					type: "number" | "string" | "boolean" | "color" | "select";
+					default: any;
+					min?: number;
+					max?: number;
+					description: string;
+					options?: string[];
+				}>
+			>()
+			.default([]),
+		dependencies: jsonb("dependencies").$type<string[]>().default([]),
+		genres: jsonb("genres").$type<string[]>().default([]),
+		code: text("code").notNull(),
+		isBuiltIn: boolean("is_built_in").default(false),
+		isVerified: boolean("is_verified").default(false),
+		createdAt: timestamp("created_at").defaultNow().notNull(),
+		updatedAt: timestamp("updated_at")
+			.defaultNow()
+			.notNull()
+			.$onUpdate(() => new Date()),
+	},
+	(table) => [
+		index("feature_bank_snippets_category_idx").on(table.category),
+		index("feature_bank_snippets_engine_idx").on(table.engine),
+		index("feature_bank_snippets_type_idx").on(table.type),
+	],
+);
+
+export type FeatureBankSnippet = typeof featureBankSnippets.$inferSelect;
+export type NewFeatureBankSnippet = typeof featureBankSnippets.$inferInsert;

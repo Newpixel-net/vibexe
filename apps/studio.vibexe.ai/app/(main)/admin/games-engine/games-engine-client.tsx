@@ -16,6 +16,12 @@ import {
 	Save,
 	Plus,
 	Trash2,
+	Library,
+	Search,
+	X,
+	Tag,
+	Code,
+	Loader2,
 } from "lucide-react";
 import {
 	GAME_3D_TEMPLATE_FILES,
@@ -432,7 +438,7 @@ const FACTORIES: FactoryDef[] = [
 // TAB TYPES
 // =============================================================================
 
-type Tab = "overview" | "genres" | "factories" | "assets" | "overrides" | "starters" | "modules";
+type Tab = "overview" | "genres" | "factories" | "assets" | "overrides" | "starters" | "modules" | "feature-bank";
 
 const TABS: { id: Tab; label: string; icon: React.ReactNode }[] = [
 	{ id: "overview", label: "Overview", icon: <Gamepad2 className="size-4" /> },
@@ -442,6 +448,7 @@ const TABS: { id: Tab; label: string; icon: React.ReactNode }[] = [
 	{ id: "overrides", label: "Overrides", icon: <Clapperboard className="size-4" /> },
 	{ id: "starters", label: "Starters", icon: <FileCode className="size-4" /> },
 	{ id: "modules", label: "Modules", icon: <Puzzle className="size-4" /> },
+	{ id: "feature-bank", label: "Feature Bank", icon: <Library className="size-4" /> },
 ];
 
 // =============================================================================
@@ -1235,6 +1242,486 @@ function ModulesTab() {
 }
 
 // =============================================================================
+// FEATURE BANK TAB
+// =============================================================================
+
+type Snippet = {
+	id: string;
+	dbId: number;
+	name: string;
+	description: string;
+	category: string;
+	type: string;
+	engine: string;
+	version: string;
+	keywords: string[];
+	parameters: any[];
+	dependencies: string[];
+	genres: string[];
+	code: string;
+	isBuiltIn: boolean;
+	isVerified: boolean;
+	createdAt: string;
+	updatedAt: string;
+};
+
+const TYPE_COLORS: Record<string, string> = {
+	instruction: "text-blue-400 bg-blue-500/10",
+	condition: "text-amber-400 bg-amber-500/10",
+	event: "text-green-400 bg-green-500/10",
+};
+
+const ENGINE_BADGE: Record<string, string> = {
+	"2d": "text-emerald-400 bg-emerald-500/10",
+	"3d": "text-blue-400 bg-blue-500/10",
+	shared: "text-purple-400 bg-purple-500/10",
+};
+
+const EMPTY_SNIPPET: Partial<Snippet> = {
+	id: "",
+	name: "",
+	description: "",
+	category: "",
+	type: "instruction",
+	engine: "2d",
+	version: "1.0.0",
+	keywords: [],
+	parameters: [],
+	dependencies: [],
+	genres: [],
+	code: "export default function create(config: Record<string, any>) {\n  return {\n    id: '',\n    init(engine: any, cfg: Record<string, any>) {},\n    update(engine: any, dt: number) {},\n    destroy() {},\n  };\n}\n",
+	isBuiltIn: false,
+	isVerified: false,
+};
+
+function FeatureBankTab() {
+	const [snippets, setSnippets] = useState<Snippet[]>([]);
+	const [loading, setLoading] = useState(true);
+	const [search, setSearch] = useState("");
+	const [filterEngine, setFilterEngine] = useState<string>("");
+	const [filterType, setFilterType] = useState<string>("");
+	const [filterCategory, setFilterCategory] = useState<string>("");
+	const [selected, setSelected] = useState<Snippet | null>(null);
+	const [editing, setEditing] = useState<Partial<Snippet> | null>(null);
+	const [saving, setSaving] = useState(false);
+
+	const fetchSnippets = useCallback(async () => {
+		setLoading(true);
+		try {
+			const params = new URLSearchParams();
+			if (filterEngine) params.set("engine", filterEngine);
+			if (filterType) params.set("type", filterType);
+			if (filterCategory) params.set("category", filterCategory);
+			if (search) params.set("search", search);
+			const res = await fetch(`/api/admin/feature-bank/snippets?${params}`);
+			const data = await res.json();
+			setSnippets(data.snippets || []);
+		} catch (e) {
+			console.error("Failed to fetch snippets:", e);
+		} finally {
+			setLoading(false);
+		}
+	}, [filterEngine, filterType, filterCategory, search]);
+
+	useEffect(() => {
+		fetchSnippets();
+	}, [fetchSnippets]);
+
+	const categories = Array.from(new Set(snippets.map((s) => s.category))).sort();
+
+	const handleSave = async () => {
+		if (!editing) return;
+		setSaving(true);
+		try {
+			const isNew = !editing.dbId;
+			const url = isNew
+				? "/api/admin/feature-bank/snippets"
+				: `/api/admin/feature-bank/snippets/${editing.id}`;
+			const method = isNew ? "POST" : "PUT";
+			const res = await fetch(url, {
+				method,
+				headers: { "Content-Type": "application/json" },
+				body: JSON.stringify(editing),
+			});
+			if (!res.ok) {
+				const err = await res.json();
+				alert(err.error || "Save failed");
+				return;
+			}
+			setEditing(null);
+			setSelected(null);
+			fetchSnippets();
+		} catch (e) {
+			console.error("Save error:", e);
+			alert("Save failed");
+		} finally {
+			setSaving(false);
+		}
+	};
+
+	const handleDelete = async (id: string) => {
+		if (!confirm(`Delete snippet "${id}"?`)) return;
+		try {
+			await fetch(`/api/admin/feature-bank/snippets/${id}`, { method: "DELETE" });
+			setSelected(null);
+			setEditing(null);
+			fetchSnippets();
+		} catch (e) {
+			console.error("Delete error:", e);
+		}
+	};
+
+	// Edit/detail view
+	if (editing) {
+		return (
+			<div className="space-y-4">
+				<div className="flex items-center justify-between">
+					<h2 className="text-lg font-semibold">
+						{editing.dbId ? `Edit: ${editing.name}` : "New Snippet"}
+					</h2>
+					<div className="flex gap-2">
+						<button
+							onClick={() => setEditing(null)}
+							className="px-3 py-1.5 text-sm rounded-md border border-border hover:bg-muted/50"
+						>
+							Cancel
+						</button>
+						<button
+							onClick={handleSave}
+							disabled={saving}
+							className="flex items-center gap-2 px-3 py-1.5 text-sm rounded-md bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
+						>
+							{saving ? <Loader2 className="size-4 animate-spin" /> : <Save className="size-4" />}
+							Save
+						</button>
+					</div>
+				</div>
+
+				<div className="grid grid-cols-2 gap-4">
+					<div className="space-y-3">
+						<div>
+							<label className="text-xs text-muted-foreground">ID (slug)</label>
+							<input
+								value={editing.id || ""}
+								onChange={(e) => setEditing({ ...editing, id: e.target.value })}
+								className="w-full mt-1 px-3 py-1.5 text-sm rounded-md bg-muted/50 border border-border"
+								placeholder="double-jump"
+								disabled={!!editing.dbId}
+							/>
+						</div>
+						<div>
+							<label className="text-xs text-muted-foreground">Name</label>
+							<input
+								value={editing.name || ""}
+								onChange={(e) => setEditing({ ...editing, name: e.target.value })}
+								className="w-full mt-1 px-3 py-1.5 text-sm rounded-md bg-muted/50 border border-border"
+								placeholder="Double Jump"
+							/>
+						</div>
+						<div>
+							<label className="text-xs text-muted-foreground">Description</label>
+							<textarea
+								value={editing.description || ""}
+								onChange={(e) => setEditing({ ...editing, description: e.target.value })}
+								className="w-full mt-1 px-3 py-1.5 text-sm rounded-md bg-muted/50 border border-border"
+								rows={2}
+								placeholder="Allows player to jump again mid-air"
+							/>
+						</div>
+						<div className="grid grid-cols-3 gap-2">
+							<div>
+								<label className="text-xs text-muted-foreground">Category</label>
+								<input
+									value={editing.category || ""}
+									onChange={(e) => setEditing({ ...editing, category: e.target.value })}
+									className="w-full mt-1 px-3 py-1.5 text-sm rounded-md bg-muted/50 border border-border"
+									placeholder="Mechanics/Movement"
+								/>
+							</div>
+							<div>
+								<label className="text-xs text-muted-foreground">Type</label>
+								<select
+									value={editing.type || "instruction"}
+									onChange={(e) => setEditing({ ...editing, type: e.target.value })}
+									className="w-full mt-1 px-3 py-1.5 text-sm rounded-md bg-muted/50 border border-border"
+								>
+									<option value="instruction">Instruction</option>
+									<option value="condition">Condition</option>
+									<option value="event">Event</option>
+								</select>
+							</div>
+							<div>
+								<label className="text-xs text-muted-foreground">Engine</label>
+								<select
+									value={editing.engine || "2d"}
+									onChange={(e) => setEditing({ ...editing, engine: e.target.value })}
+									className="w-full mt-1 px-3 py-1.5 text-sm rounded-md bg-muted/50 border border-border"
+								>
+									<option value="2d">2D</option>
+									<option value="3d">3D</option>
+									<option value="shared">Shared</option>
+								</select>
+							</div>
+						</div>
+						<div className="grid grid-cols-2 gap-2">
+							<div>
+								<label className="text-xs text-muted-foreground">Version</label>
+								<input
+									value={editing.version || "1.0.0"}
+									onChange={(e) => setEditing({ ...editing, version: e.target.value })}
+									className="w-full mt-1 px-3 py-1.5 text-sm rounded-md bg-muted/50 border border-border"
+								/>
+							</div>
+							<div>
+								<label className="text-xs text-muted-foreground">Keywords (comma-separated)</label>
+								<input
+									value={(editing.keywords || []).join(", ")}
+									onChange={(e) =>
+										setEditing({
+											...editing,
+											keywords: e.target.value.split(",").map((k) => k.trim()).filter(Boolean),
+										})
+									}
+									className="w-full mt-1 px-3 py-1.5 text-sm rounded-md bg-muted/50 border border-border"
+									placeholder="jump, air, movement"
+								/>
+							</div>
+						</div>
+						<div className="grid grid-cols-2 gap-2">
+							<div>
+								<label className="text-xs text-muted-foreground">Genres (comma-separated)</label>
+								<input
+									value={(editing.genres || []).join(", ")}
+									onChange={(e) =>
+										setEditing({
+											...editing,
+											genres: e.target.value.split(",").map((k) => k.trim()).filter(Boolean),
+										})
+									}
+									className="w-full mt-1 px-3 py-1.5 text-sm rounded-md bg-muted/50 border border-border"
+									placeholder="platformer, runner"
+								/>
+							</div>
+							<div>
+								<label className="text-xs text-muted-foreground">Dependencies (comma-separated IDs)</label>
+								<input
+									value={(editing.dependencies || []).join(", ")}
+									onChange={(e) =>
+										setEditing({
+											...editing,
+											dependencies: e.target.value.split(",").map((k) => k.trim()).filter(Boolean),
+										})
+									}
+									className="w-full mt-1 px-3 py-1.5 text-sm rounded-md bg-muted/50 border border-border"
+									placeholder="physics-body"
+								/>
+							</div>
+						</div>
+						<div className="flex gap-4">
+							<label className="flex items-center gap-2 text-sm">
+								<input
+									type="checkbox"
+									checked={editing.isBuiltIn ?? false}
+									onChange={(e) => setEditing({ ...editing, isBuiltIn: e.target.checked })}
+								/>
+								Built-in
+							</label>
+							<label className="flex items-center gap-2 text-sm">
+								<input
+									type="checkbox"
+									checked={editing.isVerified ?? false}
+									onChange={(e) => setEditing({ ...editing, isVerified: e.target.checked })}
+								/>
+								Verified
+							</label>
+						</div>
+					</div>
+
+					<div className="space-y-2">
+						<label className="text-xs text-muted-foreground flex items-center gap-1">
+							<Code className="size-3" /> Code
+						</label>
+						<textarea
+							value={editing.code || ""}
+							onChange={(e) => setEditing({ ...editing, code: e.target.value })}
+							className="w-full h-[460px] px-3 py-2 text-xs font-mono rounded-md bg-muted/50 border border-border resize-none"
+							spellCheck={false}
+						/>
+					</div>
+				</div>
+			</div>
+		);
+	}
+
+	// List view
+	return (
+		<div className="space-y-4">
+			{/* Header + Actions */}
+			<div className="flex items-center justify-between">
+				<p className="text-sm text-muted-foreground">
+					{loading ? "Loading..." : `${snippets.length} snippets`}
+				</p>
+				<button
+					onClick={() => setEditing({ ...EMPTY_SNIPPET })}
+					className="flex items-center gap-2 px-3 py-1.5 text-sm rounded-md bg-primary text-primary-foreground hover:bg-primary/90"
+				>
+					<Plus className="size-4" /> New Snippet
+				</button>
+			</div>
+
+			{/* Filters */}
+			<div className="flex gap-2 flex-wrap">
+				<div className="relative flex-1 min-w-[200px]">
+					<Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
+					<input
+						value={search}
+						onChange={(e) => setSearch(e.target.value)}
+						className="w-full pl-9 pr-3 py-1.5 text-sm rounded-md bg-muted/50 border border-border"
+						placeholder="Search snippets..."
+					/>
+					{search && (
+						<button onClick={() => setSearch("")} className="absolute right-2 top-1/2 -translate-y-1/2">
+							<X className="size-4 text-muted-foreground" />
+						</button>
+					)}
+				</div>
+				<select
+					value={filterEngine}
+					onChange={(e) => setFilterEngine(e.target.value)}
+					className="px-3 py-1.5 text-sm rounded-md bg-muted/50 border border-border"
+				>
+					<option value="">All Engines</option>
+					<option value="2d">2D</option>
+					<option value="3d">3D</option>
+					<option value="shared">Shared</option>
+				</select>
+				<select
+					value={filterType}
+					onChange={(e) => setFilterType(e.target.value)}
+					className="px-3 py-1.5 text-sm rounded-md bg-muted/50 border border-border"
+				>
+					<option value="">All Types</option>
+					<option value="instruction">Instructions</option>
+					<option value="condition">Conditions</option>
+					<option value="event">Events</option>
+				</select>
+				{categories.length > 0 && (
+					<select
+						value={filterCategory}
+						onChange={(e) => setFilterCategory(e.target.value)}
+						className="px-3 py-1.5 text-sm rounded-md bg-muted/50 border border-border"
+					>
+						<option value="">All Categories</option>
+						{categories.map((c) => (
+							<option key={c} value={c}>
+								{c}
+							</option>
+						))}
+					</select>
+				)}
+			</div>
+
+			{/* Snippet Grid */}
+			{loading ? (
+				<div className="flex items-center justify-center py-12">
+					<Loader2 className="size-6 animate-spin text-muted-foreground" />
+				</div>
+			) : snippets.length === 0 ? (
+				<div className="text-center py-12 text-muted-foreground">
+					<Library className="size-12 mx-auto mb-3 opacity-30" />
+					<p className="text-sm">No snippets yet. Create your first feature snippet.</p>
+				</div>
+			) : (
+				<div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+					{snippets.map((s) => (
+						<div
+							key={s.id}
+							onClick={() => setSelected(selected?.id === s.id ? null : s)}
+							className={cn(
+								"p-3 rounded-lg border cursor-pointer transition-colors",
+								selected?.id === s.id
+									? "border-primary bg-primary/5"
+									: "border-border hover:border-muted-foreground/30 hover:bg-muted/30",
+							)}
+						>
+							<div className="flex items-start justify-between gap-2">
+								<div className="flex-1 min-w-0">
+									<h3 className="text-sm font-medium truncate">{s.name}</h3>
+									<p className="text-xs text-muted-foreground mt-0.5 line-clamp-2">{s.description}</p>
+								</div>
+								<div className="flex gap-1 shrink-0">
+									<span className={cn("px-1.5 py-0.5 rounded text-[10px] font-medium", TYPE_COLORS[s.type] || "")}>
+										{s.type}
+									</span>
+									<span className={cn("px-1.5 py-0.5 rounded text-[10px] font-medium", ENGINE_BADGE[s.engine] || "")}>
+										{s.engine}
+									</span>
+								</div>
+							</div>
+							<div className="flex items-center gap-2 mt-2">
+								<span className="text-[10px] text-muted-foreground">{s.category}</span>
+								<span className="text-[10px] text-muted-foreground">v{s.version}</span>
+								{s.isVerified && <span className="text-[10px] text-green-400">verified</span>}
+								{s.isBuiltIn && <span className="text-[10px] text-purple-400">built-in</span>}
+							</div>
+							{s.keywords.length > 0 && (
+								<div className="flex gap-1 mt-2 flex-wrap">
+									{s.keywords.slice(0, 5).map((k) => (
+										<span key={k} className="flex items-center gap-0.5 px-1.5 py-0.5 rounded bg-muted/50 text-[10px] text-muted-foreground">
+											<Tag className="size-2.5" />
+											{k}
+										</span>
+									))}
+									{s.keywords.length > 5 && (
+										<span className="text-[10px] text-muted-foreground">+{s.keywords.length - 5}</span>
+									)}
+								</div>
+							)}
+
+							{/* Expanded detail */}
+							{selected?.id === s.id && (
+								<div className="mt-3 pt-3 border-t border-border space-y-2">
+									{s.genres.length > 0 && (
+										<p className="text-[10px] text-muted-foreground">
+											Genres: {s.genres.join(", ")}
+										</p>
+									)}
+									{s.dependencies.length > 0 && (
+										<p className="text-[10px] text-muted-foreground">
+											Depends on: {s.dependencies.join(", ")}
+										</p>
+									)}
+									<div className="flex gap-2 mt-2">
+										<button
+											onClick={(e) => {
+												e.stopPropagation();
+												setEditing(s);
+											}}
+											className="flex items-center gap-1 px-2 py-1 text-xs rounded border border-border hover:bg-muted/50"
+										>
+											<FileCode className="size-3" /> Edit
+										</button>
+										<button
+											onClick={(e) => {
+												e.stopPropagation();
+												handleDelete(s.id);
+											}}
+											className="flex items-center gap-1 px-2 py-1 text-xs rounded border border-red-500/30 text-red-400 hover:bg-red-500/10"
+										>
+											<Trash2 className="size-3" /> Delete
+										</button>
+									</div>
+								</div>
+							)}
+						</div>
+					))}
+				</div>
+			)}
+		</div>
+	);
+}
+
+// =============================================================================
 // MAIN COMPONENT
 // =============================================================================
 
@@ -1277,6 +1764,7 @@ export function GamesEngineClient() {
 			{activeTab === "overrides" && <OverridesTab />}
 			{activeTab === "starters" && <StartersTab />}
 			{activeTab === "modules" && <ModulesTab />}
+			{activeTab === "feature-bank" && <FeatureBankTab />}
 		</div>
 	);
 }
