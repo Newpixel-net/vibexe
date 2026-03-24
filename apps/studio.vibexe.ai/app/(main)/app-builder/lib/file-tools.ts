@@ -476,7 +476,7 @@ var __feature_${bankFeature.id.replace(/-/g, "_")}_factory = (function() {
 import { Engine2D, GameScene, createGame2D, loadAssets, JuiceSystem } from "../engine/core";
 import { createBody, createStaticBody, createOneWayPlatform, PhysicsWorld, CharacterController } from "../engine/physics";
 import { createAmbientEffect, createSnowEffect, createRainEffect, getThemeEffects, onJumpDust, onLandImpact, onCollectSparkle, onDeathExplosion } from "../engine/effects";
-import { PALETTES, lerpColor, setNoiseSeed, drawSkyGradient, drawStars, drawMountainRange, drawCloud, drawTree, drawGroundStrip, drawPlatformBlock, drawPlayerCharacter, drawCoinToken, drawEnemySlime, drawHeart, applyBiomePostProcessing, drawVignette, drawAtmosphericFog, drawLSystemTree, TREE_PRESETS, drawPointLight, createLightingLayer, createWaterSurface, createLavaSurface } from "../config/assets";
+import { PALETTES, lerpColor, setNoiseSeed, drawSkyGradient, drawStars, drawMountainRange, drawCloud, drawTree, drawGroundStrip, drawPlatformBlock, drawPlayerCharacter, drawCoinToken, drawEnemySlime, drawHeart, drawVignette, drawAtmosphericFog, drawLSystemTree, TREE_PRESETS, drawPointLight, createLightingLayer, createWaterSurface, createLavaSurface } from "../config/assets";
 import { _loadSpriteLib, _sheetCache } from "../utils/media-stock";
 
 const PIXI = (window as any).PIXI;
@@ -670,8 +670,6 @@ export class GameScene2D implements GameScene {
   private playerCtrl!: CharacterController;
   private score = 0;
   private lives = CONFIG.lives;
-  private scoreText: any;
-  private livesContainer: any;
   private coins: { gfx: any; body: any; baseY: number }[] = [];
   private enemies: { gfx: any; body: any; startX: number; range: number; dir: number }[] = [];
   private clouds: { gfx: any; speed: number }[] = [];
@@ -851,10 +849,7 @@ export class GameScene2D implements GameScene {
         if (coin.sprite) coin.sprite.visible = false;
         coin.enabled = false;
         self.score += 10;
-        if (self.scoreText) {
-          self.scoreText.text = String(self.score);
-          engine.juice.pop(self.scoreText, 1.4, 0.25);
-        }
+        engine.features.emit('coin-collect', { score: self.score, x: coin.x, y: coin.y });
       }
       if (enemy && player && enemy.enabled !== false && self.invincibleTimer <= 0) {
         self.lives--;
@@ -864,7 +859,7 @@ export class GameScene2D implements GameScene {
         engine.juice.flash(self.playerGfx, 0xff0000, 0.15);
         onDeathExplosion(engine.proton, enemy.x, enemy.y, '#ff4444');
         self.playerBody.vy = -350;
-        self.updateLivesDisplay(engine);
+        engine.features.emit('player-hit', { lives: self.lives });
         if (self.lives <= 0) {
           engine.scene.switch('gameover', { score: self.score });
         }
@@ -911,23 +906,7 @@ export class GameScene2D implements GameScene {
       }
     } catch(e) {}
 
-    // ---- 13. UI LAYER ----
-    var scoreLbl = engine.createText('SCORE', { fontSize: 12, fill: 0x888888 });
-    scoreLbl.x = 20; scoreLbl.y = 12;
-    engine.ui.addChild(scoreLbl);
-
-    this.scoreText = engine.createText('0', {
-      fontSize: 32, fill: 0xffffff, fontWeight: 'bold',
-      stroke: { color: 0x000000, width: 5 },
-    });
-    this.scoreText.x = 20; this.scoreText.y = 26;
-    engine.ui.addChild(this.scoreText);
-
-    this.livesContainer = new PIXI.Container();
-    this.livesContainer.x = W - 20; this.livesContainer.y = 24;
-    engine.ui.addChild(this.livesContainer);
-    this.updateLivesDisplay(engine);
-
+    // ---- 13. UI LAYER (handled by Feature Bank: score-counter, lives-system) ----
     var hint = engine.createText('WASD / Arrows + Space', { fontSize: 11, fill: 0x666666 });
     hint.anchor.set(0.5, 1); hint.x = W / 2; hint.y = H - 8;
     engine.ui.addChild(hint);
@@ -981,8 +960,8 @@ export class GameScene2D implements GameScene {
       this.container.addChild(lightLayer);
     } catch(e) {}
 
-    // ---- 17. POST-PROCESSING ----
-    try { applyBiomePostProcessing(THEME, this.container); } catch(e) {}
+    // ---- 17. POST-PROCESSING (disabled — ColorMatrixFilter causes half-screen tint with camera scroll) ----
+    // applyBiomePostProcessing(THEME, this.container);
 
     // ---- 18. VIGNETTE ----
     try { var vig = drawVignette(W, H); engine.ui.addChild(vig); } catch(e) {}
@@ -993,15 +972,6 @@ ${featureRegistrations}
 
     // === AI ENHANCEMENT ZONE ===
 ${customCode ? "    " + customCode.split("\\n").join("\\n    ") : "    // Custom code goes here"}
-  }
-
-  private updateLivesDisplay(engine: Engine2D): void {
-    this.livesContainer.removeChildren();
-    for (var i = 0; i < this.lives; i++) {
-      var heart = drawHeart(14, 0xff3355);
-      heart.x = -(i * 28) - 14; heart.y = 0;
-      this.livesContainer.addChild(heart);
-    }
   }
 
   update(engine: Engine2D, dt: number): void {

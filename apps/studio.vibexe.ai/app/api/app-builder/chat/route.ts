@@ -1225,7 +1225,9 @@ compose_game({
   lives: 3
 })
 \`\`\`
-**Copy these values into your compose_game call. Select features from the Feature Bank catalog and add them to the features array.**`);
+**IMPORTANT: If the user explicitly mentions a theme (forest, ocean, space, etc.) in their prompt, override the theme value above with the user's choice. The user's explicit request takes priority over the seed-generated theme.**
+
+**Copy these values into your compose_game call. Select features from the Feature Bank catalog and add them to the features array. Always include score-counter and lives-system features for basic UI.**`);
 		}
 		// Feature Bank catalog — inject available features into prompt
 		if (isGame2d) {
