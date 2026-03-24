@@ -78,6 +78,9 @@ export { GAME_2D_TEMPLATE_FILES, GAME_2D_SCENE_STARTER, GAME_2D_SCENE_STARTER_RU
 export { PACKS_2D, SCALES_2D, PALETTES, buildAssetReferencePrompt as GAME_2D_ASSETS_REFERENCE_BUILDER } from "./shared/game-2d-assets";
 export type { AssetPack2D, ColorPalette } from "./shared/game-2d-assets";
 
+// 2D game reference games (creative inspiration for AI)
+export { GAME_2D_REFERENCE_GAMES } from "./shared/game-2d-references";
+
 // 2D game seed variety system
 export { expandSeed, buildCreativeBriefPrompt } from "./shared/game-2d-seed";
 export type { CreativeBrief, SubGenre } from "./shared/game-2d-seed";

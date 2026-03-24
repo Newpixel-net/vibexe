@@ -13,8 +13,7 @@ import {
 	GAME_3D_SCENE_STARTER_SHOOTER,
 	GAME_3D_TEMPLATE_FILES,
 	GAME_2D_TEMPLATE_FILES,
-	// Old hybrid starters kept in game-2d-templates.ts for rollback — no longer imported
-	// GAME_2D_SCENE_STARTER, buildGame2dSceneStarter, etc.
+	GAME_2D_REFERENCE_GAMES,
 	expandSeed,
 	buildCreativeBriefPrompt,
 	GAME_2D_ASSETS_REFERENCE_BUILDER,
@@ -45,7 +44,6 @@ import {
 	getFilesForApp,
 	saveFile,
 } from "@/app/(main)/app-builder/lib/queries";
-import { generateBaseScene } from "@/app/(main)/app-builder/lib/scene-generator";
 import {
 	type SiteAnalysis,
 	analyzeUrl,
@@ -991,40 +989,8 @@ const supabase = createClient("${supabaseConfig.url}", "${supabaseConfig.anonKey
 				}
 			}
 
-			// 2D games: inject base scene from Feature Bank during setup (preview works during plan phase)
-			if (isGame2d && !existingPaths.has("src/scenes/GameScene2D.ts")) {
-				try {
-					const subGenre = isShooter2d ? "shooter" : isRunner2d ? "runner" : isPuzzle2d ? "puzzle" : "platformer";
-					const params = game2dBrief ? {
-						theme: game2dBrief.theme,
-						seed: game2dBrief.seed,
-						gravity: game2dBrief.gravity,
-						moveSpeed: game2dBrief.moveSpeed,
-						jumpForce: game2dBrief.jumpForce,
-						worldWidth: game2dBrief.worldWidth,
-						enemySpeed: 60,
-						lives: 3,
-						platformCount: game2dBrief.platformCount,
-						coinCount: game2dBrief.coinCount,
-						enemyCount: game2dBrief.enemyCount,
-						levelShape: game2dBrief.levelShape,
-						doubleJump: game2dBrief.specialMechanic === "wall-slide" ? false : true,
-						wallSlide: game2dBrief.specialMechanic === "wall-slide" ? true : false,
-						startSpeed: game2dBrief.startSpeed,
-						maxSpeed: game2dBrief.maxSpeed,
-						gridCols: game2dBrief.gridCols,
-						gridRows: game2dBrief.gridRows,
-						gemColorCount: game2dBrief.gemColorCount,
-						fireRate: game2dBrief.fireRate,
-						enemySpawnRate: game2dBrief.enemySpawnRate,
-					} : {};
-					const sceneCode = await generateBaseScene(subGenre, params);
-					await saveFile(appId, "src/scenes/GameScene2D.ts", sceneCode, "typescript");
-					console.log(`[Chat API] Base scene injected via Feature Bank: ${subGenre}-base`);
-				} catch (e) {
-					console.error(`[Chat API] Base scene injection failed:`, e);
-				}
-			}
+			// 2D games: NO base scene injection — AI writes GameScene2D.ts from scratch
+			// (Creative pipeline: AI creates unique game code every time)
 
 			// Save 2D game seed to settings so UI can display it
 			if (isGame2d && game2dBrief && !existingPaths.has("src/__game-settings.json") && !existingPaths.has("__game-settings.json")) {
@@ -1233,39 +1199,28 @@ After creating ALL files, end with a short summary. If the app has auth, include
 		// the "build it" second call still gets skeleton/reference/sprite instructions.
 		if (isGame2d && game2dBrief) {
 			runtimeAddenda.push(buildCreativeBriefPrompt(game2dBrief));
-			// Inject explicit compose_game params so the AI knows exactly what to pass
-			runtimeAddenda.push(`## Base Scene Already Exists
+			// Creative Brief action items — tells the AI WHAT to build creatively
+			runtimeAddenda.push(`## Your Creative Brief Action Items
 
-A working ${game2dBrief.subGenre} base scene has been pre-injected into src/scenes/GameScene2D.ts. The preview is already playable.
+Implement ALL of these dimensions in your unique game:
 
-**Your options:**
-1. **compose_game** — REPLACE the base scene with Feature Bank features (full rebuild with selected mechanics)
-2. **patch_file** — ENHANCE the existing base scene (add code to the AI ENHANCEMENT ZONE)
+1. **Theme**: ${game2dBrief.theme} — use \`PALETTES['${game2dBrief.theme}']\` for all colors
+2. **Mechanic Focus**: ${game2dBrief.mechanicEmphasis} — this drives your gameplay loop
+3. **Layout**: ${game2dBrief.layoutStyle} — how platforms and world are arranged
+4. **Difficulty**: ${game2dBrief.difficultyProfile} — affects platform widths, enemy speed, hazard count
+5. **Atmosphere**: ${game2dBrief.atmosphere} — particle effects, lighting, mood
+6. **Enemy Behavior**: ${game2dBrief.enemyBehavior} — how enemies move and attack
+7. **Level Shape**: ${game2dBrief.levelShape} — overall world geometry
+8. **Collectibles**: ${game2dBrief.collectiblePattern} — how coins/items are placed
+9. **Special Mechanic**: ${game2dBrief.specialMechanic} — unique gameplay ability
+10. **Art Style**: ${game2dBrief.artStyleDirection} — visual treatment and rendering approach
 
-## compose_game Parameters (from Creative Brief)
-\`\`\`
-compose_game({
-  theme: "${game2dBrief.theme}",
-  genre: "${game2dBrief.subGenre}",
-  features: "[]",  // Select from Feature Bank catalog below
-  seed: ${game2dBrief.seed},
-  worldWidth: ${game2dBrief.worldWidth},
-  worldHeight: 900,
-  gravity: ${game2dBrief.gravity},
-  moveSpeed: ${game2dBrief.moveSpeed},
-  jumpForce: ${game2dBrief.jumpForce},
-  platformCount: ${game2dBrief.platformCount},
-  coinCount: ${game2dBrief.coinCount},
-  enemyCount: ${game2dBrief.enemyCount},
-  levelShape: "${game2dBrief.levelShape}",
-  doubleJump: ${game2dBrief.specialMechanic === "wall-slide" ? "false" : "true"},
-  wallSlide: ${game2dBrief.specialMechanic === "wall-slide" ? "true" : "false"},
-  lives: 3
-})
-\`\`\`
-**IMPORTANT: If the user explicitly mentions a theme (forest, ocean, space, etc.) in their prompt, override the theme value above with the user's choice.**
+### Numeric Parameters
+- gravity: ${game2dBrief.gravity}, moveSpeed: ${game2dBrief.moveSpeed}, jumpForce: ${game2dBrief.jumpForce}
+- worldWidth: ${game2dBrief.worldWidth}, platforms: ${game2dBrief.platformCount}, coins: ${game2dBrief.coinCount}, enemies: ${game2dBrief.enemyCount}
+- seed: ${game2dBrief.seed}
 
-**Select features from the Feature Bank catalog and add them to the features array. Always include score-counter and lives-system features for basic UI.**`);
+**IMPORTANT: If the user explicitly mentions a theme in their prompt, override the theme above with the user's choice.**`);
 		}
 		// Feature Bank catalog — inject available features into prompt
 		if (isGame2d) {
@@ -1273,6 +1228,27 @@ compose_game({
 			if (featureCatalog) {
 				runtimeAddenda.push(featureCatalog);
 			}
+			// Auto-suggest Feature Bank snippets based on Creative Brief dimensions
+			if (game2dBrief) {
+				const suggestions: string[] = [];
+				// Enemy behavior mapping
+				const enemyMap: Record<string, string> = { "chase-aggressive": "enemy-chase", "ranged-tactical": "enemy-ranged", "swarm-overwhelming": "enemy-swarm", "patrol-simple": "enemy-patrol" };
+				if (enemyMap[game2dBrief.enemyBehavior]) suggestions.push(`- Enemy: \`${enemyMap[game2dBrief.enemyBehavior]}\` (matches ${game2dBrief.enemyBehavior})`);
+				// Atmosphere mapping
+				const atmoMap: Record<string, string> = { "snow-cold": "atmosphere-cold", "fireflies-warm": "atmosphere-warm", "embers-dark": "atmosphere-dark", "rain-moody": "atmosphere-storm" };
+				if (atmoMap[game2dBrief.atmosphere]) suggestions.push(`- Atmosphere: \`${atmoMap[game2dBrief.atmosphere]}\` (matches ${game2dBrief.atmosphere})`);
+				// Art style mapping
+				const styleMap: Record<string, string> = { "neon-glow": "style-neon-glow", "pixel-retro": "style-pixel-retro", "painterly-soft": "style-painterly", "cartoon-bold": "style-cartoon-bold" };
+				if (styleMap[game2dBrief.artStyleDirection]) suggestions.push(`- Visual: \`${styleMap[game2dBrief.artStyleDirection]}\` (matches ${game2dBrief.artStyleDirection})`);
+				// Special mechanic mapping
+				const mechMap: Record<string, string> = { "double-jump": "double-jump", "wall-slide": "wall-slide", "dash": "dash" };
+				if (mechMap[game2dBrief.specialMechanic]) suggestions.push(`- Mechanic: \`${mechMap[game2dBrief.specialMechanic]}\``);
+				if (suggestions.length > 0) {
+					runtimeAddenda.push(`## Recommended Feature Bank Snippets\nBased on your Creative Brief, consider using (optional — you can also implement these yourself):\n${suggestions.join("\n")}`);
+				}
+			}
+			// Reference games — creative inspiration
+			runtimeAddenda.push(GAME_2D_REFERENCE_GAMES);
 		}
 		if (isGame2d && Object.keys(generatedSprites).length > 0) {
 			const spriteEntries = Object.entries(generatedSprites);
@@ -1304,24 +1280,27 @@ var playerGfx = playerTex
 These sprites have white backgrounds — set blendMode or use alpha masking if needed.`);
 		}
 		if (isGame2d) {
-			// compose_game workflow instructions
-			runtimeAddenda.push(`## CRITICAL: 2D Game — Use compose_game Tool
+			// Creative pipeline workflow — AI writes unique game from scratch
+			runtimeAddenda.push(`## 2D Game — Creative Pipeline
 
-**You MUST call \`compose_game\` to generate GameScene2D.ts.** Do NOT write it from scratch.
+**Write GameScene2D.ts from scratch.** Every game must be structurally unique.
 
 ### Workflow:
-1. **Call compose_game** with parameters from the Creative Brief (theme, seed, gravity, moveSpeed, jumpForce, worldWidth, platformCount, coinCount, enemyCount, levelShape, doubleJump, wallSlide, lives).
-2. **Select Feature Bank features** from the catalog below and pass their IDs in the \`features\` param.
-3. **Use patch_file** for any custom enhancements not in the Feature Bank.
-4. **Create** \`docs/README.md\` and \`src/config/constants.ts\`.
+1. **Read the Creative Brief** above — implement ALL 10 dimensions creatively
+2. **Write src/scenes/GameScene2D.ts** using engine APIs (see reference games and engine docs in your system prompt)
+3. **Use Feature Bank snippets** for pre-tested mechanics: \`engine.features.register('id', factory, config, deps)\`
+4. **Create custom mechanics** — draw unique entities with Canvas 2D / PIXI.Graphics
+5. **Create** \`docs/README.md\` and \`src/config/constants.ts\`
+6. Optionally create helper files in \`src/game/*.ts\` for complex mechanics
 
-### STRICT RULES:
-1. DO NOT create GameScene2D.ts manually — compose_game generates it with full visual quality (18 layers).
-2. DO NOT create App.tsx, Game2D.tsx, or any engine files — they are LOCKED.
-3. You may ONLY create: \`docs/README.md\`, \`src/config/constants.ts\`. GameScene2D.ts is created by compose_game.
-4. For custom mechanics, use patch_file on the compose_game output (anchor: "// === AI ENHANCEMENT ZONE ===").
-
-**compose_game generates a production-quality game with: sky gradient, stars, 3 parallax mountains, fog, clouds, decorations, ground, trees, platforms, player with CharacterController, coins, enemies with patrol, collisions, weather, UI, camera, lighting, and vignette.**`);
+### RULES:
+1. Write GameScene2D.ts FROM SCRATCH — do NOT copy templates or reference games
+2. DO NOT create App.tsx, Game2D.tsx, or any engine files — they are LOCKED
+3. You MUST use: drawSkyGradient, drawMountainRange, PALETTES, particles, engine.juice — for visual quality
+4. You MUST call \`await _loadSpriteLib(THEME)\` at the start of enter()
+5. You MUST call \`engine.input.endFrame()\` at end of update()
+6. You MUST call \`engine.juice.killAll()\` and \`engine.features.destroy()\` in exit()
+7. Use PIXI.Graphics and Canvas 2D to draw CUSTOM entities unique to this game`);
 		} else if (isReturningUser) {
 			// Normal existing project — edit/add files
 			runtimeAddenda.push(`## Existing Project (${existingFiles.length} files)
@@ -1360,18 +1339,19 @@ ${injectedFiles.map((f) => `- \`${f}\``).join("\n")}
 
 **MANDATORY RULES — violation will break the game:**
 - Do NOT recreate, overwrite, or modify these files — they contain correct, tested code
-- You MUST \`import\` from them:
+- You MUST \`import\` from them in your GameScene2D.ts:
   - \`import { Engine2D, GameScene, createGame2D, loadAssets } from "../engine/core";\`
   - \`import { PhysicsWorld, createBody, createStaticBody, createOneWayPlatform, CharacterController } from "../engine/physics";\`
-  - \`import { createRainEffect, createFireEffect, createExplosionEffect, createSparkleEffect, createDustEffect, createAmbientEffect, getThemeEffects, onJumpDust, onCollectSparkle, onDeathExplosion } from "../engine/effects";\`
-  - \`import { createGameSprite, createAnimatedGameSprite, createParallaxBackground, SCALES, CHARACTER_FRAMES, ENVIRONMENTS } from "../config/assets";\`
+  - \`import { createAmbientEffect, createSnowEffect, createRainEffect, onJumpDust, onLandImpact, onCollectSparkle, onDeathExplosion } from "../engine/effects";\`
+  - \`import { PALETTES, drawSkyGradient, drawStars, drawMountainRange, drawCloud, drawGroundStrip, drawPlatformBlock, drawPlayerCharacter, drawCoinToken, drawEnemySlime, drawHeart, drawLSystemTree, TREE_PRESETS, createWaterSurface, createLavaSurface, createLightingLayer, drawVignette, drawAtmosphericFog } from "../config/assets";\`
+  - \`import { _loadSpriteLib, _sheetCache } from "../utils/media-stock";\`
 - **Game2D.tsx is PRE-CREATED** — do NOT create Game2D.tsx. Just import it in App.tsx: \`import Game2D from "./components/Game2D";\`
 - **App.tsx pattern**: \`export default function App() { return <Game2D />; }\`
 - Access PIXI via global: \`const PIXI = (window as any).PIXI;\` — do NOT import from "pixi.js"
 - Access Proton via global: \`const Proton = (window as any).Proton;\`
-- ALWAYS apply SCALES when creating sprites: \`sprite.scale.set(SCALES.player)\`
-- ALWAYS call \`engine.input.endFrame()\` at the end of update()
-- Use \`engine.world\` for game objects (scrolls with camera), \`engine.ui\` for HUD (fixed on screen)`);
+- ALWAYS call \`await _loadSpriteLib(THEME)\` at start of enter()
+- ALWAYS call \`engine.input.endFrame()\` at end of update()
+- ALWAYS call \`engine.juice.killAll()\` and \`engine.features.destroy()\` in exit()`);
 			}
 		}
 		if (isGameProject || isGame2d || isGame3d) {
@@ -1598,7 +1578,9 @@ An App Store listing has been analyzed and injected into the project context abo
 				? [
 					/^docs\//, // Any doc file
 					/^src\/config\/constants\.ts$/, // Game constants
-					/^src\/scenes\/GameScene2D\.ts$/, // Main 2D scene (ONLY scene AI should create/update)
+					/^src\/scenes\/GameScene2D\.ts$/, // Main 2D scene
+					/^src\/game\/[a-zA-Z0-9_-]+\.ts$/, // Custom game helpers (enemies, level-gen, items, etc.)
+					/^src\/config\/[a-zA-Z0-9_-]+\.ts$/, // Additional config files
 				]
 				: [
 					/^docs\//, // Any doc file
@@ -1705,10 +1687,8 @@ An App Store listing has been analyzed and injected into the project context abo
 			tools,
 			stopWhen: stepCountIs(maxSteps),
 			toolChoice: "auto",
-			// Kimi K2.5: tool calling needs low temperature (0.0-0.3) for deterministic
-			// file operations. Higher values cause hallucinated files (e.g. GameScene3D.ts
-			// instead of updating GameScene2D.ts). Seed variety comes from CreativeBrief, not temperature.
-			...(isGame2d ? { temperature: 0.2 } : {}),
+			// 2D games: temperature 0.6 for creative variety — each game unique
+			...(isGame2d ? { temperature: 0.6 } : {}),
 			onError: ({ error }) => {
 				generationError = error;
 				const errMsg = error instanceof Error ? error.message : String(error);

@@ -12,7 +12,6 @@ import { z } from "zod";
 import { db } from "@/db";
 import { type BuilderAppId, builderApps, builderAppDatabases, featureBankSnippets } from "@/db/schema";
 import { inArray } from "drizzle-orm";
-import { generateBaseScene } from "./scene-generator";
 import {
 	ensureAppDatabase,
 	entityToTableName,
@@ -95,7 +94,7 @@ export function createFileTools(appId: string, options?: FileToolsOptions) {
 				// Detect 2D vs 3D by checking what's allowed
 				const is2D = allowedPathPatterns.some((p) => p.toString().includes("GameScene2D"));
 				if (is2D) {
-					return `File "${filePath}" is not allowed. For 2D games you may ONLY create/update: src/scenes/GameScene2D.ts, src/config/constants.ts, docs/*.md. Do NOT create App.tsx, Game2D.tsx, or any other files. Put ALL game logic in GameScene2D.ts.`;
+					return `File "${filePath}" is not allowed. For 2D games you may create/update: src/scenes/GameScene2D.ts, src/config/*.ts, src/game/*.ts, docs/*.md. Do NOT create App.tsx, Game2D.tsx, or engine files.`;
 				}
 				return `File "${filePath}" is not allowed. Only create: src/scenes/GameScene3D.ts, src/config/constants.ts, docs/*.md, src/objects/*.ts, src/utils/level-builder.ts. Put ALL game logic in GameScene3D.ts.`;
 			}
@@ -136,20 +135,7 @@ export function createFileTools(appId: string, options?: FileToolsOptions) {
 				if (blocked) {
 					return { success: false, action: "created", path, error: blocked };
 				}
-				// Hard line count limit for 2D GameScene — prevents full rewrites
-				const is2DScene = /GameScene2D\.ts$/i.test(path);
-				if (is2DScene) {
-					const lineCount = content.split("\n").length;
-					if (lineCount > 600) {
-						console.log(`[FileTools] BLOCKED GameScene2D.ts create: ${lineCount} lines (max 600).`);
-						return {
-							success: false,
-							action: "created",
-							path,
-							error: `BLOCKED: GameScene2D.ts has ${lineCount} lines — max allowed is 600. The hybrid starter is ~350 lines. You must ENHANCE it by adding 50-150 lines, not rewrite from scratch.`,
-						};
-					}
-				}
+				// 2D GameScene — no line cap, AI writes from scratch
 				try {
 					const lang = language || inferLanguage(path);
 					const file = await saveFile(appId, path, content, lang);
@@ -184,29 +170,7 @@ export function createFileTools(appId: string, options?: FileToolsOptions) {
 				if (blocked) {
 					return { success: false, action: "updated", path, error: blocked };
 				}
-				// Hard line count limits for 2D GameScene — prevents rewrites AND replacements
-				const is2DScene = /GameScene2D\.ts$/i.test(path);
-				if (is2DScene) {
-					const lineCount = content.split("\n").length;
-					if (lineCount > 600) {
-						console.log(`[FileTools] BLOCKED GameScene2D.ts update: ${lineCount} lines (max 600). Full rewrite.`);
-						return {
-							success: false,
-							action: "updated",
-							path,
-							error: `BLOCKED: GameScene2D.ts has ${lineCount} lines — max allowed is 600. The hybrid starter is ~150-350 lines. You are REWRITING instead of ENHANCING. Use read_file first, then add only 50-150 lines of enhancements. Do NOT rewrite the entire file.`,
-						};
-					}
-					if (lineCount < 120) {
-						console.log(`[FileTools] BLOCKED GameScene2D.ts update: ${lineCount} lines (min 120). Replacement with skeleton.`);
-						return {
-							success: false,
-							action: "updated",
-							path,
-							error: `BLOCKED: GameScene2D.ts has only ${lineCount} lines — the hybrid starter has 150-350 lines of working game code. You are REPLACING the full game with a skeleton. Use read_file to see the existing code, then use update_file with the FULL existing code PLUS your additions.`,
-						};
-					}
-				}
+				// 2D GameScene — no line limits, AI writes from scratch
 				try {
 					const lang = inferLanguage(path);
 					const file = await saveFile(appId, path, content, lang);
@@ -388,139 +352,135 @@ export function createFileTools(appId: string, options?: FileToolsOptions) {
 
 		compose_game: tool({
 			description:
-				"Compose a full-quality 2D game from Feature Bank snippets. Generates a production-ready GameScene2D.ts with 18 visual layers (sky, stars, parallax mountains, fog, clouds, decorations, ground, trees, platforms, player, coins, enemies, particles, UI, camera, juice, lighting, vignette), seeded PRNG for deterministic variety, CharacterController physics, collision handling, and full animation loop. Pass Creative Brief params directly.",
+				"OPTIONAL quick-start scaffold for a 2D game. Generates a minimal GameScene2D.ts skeleton (~80 lines) with engine init, player, ground, camera, and basic physics. You then build your unique game ON TOP of this scaffold. Preferred approach: write GameScene2D.ts from scratch instead.",
 			inputSchema: z.object({
 				theme: z.string().describe("Game theme palette key: forest, sunset, space, volcanic, candy, arctic, dark, ocean"),
 				genre: z.string().describe("Game genre: platformer, runner, shooter, puzzle"),
-				features: z.string().describe("JSON array of features: [{\"id\":\"double-jump\",\"config\":{\"maxJumps\":2}},...]"),
-				customCode: z.string().optional().describe("Additional custom code to inject into the scene's enter() method (for mechanics not in the bank)"),
-				seed: z.number().optional().describe("PRNG seed for deterministic world generation (default: 1234)"),
-				worldWidth: z.number().optional().describe("World width in pixels (default: 4000)"),
-				worldHeight: z.number().optional().describe("World height in pixels (default: 900)"),
+				features: z.string().optional().describe("JSON array of Feature Bank features: [{\"id\":\"double-jump\",\"config\":{\"maxJumps\":2}},...]"),
 				gravity: z.number().optional().describe("Gravity strength (default: 980)"),
 				moveSpeed: z.number().optional().describe("Player move speed (default: 280)"),
 				jumpForce: z.number().optional().describe("Player jump force (default: 520)"),
-				platformCount: z.number().optional().describe("Number of platforms (default: 11)"),
-				coinCount: z.number().optional().describe("Number of coins (default: 27)"),
-				enemyCount: z.number().optional().describe("Number of enemies (default: 6)"),
-				levelShape: z.string().optional().describe("Level layout shape: flat-wide, staircase-ascending, valley-bowl, hilly-undulating"),
-				difficulty: z.string().optional().describe("Difficulty profile: gentle, balanced, hardcore"),
-				doubleJump: z.boolean().optional().describe("Enable double jump (default: true)"),
-				wallSlide: z.boolean().optional().describe("Enable wall slide (default: false)"),
-				lives: z.number().optional().describe("Starting lives (default: 3)"),
+				worldWidth: z.number().optional().describe("World width in pixels (default: 4000)"),
+				worldHeight: z.number().optional().describe("World height in pixels (default: 900)"),
 			}),
-			execute: async ({ theme, genre, features: featuresJson, customCode, seed, worldWidth, worldHeight, gravity, moveSpeed, jumpForce, platformCount, coinCount, enemyCount, levelShape, difficulty, doubleJump, wallSlide, lives }) => {
+			execute: async ({ theme, genre, features: featuresJson, gravity, moveSpeed, jumpForce, worldWidth, worldHeight }) => {
 				try {
-					// Parse features from JSON string
-					let features: Array<{ id: string; config: Record<string, any> }> = [];
-					try {
-						features = JSON.parse(featuresJson || "[]");
-					} catch {
-						return { success: false, action: "composed", error: "Invalid features JSON. Expected: [{\"id\":\"double-jump\",\"config\":{}}]" };
-					}
-
-					// Resolve config values
 					const cfg = {
-						seed: seed ?? 1234,
-						worldWidth: worldWidth ?? 4000,
-						worldHeight: worldHeight ?? 900,
+						theme: theme || "forest",
 						gravity: gravity ?? 980,
 						moveSpeed: moveSpeed ?? 280,
 						jumpForce: jumpForce ?? 520,
-						platformCount: platformCount ?? 11,
-						coinCount: coinCount ?? 27,
-						enemyCount: enemyCount ?? 6,
-						levelShape: levelShape ?? "flat-wide",
-						doubleJump: doubleJump ?? true,
-						wallSlide: wallSlide ?? false,
-						lives: lives ?? 3,
+						worldWidth: worldWidth ?? 4000,
+						worldHeight: worldHeight ?? 900,
 					};
-					// Fetch all requested feature code from the bank
-					const featureIds = features.map(f => f.id);
-					const bankFeatures = featureIds.length > 0
-						? await db.select().from(featureBankSnippets).where(inArray(featureBankSnippets.id, featureIds))
-						: [];
 
-					const foundIds = new Set(bankFeatures.map(f => f.id));
-					const missingIds = featureIds.filter(id => !foundIds.has(id));
-
-					// Build feature registration code
-					let featureRegistrations = "";
+					// Fetch Feature Bank snippets if requested
 					let featureFactories = "";
+					let featureRegistrations = "";
+					const featureIds: string[] = [];
+					const missingIds: string[] = [];
 
-					for (const bankFeature of bankFeatures) {
-						const config = features.find(f => f.id === bankFeature.id)?.config || {};
-						const deps = (bankFeature.dependencies as string[]) || [];
+					if (featuresJson) {
+						try {
+							const features: Array<{ id: string; config: Record<string, any> }> = JSON.parse(featuresJson);
+							for (const f of features) featureIds.push(f.id);
+							const bankFeatures = featureIds.length > 0
+								? await db.select().from(featureBankSnippets).where(inArray(featureBankSnippets.id, featureIds))
+								: [];
+							const foundIds = new Set(bankFeatures.map(f => f.id));
+							for (const id of featureIds) { if (!foundIds.has(id)) missingIds.push(id); }
 
-						featureFactories += `
-// --- Feature: ${bankFeature.name} (${bankFeature.id}) ---
-var __feature_${bankFeature.id.replace(/-/g, "_")}_factory = (function() {
-  try {
-    ${bankFeature.code}
-    return typeof create !== 'undefined' ? create
-      : typeof createFeature !== 'undefined' ? createFeature
-      : (typeof exports !== 'undefined' && exports.default) ? exports.default
-      : function(cfg: any) { return { id: '${bankFeature.id}', init: function(){}, update: function(){}, destroy: function(){} }; };
-  } catch(e) {
-    console.warn('[FeatureBank] Failed to load ${bankFeature.id}:', e);
-    return function(cfg: any) { return { id: '${bankFeature.id}', init: function(){}, update: function(){}, destroy: function(){} }; };
-  }
-})();
-`;
-						featureRegistrations += `    engine.features.register('${bankFeature.id}', __feature_${bankFeature.id.replace(/-/g, "_")}_factory, ${JSON.stringify(config)}, ${JSON.stringify(deps)});\n`;
+							for (const bankFeature of bankFeatures) {
+								const config = features.find(f => f.id === bankFeature.id)?.config || {};
+								const deps = (bankFeature.dependencies as string[]) || [];
+								featureFactories += `\n// --- Feature: ${bankFeature.name} (${bankFeature.id}) ---\nvar __feature_${bankFeature.id.replace(/-/g, "_")}_factory = (function() {\n  try {\n    ${bankFeature.code}\n    return typeof create !== 'undefined' ? create : typeof createFeature !== 'undefined' ? createFeature : function(cfg: any) { return { id: '${bankFeature.id}', init: function(){}, update: function(){}, destroy: function(){} }; };\n  } catch(e) { console.warn('[FeatureBank] load error:', e); return function(cfg: any) { return { id: '${bankFeature.id}', init: function(){}, update: function(){}, destroy: function(){} }; }; }\n})();\n`;
+								featureRegistrations += `    engine.features.register('${bankFeature.id}', __feature_${bankFeature.id.replace(/-/g, "_")}_factory, ${JSON.stringify(config)}, ${JSON.stringify(deps)});\n`;
+							}
+						} catch { /* ignore bad JSON */ }
 					}
 
-					// Generate the composed GameScene2D.ts from Feature Bank template
-					const sceneCode = await generateBaseScene(genre, {
-						theme,
-						seed: cfg.seed,
-						gravity: cfg.gravity,
-						moveSpeed: cfg.moveSpeed,
-						jumpForce: cfg.jumpForce,
-						worldWidth: cfg.worldWidth,
-						enemySpeed: 60,
-						lives: cfg.lives,
-						platformCount: cfg.platformCount,
-						coinCount: cfg.coinCount,
-						enemyCount: cfg.enemyCount,
-						levelShape: cfg.levelShape,
-						doubleJump: cfg.doubleJump,
-						wallSlide: cfg.wallSlide,
-						// Runner-specific
-						startSpeed: 220,
-						maxSpeed: 550,
-						// Puzzle-specific
-						gridCols: 7,
-						gridRows: 7,
-						gemColorCount: 6,
-						// Shooter-specific
-						fireRate: 0.14,
-						enemySpawnRate: 1.4,
-					}, featureFactories, featureRegistrations, customCode);
+					// Generate minimal scaffold — just the skeleton, AI builds the rest
+					const sceneCode = `// Minimal scaffold — build your unique game on top of this
+import { Engine2D, GameScene, createGame2D, loadAssets } from "../engine/core";
+import { PhysicsWorld, createBody, createStaticBody, createOneWayPlatform, CharacterController } from "../engine/physics";
+import { createAmbientEffect, onJumpDust, onLandImpact, onCollectSparkle, onDeathExplosion } from "../engine/effects";
+import { PALETTES, drawSkyGradient, drawStars, drawMountainRange, drawCloud, drawGroundStrip, drawPlatformBlock, drawPlayerCharacter, drawCoinToken, drawEnemySlime, drawHeart, drawLSystemTree, TREE_PRESETS, createWaterSurface, createLavaSurface, createLightingLayer, drawVignette, drawAtmosphericFog } from "../config/assets";
+import { _loadSpriteLib, _sheetCache } from "../utils/media-stock";
+${featureFactories}
+export default class GameScene2D implements GameScene {
+  private _update: ((dt: number) => void) | null = null;
 
-					// Save the composed scene file
+  async enter(engine: Engine2D) {
+    var PAL = PALETTES["${cfg.theme}"];
+    var W = ${cfg.worldWidth}, H = ${cfg.worldHeight}, GROUND_Y = H - 60;
+    var app = engine.app, world = new PIXI.Container();
+    app.stage.addChild(world);
+    var physics = new PhysicsWorld(0, ${cfg.gravity});
+
+    await _loadSpriteLib("${cfg.theme}");
+
+    // Sky
+    var sky = drawSkyGradient(W, H, PAL.skyTop, PAL.skyBottom);
+    world.addChildAt(sky, 0);
+
+    // Ground
+    var ground = drawGroundStrip(W, GROUND_Y, 60, PAL.ground, PAL.groundTop);
+    world.addChild(ground);
+    createStaticBody(physics, 0, GROUND_Y, W, 60);
+
+    // Player
+    var playerGfx = drawPlayerCharacter(48, PAL.player, PAL.playerLight);
+    playerGfx.x = 120; playerGfx.y = GROUND_Y - 48;
+    world.addChild(playerGfx);
+    var playerBody = createBody(physics, 120, GROUND_Y - 48, 36, 48, { tag: "player" });
+    playerBody.sprite = playerGfx;
+    var controller = new CharacterController(playerBody, { moveSpeed: ${cfg.moveSpeed}, jumpForce: ${cfg.jumpForce}, gravity: ${cfg.gravity} });
+
+${featureRegistrations ? "    // Feature Bank\n" + featureRegistrations + "    engine.features.initAll(engine);\n" : ""}
+    // Camera
+    engine.camera.follow(playerBody);
+    engine.camera.worldWidth = W;
+    engine.camera.worldHeight = H;
+    engine.camera.smoothing = 0.08;
+
+    // === BUILD YOUR UNIQUE GAME BELOW ===
+    // Add: platforms, enemies, coins, particles, UI, custom entities, etc.
+
+    this._update = (dt: number) => {
+      controller.update(engine.input, dt);
+      physics.update(dt);
+      engine.features.updateAll(engine, dt);
+      engine.camera.update(dt);
+      engine.input.endFrame();
+    };
+  }
+
+  update(engine: Engine2D, dt: number) { this._update?.(dt); }
+
+  exit(engine: Engine2D) {
+    engine.juice.killAll();
+    engine.features.destroy();
+  }
+}
+`;
 					const file = await saveFile(appId, "src/scenes/GameScene2D.ts", sceneCode, "typescript");
-					console.log(`[compose_game] Generated GameScene2D.ts with ${bankFeatures.length} bank features + ${missingIds.length} missing (seed: ${cfg.seed})`);
+					console.log(`[compose_game] Minimal scaffold generated (theme: ${cfg.theme}, genre: ${genre})`);
 
 					return {
 						success: true,
 						action: "composed",
 						path: "src/scenes/GameScene2D.ts",
 						fileId: file.id,
-						featuresLoaded: bankFeatures.map(f => f.id),
+						featuresLoaded: featureIds.filter(id => !missingIds.includes(id)),
 						featuresMissing: missingIds,
-						totalFeatures: features.length,
-						seed: cfg.seed,
-						message: missingIds.length > 0
-							? `Game composed with ${bankFeatures.length}/${features.length} features. Missing: ${missingIds.join(", ")}. Use patch_file to add custom implementations for missing features.`
-							: `Game composed with all ${features.length} features from the Feature Bank.`,
+						message: "Minimal scaffold created. Now build your unique game on top — add platforms, enemies, coins, particles, custom entities, and UI.",
 					};
 				} catch (error) {
 					console.error("compose_game error:", error);
 					return {
 						success: false,
 						action: "composed",
-						error: `Failed to compose game: ${String(error)}`,
+						error: `Failed to compose scaffold: ${String(error)}`,
 					};
 				}
 			},
