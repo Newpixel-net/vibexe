@@ -45,6 +45,7 @@ import {
 	getFilesForApp,
 	saveFile,
 } from "@/app/(main)/app-builder/lib/queries";
+import { generateBaseScene } from "@/app/(main)/app-builder/lib/scene-generator";
 import {
 	type SiteAnalysis,
 	analyzeUrl,
@@ -990,9 +991,40 @@ const supabase = createClient("${supabaseConfig.url}", "${supabaseConfig.anonKey
 				}
 			}
 
-			// 2D games: compose_game tool now generates GameScene2D.ts — no starter injection needed.
-			// The AI agent calls compose_game with Creative Brief params to generate a full scene.
-			// Old hybrid starter injection disabled in favor of Feature Bank compose_game workflow.
+			// 2D games: inject base scene from Feature Bank during setup (preview works during plan phase)
+			if (isGame2d && !existingPaths.has("src/scenes/GameScene2D.ts")) {
+				try {
+					const subGenre = isShooter2d ? "shooter" : isRunner2d ? "runner" : isPuzzle2d ? "puzzle" : "platformer";
+					const params = game2dBrief ? {
+						theme: game2dBrief.theme,
+						seed: game2dBrief.seed,
+						gravity: game2dBrief.gravity,
+						moveSpeed: game2dBrief.moveSpeed,
+						jumpForce: game2dBrief.jumpForce,
+						worldWidth: game2dBrief.worldWidth,
+						enemySpeed: 60,
+						lives: 3,
+						platformCount: game2dBrief.platformCount,
+						coinCount: game2dBrief.coinCount,
+						enemyCount: game2dBrief.enemyCount,
+						levelShape: game2dBrief.levelShape,
+						doubleJump: game2dBrief.specialMechanic === "wall-slide" ? false : true,
+						wallSlide: game2dBrief.specialMechanic === "wall-slide" ? true : false,
+						startSpeed: game2dBrief.startSpeed,
+						maxSpeed: game2dBrief.maxSpeed,
+						gridCols: game2dBrief.gridCols,
+						gridRows: game2dBrief.gridRows,
+						gemColorCount: game2dBrief.gemColorCount,
+						fireRate: game2dBrief.fireRate,
+						enemySpawnRate: game2dBrief.enemySpawnRate,
+					} : {};
+					const sceneCode = await generateBaseScene(subGenre, params);
+					await saveFile(appId, "src/scenes/GameScene2D.ts", sceneCode, "typescript");
+					console.log(`[Chat API] Base scene injected via Feature Bank: ${subGenre}-base`);
+				} catch (e) {
+					console.error(`[Chat API] Base scene injection failed:`, e);
+				}
+			}
 
 			// Save 2D game seed to settings so UI can display it
 			if (isGame2d && game2dBrief && !existingPaths.has("src/__game-settings.json") && !existingPaths.has("__game-settings.json")) {
@@ -1202,9 +1234,15 @@ After creating ALL files, end with a short summary. If the app has auth, include
 		if (isGame2d && game2dBrief) {
 			runtimeAddenda.push(buildCreativeBriefPrompt(game2dBrief));
 			// Inject explicit compose_game params so the AI knows exactly what to pass
-			runtimeAddenda.push(`## compose_game Parameters (from Creative Brief)
+			runtimeAddenda.push(`## Base Scene Already Exists
 
-Pass these values directly to the compose_game tool:
+A working ${game2dBrief.subGenre} base scene has been pre-injected into src/scenes/GameScene2D.ts. The preview is already playable.
+
+**Your options:**
+1. **compose_game** — REPLACE the base scene with Feature Bank features (full rebuild with selected mechanics)
+2. **patch_file** — ENHANCE the existing base scene (add code to the AI ENHANCEMENT ZONE)
+
+## compose_game Parameters (from Creative Brief)
 \`\`\`
 compose_game({
   theme: "${game2dBrief.theme}",
@@ -1225,9 +1263,9 @@ compose_game({
   lives: 3
 })
 \`\`\`
-**IMPORTANT: If the user explicitly mentions a theme (forest, ocean, space, etc.) in their prompt, override the theme value above with the user's choice. The user's explicit request takes priority over the seed-generated theme.**
+**IMPORTANT: If the user explicitly mentions a theme (forest, ocean, space, etc.) in their prompt, override the theme value above with the user's choice.**
 
-**Copy these values into your compose_game call. Select features from the Feature Bank catalog and add them to the features array. Always include score-counter and lives-system features for basic UI.**`);
+**Select features from the Feature Bank catalog and add them to the features array. Always include score-counter and lives-system features for basic UI.**`);
 		}
 		// Feature Bank catalog — inject available features into prompt
 		if (isGame2d) {

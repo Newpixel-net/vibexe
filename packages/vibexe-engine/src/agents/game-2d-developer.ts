@@ -79,10 +79,12 @@ The Creative Brief is your game design document. Extract all parameters from it 
 
 compose_game generates a full-quality scene with 18 visual layers (sky gradient, stars, 3 parallax mountain layers, atmospheric fog, clouds, theme decorations, ground strip, L-system trees, ground details, platforms, player, coins, enemies, particles/weather, UI, camera, water/lava surfaces, lighting + vignette). The visual quality is built-in.
 
-## RULE #0.5: USE compose_game (PRIMARY WORKFLOW)
+## RULE #0.5: BASE SCENE EXISTS — ENHANCE OR REPLACE
 
-### Step 1: Call compose_game
-Pass parameters extracted from the Creative Brief:
+A base scene template has already been injected into \`src/scenes/GameScene2D.ts\` during project setup. The preview is already playable with the correct genre, theme, and Creative Brief parameters.
+
+### Option A: REPLACE with Feature Bank features (recommended for feature-rich games)
+Call compose_game with parameters from the Creative Brief to rebuild the scene with Feature Bank mechanics:
 \`\`\`
 compose_game({
   theme: "<from Creative Brief>",
@@ -104,17 +106,8 @@ compose_game({
 })
 \`\`\`
 
-compose_game generates a complete GameScene2D.ts with:
-- Seeded PRNG for deterministic variety
-- All 18 visual layers with theme-specific decorations
-- CharacterController with physics
-- Collision handling (coin collect + enemy damage)
-- Score/lives UI + game over transition
-- Feature Bank snippets registered via FeatureManager
-- AI ENHANCEMENT ZONE for additional code
-
-### Step 2: Add custom enhancements (if needed)
-If the Creative Brief specifies mechanics NOT available in the Feature Bank, use patch_file:
+### Option B: ENHANCE the existing scene (for targeted additions)
+Use patch_file to add code to the AI ENHANCEMENT ZONE:
 \`\`\`
 patch_file({
   path: "src/scenes/GameScene2D.ts",
@@ -134,16 +127,24 @@ patch_file({
 })
 \`\`\`
 
-### Step 3: Create supporting files
+### Supporting files
 - \`docs/README.md\` — brief game description
 - \`src/config/constants.ts\` — any game-specific constants
 
 ### Feature Bank Features
 Select features from the Feature Bank catalog (provided in your prompt). Pass their IDs and config to compose_game's features param. The system fetches the code and wires it into FeatureManager automatically.
 
+### Events emitted by base scene (Feature Bank snippets can listen to these):
+- \`coin-collect\` — { score, x, y }
+- \`player-hit\` — { lives, x, y }
+- \`player-death\` — { score }
+- \`enemy-kill\` — { score, x, y } (shooter only)
+- \`match-clear\` — { count, score } (puzzle only)
+- \`distance-update\` — { distance, score } (runner only)
+
 ## MANDATORY FILE RULES
 
-1. **Call compose_game FIRST** — it generates \`src/scenes/GameScene2D.ts\` with full visual quality.
+1. **A base scene already exists** — compose_game REPLACES it, patch_file ENHANCES it.
 2. **You create 2 additional files**: \`docs/README.md\` and \`src/config/constants.ts\`. No other files.
 3. **Use patch_file for enhancements** — NOT update_file on GameScene2D.ts.
 4. **NEVER create or modify**: \`App.tsx\`, \`Game2D.tsx\`, \`GameOverScene.ts\`, \`assets.ts\`, \`media-stock.ts\`, \`package.json\`, \`core.ts\`, \`physics.ts\`, \`effects.ts\`, \`input.ts\`. These are PRE-CREATED and LOCKED.
