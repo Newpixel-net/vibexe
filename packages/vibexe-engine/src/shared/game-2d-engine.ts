@@ -70,6 +70,7 @@ export class Engine2D {
   scene: SceneSystem;
   ui: UISystem;
   assets: AssetsSystem;
+  features: FeatureManager;
 
   private scenes: Map<SceneName, GameScene> = new Map();
   private currentScene: GameScene | null = null;
@@ -101,6 +102,7 @@ export class Engine2D {
     this.scene = new SceneSystem(this);
     this.ui = new UISystem(this);
     this.assets = new AssetsSystem(this);
+    this.features = new FeatureManager(this);
   }
 
   async init(rootEl?: HTMLElement): Promise<void> {
@@ -157,6 +159,9 @@ export class Engine2D {
       if (this.currentScene) {
         this.currentScene.update(this, dt);
       }
+
+      // Update feature snippets
+      this.features.updateAll(dt);
 
       // FPS counter
       this._updateFPS(dt);
@@ -258,6 +263,7 @@ export class Engine2D {
   juice: JuiceSystem = new JuiceSystem();
 
   destroy(): void {
+    this.features.destroy();
     this.juice.killAll();
     this.effects.destroyAll();
     this.input.destroy();
@@ -1282,6 +1288,169 @@ export class AssetsSystem {
   /** Check if a key is loaded */
   has(key: string): boolean {
     return this._cache.has(key);
+  }
+}
+
+// ---------------------------------------------------------------------------
+// FeatureManager — composable feature snippet runtime
+// ---------------------------------------------------------------------------
+
+interface FeatureEntry {
+  runtime: any;       // FeatureRuntime instance
+  config: Record<string, any>;
+  dependencies: string[];
+}
+
+export class FeatureManager {
+  private engine: Engine2D;
+  private _features: Map<string, FeatureEntry> = new Map();
+  private _initOrder: string[] = [];   // topologically sorted init order
+  private _initialized = false;
+
+  constructor(engine: Engine2D) {
+    this.engine = engine;
+  }
+
+  /**
+   * Register a feature snippet.
+   * @param id        unique feature id (e.g. "double-jump")
+   * @param factory   function(config) => FeatureRuntime
+   * @param config    parameter values for this feature instance
+   * @param deps      IDs of features this one depends on
+   */
+  register(id: string, factory: (config: Record<string, any>) => any, config: Record<string, any> = {}, deps: string[] = []): void {
+    if (this._features.has(id)) {
+      console.warn('[FeatureManager] Already registered:', id);
+      return;
+    }
+    var runtime = factory(config);
+    runtime.id = id;
+    this._features.set(id, { runtime: runtime, config: config, dependencies: deps });
+    this._initOrder = [];  // invalidate cached order
+  }
+
+  /**
+   * Initialize all registered features in dependency order.
+   * Call once after all features are registered.
+   */
+  initAll(): void {
+    if (this._initialized) return;
+    this._resolveOrder();
+    for (var i = 0; i < this._initOrder.length; i++) {
+      var entry = this._features.get(this._initOrder[i]);
+      if (entry && entry.runtime.init) {
+        try {
+          entry.runtime.init(this.engine, entry.config);
+        } catch(e) {
+          console.error('[FeatureManager] init failed:', this._initOrder[i], e);
+        }
+      }
+    }
+    this._initialized = true;
+    console.log('[FeatureManager] Initialized', this._initOrder.length, 'features:', this._initOrder.join(', '));
+  }
+
+  /** Called every frame by the engine game loop */
+  updateAll(dt: number): void {
+    if (!this._initialized) return;
+    for (var i = 0; i < this._initOrder.length; i++) {
+      var entry = this._features.get(this._initOrder[i]);
+      if (entry && entry.runtime.update) {
+        try {
+          entry.runtime.update(this.engine, dt);
+        } catch(e) {
+          // Don't spam — log once then silence
+          console.error('[FeatureManager] update error:', this._initOrder[i], e);
+          entry.runtime.update = null;  // disable broken updater
+        }
+      }
+    }
+  }
+
+  /** Broadcast an event to all features */
+  emit(event: string, data?: any): void {
+    this._features.forEach(function(entry) {
+      if (entry.runtime.onEvent) {
+        try {
+          entry.runtime.onEvent(event, data);
+        } catch(e) {
+          console.error('[FeatureManager] event error:', entry.runtime.id, event, e);
+        }
+      }
+    });
+  }
+
+  /** Check if a feature is registered */
+  has(id: string): boolean {
+    return this._features.has(id);
+  }
+
+  /** Get a feature runtime by id (for inter-feature communication) */
+  get(id: string): any {
+    var entry = this._features.get(id);
+    return entry ? entry.runtime : null;
+  }
+
+  /** Number of registered features */
+  get count(): number {
+    return this._features.size;
+  }
+
+  /** Destroy all features in reverse init order */
+  destroy(): void {
+    for (var i = this._initOrder.length - 1; i >= 0; i--) {
+      var entry = this._features.get(this._initOrder[i]);
+      if (entry && entry.runtime.destroy) {
+        try {
+          entry.runtime.destroy();
+        } catch(e) {
+          console.error('[FeatureManager] destroy error:', this._initOrder[i], e);
+        }
+      }
+    }
+    this._features.clear();
+    this._initOrder = [];
+    this._initialized = false;
+  }
+
+  /**
+   * Topological sort — ensures dependencies init before dependents.
+   * Detects circular dependencies and warns.
+   */
+  private _resolveOrder(): void {
+    var visited: Set<string> = new Set();
+    var visiting: Set<string> = new Set();  // cycle detection
+    var order: string[] = [];
+    var features = this._features;
+
+    function visit(id: string): void {
+      if (visited.has(id)) return;
+      if (visiting.has(id)) {
+        console.warn('[FeatureManager] Circular dependency detected at:', id);
+        return;
+      }
+      visiting.add(id);
+      var entry = features.get(id);
+      if (entry) {
+        for (var j = 0; j < entry.dependencies.length; j++) {
+          var dep = entry.dependencies[j];
+          if (features.has(dep)) {
+            visit(dep);
+          } else {
+            console.warn('[FeatureManager] Missing dependency:', dep, 'required by', id);
+          }
+        }
+      }
+      visiting.delete(id);
+      visited.add(id);
+      order.push(id);
+    }
+
+    features.forEach(function(_entry, id) {
+      visit(id);
+    });
+
+    this._initOrder = order;
   }
 }
 
