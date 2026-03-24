@@ -13,6 +13,8 @@ export const game2dDeveloper: AgentDefinition = {
 		"update_file",
 		"delete_file",
 		"read_file",
+		"patch_file",
+		"compose_game",
 		"define_entities",
 		"manage_environments",
 		"manage_backups",

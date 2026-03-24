@@ -62,6 +62,9 @@ import {
 	analyzeAppStoreUrl,
 	formatAppStoreAnalysis,
 } from "@/app/(main)/app-builder/lib/app-store-analyzer";
+import { db } from "@/db";
+import { featureBankSnippets } from "@/db/schema";
+import { eq } from "drizzle-orm";
 import { getUser } from "@/lib/auth/get-user";
 import { getSupabaseConfig, getAppBackendType } from "@/lib/app-database/supabase-connect";
 import { resolveAllProviderApiKeys } from "@/lib/team-ai-provider-keys";
@@ -78,6 +81,72 @@ registerSkills(DEFAULT_SKILLS);
  * Build language-specific instructions for the AI system prompt.
  * Ensures the AI generates content in the detected language with proper RTL support.
  */
+
+/**
+ * Fetch available Feature Bank snippets and format as a catalog for the AI prompt.
+ * Returns empty string if no features exist yet.
+ */
+async function buildFeatureBankCatalog(engine: string): Promise<string> {
+	try {
+		const snippets = await db
+			.select({
+				id: featureBankSnippets.id,
+				name: featureBankSnippets.name,
+				description: featureBankSnippets.description,
+				category: featureBankSnippets.category,
+				type: featureBankSnippets.type,
+				engine: featureBankSnippets.engine,
+				keywords: featureBankSnippets.keywords,
+				parameters: featureBankSnippets.parameters,
+				dependencies: featureBankSnippets.dependencies,
+				genres: featureBankSnippets.genres,
+			})
+			.from(featureBankSnippets)
+			.where(eq(featureBankSnippets.isVerified, true))
+			.orderBy(featureBankSnippets.category, featureBankSnippets.name);
+
+		// Filter by engine column (include "shared" features too)
+		const filtered = snippets.filter(
+			(s) => s.engine === engine || s.engine === "shared",
+		);
+
+		if (filtered.length === 0) return "";
+
+		// Group by category
+		const byCategory = new Map<string, typeof filtered>();
+		for (const s of filtered) {
+			const list = byCategory.get(s.category) || [];
+			list.push(s);
+			byCategory.set(s.category, list);
+		}
+
+		let catalog = `## Feature Bank (${filtered.length} verified features)\n\n`;
+		catalog += `When building a game, you can reference these pre-tested features by ID in your code.\n`;
+		catalog += `Each feature follows the FeatureRuntime interface (init, update, destroy, onEvent).\n`;
+		catalog += `Register features with: \`engine.features.register(id, factory, config, deps)\`\n\n`;
+
+		for (const [category, features] of byCategory) {
+			catalog += `### ${category}\n`;
+			for (const f of features) {
+				const params = (f.parameters as any[] || [])
+					.map((p: any) => `${p.name}: ${p.type}${p.default !== undefined ? ` = ${p.default}` : ""}`)
+					.join(", ");
+				catalog += `- **${f.id}** — ${f.description}`;
+				if (params) catalog += ` | params: ${params}`;
+				if (f.dependencies && (f.dependencies as string[]).length > 0)
+					catalog += ` | requires: ${(f.dependencies as string[]).join(", ")}`;
+				catalog += `\n`;
+			}
+			catalog += `\n`;
+		}
+
+		return catalog;
+	} catch (e) {
+		console.error("[Feature Bank] Catalog build error:", e);
+		return "";
+	}
+}
+
 function buildLanguageInstructions(analysis: SiteAnalysis): string {
 	const { language } = analysis;
 	const isRtl = language.direction === "rtl";
@@ -1160,6 +1229,13 @@ After creating ALL files, end with a short summary. If the app has auth, include
 		// the "build it" second call still gets skeleton/reference/sprite instructions.
 		if (isGame2d && game2dBrief) {
 			runtimeAddenda.push(buildCreativeBriefPrompt(game2dBrief));
+		}
+		// Feature Bank catalog — inject available features into prompt
+		if (isGame2d) {
+			const featureCatalog = await buildFeatureBankCatalog("2d");
+			if (featureCatalog) {
+				runtimeAddenda.push(featureCatalog);
+			}
 		}
 		if (isGame2d && Object.keys(generatedSprites).length > 0) {
 			const spriteEntries = Object.entries(generatedSprites);

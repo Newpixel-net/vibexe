@@ -10,7 +10,8 @@ import { eq } from "drizzle-orm";
 import { tool } from "ai";
 import { z } from "zod";
 import { db } from "@/db";
-import { type BuilderAppId, builderApps, builderAppDatabases } from "@/db/schema";
+import { type BuilderAppId, builderApps, builderAppDatabases, featureBankSnippets } from "@/db/schema";
+import { inArray } from "drizzle-orm";
 import {
 	ensureAppDatabase,
 	entityToTableName,
@@ -379,6 +380,212 @@ export function createFileTools(appId: string, options?: FileToolsOptions) {
 						success: false,
 						path,
 						error: `Failed to read file: ${String(error)}`,
+					};
+				}
+			},
+		}),
+
+		compose_game: tool({
+			description:
+				"Compose a 2D game from Feature Bank snippets. Submit a structured JSON game specification with theme, feature selections (IDs + configs), asset mapping, level layout, and event wiring. The system fetches feature code from the Feature Bank, generates a complete GameScene2D.ts, and saves it. Use this when the Feature Bank has verified features that match the user's request. Falls back to manual code for features not in the bank.",
+			inputSchema: z.object({
+				theme: z.string().describe("Game theme palette key: forest, sunset, space, volcanic, candy, arctic, dark, ocean"),
+				genre: z.string().describe("Game genre: platformer, runner, shooter, puzzle"),
+				features: z.array(z.object({
+					id: z.string().describe("Feature Bank snippet ID (e.g., 'double-jump')"),
+					config: z.record(z.any()).describe("Parameter overrides for this feature"),
+				})).describe("Features to compose from the bank"),
+				customCode: z.string().optional().describe("Additional custom code to inject into the scene's enter() method (for mechanics not in the bank)"),
+				layout: z.object({
+					worldWidth: z.number().default(4000),
+					worldHeight: z.number().default(800),
+					platformCount: z.number().optional(),
+					coinCount: z.number().optional(),
+					enemyCount: z.number().optional(),
+				}).describe("Level layout parameters"),
+				wiring: z.array(z.object({
+					event: z.string().describe("Event name (e.g., 'player.collect.coin')"),
+					actions: z.array(z.string()).describe("Actions to trigger"),
+				})).optional().describe("Event wiring between features"),
+			}),
+			execute: async ({ theme, genre, features, customCode, layout, wiring }) => {
+				try {
+					// Fetch all requested feature code from the bank
+					const featureIds = features.map(f => f.id);
+					const bankFeatures = featureIds.length > 0
+						? await db.select().from(featureBankSnippets).where(inArray(featureBankSnippets.id, featureIds))
+						: [];
+
+					const foundIds = new Set(bankFeatures.map(f => f.id));
+					const missingIds = featureIds.filter(id => !foundIds.has(id));
+
+					// Build feature registration code
+					let featureRegistrations = "";
+					let featureFactories = "";
+
+					for (const bankFeature of bankFeatures) {
+						const config = features.find(f => f.id === bankFeature.id)?.config || {};
+						const deps = (bankFeature.dependencies as string[]) || [];
+
+						// Wrap each feature factory in try/catch for graceful degradation
+						featureFactories += `
+// --- Feature: ${bankFeature.name} (${bankFeature.id}) ---
+var __feature_${bankFeature.id.replace(/-/g, "_")}_factory = (function() {
+  try {
+    ${bankFeature.code}
+    return typeof create !== 'undefined' ? create
+      : typeof createFeature !== 'undefined' ? createFeature
+      : (typeof exports !== 'undefined' && exports.default) ? exports.default
+      : function(cfg: any) { return { id: '${bankFeature.id}', init: function(){}, update: function(){}, destroy: function(){} }; };
+  } catch(e) {
+    console.warn('[FeatureBank] Failed to load ${bankFeature.id}:', e);
+    return function(cfg: any) { return { id: '${bankFeature.id}', init: function(){}, update: function(){}, destroy: function(){} }; };
+  }
+})();
+`;
+						featureRegistrations += `    engine.features.register('${bankFeature.id}', __feature_${bankFeature.id.replace(/-/g, "_")}_factory, ${JSON.stringify(config)}, ${JSON.stringify(deps)});\n`;
+					}
+
+					// Generate the composed GameScene2D.ts
+					const sceneCode = `// Auto-composed from Feature Bank — ${features.length} features
+import { Engine2D, GameScene, createGame2D, loadAssets } from "../engine/core";
+import { PhysicsWorld, createBody, createStaticBody, createOneWayPlatform, CharacterController } from "../engine/physics";
+import { createAmbientEffect, onJumpDust, onLandImpact, onCollectSparkle, onDeathExplosion } from "../engine/effects";
+import { PALETTES, drawSkyGradient, drawMountainRange, drawCloud, drawGroundStrip, drawPlatformBlock, drawPlayerCharacter, drawCoinToken, drawEnemySlime } from "../config/assets";
+import { _loadSpriteLib } from "../utils/media-stock";
+
+const PIXI = (window as any).PIXI;
+
+var THEME = '${theme}';
+var PAL = PALETTES[THEME] || PALETTES['forest'];
+
+var CONFIG = {
+  worldWidth: ${layout.worldWidth},
+  worldHeight: ${layout.worldHeight},
+  groundY: ${layout.worldHeight - 80},
+  platformCount: ${layout.platformCount ?? 12},
+  coinCount: ${layout.coinCount ?? 20},
+  enemyCount: ${layout.enemyCount ?? 5},
+};
+
+${featureFactories}
+
+export class GameScene2D implements GameScene {
+  name = 'game' as any;
+  container: any;
+  physics!: PhysicsWorld;
+  playerBody: any;
+  playerGfx: any;
+  lastPlayerFacing = 1;
+
+  async enter(engine: Engine2D): Promise<void> {
+    await _loadSpriteLib(THEME);
+    this.container = new PIXI.Container();
+    this.physics = new PhysicsWorld(0, CONFIG.worldWidth, CONFIG.groundY);
+
+    // Sky + background
+    drawSkyGradient(this.container, engine.config.width, engine.config.height, PAL.sky, PAL.skyBottom);
+    drawMountainRange(this.container, engine.config.width, CONFIG.groundY, PAL.mountain, 0.3, 0.5);
+    drawGroundStrip(this.container, CONFIG.worldWidth, CONFIG.groundY, PAL.ground, PAL.groundDark);
+
+    // Platforms
+    for (var i = 0; i < CONFIG.platformCount; i++) {
+      var px = 200 + Math.random() * (CONFIG.worldWidth - 400);
+      var py = CONFIG.groundY - 80 - Math.random() * 300;
+      var pw = 80 + Math.random() * 100;
+      var plat = drawPlatformBlock(pw, 24, PAL.platform, PAL.platformTop);
+      plat.x = px; plat.y = py;
+      this.container.addChild(plat);
+      createOneWayPlatform(px, py, pw, 24);
+    }
+
+    // Player
+    this.playerGfx = drawPlayerCharacter(48, PAL.player, PAL.playerLight);
+    this.playerGfx.x = 200; this.playerGfx.y = CONFIG.groundY - 60;
+    this.container.addChild(this.playerGfx);
+    this.playerBody = createBody(200, CONFIG.groundY - 60, 32, 48, { mass: 1, friction: 0.2 });
+
+    // Coins
+    for (var c = 0; c < CONFIG.coinCount; c++) {
+      var cx = 150 + Math.random() * (CONFIG.worldWidth - 300);
+      var cy = CONFIG.groundY - 100 - Math.random() * 250;
+      var coin = drawCoinToken(16, PAL.coin);
+      coin.x = cx; coin.y = cy;
+      this.container.addChild(coin);
+    }
+
+    // Enemies
+    for (var e = 0; e < CONFIG.enemyCount; e++) {
+      var ex = 400 + Math.random() * (CONFIG.worldWidth - 500);
+      var ey = CONFIG.groundY - 30;
+      var enemy = drawEnemySlime(32, PAL.enemy);
+      enemy.x = ex; enemy.y = ey;
+      this.container.addChild(enemy);
+    }
+
+    // Ambient particles
+    createAmbientEffect(engine.proton, engine.world, engine.config.width, engine.config.height, THEME);
+
+    // Camera
+    engine.camera.follow(this.playerGfx, { smoothing: 0.08 });
+    engine.camera.bounds(0, 0, CONFIG.worldWidth, CONFIG.worldHeight);
+
+    // Register Feature Bank features
+${featureRegistrations}
+    engine.features.initAll();
+
+    // === AI ENHANCEMENT ZONE ===
+${customCode ? "    " + customCode.split("\n").join("\n    ") : "    // Custom code goes here"}
+  }
+
+  update(engine: Engine2D, dt: number): void {
+    var speed = 200;
+    var jumpForce = -450;
+
+    if (engine.input.left) { this.playerBody.vx = -speed; this.lastPlayerFacing = -1; }
+    else if (engine.input.right) { this.playerBody.vx = speed; this.lastPlayerFacing = 1; }
+    else { this.playerBody.vx *= 0.85; }
+
+    if (engine.input.jump && this.playerBody.isGrounded) {
+      this.playerBody.vy = jumpForce;
+      onJumpDust(engine.proton, engine.world, this.playerGfx.x, this.playerGfx.y);
+    }
+
+    this.physics.update(dt);
+    this.playerGfx.x = this.playerBody.x;
+    this.playerGfx.y = this.playerBody.y;
+    this.playerGfx.scale.x = this.lastPlayerFacing;
+
+    engine.input.endFrame();
+  }
+
+  exit(engine: Engine2D): void {
+    engine.features.destroy();
+  }
+}
+`;
+					// Save the composed scene file
+					const file = await saveFile(appId, "src/scenes/GameScene2D.ts", sceneCode, "typescript");
+					console.log(`[compose_game] Generated GameScene2D.ts with ${bankFeatures.length} bank features + ${missingIds.length} missing`);
+
+					return {
+						success: true,
+						action: "composed",
+						path: "src/scenes/GameScene2D.ts",
+						fileId: file.id,
+						featuresLoaded: bankFeatures.map(f => f.id),
+						featuresMissing: missingIds,
+						totalFeatures: features.length,
+						message: missingIds.length > 0
+							? `Game composed with ${bankFeatures.length}/${features.length} features. Missing: ${missingIds.join(", ")}. Use patch_file to add custom implementations for missing features.`
+							: `Game composed with all ${features.length} features from the Feature Bank.`,
+					};
+				} catch (error) {
+					console.error("compose_game error:", error);
+					return {
+						success: false,
+						action: "composed",
+						error: `Failed to compose game: ${String(error)}`,
 					};
 				}
 			},
