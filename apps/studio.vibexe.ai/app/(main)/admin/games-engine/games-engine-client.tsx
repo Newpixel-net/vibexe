@@ -859,13 +859,228 @@ const DRAWING_HELPERS_2D = [
 	{ name: "drawTree", desc: "L-system procedural tree", category: "Decorations" },
 ];
 const SPRITE_CATEGORIES_2D = [
-	{ name: "Characters", desc: "Player heroes, NPCs", sprites: "knight, robot, wizard, alien" },
-	{ name: "Enemies", desc: "Slimes, bats, skeletons", sprites: "slime, bat, skeleton, goblin" },
-	{ name: "Platforms", desc: "Grass, stone, ice, lava blocks", sprites: "grass_block, stone_block, ice_block" },
-	{ name: "Collectibles", desc: "Coins, gems, hearts, keys", sprites: "gold_coin, gem_red, heart, key" },
-	{ name: "Decorations", desc: "Trees, mushrooms, crystals, torches", sprites: "tree, mushroom, crystal, torch" },
-	{ name: "Backgrounds", desc: "Parallax layers, sky gradients", sprites: "mountains, clouds, sky_gradient" },
+	{ name: "Characters", desc: "Player heroes, NPCs, animated sprites", path: "characters", icon: "🧑" },
+	{ name: "Environments", desc: "Platforms, backgrounds, terrain", path: "environments", icon: "🌲" },
+	{ name: "Items", desc: "Coins, gems, power-ups, keys", path: "items", icon: "💎" },
+	{ name: "Effects", desc: "Particle sprites, explosions, impacts", path: "effects", icon: "✨" },
+	{ name: "UI", desc: "Buttons, frames, HUD elements", path: "ui", icon: "🖼️" },
+	{ name: "Audio", desc: "Sound effects and music", path: "audio", icon: "🔊" },
 ];
+
+type MediaFile = { name: string; isDir: boolean; size: number; ext: string; path: string };
+
+function SpriteLibraryBrowser() {
+	const [openCat, setOpenCat] = useState<string | null>(null);
+	const [files, setFiles] = useState<MediaFile[]>([]);
+	const [subFiles, setSubFiles] = useState<Record<string, MediaFile[]>>({});
+	const [loading, setLoading] = useState(false);
+	const [breadcrumb, setBreadcrumb] = useState<string[]>([]);
+
+	const IMAGE_EXTS = new Set(["png", "jpg", "jpeg", "gif", "webp", "svg"]);
+
+	const fetchDir = useCallback(async (dirPath: string) => {
+		setLoading(true);
+		try {
+			const res = await fetch(`/api/admin/media-stock/browse?path=${encodeURIComponent(dirPath)}&limit=500`);
+			const data = await res.json();
+			return (data.files || []) as MediaFile[];
+		} catch {
+			return [];
+		} finally {
+			setLoading(false);
+		}
+	}, []);
+
+	const openCategory = useCallback(async (catPath: string) => {
+		if (openCat === catPath) { setOpenCat(null); return; }
+		setOpenCat(catPath);
+		setBreadcrumb([catPath]);
+		const result = await fetchDir(catPath);
+		setFiles(result);
+		setSubFiles({});
+
+		// Auto-fetch first few subdirectories to show preview thumbnails
+		const dirs = result.filter(f => f.isDir).slice(0, 8);
+		for (const dir of dirs) {
+			fetchDir(dir.path).then(subResult => {
+				setSubFiles(prev => ({ ...prev, [dir.path]: subResult }));
+			});
+		}
+	}, [openCat, fetchDir]);
+
+	const navigateTo = useCallback(async (dirPath: string) => {
+		const parts = dirPath.split("/");
+		setBreadcrumb(parts.slice(0, Math.max(1, parts.length)));
+		const result = await fetchDir(dirPath);
+		setFiles(result);
+		setSubFiles({});
+
+		const dirs = result.filter(f => f.isDir).slice(0, 8);
+		for (const dir of dirs) {
+			fetchDir(dir.path).then(subResult => {
+				setSubFiles(prev => ({ ...prev, [dir.path]: subResult }));
+			});
+		}
+	}, [fetchDir]);
+
+	return (
+		<div>
+			<h3 className="text-sm font-medium text-foreground mb-3">Sprite Library</h3>
+			<p className="text-xs text-muted-foreground mb-3">
+				7,469 files across 6 categories. Click a category to browse with thumbnails.
+			</p>
+
+			{/* Category Grid */}
+			<div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-2 mb-4">
+				{SPRITE_CATEGORIES_2D.map((cat) => (
+					<button
+						key={cat.path}
+						onClick={() => openCategory(cat.path)}
+						className={cn(
+							"rounded-lg border p-3 text-left transition-colors",
+							openCat === cat.path
+								? "border-emerald-500 bg-emerald-500/10"
+								: "border-border bg-card hover:border-muted-foreground/30 hover:bg-muted/30",
+						)}
+					>
+						<div className="text-lg mb-1">{cat.icon}</div>
+						<span className="text-sm font-medium text-foreground">{cat.name}</span>
+						<p className="text-[10px] text-muted-foreground mt-0.5">{cat.desc}</p>
+					</button>
+				))}
+			</div>
+
+			{/* Expanded Category Browser */}
+			{openCat && (
+				<div className="rounded-lg border border-border bg-card p-4">
+					{/* Breadcrumb */}
+					<div className="flex items-center gap-1 mb-3 text-xs">
+						{breadcrumb.map((part, i) => {
+							const fullPath = breadcrumb.slice(0, i + 1).join("/");
+							const isLast = i === breadcrumb.length - 1;
+							return (
+								<span key={i} className="flex items-center gap-1">
+									{i > 0 && <ChevronRight className="size-3 text-muted-foreground" />}
+									{isLast ? (
+										<span className="text-foreground font-medium">{part}</span>
+									) : (
+										<button
+											onClick={() => navigateTo(fullPath)}
+											className="text-primary hover:underline"
+										>
+											{part}
+										</button>
+									)}
+								</span>
+							);
+						})}
+						{loading && <Loader2 className="size-3 animate-spin text-muted-foreground ml-2" />}
+					</div>
+
+					{/* Files & Folders */}
+					<div className="space-y-4">
+						{/* Subdirectories with preview thumbnails */}
+						{files.filter(f => f.isDir).length > 0 && (
+							<div className="space-y-3">
+								{files.filter(f => f.isDir).map(dir => {
+									const previews = (subFiles[dir.path] || []).filter(f => IMAGE_EXTS.has(f.ext)).slice(0, 6);
+									return (
+										<div key={dir.path} className="rounded-lg border border-border/50 bg-muted/20 p-3">
+											<button
+												onClick={() => navigateTo(dir.path)}
+												className="flex items-center gap-2 mb-2 hover:text-primary transition-colors"
+											>
+												<FolderOpen className="size-4 text-amber-400" />
+												<span className="text-sm font-medium">{dir.name}</span>
+												{subFiles[dir.path] && (
+													<span className="text-[10px] text-muted-foreground">
+														{subFiles[dir.path].filter(f => !f.isDir).length} files
+														{subFiles[dir.path].filter(f => f.isDir).length > 0 &&
+															` · ${subFiles[dir.path].filter(f => f.isDir).length} folders`}
+													</span>
+												)}
+												<ChevronRight className="size-3 text-muted-foreground ml-auto" />
+											</button>
+											{previews.length > 0 && (
+												<div className="flex gap-2 flex-wrap">
+													{previews.map(img => (
+														<div key={img.path} className="relative group">
+															<img
+																src={`/api/app-builder/media-stock/${img.path}`}
+																alt={img.name}
+																className="w-16 h-16 object-contain rounded border border-border/50 bg-black/20"
+																loading="lazy"
+															/>
+															<span className="absolute bottom-0 left-0 right-0 text-[8px] text-center bg-black/60 text-white truncate px-0.5 rounded-b opacity-0 group-hover:opacity-100 transition-opacity">
+																{img.name}
+															</span>
+														</div>
+													))}
+													{(subFiles[dir.path] || []).filter(f => IMAGE_EXTS.has(f.ext)).length > 6 && (
+														<button
+															onClick={() => navigateTo(dir.path)}
+															className="w-16 h-16 rounded border border-border/50 bg-muted/30 flex items-center justify-center text-xs text-muted-foreground hover:text-foreground"
+														>
+															+{(subFiles[dir.path] || []).filter(f => IMAGE_EXTS.has(f.ext)).length - 6}
+														</button>
+													)}
+												</div>
+											)}
+										</div>
+									);
+								})}
+							</div>
+						)}
+
+						{/* Image files in current directory */}
+						{files.filter(f => !f.isDir && IMAGE_EXTS.has(f.ext)).length > 0 && (
+							<div>
+								<p className="text-xs text-muted-foreground mb-2">
+									{files.filter(f => !f.isDir && IMAGE_EXTS.has(f.ext)).length} images
+								</p>
+								<div className="grid grid-cols-4 sm:grid-cols-6 md:grid-cols-8 lg:grid-cols-10 gap-2">
+									{files.filter(f => !f.isDir && IMAGE_EXTS.has(f.ext)).map(img => (
+										<div key={img.path} className="group relative">
+											<img
+												src={`/api/app-builder/media-stock/${img.path}`}
+												alt={img.name}
+												className="w-full aspect-square object-contain rounded-lg border border-border/50 bg-black/20 p-1"
+												loading="lazy"
+											/>
+											<span className="text-[8px] text-muted-foreground text-center block mt-0.5 truncate">
+												{img.name.replace(/\.[^.]+$/, "")}
+											</span>
+										</div>
+									))}
+								</div>
+							</div>
+						)}
+
+						{/* Non-image files */}
+						{files.filter(f => !f.isDir && !IMAGE_EXTS.has(f.ext)).length > 0 && (
+							<div>
+								<p className="text-xs text-muted-foreground mb-2">
+									{files.filter(f => !f.isDir && !IMAGE_EXTS.has(f.ext)).length} other files
+								</p>
+								<div className="flex flex-wrap gap-1">
+									{files.filter(f => !f.isDir && !IMAGE_EXTS.has(f.ext)).map(f => (
+										<span key={f.path} className="text-[10px] px-1.5 py-0.5 rounded bg-muted/50 text-muted-foreground font-mono">
+											{f.name} <span className="opacity-50">{f.ext}</span>
+										</span>
+									))}
+								</div>
+							</div>
+						)}
+
+						{!loading && files.length === 0 && (
+							<p className="text-sm text-muted-foreground text-center py-8">No files in this directory.</p>
+						)}
+					</div>
+				</div>
+			)}
+		</div>
+	);
+}
 
 function AssetsTab() {
 	const [assetView, setAssetView] = useState<"3d" | "2d">("3d");
@@ -1005,29 +1220,7 @@ function AssetsTab() {
 					</div>
 
 					{/* Sprite Library Categories */}
-					<div>
-						<h3 className="text-sm font-medium text-foreground mb-3">Sprite Library</h3>
-						<p className="text-xs text-muted-foreground mb-3">
-							Pre-loaded sprite assets served from media-stock. Themed variants auto-loaded via <code className="text-foreground">_loadSpriteLib(theme)</code>.
-						</p>
-						<div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2">
-							{SPRITE_CATEGORIES_2D.map((cat) => (
-								<div key={cat.name} className="rounded-lg border border-border bg-card p-3">
-									<div className="flex items-center gap-2 mb-1">
-										<span className="text-sm font-medium text-foreground">{cat.name}</span>
-									</div>
-									<p className="text-[10px] text-muted-foreground mb-2">{cat.desc}</p>
-									<div className="flex flex-wrap gap-1">
-										{cat.sprites.split(", ").map((s) => (
-											<span key={s} className="text-[10px] px-1.5 py-0.5 rounded bg-muted/50 text-muted-foreground font-mono">
-												{s}
-											</span>
-										))}
-									</div>
-								</div>
-							))}
-						</div>
-					</div>
+					<SpriteLibraryBrowser />
 				</div>
 			)}
 		</div>
