@@ -13,14 +13,8 @@ import {
 	GAME_3D_SCENE_STARTER_SHOOTER,
 	GAME_3D_TEMPLATE_FILES,
 	GAME_2D_TEMPLATE_FILES,
-	GAME_2D_SCENE_STARTER,
-	GAME_2D_SCENE_STARTER_RUNNER,
-	GAME_2D_SCENE_STARTER_PUZZLE,
-	GAME_2D_SCENE_STARTER_SHOOTER,
-	buildGame2dSceneStarter,
-	buildGame2dSceneStarterRunner,
-	buildGame2dSceneStarterPuzzle,
-	buildGame2dSceneStarterShooter,
+	// Old hybrid starters kept in game-2d-templates.ts for rollback — no longer imported
+	// GAME_2D_SCENE_STARTER, buildGame2dSceneStarter, etc.
 	expandSeed,
 	buildCreativeBriefPrompt,
 	GAME_2D_ASSETS_REFERENCE_BUILDER,
@@ -996,31 +990,9 @@ const supabase = createClient("${supabaseConfig.url}", "${supabaseConfig.anonKey
 				}
 			}
 
-			// 2D games: inject GameScene2D.ts STARTER based on detected sub-genre
-			// Uses seed-parameterized builder when creative brief is available
-			if (isGame2d && !existingPaths.has("src/scenes/GameScene2D.ts")) {
-				try {
-					const sceneStarter2d = game2dBrief
-						? (isShooter2d
-							? buildGame2dSceneStarterShooter(game2dBrief)
-							: isRunner2d
-								? buildGame2dSceneStarterRunner(game2dBrief)
-								: isPuzzle2d
-									? buildGame2dSceneStarterPuzzle(game2dBrief)
-									: buildGame2dSceneStarter(game2dBrief))
-						: (isShooter2d
-							? GAME_2D_SCENE_STARTER_SHOOTER
-							: isRunner2d
-								? GAME_2D_SCENE_STARTER_RUNNER
-								: isPuzzle2d
-									? GAME_2D_SCENE_STARTER_PUZZLE
-									: GAME_2D_SCENE_STARTER);
-					await saveFile(appId, "src/scenes/GameScene2D.ts", sceneStarter2d, "typescript");
-					console.log(`[Chat API] 2D scene starter injected: src/scenes/GameScene2D.ts (seed=${game2dBrief?.seed ?? "none"}, shooter=${isShooter2d}, runner=${isRunner2d}, puzzle=${isPuzzle2d})`);
-				} catch (e) {
-					console.error(`[Chat API] 2D scene starter injection failed:`, e);
-				}
-			}
+			// 2D games: compose_game tool now generates GameScene2D.ts — no starter injection needed.
+			// The AI agent calls compose_game with Creative Brief params to generate a full scene.
+			// Old hybrid starter injection disabled in favor of Feature Bank compose_game workflow.
 
 			// Save 2D game seed to settings so UI can display it
 			if (isGame2d && game2dBrief && !existingPaths.has("src/__game-settings.json") && !existingPaths.has("__game-settings.json")) {
@@ -1229,6 +1201,31 @@ After creating ALL files, end with a short summary. If the app has auth, include
 		// the "build it" second call still gets skeleton/reference/sprite instructions.
 		if (isGame2d && game2dBrief) {
 			runtimeAddenda.push(buildCreativeBriefPrompt(game2dBrief));
+			// Inject explicit compose_game params so the AI knows exactly what to pass
+			runtimeAddenda.push(`## compose_game Parameters (from Creative Brief)
+
+Pass these values directly to the compose_game tool:
+\`\`\`
+compose_game({
+  theme: "${game2dBrief.theme}",
+  genre: "${game2dBrief.subGenre}",
+  features: "[]",  // Select from Feature Bank catalog below
+  seed: ${game2dBrief.seed},
+  worldWidth: ${game2dBrief.worldWidth},
+  worldHeight: 900,
+  gravity: ${game2dBrief.gravity},
+  moveSpeed: ${game2dBrief.moveSpeed},
+  jumpForce: ${game2dBrief.jumpForce},
+  platformCount: ${game2dBrief.platformCount},
+  coinCount: ${game2dBrief.coinCount},
+  enemyCount: ${game2dBrief.enemyCount},
+  levelShape: "${game2dBrief.levelShape}",
+  doubleJump: ${game2dBrief.specialMechanic === "wall-slide" ? "false" : "true"},
+  wallSlide: ${game2dBrief.specialMechanic === "wall-slide" ? "true" : "false"},
+  lives: 3
+})
+\`\`\`
+**Copy these values into your compose_game call. Select features from the Feature Bank catalog and add them to the features array.**`);
 		}
 		// Feature Bank catalog — inject available features into prompt
 		if (isGame2d) {
@@ -1267,86 +1264,24 @@ var playerGfx = playerTex
 These sprites have white backgrounds — set blendMode or use alpha masking if needed.`);
 		}
 		if (isGame2d) {
-			runtimeAddenda.push(`## CRITICAL: 2D Game — GameScene2D.ts is a WORKING HYBRID STARTER
+			// compose_game workflow instructions
+			runtimeAddenda.push(`## CRITICAL: 2D Game — Use compose_game Tool
 
-**\`src/scenes/GameScene2D.ts\` is a FULLY PLAYABLE game** (~300 lines) with seed-generated
-platforms, coins, enemies, themed decorations, and visual variety from the palette system.
+**You MUST call \`compose_game\` to generate GameScene2D.ts.** Do NOT write it from scratch.
 
-### STRICT RULES — VIOLATION WILL BREAK THE GAME:
-1. **DO NOT rewrite GameScene2D.ts from scratch** — it is a working game. Rewriting it causes crashes.
-2. **DO NOT create src/App.tsx** — it is pre-created and LOCKED.
-3. **DO NOT create src/components/Game2D.tsx** — it is pre-created and LOCKED.
-4. **You may ONLY create/update**: \`docs/README.md\`, \`src/config/constants.ts\`, \`src/scenes/GameScene2D.ts\`
-5. **Use \`patch_file\` (NOT update_file) to enhance GameScene2D.ts** — it safely inserts code without replacing the existing file.
+### Workflow:
+1. **Call compose_game** with parameters from the Creative Brief (theme, seed, gravity, moveSpeed, jumpForce, worldWidth, platformCount, coinCount, enemyCount, levelShape, doubleJump, wallSlide, lives).
+2. **Select Feature Bank features** from the catalog below and pass their IDs in the \`features\` param.
+3. **Use patch_file** for any custom enhancements not in the Feature Bank.
+4. **Create** \`docs/README.md\` and \`src/config/constants.ts\`.
 
-### Your enhancement workflow:
-1. Use \`read_file("src/scenes/GameScene2D.ts")\` — read the working game to understand what's there
-2. Use \`patch_file\` to ADD enhancements at the "AI ENHANCEMENT ZONE" marker:
-   \`\`\`
-   patch_file({
-     path: "src/scenes/GameScene2D.ts",
-     anchor: "// === AI ENHANCEMENT ZONE ===",
-     position: "after",
-     code: "\\n    // your new code here..."
-   })
-   \`\`\`
-3. For adding update() logic, patch after the last animation block:
-   \`\`\`
-   patch_file({
-     path: "src/scenes/GameScene2D.ts",
-     anchor: "engine.input.endFrame();",
-     position: "before",
-     code: "\\n    // your new update logic here..."
-   })
-   \`\`\`
-4. Enhancements to add:
-   - Themed decorations matching the Creative Brief
-   - Special mechanics (dash, gravity-flip, wall-slide)
-   - Unique enemy types or boss fights
-   - Moving/breakable/disappearing platforms
-   - Enhanced particle effects
-5. Each patch should be 20-150 lines. Do NOT use update_file for GameScene2D.ts.
+### STRICT RULES:
+1. DO NOT create GameScene2D.ts manually — compose_game generates it with full visual quality (18 layers).
+2. DO NOT create App.tsx, Game2D.tsx, or any engine files — they are LOCKED.
+3. You may ONLY create: \`docs/README.md\`, \`src/config/constants.ts\`. GameScene2D.ts is created by compose_game.
+4. For custom mechanics, use patch_file on the compose_game output (anchor: "// === AI ENHANCEMENT ZONE ===").
 
-**The starter is already playable. Make it UNIQUE and POLISHED using patch_file.**`);
-
-			// Enhancement examples instead of build-from-scratch reference
-			runtimeAddenda.push(`## Reference: How to ENHANCE the Hybrid Starter
-
-The game already has sky, mountains, platforms, player, coins, enemies, particles, UI, and camera.
-Here are examples of what to ADD:
-
-\`\`\`typescript
-// Example: Add a moving platform in enter()
-var movPlat = drawPlatformBlock(120, 24, PAL.platform, PAL.platformTop);
-movPlat.x = 1800; movPlat.y = 400;
-this.container.addChild(movPlat);
-var movPlatBody = createOneWayPlatform(1800, 400, 120, 24);
-this.physics.addBody(movPlatBody);
-// Store for update: this._movingPlats = [{ gfx: movPlat, body: movPlatBody, startY: 400, range: 100 }];
-
-// Example: Add moving platform logic in update()
-for (var mp of this._movingPlats) {
-  mp.gfx.y = mp.startY + Math.sin(engine.elapsed * 2) * mp.range;
-  mp.body.y = mp.gfx.y;
-}
-
-// Example: Add themed decoration in enter()
-var torch = new PIXI.Graphics();
-torch.beginFill(0x8B4513).drawRect(-4, 0, 8, 30).endFill();
-torch.beginFill(0xFF6600).drawCircle(0, -5, 8).endFill();
-torch.x = 600; torch.y = CONFIG.groundY - 30;
-this.container.addChild(torch);
-
-// Example: Add dash mechanic in update()
-if (engine.input.wasPressed('e') && this._dashCooldown <= 0) {
-  this.playerBody.vx = this.lastPlayerFacing * 600;
-  this._dashCooldown = 1.0;
-  engine.juice.screenShake(engine.world, 5, 0.15);
-}
-if (this._dashCooldown > 0) this._dashCooldown -= dt;
-\`\`\`
-
-**CRITICAL**: The game WORKS as-is. Your job is to make it UNIQUE per the Creative Brief. ADD code, don't rewrite.`);
+**compose_game generates a production-quality game with: sky gradient, stars, 3 parallax mountains, fog, clouds, decorations, ground, trees, platforms, player with CharacterController, coins, enemies with patrol, collisions, weather, UI, camera, lighting, and vignette.**`);
 		} else if (isReturningUser) {
 			// Normal existing project — edit/add files
 			runtimeAddenda.push(`## Existing Project (${existingFiles.length} files)
