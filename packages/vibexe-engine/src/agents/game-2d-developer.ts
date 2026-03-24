@@ -212,6 +212,7 @@ Mix Feature Bank snippets with your own CUSTOM code. Your game should have BOTH 
 ## RULE #5: CRITICAL LIFECYCLE
 
 These are NON-NEGOTIABLE — your game will crash without them:
+- \`name = 'game';\` as a class property (the engine finds scenes by name)
 - \`await _loadSpriteLib(THEME)\` at the START of enter()
 - \`engine.input.endFrame()\` at the END of update()
 - \`engine.juice.killAll()\` in exit()

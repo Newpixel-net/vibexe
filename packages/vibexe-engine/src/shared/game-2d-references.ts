@@ -57,6 +57,7 @@ function drawGlowMushroom(size: number, glowColor: number): PIXI.Container {
 }
 
 export default class GameScene2D implements GameScene {
+  name = 'game';
   enter(engine: Engine2D) {
     var PAL = PALETTES["forest"];
     var W = 5000, H = 900, GROUND_Y = H - 60;
@@ -263,6 +264,7 @@ function createLaser(x: number, y: number, vx: number, color: number): { gfx: PI
 }
 
 export default class GameScene2D implements GameScene {
+  name = 'game';
   enter(engine: Engine2D) {
     var PAL = PALETTES["dark"];
     var W = 3500, H = 900, GROUND_Y = H - 50;
@@ -456,6 +458,7 @@ function drawIcicle(length: number): PIXI.Graphics {
 }
 
 export default class GameScene2D implements GameScene {
+  name = 'game';
   enter(engine: Engine2D) {
     var PAL = PALETTES["arctic"];
     var W = 2500, H = 2000, GROUND_Y = H - 50; // Tall vertical world
@@ -646,6 +649,7 @@ function drawLollipop(size: number, color: number): PIXI.Container {
 }
 
 export default class GameScene2D implements GameScene {
+  name = 'game';
   enter(engine: Engine2D) {
     var PAL = PALETTES["candy"];
     var W = 4500, H = 1200, GROUND_Y = H - 60;

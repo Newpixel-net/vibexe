@@ -408,6 +408,7 @@ import { PALETTES, drawSkyGradient, drawStars, drawMountainRange, drawCloud, dra
 import { _loadSpriteLib, _sheetCache } from "../utils/media-stock";
 ${featureFactories}
 export default class GameScene2D implements GameScene {
+  name = 'game';
   private _update: ((dt: number) => void) | null = null;
 
   async enter(engine: Engine2D) {

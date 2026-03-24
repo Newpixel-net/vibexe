@@ -998,6 +998,7 @@ import { Engine2D, GameScene } from "../engine/core";
 import { PALETTES, drawSkyGradient } from "../config/assets";
 
 export default class GameScene2D implements GameScene {
+  name = 'game';
   private _update: ((dt: number) => void) | null = null;
   async enter(engine: Engine2D) {
     var PAL = PALETTES["${theme}"];
@@ -1328,10 +1329,11 @@ These sprites have white backgrounds — set blendMode or use alpha masking if n
 1. OVERWRITE the placeholder GameScene2D.ts — do NOT copy templates or reference games
 2. DO NOT create App.tsx, Game2D.tsx, or any engine files — they are LOCKED
 3. You MUST use: drawSkyGradient, drawMountainRange, PALETTES, particles, engine.juice — for visual quality
-4. You MUST call \`await _loadSpriteLib(THEME)\` at the start of enter()
-5. You MUST call \`engine.input.endFrame()\` at end of update()
-6. You MUST call \`engine.juice.killAll()\` and \`engine.features.destroy()\` in exit()
-7. Use PIXI.Graphics and Canvas 2D to draw CUSTOM entities unique to this game`);
+4. You MUST include \`name = 'game';\` as a class property — the engine finds scenes by this name
+5. You MUST call \`await _loadSpriteLib(THEME)\` at the start of enter()
+6. You MUST call \`engine.input.endFrame()\` at end of update()
+7. You MUST call \`engine.juice.killAll()\` and \`engine.features.destroy()\` in exit()
+8. Use PIXI.Graphics and Canvas 2D to draw CUSTOM entities unique to this game`);
 		} else if (isReturningUser) {
 			// Normal existing project — edit/add files
 			runtimeAddenda.push(`## Existing Project (${existingFiles.length} files)
