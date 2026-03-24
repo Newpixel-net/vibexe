@@ -1630,7 +1630,7 @@ An App Store listing has been analyzed and injected into the project context abo
 
 		const isReplication = plan.intent.suggestedFlow === "replicate";
 		const isFix = plan.intent.suggestedFlow === "fix";
-		const isPlanOnly = isNewProject && !isVisualEdit;
+		const isPlanOnly = isNewProject && !isVisualEdit && !isGame2d && !isGame3d;
 		const maxSteps = isPlanOnly
 			? 5 // Plan-only: just docs/README.md creation
 			: hasPlanOnly
