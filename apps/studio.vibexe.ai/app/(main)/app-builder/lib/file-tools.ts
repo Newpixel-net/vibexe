@@ -409,13 +409,13 @@ import { _loadSpriteLib, _sheetCache } from "../utils/media-stock";
 ${featureFactories}
 export default class GameScene2D implements GameScene {
   name = 'game';
+  container = new PIXI.Container();
   private _update: ((dt: number) => void) | null = null;
 
   async enter(engine: Engine2D) {
     var PAL = PALETTES["${cfg.theme}"];
     var W = ${cfg.worldWidth}, H = ${cfg.worldHeight}, GROUND_Y = H - 60;
-    var app = engine.app, world = new PIXI.Container();
-    app.stage.addChild(world);
+    var world = this.container;
     var physics = new PhysicsWorld(0, ${cfg.gravity});
 
     await _loadSpriteLib("${cfg.theme}");

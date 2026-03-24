@@ -213,6 +213,8 @@ Mix Feature Bank snippets with your own CUSTOM code. Your game should have BOTH 
 
 These are NON-NEGOTIABLE — your game will crash without them:
 - \`name = 'game';\` as a class property (the engine finds scenes by name)
+- \`container = new PIXI.Container();\` as a class property (the engine adds this to the stage)
+- Use \`this.container\` (NOT \`app.stage\`) to add all game objects — the engine manages the container
 - \`await _loadSpriteLib(THEME)\` at the START of enter()
 - \`engine.input.endFrame()\` at the END of update()
 - \`engine.juice.killAll()\` in exit()

@@ -999,17 +999,16 @@ import { PALETTES, drawSkyGradient } from "../config/assets";
 
 export default class GameScene2D implements GameScene {
   name = 'game';
+  container = new PIXI.Container();
   private _update: ((dt: number) => void) | null = null;
   async enter(engine: Engine2D) {
     var PAL = PALETTES["${theme}"];
     var app = engine.app, W = app.screen.width, H = app.screen.height;
-    var world = new PIXI.Container();
-    app.stage.addChild(world);
     var sky = drawSkyGradient(W, H, PAL.skyTop, PAL.skyBottom);
-    world.addChild(sky);
+    this.container.addChild(sky);
     var txt = new PIXI.Text({ text: "Building your game...", style: { fill: 0xFFFFFF, fontSize: 20, fontWeight: "bold", stroke: { color: 0x000000, width: 3 } } });
     txt.anchor.set(0.5); txt.x = W / 2; txt.y = H / 2;
-    app.stage.addChild(txt);
+    this.container.addChild(txt);
     this._update = () => {};
   }
   update(engine: Engine2D, dt: number) { this._update?.(dt); }
@@ -1329,7 +1328,7 @@ These sprites have white backgrounds — set blendMode or use alpha masking if n
 1. OVERWRITE the placeholder GameScene2D.ts — do NOT copy templates or reference games
 2. DO NOT create App.tsx, Game2D.tsx, or any engine files — they are LOCKED
 3. You MUST use: drawSkyGradient, drawMountainRange, PALETTES, particles, engine.juice — for visual quality
-4. You MUST include \`name = 'game';\` as a class property — the engine finds scenes by this name
+4. You MUST include \`name = 'game';\` and \`container = new PIXI.Container();\` as class properties — use \`this.container\` to add game objects (NOT app.stage)
 5. You MUST call \`await _loadSpriteLib(THEME)\` at the start of enter()
 6. You MUST call \`engine.input.endFrame()\` at end of update()
 7. You MUST call \`engine.juice.killAll()\` and \`engine.features.destroy()\` in exit()

@@ -58,11 +58,11 @@ function drawGlowMushroom(size: number, glowColor: number): PIXI.Container {
 
 export default class GameScene2D implements GameScene {
   name = 'game';
+  container = new PIXI.Container();
   enter(engine: Engine2D) {
     var PAL = PALETTES["forest"];
     var W = 5000, H = 900, GROUND_Y = H - 60;
-    var app = engine.app, world = new PIXI.Container();
-    app.stage.addChild(world);
+    var app = engine.app, world = this.container;
     var physics = new PhysicsWorld(0, 980);
 
     // === VISUAL LAYERS ===
@@ -265,11 +265,11 @@ function createLaser(x: number, y: number, vx: number, color: number): { gfx: PI
 
 export default class GameScene2D implements GameScene {
   name = 'game';
+  container = new PIXI.Container();
   enter(engine: Engine2D) {
     var PAL = PALETTES["dark"];
     var W = 3500, H = 900, GROUND_Y = H - 50;
-    var app = engine.app, world = new PIXI.Container();
-    app.stage.addChild(world);
+    var app = engine.app, world = this.container;
     var physics = new PhysicsWorld(0, 1100); // High gravity — snappy feel
 
     // === DARK NEON BACKGROUND ===
@@ -459,11 +459,11 @@ function drawIcicle(length: number): PIXI.Graphics {
 
 export default class GameScene2D implements GameScene {
   name = 'game';
+  container = new PIXI.Container();
   enter(engine: Engine2D) {
     var PAL = PALETTES["arctic"];
     var W = 2500, H = 2000, GROUND_Y = H - 50; // Tall vertical world
-    var app = engine.app, world = new PIXI.Container();
-    app.stage.addChild(world);
+    var app = engine.app, world = this.container;
     var physics = new PhysicsWorld(0, 900);
 
     // === ICY BACKGROUND ===
@@ -650,11 +650,11 @@ function drawLollipop(size: number, color: number): PIXI.Container {
 
 export default class GameScene2D implements GameScene {
   name = 'game';
+  container = new PIXI.Container();
   enter(engine: Engine2D) {
     var PAL = PALETTES["candy"];
     var W = 4500, H = 1200, GROUND_Y = H - 60;
-    var app = engine.app, world = new PIXI.Container();
-    app.stage.addChild(world);
+    var app = engine.app, world = this.container;
     var physics = new PhysicsWorld(0, 850);
 
     // === SOFT PAINTERLY BACKGROUND ===
