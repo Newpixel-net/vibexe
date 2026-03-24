@@ -31,6 +31,7 @@ import {
 	GAME_2D_TEMPLATE_FILES,
 	PACKS_3D,
 	PACKS_2D,
+	PALETTES,
 	GAME_3D_ASSETS_REFERENCE,
 	ALL_MODULE_MANIFESTS,
 	type TemplateFile,
@@ -841,13 +842,72 @@ function FactoriesTab() {
 // TAB: ASSETS
 // =============================================================================
 
+const PALETTE_ENTRIES = Object.entries(PALETTES || {});
+const DRAWING_HELPERS_2D = [
+	{ name: "drawSkyGradient", desc: "Two-tone gradient sky background", category: "Backgrounds" },
+	{ name: "drawStars", desc: "Twinkling star field", category: "Backgrounds" },
+	{ name: "drawMountainRange", desc: "Parallax mountain silhouettes", category: "Backgrounds" },
+	{ name: "drawCloud", desc: "Soft fluffy cloud shape", category: "Backgrounds" },
+	{ name: "drawGroundStrip", desc: "Ground with grass top and dirt", category: "Terrain" },
+	{ name: "drawPlatformBlock", desc: "Rounded platform with shadow and highlight", category: "Terrain" },
+	{ name: "drawPlayerCharacter", desc: "Multi-part character (body, head, eyes, feet)", category: "Characters" },
+	{ name: "drawCoinToken", desc: "Glowing coin with inner shine", category: "Collectibles" },
+	{ name: "drawEnemySlime", desc: "Animated slime with eyes", category: "Enemies" },
+	{ name: "drawHeart", desc: "Heart shape for lives/health", category: "UI" },
+	{ name: "drawGemShape", desc: "Faceted gem collectible", category: "Collectibles" },
+	{ name: "drawShipShape", desc: "Spaceship for shooter games", category: "Characters" },
+	{ name: "drawTree", desc: "L-system procedural tree", category: "Decorations" },
+];
+const SPRITE_CATEGORIES_2D = [
+	{ name: "Characters", desc: "Player heroes, NPCs", sprites: "knight, robot, wizard, alien" },
+	{ name: "Enemies", desc: "Slimes, bats, skeletons", sprites: "slime, bat, skeleton, goblin" },
+	{ name: "Platforms", desc: "Grass, stone, ice, lava blocks", sprites: "grass_block, stone_block, ice_block" },
+	{ name: "Collectibles", desc: "Coins, gems, hearts, keys", sprites: "gold_coin, gem_red, heart, key" },
+	{ name: "Decorations", desc: "Trees, mushrooms, crystals, torches", sprites: "tree, mushroom, crystal, torch" },
+	{ name: "Backgrounds", desc: "Parallax layers, sky gradients", sprites: "mountains, clouds, sky_gradient" },
+];
+
 function AssetsTab() {
+	const [assetView, setAssetView] = useState<"3d" | "2d">("3d");
+
 	return (
-		<div className="space-y-6">
-			{/* 3D Packs */}
-			<div>
-				<h3 className="text-sm font-medium text-foreground mb-3">3D Model Packs</h3>
-				<div className="space-y-2">
+		<div className="space-y-4">
+			{/* Sub-toggle */}
+			<div className="flex gap-1 border-b border-border pb-2">
+				<button
+					className={cn(
+						"px-4 py-2 text-sm rounded-md transition-colors",
+						assetView === "3d"
+							? "bg-blue-500/10 text-blue-400 font-medium"
+							: "text-muted-foreground hover:text-foreground hover:bg-muted/50",
+					)}
+					onClick={() => setAssetView("3d")}
+				>
+					<Box className="size-4 inline mr-2" />
+					3D Assets
+					<span className="ml-2 text-xs opacity-60">{PACKS_3D.length} packs</span>
+				</button>
+				<button
+					className={cn(
+						"px-4 py-2 text-sm rounded-md transition-colors",
+						assetView === "2d"
+							? "bg-emerald-500/10 text-emerald-400 font-medium"
+							: "text-muted-foreground hover:text-foreground hover:bg-muted/50",
+					)}
+					onClick={() => setAssetView("2d")}
+				>
+					<Gamepad2 className="size-4 inline mr-2" />
+					2D Assets
+					<span className="ml-2 text-xs opacity-60">{PALETTE_ENTRIES.length} themes</span>
+				</button>
+			</div>
+
+			{/* 3D Assets View */}
+			{assetView === "3d" && (
+				<div className="space-y-3">
+					<p className="text-xs text-muted-foreground">
+						{PACKS_3D.reduce((sum, p) => sum + p.fileCount, 0).toLocaleString()} models across {PACKS_3D.length} packs
+					</p>
 					{PACKS_3D.map((pack: AssetPack3D) => (
 						<div key={pack.id} className="rounded-lg border border-border bg-card p-4">
 							<div className="flex items-center gap-2 mb-2">
@@ -859,8 +919,6 @@ function AssetsTab() {
 								</span>
 							</div>
 							<p className="text-xs text-muted-foreground mb-3">{pack.description}</p>
-
-							{/* Category breakdown */}
 							<ExpandableSection
 								title="Categories"
 								badge={<Badge className="text-muted-foreground bg-muted/50">{Object.keys(pack.categories).length}</Badge>}
@@ -886,8 +944,92 @@ function AssetsTab() {
 						</div>
 					))}
 				</div>
-			</div>
+			)}
 
+			{/* 2D Assets View */}
+			{assetView === "2d" && (
+				<div className="space-y-6">
+					{/* Theme Palettes */}
+					<div>
+						<h3 className="text-sm font-medium text-foreground mb-3">Theme Palettes ({PALETTE_ENTRIES.length})</h3>
+						<div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
+							{PALETTE_ENTRIES.map(([key, pal]) => (
+								<div key={key} className="rounded-lg border border-border bg-card p-3">
+									<div className="flex items-center gap-2 mb-2">
+										<span className="text-sm font-medium text-foreground capitalize">{key}</span>
+										{(pal as any).weather && (
+											<Badge className="text-cyan-400 bg-cyan-500/10">{(pal as any).weather}</Badge>
+										)}
+									</div>
+									<p className="text-[10px] text-muted-foreground mb-2">{(pal as any).name}</p>
+									{/* Color swatches */}
+									<div className="flex gap-0.5 mb-2">
+										{[
+											(pal as any).skyTop, (pal as any).skyBottom,
+											(pal as any).ground, (pal as any).platform,
+											(pal as any).player, (pal as any).coin,
+											(pal as any).enemy, (pal as any).foliage,
+										].map((color, i) => (
+											<div
+												key={i}
+												className="w-5 h-5 rounded-sm border border-white/10"
+												style={{ backgroundColor: `#${(color as number).toString(16).padStart(6, "0")}` }}
+											/>
+										))}
+									</div>
+									<div className="text-[10px] text-muted-foreground">
+										Ambient: <span className="text-foreground">{(pal as any).ambient}</span>
+									</div>
+								</div>
+							))}
+						</div>
+					</div>
+
+					{/* Drawing Helpers */}
+					<div>
+						<h3 className="text-sm font-medium text-foreground mb-3">Drawing Helpers ({DRAWING_HELPERS_2D.length})</h3>
+						<p className="text-xs text-muted-foreground mb-3">
+							Programmatic sprite generators — auto-use loaded sprites when available, fall back to vector graphics.
+						</p>
+						<div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2">
+							{DRAWING_HELPERS_2D.map((h) => (
+								<div key={h.name} className="flex items-center gap-3 rounded-lg border border-border bg-card p-3">
+									<div className="flex-1 min-w-0">
+										<span className="text-xs font-mono text-foreground">{h.name}()</span>
+										<p className="text-[10px] text-muted-foreground mt-0.5">{h.desc}</p>
+									</div>
+									<Badge className="text-purple-400 bg-purple-500/10 shrink-0">{h.category}</Badge>
+								</div>
+							))}
+						</div>
+					</div>
+
+					{/* Sprite Library Categories */}
+					<div>
+						<h3 className="text-sm font-medium text-foreground mb-3">Sprite Library</h3>
+						<p className="text-xs text-muted-foreground mb-3">
+							Pre-loaded sprite assets served from media-stock. Themed variants auto-loaded via <code className="text-foreground">_loadSpriteLib(theme)</code>.
+						</p>
+						<div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2">
+							{SPRITE_CATEGORIES_2D.map((cat) => (
+								<div key={cat.name} className="rounded-lg border border-border bg-card p-3">
+									<div className="flex items-center gap-2 mb-1">
+										<span className="text-sm font-medium text-foreground">{cat.name}</span>
+									</div>
+									<p className="text-[10px] text-muted-foreground mb-2">{cat.desc}</p>
+									<div className="flex flex-wrap gap-1">
+										{cat.sprites.split(", ").map((s) => (
+											<span key={s} className="text-[10px] px-1.5 py-0.5 rounded bg-muted/50 text-muted-foreground font-mono">
+												{s}
+											</span>
+										))}
+									</div>
+								</div>
+							))}
+						</div>
+					</div>
+				</div>
+			)}
 		</div>
 	);
 }
