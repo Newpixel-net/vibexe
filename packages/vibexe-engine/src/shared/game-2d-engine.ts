@@ -57,11 +57,19 @@ export class Engine2D {
   proton: any;            // Proton instance
   protonRenderer: any;    // Proton.PixiRenderer
   world: any;             // PIXI.Container (game world — moves with camera)
-  ui: any;                // PIXI.Container (UI layer — fixed on screen)
+  uiLayer: any;           // PIXI.Container (UI layer — fixed on screen)
   input: InputManager;
   camera: Camera2D;
   audio: AudioManager;
   config: Engine2DConfig;
+
+  // Namespace systems (engine.spawn.*, engine.effects.*, etc.)
+  spawn: SpawnSystem;
+  effects: EffectsSystem;
+  physics: PhysicsSystem;
+  scene: SceneSystem;
+  ui: UISystem;
+  assets: AssetsSystem;
 
   private scenes: Map<SceneName, GameScene> = new Map();
   private currentScene: GameScene | null = null;
@@ -85,6 +93,14 @@ export class Engine2D {
     this.camera = new Camera2D(this.config.width, this.config.height,
       this.config.worldWidth!, this.config.worldHeight!);
     this.audio = new AudioManager();
+
+    // Initialize namespace systems
+    this.spawn = new SpawnSystem(this);
+    this.effects = new EffectsSystem(this);
+    this.physics = new PhysicsSystem(this);
+    this.scene = new SceneSystem(this);
+    this.ui = new UISystem(this);
+    this.assets = new AssetsSystem(this);
   }
 
   async init(rootEl?: HTMLElement): Promise<void> {
@@ -107,8 +123,8 @@ export class Engine2D {
     this.app.stage.addChild(this.world);
 
     // UI container (fixed above world)
-    this.ui = new PIXI.Container();
-    this.app.stage.addChild(this.ui);
+    this.uiLayer = new PIXI.Container();
+    this.app.stage.addChild(this.uiLayer);
 
     // Proton particle engine
     this.proton = new Proton();
@@ -118,6 +134,9 @@ export class Engine2D {
     // Store globals for runtime cleanup
     (window as any).__vibexe_pixiApp__ = this.app;
     (window as any).__vibexe_proton__ = this.proton;
+
+    // Wire camera to world container
+    this.camera._worldContainer = this.world;
 
     // Input
     this.input.init(this.app.canvas);
@@ -170,7 +189,7 @@ export class Engine2D {
       this.juice.killAll();
       this.currentScene.exit(this);
       this.world.removeChild(this.currentScene.container);
-      this.ui.removeChildren();
+      this.uiLayer.removeChildren();
     }
     const next = this.scenes.get(name);
     if (!next) {
@@ -240,6 +259,7 @@ export class Engine2D {
 
   destroy(): void {
     this.juice.killAll();
+    this.effects.destroyAll();
     this.input.destroy();
     if (this.proton) this.proton.destroy();
     if (this.app) this.app.destroy(true, { children: true, texture: true });
@@ -415,6 +435,64 @@ export class Camera2D {
   screenToWorld(sx: number, sy: number): { x: number; y: number } {
     return { x: sx + this.x, y: sy + this.y };
   }
+
+  /** Shake the camera (uses GSAP if available) */
+  shake(intensity = 8, duration = 0.3): void {
+    var gsap = (window as any).gsap;
+    if (!gsap || !this._worldContainer) return;
+    var container = this._worldContainer;
+    var origX = container.x, origY = container.y;
+    var tl = gsap.timeline();
+    var steps = Math.ceil(duration / 0.03);
+    for (var i = 0; i < steps; i++) {
+      var t = i / steps;
+      var decay = 1 - t;
+      tl.to(container, {
+        x: origX + (Math.random() - 0.5) * intensity * decay * 2,
+        y: origY + (Math.random() - 0.5) * intensity * decay * 2,
+        duration: 0.03, ease: 'none',
+      });
+    }
+    tl.to(container, { x: origX, y: origY, duration: 0.05 });
+  }
+
+  /** Smoothly zoom to a level (1 = normal, 2 = double) */
+  zoom(level: number, duration = 0.5): void {
+    var gsap = (window as any).gsap;
+    if (!this._worldContainer) return;
+    if (gsap) {
+      gsap.to(this._worldContainer.scale, {
+        x: level, y: level, duration, ease: 'power2.inOut'
+      });
+    } else {
+      this._worldContainer.scale.set(level);
+    }
+  }
+
+  /** Smoothly pan camera to a world position */
+  pan(x: number, y: number, duration = 1): void {
+    var gsap = (window as any).gsap;
+    var self = this;
+    if (gsap) {
+      gsap.to(this, { x, y, duration, ease: 'power2.inOut',
+        onUpdate: function() { if (self._worldContainer) self.update(self._worldContainer); }
+      });
+    } else {
+      this.x = x;
+      this.y = y;
+    }
+  }
+
+  /** Set camera bounds (clamp region) */
+  bounds(x: number, y: number, width: number, height: number): void {
+    this.worldWidth = width;
+    this.worldHeight = height;
+    this._boundsOffset = { x, y };
+  }
+
+  // Internal reference set during engine init
+  _worldContainer: any = null;
+  _boundsOffset: { x: number; y: number } = { x: 0, y: 0 };
 }
 
 // ---------------------------------------------------------------------------
@@ -492,6 +570,23 @@ export class AudioManager {
     this.ensureContext();
     if (this.masterGain) this.masterGain.gain.value = Math.max(0, Math.min(1, v));
   }
+
+  // --- Clean API aliases ---
+
+  /** Alias: playSFX → play */
+  play(id: string, volume = 1): void { this.playSFX(id, volume); }
+
+  /** Alias: playMusic → music */
+  music(id: string, loop = true, volume = 0.5): void { this.playMusic(id, loop, volume); }
+
+  /** Set volume for a channel */
+  volume(channel: 'master' | 'music' | 'sfx', level: number): void {
+    this.ensureContext();
+    var v = Math.max(0, Math.min(1, level));
+    if (channel === 'master' && this.masterGain) this.masterGain.gain.value = v;
+    else if (channel === 'music' && this.musicGain) this.musicGain.gain.value = v;
+    else if (channel === 'sfx' && this.sfxGain) this.sfxGain.gain.value = v;
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -530,6 +625,664 @@ export async function createGame2D(config: Partial<Engine2DConfig> = {}): Promis
   });
   await engine.init();
   return engine;
+}
+
+// ---------------------------------------------------------------------------
+// SpawnSystem — engine.spawn.* namespace
+// ---------------------------------------------------------------------------
+
+export class SpawnSystem {
+  private engine: Engine2D;
+
+  constructor(engine: Engine2D) {
+    this.engine = engine;
+  }
+
+  /** Create a sprite from a texture at (x, y) */
+  sprite(texture: any, x = 0, y = 0, config: any = {}): any {
+    const spr = new PIXI.Sprite(texture);
+    spr.anchor.set(config.anchor?.x ?? 0.5, config.anchor?.y ?? 0.5);
+    spr.x = x;
+    spr.y = y;
+    if (config.scale !== undefined) spr.scale.set(config.scale);
+    if (config.tint !== undefined) spr.tint = config.tint;
+    if (config.alpha !== undefined) spr.alpha = config.alpha;
+    if (config.rotation !== undefined) spr.rotation = config.rotation;
+    if (config.zIndex !== undefined) spr.zIndex = config.zIndex;
+    return spr;
+  }
+
+  /** Create a text object */
+  text(x: number, y: number, text: string, style?: any): any {
+    const defaultStyle = {
+      fontFamily: 'Arial',
+      fontSize: 24,
+      fill: 0xffffff,
+      stroke: { color: 0x000000, width: 4 },
+      ...style,
+    };
+    const t = new PIXI.Text({ text, style: defaultStyle });
+    t.x = x;
+    t.y = y;
+    return t;
+  }
+
+  /** Create an animated sprite from an array of textures */
+  animatedSprite(textures: any[], speed = 0.15): any {
+    const anim = new PIXI.AnimatedSprite(textures);
+    anim.anchor.set(0.5);
+    anim.animationSpeed = speed;
+    anim.play();
+    return anim;
+  }
+
+  /** Create a tiling sprite */
+  tilingSprite(texture: any, x: number, y: number, width: number, height: number): any {
+    const ts = new PIXI.TilingSprite({ texture, width, height });
+    ts.x = x;
+    ts.y = y;
+    return ts;
+  }
+
+  /** Spawn a player entity at (x, y) with config */
+  player(x: number, y: number, config: any = {}): any {
+    const container = new PIXI.Container();
+    container.x = x;
+    container.y = y;
+    container.label = 'player';
+    (container as any)._config = { speed: 200, jumpForce: 450, health: 3, lives: 3, ...config };
+    return container;
+  }
+
+  /** Spawn an enemy entity at (x, y) */
+  enemy(x: number, y: number, type?: string, config: any = {}): any {
+    const container = new PIXI.Container();
+    container.x = x;
+    container.y = y;
+    container.label = 'enemy';
+    (container as any)._config = { type: type || 'patrol', health: 1, speed: 80, damage: 1, ...config };
+    return container;
+  }
+
+  /** Spawn a platform at (x, y) with given dimensions */
+  platform(x: number, y: number, width: number, height: number, config: any = {}): any {
+    const container = new PIXI.Container();
+    container.x = x;
+    container.y = y;
+    container.label = 'platform';
+    (container as any)._config = { width, height, isOneWay: false, ...config };
+    return container;
+  }
+
+  /** Spawn a coin/collectible at (x, y) */
+  coin(x: number, y: number, config: any = {}): any {
+    const container = new PIXI.Container();
+    container.x = x;
+    container.y = y;
+    container.label = 'coin';
+    (container as any)._config = { value: 10, bobSpeed: 2, ...config };
+    return container;
+  }
+
+  /** Spawn a projectile at (x, y) moving in direction */
+  projectile(x: number, y: number, direction: { x: number; y: number }, config: any = {}): any {
+    const container = new PIXI.Container();
+    container.x = x;
+    container.y = y;
+    container.label = 'projectile';
+    (container as any)._config = { speed: 400, damage: 1, lifetime: 3, direction, ...config };
+    return container;
+  }
+}
+
+// ---------------------------------------------------------------------------
+// EffectsSystem — engine.effects.* namespace (Proton particle presets)
+// ---------------------------------------------------------------------------
+
+export class EffectsSystem {
+  private engine: Engine2D;
+  private _activeEffects: any[] = [];
+
+  constructor(engine: Engine2D) {
+    this.engine = engine;
+  }
+
+  private _add(emitter: any): any {
+    this.engine.proton.addEmitter(emitter);
+    this._activeEffects.push(emitter);
+    return emitter;
+  }
+
+  private _burst(emitter: any, ms = 800): void {
+    this._add(emitter);
+    setTimeout(() => {
+      try { emitter.stop(); emitter.destroy(); this.engine.proton.removeEmitter(emitter); } catch(e) {}
+      var idx = this._activeEffects.indexOf(emitter);
+      if (idx >= 0) this._activeEffects.splice(idx, 1);
+    }, ms);
+  }
+
+  /** Rain — diagonal falling drops */
+  rain(intensity = 0.6): any {
+    var w = this.engine.config.width, h = this.engine.config.height;
+    var rate = Math.floor(10 + intensity * 40);
+    var emitter = new Proton.Emitter();
+    emitter.rate = new Proton.Rate(new Proton.Span(rate, rate + 10), new Proton.Span(0.01, 0.02));
+    emitter.addInitialize(new Proton.Life(0.6, 1.2));
+    emitter.addInitialize(new Proton.Radius(1, 2));
+    emitter.addInitialize(new Proton.Position(new Proton.LineZone(0, -20, w, -20)));
+    emitter.addInitialize(new Proton.Velocity(new Proton.Span(4, 8), new Proton.Span(250, 280), 'polar'));
+    emitter.addBehaviour(new Proton.Alpha(0.5, 0.1));
+    emitter.addBehaviour(new Proton.Color('#aaccff'));
+    emitter.addBehaviour(new Proton.CrossZone(new Proton.RectZone(-50, -50, w + 100, h + 50), 'dead'));
+    emitter.p.x = 0; emitter.p.y = 0;
+    emitter.emit();
+    return this._add(emitter);
+  }
+
+  /** Snow — soft fluttering snowflakes */
+  snow(density = 0.5): any {
+    var w = this.engine.config.width, h = this.engine.config.height;
+    var rate = Math.floor(5 + density * 20);
+    var emitter = new Proton.Emitter();
+    emitter.rate = new Proton.Rate(new Proton.Span(rate, rate + 5), new Proton.Span(0.05, 0.1));
+    emitter.addInitialize(new Proton.Life(3, 6));
+    emitter.addInitialize(new Proton.Radius(2, 5));
+    emitter.addInitialize(new Proton.Position(new Proton.LineZone(0, -20, w, -20)));
+    emitter.addInitialize(new Proton.Velocity(new Proton.Span(1, 3), new Proton.Span(260, 280), 'polar'));
+    emitter.addBehaviour(new Proton.Alpha(0.8, 0.2));
+    emitter.addBehaviour(new Proton.Color('#ffffff'));
+    emitter.addBehaviour(new Proton.RandomDrift(15, 5, 0.1));
+    emitter.addBehaviour(new Proton.CrossZone(new Proton.RectZone(-50, -50, w + 100, h + 50), 'dead'));
+    emitter.p.x = 0; emitter.p.y = 0;
+    emitter.emit();
+    return this._add(emitter);
+  }
+
+  /** Fire — flickering flames at a point */
+  fire(x: number, y: number, scale = 1): any {
+    var emitter = new Proton.Emitter();
+    emitter.rate = new Proton.Rate(new Proton.Span(4, 8), new Proton.Span(0.03, 0.06));
+    emitter.addInitialize(new Proton.Life(0.3, 0.8));
+    emitter.addInitialize(new Proton.Radius(5 * scale, 15 * scale));
+    emitter.addInitialize(new Proton.Position(new Proton.CircleZone(0, 0, 10 * scale)));
+    emitter.addInitialize(new Proton.Velocity(new Proton.Span(2, 5), new Proton.Span(85, 95), 'polar'));
+    emitter.addBehaviour(new Proton.Scale(1, 0.2));
+    emitter.addBehaviour(new Proton.Alpha(0.9, 0));
+    emitter.addBehaviour(new Proton.Color('#ff6600', '#220000'));
+    emitter.addBehaviour(new Proton.RandomDrift(3, 1, 0.05));
+    emitter.p.x = x; emitter.p.y = y;
+    emitter.emit();
+    return this._add(emitter);
+  }
+
+  /** Smoke — rising expanding puffs */
+  smoke(x: number, y: number): any {
+    var emitter = new Proton.Emitter();
+    emitter.rate = new Proton.Rate(new Proton.Span(2, 4), new Proton.Span(0.1, 0.2));
+    emitter.addInitialize(new Proton.Life(1.5, 3));
+    emitter.addInitialize(new Proton.Radius(8, 20));
+    emitter.addInitialize(new Proton.Velocity(new Proton.Span(1, 3), new Proton.Span(80, 100), 'polar'));
+    emitter.addBehaviour(new Proton.Scale(0.5, 2));
+    emitter.addBehaviour(new Proton.Alpha(0.5, 0));
+    emitter.addBehaviour(new Proton.Color('#666666', '#111111'));
+    emitter.addBehaviour(new Proton.RandomDrift(8, 2, 0.1));
+    emitter.p.x = x; emitter.p.y = y;
+    emitter.emit();
+    return this._add(emitter);
+  }
+
+  /** Explosion — radial burst (one-shot) */
+  explosion(x: number, y: number, color = '#ff4400'): void {
+    var emitter = new Proton.Emitter();
+    emitter.rate = new Proton.Rate(new Proton.Span(30, 60), 1);
+    emitter.addInitialize(new Proton.Life(0.4, 1.0));
+    emitter.addInitialize(new Proton.Radius(3, 12));
+    emitter.addInitialize(new Proton.Velocity(new Proton.Span(4, 12), new Proton.Span(0, 360), 'polar'));
+    emitter.addBehaviour(new Proton.Scale(1.2, 0.1));
+    emitter.addBehaviour(new Proton.Alpha(1, 0));
+    emitter.addBehaviour(new Proton.Color(color, '#000000'));
+    emitter.addBehaviour(new Proton.Rotate(new Proton.Span(0, 360), new Proton.Span(-4, 4), 'add'));
+    emitter.addBehaviour(new Proton.Gravity(3));
+    emitter.p.x = x; emitter.p.y = y;
+    emitter.emit('once');
+    this._burst(emitter, 1000);
+  }
+
+  /** Sparkle — radial shimmer (collect item, powerup) */
+  sparkle(x: number, y: number): void {
+    var emitter = new Proton.Emitter();
+    emitter.rate = new Proton.Rate(new Proton.Span(15, 30), 1);
+    emitter.addInitialize(new Proton.Life(0.4, 0.8));
+    emitter.addInitialize(new Proton.Radius(2, 7));
+    emitter.addInitialize(new Proton.Velocity(new Proton.Span(3, 8), new Proton.Span(0, 360), 'polar'));
+    emitter.addBehaviour(new Proton.Scale(1.2, 0));
+    emitter.addBehaviour(new Proton.Alpha(1, 0));
+    emitter.addBehaviour(new Proton.Color('#ffff00', '#ffffff'));
+    emitter.addBehaviour(new Proton.Rotate(new Proton.Span(0, 360), 'add'));
+    emitter.p.x = x; emitter.p.y = y;
+    emitter.emit('once');
+    this._burst(emitter, 800);
+  }
+
+  /** Dust puff — small burst on jump/land */
+  dust(x: number, y: number): void {
+    var emitter = new Proton.Emitter();
+    emitter.rate = new Proton.Rate(new Proton.Span(5, 10), 1);
+    emitter.addInitialize(new Proton.Life(0.15, 0.3));
+    emitter.addInitialize(new Proton.Radius(3, 8));
+    emitter.addInitialize(new Proton.Velocity(new Proton.Span(1, 4), new Proton.Span(60, 120), 'polar'));
+    emitter.addBehaviour(new Proton.Scale(0.8, 0.1));
+    emitter.addBehaviour(new Proton.Alpha(0.6, 0));
+    emitter.addBehaviour(new Proton.Color('#ccaa88'));
+    emitter.p.x = x; emitter.p.y = y;
+    emitter.emit('once');
+    this._burst(emitter, 500);
+  }
+
+  /** Trail — follows a moving target */
+  trail(target: any, color = '#44aaff'): any {
+    var emitter = new Proton.Emitter();
+    emitter.rate = new Proton.Rate(new Proton.Span(3, 6), new Proton.Span(0.02, 0.04));
+    emitter.addInitialize(new Proton.Life(0.2, 0.5));
+    emitter.addInitialize(new Proton.Radius(3, 8));
+    emitter.addBehaviour(new Proton.Scale(1, 0.1));
+    emitter.addBehaviour(new Proton.Alpha(0.7, 0));
+    emitter.addBehaviour(new Proton.Color(color, '#000000'));
+    if (target) { emitter.p.x = target.x; emitter.p.y = target.y; }
+    emitter.emit();
+    // Store target reference for position updates
+    (emitter as any)._trailTarget = target;
+    return this._add(emitter);
+  }
+
+  /** Ambient particles — theme-appropriate background effects */
+  ambient(type: 'fireflies' | 'embers' | 'dust' | 'leaves' | 'pollen'): any {
+    var w = this.engine.config.width, h = this.engine.config.height;
+    var emitter = new Proton.Emitter();
+
+    switch (type) {
+      case 'fireflies':
+        emitter.rate = new Proton.Rate(new Proton.Span(1, 3), new Proton.Span(0.3, 0.8));
+        emitter.addInitialize(new Proton.Life(3, 8));
+        emitter.addInitialize(new Proton.Radius(2, 4));
+        emitter.addInitialize(new Proton.Position(new Proton.RectZone(0, h * 0.3, w, h)));
+        emitter.addBehaviour(new Proton.Alpha(0, 1, Infinity, Proton.easeInOutSine));
+        emitter.addBehaviour(new Proton.Color('#ffff44'));
+        emitter.addBehaviour(new Proton.RandomDrift(20, 15, 0.2));
+        break;
+      case 'embers':
+        emitter.rate = new Proton.Rate(new Proton.Span(2, 4), new Proton.Span(0.1, 0.3));
+        emitter.addInitialize(new Proton.Life(1, 3));
+        emitter.addInitialize(new Proton.Radius(1, 3));
+        emitter.addInitialize(new Proton.Position(new Proton.LineZone(0, h + 10, w, h + 10)));
+        emitter.addInitialize(new Proton.Velocity(new Proton.Span(1, 4), new Proton.Span(80, 100), 'polar'));
+        emitter.addBehaviour(new Proton.Alpha(0.9, 0));
+        emitter.addBehaviour(new Proton.Color('#ff6600', '#ffaa00'));
+        emitter.addBehaviour(new Proton.RandomDrift(10, 3, 0.1));
+        break;
+      case 'dust':
+        emitter.rate = new Proton.Rate(new Proton.Span(1, 2), new Proton.Span(0.5, 1));
+        emitter.addInitialize(new Proton.Life(4, 8));
+        emitter.addInitialize(new Proton.Radius(1, 3));
+        emitter.addInitialize(new Proton.Position(new Proton.RectZone(0, 0, w, h)));
+        emitter.addBehaviour(new Proton.Alpha(0.2, 0.05));
+        emitter.addBehaviour(new Proton.Color('#ddccaa'));
+        emitter.addBehaviour(new Proton.RandomDrift(5, 3, 0.05));
+        break;
+      case 'leaves':
+        emitter.rate = new Proton.Rate(new Proton.Span(1, 2), new Proton.Span(0.5, 1.5));
+        emitter.addInitialize(new Proton.Life(4, 8));
+        emitter.addInitialize(new Proton.Radius(4, 8));
+        emitter.addInitialize(new Proton.Position(new Proton.LineZone(-20, -20, w + 20, -20)));
+        emitter.addInitialize(new Proton.Velocity(new Proton.Span(1, 3), new Proton.Span(240, 280), 'polar'));
+        emitter.addBehaviour(new Proton.Alpha(0.7, 0.1));
+        emitter.addBehaviour(new Proton.Color('#66aa33', '#aa6622'));
+        emitter.addBehaviour(new Proton.Rotate('random', 'random'));
+        emitter.addBehaviour(new Proton.RandomDrift(15, 5, 0.1));
+        emitter.addBehaviour(new Proton.CrossZone(new Proton.RectZone(-50, -50, w + 100, h + 50), 'dead'));
+        break;
+      case 'pollen':
+        emitter.rate = new Proton.Rate(new Proton.Span(1, 2), new Proton.Span(0.5, 1));
+        emitter.addInitialize(new Proton.Life(5, 10));
+        emitter.addInitialize(new Proton.Radius(1, 2));
+        emitter.addInitialize(new Proton.Position(new Proton.RectZone(0, 0, w, h)));
+        emitter.addBehaviour(new Proton.Alpha(0.4, 0.1));
+        emitter.addBehaviour(new Proton.Color('#ffffcc'));
+        emitter.addBehaviour(new Proton.RandomDrift(8, 4, 0.08));
+        break;
+    }
+
+    emitter.p.x = 0; emitter.p.y = 0;
+    emitter.emit();
+    return this._add(emitter);
+  }
+
+  /** Magic vortex — swirling color-shifting particles */
+  magic(x: number, y: number, color = '#aa44ff'): any {
+    var emitter = new Proton.Emitter();
+    emitter.rate = new Proton.Rate(new Proton.Span(5, 10), new Proton.Span(0.05, 0.1));
+    emitter.addInitialize(new Proton.Life(0.5, 1.5));
+    emitter.addInitialize(new Proton.Radius(3, 8));
+    emitter.addInitialize(new Proton.Position(new Proton.CircleZone(0, 0, 20)));
+    emitter.addInitialize(new Proton.Velocity(new Proton.Span(1, 3), new Proton.Span(0, 360), 'polar'));
+    emitter.addBehaviour(new Proton.Scale(1, 0));
+    emitter.addBehaviour(new Proton.Alpha(0.8, 0));
+    emitter.addBehaviour(new Proton.Color(color, '#ffffff'));
+    emitter.addBehaviour(new Proton.Cyclone(new Proton.Span(2, 5)));
+    emitter.p.x = x; emitter.p.y = y;
+    emitter.emit();
+    return this._add(emitter);
+  }
+
+  /** Shockwave — pixi-filters ShockwaveFilter + GSAP */
+  shockwave(x: number, y: number): void {
+    var gsap = (window as any).gsap;
+    var container = this.engine.world;
+    if (!PIXI.filters || !PIXI.filters.ShockwaveFilter || !gsap) return;
+    var filter = new PIXI.filters.ShockwaveFilter({
+      center: [x / (container.width || 800), y / (container.height || 600)],
+      speed: 400, amplitude: 20, wavelength: 120, brightness: 1.2, radius: -1,
+    });
+    if (!container.filters) container.filters = [];
+    container.filters.push(filter);
+    gsap.to(filter, {
+      time: 1.5, duration: 0.8, ease: 'power2.out',
+      onComplete: function() {
+        var idx = container.filters ? container.filters.indexOf(filter) : -1;
+        if (idx >= 0) container.filters.splice(idx, 1);
+      }
+    });
+  }
+
+  /** Remove all active continuous effects */
+  destroyAll(): void {
+    for (var i = 0; i < this._activeEffects.length; i++) {
+      try {
+        this._activeEffects[i].stop();
+        this._activeEffects[i].destroy();
+        this.engine.proton.removeEmitter(this._activeEffects[i]);
+      } catch(e) {}
+    }
+    this._activeEffects = [];
+  }
+}
+
+// ---------------------------------------------------------------------------
+// PhysicsSystem — engine.physics.* namespace
+// ---------------------------------------------------------------------------
+
+export class PhysicsSystem {
+  private engine: Engine2D;
+  bodies: any[] = [];
+  private _colliders: Array<{ a: string; b: string; callback?: Function }> = [];
+  private _overlaps: Array<{ a: string; b: string; callback?: Function }> = [];
+
+  constructor(engine: Engine2D) {
+    this.engine = engine;
+  }
+
+  /** Set world gravity */
+  gravity(value: number): void {
+    this.engine.config.gravity = value;
+  }
+
+  /** Add a physics body to an object */
+  addBody(obj: any, config: any = {}): any {
+    var body = {
+      x: obj.x || 0, y: obj.y || 0,
+      vx: 0, vy: 0, ax: 0, ay: 0,
+      hw: (config.width || 32) / 2,
+      hh: (config.height || 32) / 2,
+      mass: config.mass ?? 1,
+      friction: config.friction ?? 0.2,
+      bounce: config.bounce ?? 0,
+      isStatic: config.isStatic ?? false,
+      isOneWay: config.isOneWay ?? false,
+      isSensor: config.isSensor ?? false,
+      enabled: true,
+      onGround: false,
+      onWall: null,
+      onCeiling: false,
+      tag: config.tag || '',
+      sprite: obj,
+      userData: config.userData || null,
+    };
+    obj.body = body;
+    this.bodies.push(body);
+    return body;
+  }
+
+  /** Register collision handler between two tags */
+  collider(tagA: string, tagB: string, callback?: Function): void {
+    this._colliders.push({ a: tagA, b: tagB, callback });
+  }
+
+  /** Register overlap (sensor) handler between two tags */
+  overlap(tagA: string, tagB: string, callback?: Function): void {
+    this._overlaps.push({ a: tagA, b: tagB, callback });
+  }
+
+  /** Remove a body */
+  removeBody(body: any): void {
+    var idx = this.bodies.indexOf(body);
+    if (idx >= 0) this.bodies.splice(idx, 1);
+  }
+}
+
+// ---------------------------------------------------------------------------
+// SceneSystem — engine.scene.* namespace
+// ---------------------------------------------------------------------------
+
+export class SceneSystem {
+  private engine: Engine2D;
+
+  constructor(engine: Engine2D) {
+    this.engine = engine;
+  }
+
+  /** Switch to a named scene */
+  switch(name: string, data?: any): void {
+    this.engine.switchScene(name, data);
+  }
+
+  /** Add a scene to the engine */
+  add(scene: GameScene): void {
+    this.engine.addScene(scene);
+  }
+}
+
+// ---------------------------------------------------------------------------
+// UISystem — engine.ui.* namespace
+// ---------------------------------------------------------------------------
+
+export class UISystem {
+  private engine: Engine2D;
+
+  constructor(engine: Engine2D) {
+    this.engine = engine;
+  }
+
+  // --- Backward compat: proxy PIXI.Container methods to uiLayer ---
+  addChild(child: any): any { return this.engine.uiLayer.addChild(child); }
+  removeChild(child: any): void { this.engine.uiLayer.removeChild(child); }
+  removeChildren(): void { this.engine.uiLayer.removeChildren(); }
+
+  /** Create a health bar UI element */
+  healthBar(x: number, y: number, config: any = {}): any {
+    var maxHp = config.maxHealth || 3;
+    var w = config.width || 200;
+    var h = config.height || 20;
+    var container = new PIXI.Container();
+    container.x = x; container.y = y;
+
+    // Background
+    var bg = new PIXI.Graphics();
+    bg.roundRect(0, 0, w, h, 4);
+    bg.fill({ color: config.bgColor || 0x333333 });
+    container.addChild(bg);
+
+    // Fill bar
+    var fill = new PIXI.Graphics();
+    fill.roundRect(0, 0, w, h, 4);
+    fill.fill({ color: config.color || 0x44cc44 });
+    container.addChild(fill);
+
+    // Border
+    var border = new PIXI.Graphics();
+    border.roundRect(0, 0, w, h, 4);
+    border.stroke({ color: config.borderColor || 0xffffff, width: 2 });
+    container.addChild(border);
+
+    container._hp = maxHp;
+    container._maxHp = maxHp;
+    container._fill = fill;
+    container._barWidth = w;
+    container.setHealth = function(hp: number) {
+      this._hp = Math.max(0, Math.min(hp, this._maxHp));
+      var pct = this._hp / this._maxHp;
+      this._fill.scale.x = pct;
+    };
+
+    this.engine.uiLayer.addChild(container);
+    return container;
+  }
+
+  /** Create an animated score counter */
+  score(x: number, y: number, config: any = {}): any {
+    var prefix = config.prefix || 'Score: ';
+    var textObj = new PIXI.Text({
+      text: prefix + '0',
+      style: {
+        fontFamily: 'Arial', fontSize: config.fontSize || 28,
+        fill: config.color || 0xffffff,
+        stroke: { color: 0x000000, width: 4 },
+      }
+    });
+    textObj.x = x; textObj.y = y;
+    textObj._score = 0;
+    textObj._prefix = prefix;
+    textObj.setScore = function(v: number) {
+      this._score = v;
+      this.text = this._prefix + v;
+      if (config.juiceOnChange !== false) {
+        var eng = (this as any)._engine;
+        if (eng) eng.juice.pop(this);
+      }
+    };
+    textObj.addScore = function(v: number) { this.setScore(this._score + v); };
+    textObj._engine = this.engine;
+
+    this.engine.uiLayer.addChild(textObj);
+    return textObj;
+  }
+
+  /** Create a countdown/count-up timer */
+  timer(x: number, y: number, config: any = {}): any {
+    var textObj = new PIXI.Text({
+      text: '0:00',
+      style: {
+        fontFamily: 'Arial', fontSize: config.fontSize || 28,
+        fill: config.color || 0xffffff,
+        stroke: { color: 0x000000, width: 4 },
+      }
+    });
+    textObj.x = x; textObj.y = y;
+    textObj._seconds = config.seconds || 0;
+    textObj._countDown = config.countDown || false;
+    textObj._elapsed = 0;
+    textObj._urgencyColor = config.urgencyColor || 0xff4444;
+    textObj._urgencyThreshold = config.urgencyThreshold || 10;
+    textObj._normalColor = config.color || 0xffffff;
+    textObj._running = false;
+
+    textObj.start = function() { this._running = true; };
+    textObj.stop = function() { this._running = false; };
+    textObj.tick = function(dt: number) {
+      if (!this._running) return;
+      if (this._countDown) {
+        this._seconds = Math.max(0, this._seconds - dt);
+      } else {
+        this._seconds += dt;
+      }
+      var m = Math.floor(this._seconds / 60);
+      var s = Math.floor(this._seconds % 60);
+      this.text = m + ':' + (s < 10 ? '0' : '') + s;
+      // Urgency coloring
+      if (this._countDown && this._seconds <= this._urgencyThreshold) {
+        this.style.fill = this._urgencyColor;
+      } else {
+        this.style.fill = this._normalColor;
+      }
+    };
+
+    this.engine.uiLayer.addChild(textObj);
+    return textObj;
+  }
+
+  /** Create a text UI element */
+  text(x: number, y: number, text: string, style?: any): any {
+    var t = this.engine.spawn.text(x, y, text, style);
+    this.engine.uiLayer.addChild(t);
+    return t;
+  }
+}
+
+// ---------------------------------------------------------------------------
+// AssetsSystem — engine.assets.* namespace
+// ---------------------------------------------------------------------------
+
+export class AssetsSystem {
+  private engine: Engine2D;
+  private _cache: Map<string, any> = new Map();
+
+  constructor(engine: Engine2D) {
+    this.engine = engine;
+  }
+
+  /** Load and return a sprite from a texture key/URL */
+  async load(key: string, url: string): Promise<any> {
+    try {
+      var tex = await PIXI.Assets.load(url);
+      this._cache.set(key, tex);
+      return tex;
+    } catch(e) {
+      console.warn('[Assets] Failed to load:', key, url, e);
+      return null;
+    }
+  }
+
+  /** Get a loaded texture as a new Sprite */
+  sprite(key: string): any {
+    var tex = this._cache.get(key);
+    if (!tex) { console.warn('[Assets] Not loaded:', key); return null; }
+    var spr = new PIXI.Sprite(tex);
+    spr.anchor.set(0.5);
+    return spr;
+  }
+
+  /** Get a loaded spritesheet animation as AnimatedSprite */
+  animation(key: string, animName?: string): any {
+    var sheet = this._cache.get(key);
+    if (!sheet || !sheet.animations) { console.warn('[Assets] No animation:', key); return null; }
+    var frames = animName ? sheet.animations[animName] : Object.values(sheet.animations)[0];
+    if (!frames) return null;
+    var anim = new PIXI.AnimatedSprite(frames as any);
+    anim.anchor.set(0.5);
+    anim.animationSpeed = 0.15;
+    anim.play();
+    return anim;
+  }
+
+  /** Get a raw texture by key */
+  texture(key: string): any {
+    return this._cache.get(key) || null;
+  }
+
+  /** Check if a key is loaded */
+  has(key: string): boolean {
+    return this._cache.has(key);
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -634,6 +1387,20 @@ export class JuiceSystem {
       idx++;
     }, speed * 1000);
   }
+
+  // --- Clean API aliases (engine.juice.pop, engine.juice.shake, etc.) ---
+
+  /** Alias: scalePop → pop */
+  pop(obj: any, scale = 1.3, duration = 0.2): void { this.scalePop(obj, scale, duration); }
+
+  /** Alias: screenShake → shake (takes container) */
+  shake(container: any, intensity = 8, duration = 0.3): void { this.screenShake(container, intensity, duration); }
+
+  /** Alias: colorFlash → flash */
+  flash(obj: any, color = 0xffffff, duration = 0.15): void { this.colorFlash(obj, color, duration); }
+
+  /** Alias: squashStretch → squash */
+  squash(obj: any, squashY = 0.7, stretchY = 1.15): void { this.squashStretch(obj, squashY, stretchY); }
 
   /** Cleanup all active looping tweens */
   killAll(): void {

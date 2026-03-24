@@ -2245,7 +2245,7 @@ export class GameOverScene implements GameScene {
     }
     // Restart
     if (engine.input.wasPressed(' ')) {
-      engine.switchScene('game');
+      engine.scene.switch('game');
     }
     engine.input.endFrame();
   }
@@ -2885,20 +2885,20 @@ export class GameScene2D implements GameScene {
         self.score += 10;
         if (self.scoreText) {
           self.scoreText.text = String(self.score);
-          engine.juice.scalePop(self.scoreText, 1.4, 0.25);
+          engine.juice.pop(self.scoreText, 1.4, 0.25);
         }
       }
       if (enemy && player && enemy.enabled !== false && self.invincibleTimer <= 0) {
         self.lives--;
         self.invincibleTimer = 1.5;
-        engine.juice.screenShake(engine.world, 10, 0.3);
+        engine.juice.shake(engine.world, 10, 0.3);
         engine.juice.hitPause(engine.app, 80);
-        engine.juice.colorFlash(self.playerGfx, 0xff0000, 0.15);
+        engine.juice.flash(self.playerGfx, 0xff0000, 0.15);
         onDeathExplosion(engine.proton, enemy.x, enemy.y, '#ff4444');
         self.playerBody.vy = -350;
         self.updateLivesDisplay(engine);
         if (self.lives <= 0) {
-          engine.switchScene('gameover', { score: self.score });
+          engine.scene.switch('gameover', { score: self.score });
         }
       }
     });
@@ -3106,7 +3106,7 @@ export class GameScene2D implements GameScene {
       // Land impact
       if (this.playerCtrl.body.onGround && !wasOnGround) {
         onLandImpact(engine.proton, this.playerCtrl.body.x, this.playerCtrl.body.y + 22);
-        engine.juice.squashStretch(this.playerGfx, 0.7, 1.15);
+        engine.juice.squash(this.playerGfx, 0.7, 1.15);
       }
     }
 
@@ -3152,7 +3152,7 @@ export class GameScene2D implements GameScene {
 
     // ---- Fall death ----
     if (this.playerCtrl && this.playerCtrl.body.y > CONFIG.worldHeight + 100) {
-      engine.switchScene('gameover', { score: this.score });
+      engine.scene.switch('gameover', { score: this.score });
     }
 
     // ---- Fog drift ----
@@ -3340,7 +3340,7 @@ export class GameScene2D implements GameScene {
     // Fall death
     if (this.playerBody && this.playerBody.y > CONFIG.groundY + 200) {
       this.gameOver = true;
-      engine.switchScene('gameover', { score: this.score + Math.floor(this.distance) });
+      engine.scene.switch('gameover', { score: this.score + Math.floor(this.distance) });
     }
     engine.input.endFrame();
   }
@@ -3491,7 +3491,7 @@ export class GameScene2D implements GameScene {
     }
     if (count === 0) { this.animating = false; return; }
     this.score += count * 10;
-    if (this.scoreText) { this.scoreText.text = String(this.score); engine.juice.scalePop(this.scoreText, 1.3, 0.2); }
+    if (this.scoreText) { this.scoreText.text = String(this.score); engine.juice.pop(this.scoreText, 1.3, 0.2); }
     // Cascade: drop gems down, fill top
     var self = this;
     setTimeout(function() { self._cascade(engine); }, 200);
@@ -3686,8 +3686,8 @@ export class GameScene2D implements GameScene {
         try { onDeathExplosion(engine.proton, en.gfx.x, en.gfx.y, '#ff4444'); } catch(e) {}
         en.gfx.destroy(); this.enemies.splice(ei, 1);
         this.lives--; this._updateLives(engine);
-        engine.juice.screenShake(engine.world, 8, 0.25);
-        if (this.lives <= 0) { engine.switchScene('gameover', { score: this.score }); }
+        engine.juice.shake(engine.world, 8, 0.25);
+        if (this.lives <= 0) { engine.scene.switch('gameover', { score: this.score }); }
         continue;
       }
       // Bullet-enemy collision
@@ -3697,7 +3697,7 @@ export class GameScene2D implements GameScene {
           try { onCollectSparkle(engine.proton, en.gfx.x, en.gfx.y); } catch(e) {}
           en.gfx.destroy(); this.enemies.splice(ei, 1);
           bl.gfx.destroy(); this.bullets.splice(bj, 1);
-          this.score += 100; if (this.scoreText) { this.scoreText.text = String(this.score); engine.juice.scalePop(this.scoreText, 1.3, 0.15); }
+          this.score += 100; if (this.scoreText) { this.scoreText.text = String(this.score); engine.juice.pop(this.scoreText, 1.3, 0.15); }
           // Wave progression
           if (this.score > 0 && this.score % 1000 === 0) { this.wave++; }
           break;
@@ -3952,22 +3952,22 @@ export class GameScene2D implements GameScene {
         self.score += 10;
         if (self.scoreText) {
           self.scoreText.text = String(self.score);
-          engine.juice.scalePop(self.scoreText, 1.4, 0.25);
+          engine.juice.pop(self.scoreText, 1.4, 0.25);
         }
       }
       if (enemy && player && enemy.enabled !== false && self.invincibleTimer <= 0) {
         // Player hit by enemy — juice feedback
         self.lives--;
         self.invincibleTimer = 1.5;
-        engine.juice.screenShake(engine.world, 10, 0.3);
+        engine.juice.shake(engine.world, 10, 0.3);
         engine.juice.hitPause(engine.app, 80);
-        engine.juice.colorFlash(self.playerGfx, 0xff0000, 0.15);
+        engine.juice.flash(self.playerGfx, 0xff0000, 0.15);
         onDeathExplosion(engine.proton, enemy.x, enemy.y, '#ff4444');
         // Bounce player up
         self.playerBody.vy = -350;
         self.updateLivesDisplay(engine);
         if (self.lives <= 0) {
-          engine.switchScene('gameover', { score: self.score });
+          engine.scene.switch('gameover', { score: self.score });
         }
       }
     });
@@ -4116,7 +4116,7 @@ export class GameScene2D implements GameScene {
       // Land impact + squash & stretch via juice system
       if (this.playerCtrl.body.onGround && !wasOnGround) {
         onLandImpact(engine.proton, this.playerCtrl.body.x, this.playerCtrl.body.y + 22);
-        engine.juice.squashStretch(this.playerGfx, 0.7, 1.15);
+        engine.juice.squash(this.playerGfx, 0.7, 1.15);
       }
     }
 
@@ -4173,7 +4173,7 @@ export class GameScene2D implements GameScene {
 
     // ---- Fall death ----
     if (this.playerCtrl && this.playerCtrl.body.y > CONFIG.worldHeight + 100) {
-      engine.switchScene('gameover', { score: this.score });
+      engine.scene.switch('gameover', { score: this.score });
     }
 
     engine.input.endFrame();
@@ -4312,15 +4312,15 @@ export class GameScene2D implements GameScene {
         if (coin.sprite) coin.sprite.visible = false;
         coin.enabled = false;
         self.score += 50;
-        if (self.scoreText) engine.juice.scalePop(self.scoreText, 1.3, 0.2);
+        if (self.scoreText) engine.juice.pop(self.scoreText, 1.3, 0.2);
       }
       if (obs && player && !self.gameOver) {
         self.gameOver = true;
-        engine.juice.screenShake(engine.world, 12, 0.4);
+        engine.juice.shake(engine.world, 12, 0.4);
         engine.juice.hitPause(engine.app, 100);
-        engine.juice.colorFlash(self.playerGfx, 0xff0000, 0.15);
+        engine.juice.flash(self.playerGfx, 0xff0000, 0.15);
         onDeathExplosion(engine.proton, self.playerBody.x, self.playerBody.y);
-        setTimeout(function() { engine.switchScene('gameover', { score: self.score }); }, 800);
+        setTimeout(function() { engine.scene.switch('gameover', { score: self.score }); }, 800);
       }
     });
 
@@ -4366,7 +4366,7 @@ export class GameScene2D implements GameScene {
     }
     if (this.playerBody.onGround && this.isJumping) {
       onLandImpact(engine.proton, this.playerBody.x, this.playerBody.y + 20);
-      engine.juice.squashStretch(this.playerGfx, 0.75, 1.12);
+      engine.juice.squash(this.playerGfx, 0.75, 1.12);
       this.isJumping = false;
     }
 
@@ -4686,7 +4686,7 @@ export class GameScene2D implements GameScene {
       var pos = matches[m];
       var gem = this.grid[pos.row][pos.col];
       if (gem) {
-        engine.juice.scalePop(gem, 1.4, 0.15);
+        engine.juice.pop(gem, 1.4, 0.15);
         onCollectSparkle(engine.proton, gem.x, gem.y);
       }
     }
@@ -4707,11 +4707,11 @@ export class GameScene2D implements GameScene {
       }
       if (self.scoreText) {
         self.scoreText.text = String(self.score);
-        engine.juice.scalePop(self.scoreText, 1.3, 0.2);
+        engine.juice.pop(self.scoreText, 1.3, 0.2);
       }
       // Screen shake on big combos (4+ gems)
       if (matches.length >= 4) {
-        engine.juice.screenShake(engine.world, 5 + matches.length, 0.2);
+        engine.juice.shake(engine.world, 5 + matches.length, 0.2);
       }
 
       // Gravity fill after delay
@@ -5047,7 +5047,7 @@ export class GameScene2D implements GameScene {
 
       if (hit) {
         onDeathExplosion(engine.proton, en.x, en.y, '#ff6600');
-        engine.juice.screenShake(engine.world, 4, 0.15);
+        engine.juice.shake(engine.world, 4, 0.15);
         this.container.removeChild(en.gfx);
         this.enemies.splice(ei, 1);
         this.score += 100 * this.wave;
@@ -5058,7 +5058,7 @@ export class GameScene2D implements GameScene {
         }
         if (this.scoreText) {
           this.scoreText.text = String(this.score);
-          engine.juice.scalePop(this.scoreText, 1.2, 0.15);
+          engine.juice.pop(this.scoreText, 1.2, 0.15);
         }
         continue;
       }
@@ -5066,15 +5066,15 @@ export class GameScene2D implements GameScene {
       // Enemy-player collision
       if (Math.abs(en.x - this.playerX) < 25 && Math.abs(en.y - this.playerY) < 25) {
         onDeathExplosion(engine.proton, en.x, en.y);
-        engine.juice.screenShake(engine.world, 10, 0.3);
+        engine.juice.shake(engine.world, 10, 0.3);
         engine.juice.hitPause(engine.app, 60);
-        engine.juice.colorFlash(this.playerGfx, 0xff0000, 0.15);
+        engine.juice.flash(this.playerGfx, 0xff0000, 0.15);
         this.container.removeChild(en.gfx);
         this.enemies.splice(ei, 1);
         this.lives--;
         this.updateLives();
         if (this.lives <= 0) {
-          engine.switchScene('gameover', { score: this.score });
+          engine.scene.switch('gameover', { score: this.score });
           return;
         }
         continue;
