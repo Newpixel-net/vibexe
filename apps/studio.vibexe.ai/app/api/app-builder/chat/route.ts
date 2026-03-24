@@ -989,8 +989,39 @@ const supabase = createClient("${supabaseConfig.url}", "${supabaseConfig.anonKey
 				}
 			}
 
-			// 2D games: NO base scene injection — AI writes GameScene2D.ts from scratch
-			// (Creative pipeline: AI creates unique game code every time)
+			// 2D games: inject MINIMAL placeholder so preview compiles during plan phase
+			// AI overwrites this completely with its unique game during build phase
+			if (isGame2d && !existingPaths.has("src/scenes/GameScene2D.ts")) {
+				const theme = game2dBrief?.theme || "forest";
+				const placeholderScene = `// Placeholder — AI will overwrite with unique game
+import { Engine2D, GameScene } from "../engine/core";
+import { PALETTES, drawSkyGradient } from "../config/assets";
+
+export default class GameScene2D implements GameScene {
+  private _update: ((dt: number) => void) | null = null;
+  async enter(engine: Engine2D) {
+    var PAL = PALETTES["${theme}"];
+    var app = engine.app, W = app.screen.width, H = app.screen.height;
+    var world = new PIXI.Container();
+    app.stage.addChild(world);
+    var sky = drawSkyGradient(W, H, PAL.skyTop, PAL.skyBottom);
+    world.addChild(sky);
+    var txt = new PIXI.Text({ text: "Building your game...", style: { fill: 0xFFFFFF, fontSize: 20, fontWeight: "bold", stroke: { color: 0x000000, width: 3 } } });
+    txt.anchor.set(0.5); txt.x = W / 2; txt.y = H / 2;
+    app.stage.addChild(txt);
+    this._update = () => {};
+  }
+  update(engine: Engine2D, dt: number) { this._update?.(dt); }
+  exit(engine: Engine2D) {}
+}
+`;
+				try {
+					await saveFile(appId, "src/scenes/GameScene2D.ts", placeholderScene, "typescript");
+					console.log(`[Chat API] Minimal placeholder scene injected (theme: ${theme})`);
+				} catch (e) {
+					console.error(`[Chat API] Placeholder injection failed:`, e);
+				}
+			}
 
 			// Save 2D game seed to settings so UI can display it
 			if (isGame2d && game2dBrief && !existingPaths.has("src/__game-settings.json") && !existingPaths.has("__game-settings.json")) {
@@ -1283,18 +1314,18 @@ These sprites have white backgrounds — set blendMode or use alpha masking if n
 			// Creative pipeline workflow — AI writes unique game from scratch
 			runtimeAddenda.push(`## 2D Game — Creative Pipeline
 
-**Write GameScene2D.ts from scratch.** Every game must be structurally unique.
+**A minimal placeholder exists in GameScene2D.ts — OVERWRITE it completely with your unique game using \`update_file\`.**
 
 ### Workflow:
 1. **Read the Creative Brief** above — implement ALL 10 dimensions creatively
-2. **Write src/scenes/GameScene2D.ts** using engine APIs (see reference games and engine docs in your system prompt)
+2. **Use \`update_file\` on src/scenes/GameScene2D.ts** to REPLACE the placeholder with your full unique game (300-800 lines)
 3. **Use Feature Bank snippets** for pre-tested mechanics: \`engine.features.register('id', factory, config, deps)\`
 4. **Create custom mechanics** — draw unique entities with Canvas 2D / PIXI.Graphics
 5. **Create** \`docs/README.md\` and \`src/config/constants.ts\`
 6. Optionally create helper files in \`src/game/*.ts\` for complex mechanics
 
 ### RULES:
-1. Write GameScene2D.ts FROM SCRATCH — do NOT copy templates or reference games
+1. OVERWRITE the placeholder GameScene2D.ts — do NOT copy templates or reference games
 2. DO NOT create App.tsx, Game2D.tsx, or any engine files — they are LOCKED
 3. You MUST use: drawSkyGradient, drawMountainRange, PALETTES, particles, engine.juice — for visual quality
 4. You MUST call \`await _loadSpriteLib(THEME)\` at the start of enter()
