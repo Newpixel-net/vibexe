@@ -191,9 +191,15 @@ export class SpritesheetCapture {
 		const maxDim = Math.max(size.x, size.y, size.z);
 		if (maxDim === 0) return;
 
-		// Scale first — 1.8 units fills ~85% of the camera viewport at z=2.5
+		// For characters in T-pose, the bounding box width (arms extended) is
+		// much larger than height, making the character tiny in the frame.
+		// Use HEIGHT as primary scaling dimension when it's substantial (>30% of max),
+		// which ensures characters fill the frame vertically. Animation poses
+		// (idle, walk) have arms closer to body so width overflow is minimal.
+		// For flat/wide objects (height <30% of max), fall back to maxDim.
 		const targetSize = 1.8;
-		const scale = targetSize / maxDim;
+		const primaryDim = size.y > maxDim * 0.3 ? size.y : maxDim;
+		const scale = targetSize / primaryDim;
 		model.scale.multiplyScalar(scale);
 
 		// Recompute bounds AFTER scaling, then center at origin
