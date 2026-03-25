@@ -53,6 +53,8 @@ function hasCanvas(): boolean {
 // ============================================================================
 
 import { _getSprite, _getAnimatedSprite, _loadSpriteLib, _sheetCache } from '../utils/media-stock';
+import { createAmbientEffect, createSnowEffect, createRainEffect, onJumpDust, onLandImpact, onCollectSparkle, onDeathExplosion } from '../engine/effects';
+import { PhysicsWorld, createBody, createStaticBody, createOneWayPlatform, CharacterController } from '../engine/physics';
 
 /** Check if sprite lib imports are available */
 function _hasSpriteLib(): boolean {
@@ -2093,8 +2095,10 @@ export function applyGodrayFilter(container: any, theme: string): any {
   } catch(e) { return null; }
 }
 
-// Re-export sprite utilities so AI can import from either config/assets or utils/media-stock
+// Re-export so AI can import from config/assets regardless of actual source file
 export { _loadSpriteLib, _sheetCache };
+export { createAmbientEffect, createSnowEffect, createRainEffect, onJumpDust, onLandImpact, onCollectSparkle, onDeathExplosion };
+export { PhysicsWorld, createBody, createStaticBody, createOneWayPlatform, CharacterController };
 `;
 
 // ============================================================================
