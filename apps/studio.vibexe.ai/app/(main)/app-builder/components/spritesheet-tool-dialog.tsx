@@ -395,7 +395,8 @@ export function SpritesheetToolDialog({ appId, open, onOpenChange, onGenerated }
 					</div>
 
 					{/* Right column: Controls */}
-					<div className="flex-1 flex flex-col overflow-y-auto overflow-x-hidden min-w-0">
+					<div className="flex-1 flex flex-col overflow-x-hidden min-w-0">
+						<div className="flex-1 overflow-y-auto">
 						{/* Model Source Tabs */}
 						<div className="px-4 pt-3 pb-2 border-b border-white/[0.06]">
 							<div className="flex gap-1 mb-3">
@@ -636,6 +637,8 @@ export function SpritesheetToolDialog({ appId, open, onOpenChange, onGenerated }
 								)}
 							</div>
 						</div>
+
+						</div>{/* end scrollable area */}
 
 						{/* Action buttons + status */}
 						<div className="px-4 py-3 border-t border-white/[0.06] space-y-2 flex-shrink-0 bg-[#0d0d1a]">
