@@ -14,7 +14,7 @@ import { generateRuntimeBootstrap } from "./runtime-bootstrap";
 
 // Bump this when generateGameEntry() or the compiler wrapper changes
 // so esbuild cache busts without waiting for CACHE_TTL expiry
-const COMPILER_VERSION = "30";
+const COMPILER_VERSION = "31";
 
 // In-memory LRU cache for compiled bundles
 const bundleCache = new Map<string, { bundle: string; timestamp: number }>();
@@ -441,6 +441,19 @@ const _SceneClass = _m.GameScene2D || _m.GameScene || _m.PlatformerGameScene
       await app.init({ width: window.innerWidth, height: window.innerHeight, backgroundColor: 0x1a1a2e });
       document.getElementById('root')!.appendChild(app.canvas);
       engine = { app, proton: new Proton() };
+    }
+
+    // Patch camera.applyTo alias (old engine templates don't have it)
+    if (engine.camera && !engine.camera.applyTo) {
+      engine.camera.applyTo = function(container: any) { engine.camera.update(container); };
+    }
+    // Patch camera.follow to accept (x,y) in addition to (sprite)
+    if (engine.camera && engine.camera.follow) {
+      const _origFollow = engine.camera.follow.bind(engine.camera);
+      engine.camera.follow = function(a: any, b?: any) {
+        if (typeof a === 'number' && typeof b === 'number') { engine.camera.target = { x: a, y: b }; }
+        else { _origFollow(a); }
+      };
     }
 
     // Create and start game scene
