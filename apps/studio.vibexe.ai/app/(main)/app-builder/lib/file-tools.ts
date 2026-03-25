@@ -111,10 +111,6 @@ export function createFileTools(appId: string, options?: FileToolsOptions) {
 					.string()
 					.describe(
 						'File path relative to project root, e.g., "src/App.tsx" or "src/components/Button.tsx"',
-					)
-					.regex(
-						/^[a-zA-Z0-9_\-./]+$/,
-						"Path must contain only alphanumeric characters, underscores, hyphens, dots, and slashes",
 					),
 				content: z
 					.string()
