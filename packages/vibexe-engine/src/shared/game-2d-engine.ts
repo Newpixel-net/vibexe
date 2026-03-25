@@ -72,6 +72,15 @@ export class Engine2D {
   assets: AssetsSystem;
   features: FeatureManager;
 
+  // Simple event bus — AI uses engine.events.emit(name, data)
+  events = {
+    _handlers: new Map<string, Array<(data: any) => void>>(),
+    on(name: string, fn: (data: any) => void) { if (!this._handlers.has(name)) this._handlers.set(name, []); this._handlers.get(name)!.push(fn); },
+    off(name: string, fn: (data: any) => void) { const h = this._handlers.get(name); if (h) { const i = h.indexOf(fn); if (i >= 0) h.splice(i, 1); } },
+    emit(name: string, data?: any) { const h = this._handlers.get(name); if (h) for (const fn of h) try { fn(data); } catch(e) { console.warn('[Events]', name, e); } },
+    clear() { this._handlers.clear(); },
+  };
+
   private scenes: Map<SceneName, GameScene> = new Map();
   private currentScene: GameScene | null = null;
   private _elapsed = 0;
