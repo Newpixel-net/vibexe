@@ -674,12 +674,12 @@ export function SpritesheetToolDialog({ appId, open, onOpenChange, onGenerated }
 							)}
 
 							{/* Buttons */}
-							<div className="flex gap-2">
+							<div className="flex gap-2 min-w-0">
 								<button
 									type="button"
 									onClick={runPreview}
 									disabled={!loadedModel || isWorking}
-									className="flex items-center gap-1 px-4 py-2 rounded-md text-xs font-medium text-white/60 hover:text-white/80 bg-white/[0.04] border border-white/[0.08] hover:bg-white/[0.08] transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+									className="flex-shrink-0 flex items-center gap-1 px-3 py-2 rounded-md text-xs font-medium text-white/60 hover:text-white/80 bg-white/[0.04] border border-white/[0.08] hover:bg-white/[0.08] transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
 								>
 									<Play className="size-3" />
 									Preview
@@ -688,14 +688,14 @@ export function SpritesheetToolDialog({ appId, open, onOpenChange, onGenerated }
 									type="button"
 									onClick={generate}
 									disabled={!loadedModel || isWorking}
-									className="flex-1 flex items-center justify-center gap-1 px-4 py-2 rounded-md text-xs font-medium bg-blue-500/20 text-blue-400 border border-blue-500/30 hover:bg-blue-500/30 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+									className="flex-1 min-w-0 flex items-center justify-center gap-1 px-3 py-2 rounded-md text-xs font-medium bg-blue-500/20 text-blue-400 border border-blue-500/30 hover:bg-blue-500/30 transition-colors disabled:opacity-40 disabled:cursor-not-allowed truncate"
 								>
 									{isWorking ? (
-										<Loader2 className="size-3 animate-spin" />
+										<Loader2 className="size-3 animate-spin flex-shrink-0" />
 									) : (
-										<Camera className="size-3" />
+										<Camera className="size-3 flex-shrink-0" />
 									)}
-									{phase === "done" ? "Regenerate" : "Generate Spritesheet"}
+									<span className="truncate">{phase === "done" ? "Regenerate" : "Generate Spritesheet"}</span>
 								</button>
 							</div>
 						</div>
