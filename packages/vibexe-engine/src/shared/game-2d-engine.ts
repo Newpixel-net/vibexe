@@ -85,6 +85,7 @@ export class Engine2D {
   private currentScene: GameScene | null = null;
   private _elapsed = 0;
   private _paused = false;
+  private _updateErrorLogged = false;
   private _fpsFrames = 0;
   private _fpsTime = 0;
   private _fpsDisplay: any = null;
@@ -166,7 +167,14 @@ export class Engine2D {
 
       // Update current scene
       if (this.currentScene) {
-        this.currentScene.update(this, dt);
+        try {
+          this.currentScene.update(this, dt);
+        } catch(e: any) {
+          if (!this._updateErrorLogged) {
+            console.error('[Engine2D] Scene update() error:', e?.message || e);
+            this._updateErrorLogged = true;
+          }
+        }
       }
 
       // Update feature snippets
@@ -211,9 +219,14 @@ export class Engine2D {
       return;
     }
     this.currentScene = next;
+    this._updateErrorLogged = false;
     if (next.container) this.world.addChild(next.container);
     try {
-      next.enter(this, data);
+      var result = next.enter(this, data);
+      // Handle async enter() — catch promise rejections
+      if (result && typeof result.catch === 'function') {
+        result.catch((e: any) => console.error('[Engine2D] Scene enter() async error:', e?.message || e));
+      }
     } catch(e) {
       console.error('[Engine2D] Scene enter() error:', e);
     }
