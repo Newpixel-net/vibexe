@@ -46,7 +46,7 @@ function hasCanvas(): boolean {
 // SPRITE LIBRARY IMPORTS (from media-stock.ts)
 // ============================================================================
 
-import { _getSprite, _getAnimatedSprite } from '../utils/media-stock';
+import { _getSprite, _getAnimatedSprite, _loadSpriteLib, _sheetCache } from '../utils/media-stock';
 
 /** Check if sprite lib imports are available */
 function _hasSpriteLib(): boolean {
@@ -2086,6 +2086,9 @@ export function applyGodrayFilter(container: any, theme: string): any {
     return godray;
   } catch(e) { return null; }
 }
+
+// Re-export sprite utilities so AI can import from either config/assets or utils/media-stock
+export { _loadSpriteLib, _sheetCache };
 `;
 
 // ============================================================================
