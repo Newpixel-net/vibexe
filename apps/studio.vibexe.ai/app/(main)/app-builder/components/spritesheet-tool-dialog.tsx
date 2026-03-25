@@ -320,35 +320,10 @@ export function SpritesheetToolDialog({ appId, open, onOpenChange, onGenerated }
 			const capture = getCaptureInstance();
 			await capture.init(frameSize, frameSize);
 
-			// Always start from a known-good default camera position
+			// Force camera to known-good front-facing position
+			// Do NOT sync from preview camera — previous debug showed top-down angle being used
 			capture.setCameraPosition(0, 0.4, 2.5);
 			capture.setCameraTarget(0, 0, 0);
-
-			// Override with user's preview angle if they orbited
-			if (previewCameraRef.current) {
-				const cam = previewCameraRef.current;
-				// Debug: expose camera state before sync
-				(window as any).__captureDebug = {
-					previewCam: { x: cam.position.x, y: cam.position.y, z: cam.position.z },
-					orbitTarget: orbitControlsRef.current
-						? { x: orbitControlsRef.current.target.x, y: orbitControlsRef.current.target.y, z: orbitControlsRef.current.target.z }
-						: null,
-				};
-				capture.setCameraPosition(cam.position.x, cam.position.y, cam.position.z);
-				if (orbitControlsRef.current) {
-					const t = orbitControlsRef.current.target;
-					capture.setCameraTarget(t.x, t.y, t.z);
-				}
-			}
-
-			// Debug: expose final capture camera state
-			const captureCamera = capture.getCamera();
-			if (captureCamera) {
-				(window as any).__captureDebug = {
-					...(window as any).__captureDebug,
-					captureCam: { x: captureCamera.position.x, y: captureCamera.position.y, z: captureCamera.position.z },
-				};
-			}
 
 			const newResults: StoredSpritesheet[] = [];
 
@@ -415,7 +390,7 @@ export function SpritesheetToolDialog({ appId, open, onOpenChange, onGenerated }
 
 	return (
 		<Dialog open={open} onOpenChange={onOpenChange}>
-			<DialogContent className="!w-[700px] max-w-[96vw] max-h-[90vh] p-0 gap-0 overflow-hidden bg-[#0d0d1a] border-white/10 [&>button]:hidden">
+			<DialogContent data-build="v7-no-sync" className="!w-[700px] max-w-[96vw] max-h-[90vh] p-0 gap-0 overflow-hidden bg-[#0d0d1a] border-white/10 [&>button]:hidden">
 				<DialogHeader className="px-5 py-3 border-b border-white/[0.06]">
 					<DialogTitle className="flex items-center gap-2 text-base font-medium text-white/90">
 						<Grid3X3 className="size-4 text-blue-400" />
