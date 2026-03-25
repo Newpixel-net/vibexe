@@ -365,13 +365,13 @@ export function SpritesheetToolDialog({ appId, open, onOpenChange, onGenerated }
 
 				<div className="flex flex-col md:flex-row overflow-x-hidden overflow-y-auto" style={{ maxHeight: "calc(90vh - 56px)" }}>
 					{/* Left column: Preview canvases */}
-					<div className="w-full md:w-[340px] flex-shrink-0 border-b md:border-b-0 md:border-r border-white/[0.06] flex flex-col">
+					<div className="hidden md:flex md:w-[300px] flex-shrink-0 border-r border-white/[0.06] flex-col">
 						{/* 3D Model Preview */}
-						<div className="flex-1 min-h-[200px] flex items-center justify-center bg-[#080812] p-4">
+						<div className="flex-1 min-h-[200px] flex items-center justify-center bg-[#080812] p-3">
 							<canvas
 								ref={previewCanvasRef}
 								className="rounded-lg bg-black/30 border border-white/[0.06] max-w-full"
-								style={{ width: 260, height: 260, imageRendering: "pixelated" }}
+								style={{ width: 220, height: 220, imageRendering: "pixelated" }}
 							/>
 						</div>
 
@@ -490,7 +490,7 @@ export function SpritesheetToolDialog({ appId, open, onOpenChange, onGenerated }
 							{/* Frame Size */}
 							<div>
 								<label className="text-[10px] uppercase tracking-wider text-white/30 block mb-1">Frame Size</label>
-								<div className="flex flex-wrap gap-1">
+								<div className="grid grid-cols-4 gap-1">
 									{[64, 128, 256, 512].map((s) => (
 										<button
 											key={s}
