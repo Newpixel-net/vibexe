@@ -201,6 +201,14 @@ export class SpritesheetCapture {
 		});
 	}
 
+	/** Render a single preview frame (adds model to scene, renders, returns canvas) */
+	renderPreview(loaded: LoadedModel): HTMLCanvasElement | null {
+		if (!this.initialized || !this.renderer) return null;
+		this.setModel(loaded.model);
+		this.renderer.render(this.scene, this.camera);
+		return this.renderer.domElement;
+	}
+
 	/** Add model to scene, removing any previous model (keeps lights) */
 	private setModel(model: any): void {
 		// Remove non-light children (lights are first 3 children)

@@ -155,15 +155,13 @@ export function SpritesheetToolDialog({ appId, open, onOpenChange, onGenerated }
 			setSpriteName(urlName.replace(/[^a-zA-Z0-9_-]/g, "_").toLowerCase());
 
 			// Render a single preview frame to the 3D preview canvas
-			if (previewCanvasRef.current) {
+			const rendered = capture.renderPreview(loaded);
+			if (rendered && previewCanvasRef.current) {
 				const canvas = previewCanvasRef.current;
 				canvas.width = frameSize;
 				canvas.height = frameSize;
-				const srcCanvas = capture.getCanvas();
-				if (srcCanvas) {
-					const ctx = canvas.getContext("2d");
-					if (ctx) ctx.drawImage(srcCanvas, 0, 0, frameSize, frameSize);
-				}
+				const ctx = canvas.getContext("2d");
+				if (ctx) ctx.drawImage(rendered, 0, 0, frameSize, frameSize);
 			}
 
 			setPhase("idle");
@@ -395,32 +393,48 @@ export function SpritesheetToolDialog({ appId, open, onOpenChange, onGenerated }
 				<div className="flex flex-col md:flex-row overflow-x-hidden overflow-y-auto" style={{ maxHeight: "calc(90vh - 56px)" }}>
 					{/* Left column: Preview canvases */}
 					<div className="hidden md:flex md:w-[300px] flex-shrink-0 border-r border-white/[0.06] flex-col">
-						{/* 3D Model Preview */}
-						<div className="flex-1 min-h-[200px] flex items-center justify-center bg-[#080812] p-3">
-							<canvas
-								ref={previewCanvasRef}
-								className="rounded-lg bg-black/30 border border-white/[0.06] max-w-full"
-								style={{ width: 220, height: 220, imageRendering: "pixelated" }}
-							/>
-						</div>
-
-						{/* Flipbook Preview */}
-						<div className="h-[120px] border-t border-white/[0.06] flex flex-col items-center justify-center bg-[#080812] p-2">
-							<span className="text-[10px] uppercase tracking-wider text-white/30 mb-1">
-								Flipbook Preview
-							</span>
-							{previewFrames.length > 0 ? (
-								<canvas
-									ref={flipbookCanvasRef}
-									className="rounded bg-black/30 border border-white/[0.06]"
-									style={{ width: 80, height: 80, imageRendering: "pixelated" }}
-								/>
-							) : (
-								<div className="text-xs text-white/20">
-									Click &quot;Preview&quot; to see animation
+						{/* 3D Model Preview / Result Atlas */}
+						{phase === "done" && result ? (
+							<div className="flex-1 flex flex-col items-center justify-center bg-[#080812] p-3 gap-2">
+								<span className="text-[10px] uppercase tracking-wider text-white/30">Generated Atlas</span>
+								<div className="flex-1 flex items-center justify-center overflow-auto">
+									<img
+										src={result.atlasUrl}
+										alt="Spritesheet atlas"
+										className="max-w-full max-h-full object-contain rounded border border-white/[0.08]"
+										style={{ imageRendering: "pixelated" }}
+									/>
 								</div>
-							)}
-						</div>
+								<span className="text-[10px] text-white/20">{result.name} — sheet.png</span>
+							</div>
+						) : (
+							<>
+								<div className="flex-1 min-h-[200px] flex items-center justify-center bg-[#080812] p-3">
+									<canvas
+										ref={previewCanvasRef}
+										className="rounded-lg bg-black/30 border border-white/[0.06] max-w-full"
+										style={{ width: 220, height: 220, imageRendering: "pixelated" }}
+									/>
+								</div>
+								{/* Flipbook Preview */}
+								<div className="h-[120px] border-t border-white/[0.06] flex flex-col items-center justify-center bg-[#080812] p-2">
+									<span className="text-[10px] uppercase tracking-wider text-white/30 mb-1">
+										Flipbook Preview
+									</span>
+									{previewFrames.length > 0 ? (
+										<canvas
+											ref={flipbookCanvasRef}
+											className="rounded bg-black/30 border border-white/[0.06]"
+											style={{ width: 80, height: 80, imageRendering: "pixelated" }}
+										/>
+									) : (
+										<div className="text-xs text-white/20">
+											Click &quot;Preview&quot; to see animation
+										</div>
+									)}
+								</div>
+							</>
+						)}
 					</div>
 
 					{/* Right column: Controls */}
@@ -702,9 +716,19 @@ export function SpritesheetToolDialog({ appId, open, onOpenChange, onGenerated }
 
 							{/* Done */}
 							{phase === "done" && result && (
-								<div className="text-xs text-emerald-400 bg-emerald-500/10 px-3 py-2 rounded flex items-center gap-2">
-									<Check className="size-3" />
-									Spritesheet saved: {result.name}
+								<div className="space-y-2">
+									<div className="text-xs text-emerald-400 bg-emerald-500/10 px-3 py-2 rounded flex items-center gap-2">
+										<Check className="size-3" />
+										Spritesheet saved: {result.name}
+									</div>
+									<div className="rounded border border-white/[0.08] bg-black/20 p-2 flex items-center justify-center max-h-[120px] overflow-hidden">
+										<img
+											src={result.atlasUrl}
+											alt={`${result.name} spritesheet atlas`}
+											className="max-w-full max-h-[100px] object-contain"
+											style={{ imageRendering: "pixelated" }}
+										/>
+									</div>
 								</div>
 							)}
 
