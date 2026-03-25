@@ -1346,37 +1346,7 @@ var playerGfx = playerTex
 **IMPORTANT**: Always use \`.catch(() => null)\` and fallback to drawing helpers if sprite loading fails.
 These sprites have white backgrounds — set blendMode or use alpha masking if needed.`);
 		}
-		if (isGame2d) {
-			// Creative pipeline workflow — AI writes unique game from scratch
-			runtimeAddenda.push(`## 2D Game — Creative Pipeline
-
-**A minimal placeholder exists in GameScene2D.ts — OVERWRITE it completely with your unique game using \`update_file\`.**
-
-### Workflow:
-1. **Read the Creative Brief** above — implement ALL 10 dimensions creatively
-2. **Use \`update_file\` on src/scenes/GameScene2D.ts** to REPLACE the placeholder with your full unique game (300-800 lines)
-3. **Use Feature Bank snippets** for pre-tested mechanics: \`engine.features.register('id', factory, config, deps)\`
-4. **Create custom mechanics** — draw unique entities with Canvas 2D / PIXI.Graphics
-5. **Create** \`docs/README.md\` and \`src/config/constants.ts\`
-6. Optionally create helper files in \`src/game/*.ts\` for complex mechanics
-
-### RULES:
-1. OVERWRITE the placeholder GameScene2D.ts — do NOT copy templates or reference games
-2. DO NOT create App.tsx, Game2D.tsx, or any engine files — they are LOCKED
-3. You MUST use: drawSkyGradient, drawMountainRange, PALETTES, particles, engine.juice — for visual quality
-4. You MUST include \`name = 'game';\` and \`container = new PIXI.Container();\` as class properties — use \`this.container\` to add game objects (NOT app.stage)
-5. You MUST call \`await _loadSpriteLib(THEME)\` at the start of enter()
-6. You MUST call \`engine.input.endFrame()\` at end of update()
-7. You MUST call \`engine.juice.killAll()\` and \`engine.features.destroy()\` in exit()
-8. Use PIXI.Graphics and Canvas 2D to draw CUSTOM entities unique to this game
-
-### CRITICAL — update() method signature:
-\`update(engine: Engine2D, dt: number)\` — engine is FIRST, dt (delta seconds) is SECOND.
-- dt is a NUMBER (0.016 at 60fps) — NEVER do \`dt.x\`, \`dt.position\`, or set any property on dt
-- Use the closure pattern: build game logic in enter(), store as \`this._update = (dt) => { ... }\`, call from update()
-- WRONG: \`update(dt, engine)\` — reversed params cause crashes
-- WRONG: \`dt.x = sprite.x\` — dt is not a sprite, it's delta time in seconds`);
-		} else if (isReturningUser) {
+		if (isReturningUser && !isGame2d) {
 			// Normal existing project — edit/add files
 			runtimeAddenda.push(`## Existing Project (${existingFiles.length} files)
 This is an EXISTING project. Use \`read_file\` to inspect existing files BEFORE modifying them with \`update_file\`. Never blindly overwrite files without reading them first.
@@ -1406,27 +1376,7 @@ ${injectedFiles.map((f) => `- \`${f}\``).join("\n")}
 - Use \`loadGLTF(modelUrl(packId, filename))\` ONLY for advanced packs (city-builder, resource-bits, skeletons)
 - The package.json already includes \`"three": "^0.162.0"\` — do NOT recreate it`);
 			}
-			if (isGame2d) {
-				runtimeAddenda.push(`## MANDATORY: Pre-Created Infrastructure Files (2D — Pixi.js + Proton)
-
-The following files have been pre-created by the platform and already exist in the project:
-${injectedFiles.map((f) => `- \`${f}\``).join("\n")}
-
-**MANDATORY RULES — violation will break the game:**
-- Do NOT recreate, overwrite, or modify these files — they contain correct, tested code
-- You MUST \`import\` from them in your GameScene2D.ts:
-  - \`import { Engine2D, GameScene, createGame2D, loadAssets } from "../engine/core";\`
-  - \`import { PhysicsWorld, createBody, createStaticBody, createOneWayPlatform, CharacterController } from "../engine/physics";\`
-  - \`import { createAmbientEffect, createSnowEffect, createRainEffect, onJumpDust, onLandImpact, onCollectSparkle, onDeathExplosion } from "../engine/effects";\`
-  - \`import { PALETTES, drawSkyGradient, drawStars, drawMountainRange, drawCloud, drawGroundStrip, drawPlatformBlock, drawPlayerCharacter, drawCoinToken, drawEnemySlime, drawHeart, drawLSystemTree, TREE_PRESETS, createWaterSurface, createLavaSurface, createLightingLayer, drawVignette, drawAtmosphericFog } from "../config/assets";\`
-  - \`import { _loadSpriteLib, _sheetCache } from "../utils/media-stock";\`
-- **Game2D.tsx is PRE-CREATED** — do NOT create Game2D.tsx. Just import it in App.tsx: \`import Game2D from "./components/Game2D";\`
-- **App.tsx pattern**: \`export default function App() { return <Game2D />; }\`
-- Access PIXI via global: \`const PIXI = (window as any).PIXI;\` — do NOT import from "pixi.js"
-- Access Proton via global: \`const Proton = (window as any).Proton;\`
-- ALWAYS call \`await _loadSpriteLib(THEME)\` at start of enter()
-- ALWAYS call \`engine.input.endFrame()\` at end of update()
-- ALWAYS call \`engine.juice.killAll()\` and \`engine.features.destroy()\` in exit()`);
+			// 2D: no infrastructure addendum needed — AI only creates custom-visuals.ts
 			}
 		}
 		if (isGameProject || isGame2d || isGame3d) {
