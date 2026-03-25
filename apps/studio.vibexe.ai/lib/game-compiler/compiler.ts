@@ -14,7 +14,7 @@ import { generateRuntimeBootstrap } from "./runtime-bootstrap";
 
 // Bump this when generateGameEntry() or the compiler wrapper changes
 // so esbuild cache busts without waiting for CACHE_TTL expiry
-const COMPILER_VERSION = "26";
+const COMPILER_VERSION = "27";
 
 // In-memory LRU cache for compiled bundles
 const bundleCache = new Map<string, { bundle: string; timestamp: number }>();
@@ -432,6 +432,16 @@ const _SceneClass = _m.GameScene2D || _m.GameScene || _m.PlatformerGameScene
       // Ensure scene has required properties
       if (!scene.name) scene.name = 'game';
       if (!scene.container) scene.container = new PIXI.Container();
+      // Wrap update() in try/catch so errors don't kill the render loop
+      if (scene.update) {
+        const _origUpdate = scene.update.bind(scene);
+        let _updateErrLogged = false;
+        scene.update = function(eng: any, dt: number) {
+          try { _origUpdate(eng, dt); } catch(e: any) {
+            if (!_updateErrLogged) { console.error('[Engine2D] Scene update() error:', e?.message || e); _updateErrLogged = true; }
+          }
+        };
+      }
       if (engine.addScene) {
         engine.addScene(scene);
         // Also try to add GameOverScene
