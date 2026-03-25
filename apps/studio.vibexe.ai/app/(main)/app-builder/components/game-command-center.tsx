@@ -25,6 +25,7 @@ interface GameCommandCenterProps {
 	recordingBlobUrl: string | null;
 	qualityPreset: QualityPreset;
 	maximizeOnPlay: boolean;
+	is2D?: boolean;
 	onPlay: () => void;
 	onPause: () => void;
 	onStep: () => void;
@@ -65,6 +66,7 @@ export function GameCommandCenter({
 	onQualityChange,
 	onToggleMaximize,
 	onClose,
+	is2D = false,
 }: GameCommandCenterProps) {
 	const panelRef = useRef<HTMLDivElement>(null);
 	const [qualityOpen, setQualityOpen] = useState(false);
@@ -181,35 +183,37 @@ export function GameCommandCenter({
 
 			{/* Row 2: Quality + Maximize + Stats */}
 			<div className="flex items-center gap-2 px-3 py-2 text-[10px]">
-				{/* Quality Preset */}
-				<div className="relative">
-					<button
-						type="button"
-						onClick={() => setQualityOpen(!qualityOpen)}
-						className="flex items-center gap-1 px-2 py-1 rounded-md bg-white/[0.05] border border-white/[0.08] text-white/60 hover:text-white/80 hover:bg-white/[0.08] transition-all"
-					>
-						<span className="text-[10px]">{QUALITY_OPTIONS.find((q) => q.value === qualityPreset)?.label || "High"}</span>
-						<svg className="w-2.5 h-2.5 opacity-50" viewBox="0 0 10 6" fill="none"><path d="M1 1l4 4 4-4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" /></svg>
-					</button>
-					{qualityOpen && (
-						<div className="absolute bottom-full left-0 mb-1 bg-[#0a0a14] border border-white/[0.12] rounded-lg shadow-xl z-50 min-w-[70px] py-0.5">
-							{QUALITY_OPTIONS.map((q) => (
-								<button
-									key={q.value}
-									type="button"
-									onClick={() => { onQualityChange(q.value); setQualityOpen(false); }}
-									className={`w-full text-left px-2.5 py-1 text-[10px] transition-colors ${
-										q.value === qualityPreset
-											? "text-cyan-400 bg-cyan-500/10"
-											: "text-white/60 hover:bg-white/[0.06] hover:text-white/80"
-									}`}
-								>
-									{q.label}
-								</button>
-							))}
-						</div>
-					)}
-				</div>
+				{/* Quality Preset — 3D only (shadow quality, texture resolution) */}
+				{!is2D && (
+					<div className="relative">
+						<button
+							type="button"
+							onClick={() => setQualityOpen(!qualityOpen)}
+							className="flex items-center gap-1 px-2 py-1 rounded-md bg-white/[0.05] border border-white/[0.08] text-white/60 hover:text-white/80 hover:bg-white/[0.08] transition-all"
+						>
+							<span className="text-[10px]">{QUALITY_OPTIONS.find((q) => q.value === qualityPreset)?.label || "High"}</span>
+							<svg className="w-2.5 h-2.5 opacity-50" viewBox="0 0 10 6" fill="none"><path d="M1 1l4 4 4-4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" /></svg>
+						</button>
+						{qualityOpen && (
+							<div className="absolute bottom-full left-0 mb-1 bg-[#0a0a14] border border-white/[0.12] rounded-lg shadow-xl z-50 min-w-[70px] py-0.5">
+								{QUALITY_OPTIONS.map((q) => (
+									<button
+										key={q.value}
+										type="button"
+										onClick={() => { onQualityChange(q.value); setQualityOpen(false); }}
+										className={`w-full text-left px-2.5 py-1 text-[10px] transition-colors ${
+											q.value === qualityPreset
+												? "text-cyan-400 bg-cyan-500/10"
+												: "text-white/60 hover:bg-white/[0.06] hover:text-white/80"
+										}`}
+									>
+										{q.label}
+									</button>
+								))}
+							</div>
+						)}
+					</div>
+				)}
 
 				{/* Maximize toggle */}
 				<button
@@ -225,33 +229,46 @@ export function GameCommandCenter({
 					{maximizeOnPlay ? <Minimize2 className="w-3 h-3" /> : <Maximize2 className="w-3 h-3" />}
 				</button>
 
-				{/* Stats Grid (inline) */}
-				<div className="flex-1 grid grid-cols-3 gap-x-3 gap-y-0.5">
-					<div className="flex items-center justify-between">
-						<span className="text-white/35">FPS</span>
-						<span className={`font-mono font-medium ${gameStats ? fpsColor(gameStats.fps) : "text-white/20"}`}>{gameStats?.fps ?? "--"}</span>
+				{/* Stats Grid — 2D shows FPS + Mem only, 3D shows full renderer stats */}
+				{is2D ? (
+					<div className="flex-1 flex items-center gap-4">
+						<div className="flex items-center gap-1.5">
+							<span className="text-white/35">FPS</span>
+							<span className={`font-mono font-medium ${gameStats ? fpsColor(gameStats.fps) : "text-white/20"}`}>{gameStats?.fps ?? "--"}</span>
+						</div>
+						<div className="flex items-center gap-1.5">
+							<span className="text-white/35">Mem</span>
+							<span className="font-mono text-white/60">{gameStats?.memory != null ? `${gameStats.memory}MB` : "--"}</span>
+						</div>
 					</div>
-					<div className="flex items-center justify-between">
-						<span className="text-white/35">Draws</span>
-						<span className="font-mono text-white/60">{gameStats?.drawCalls ?? "--"}</span>
+				) : (
+					<div className="flex-1 grid grid-cols-3 gap-x-3 gap-y-0.5">
+						<div className="flex items-center justify-between">
+							<span className="text-white/35">FPS</span>
+							<span className={`font-mono font-medium ${gameStats ? fpsColor(gameStats.fps) : "text-white/20"}`}>{gameStats?.fps ?? "--"}</span>
+						</div>
+						<div className="flex items-center justify-between">
+							<span className="text-white/35">Draws</span>
+							<span className="font-mono text-white/60">{gameStats?.drawCalls ?? "--"}</span>
+						</div>
+						<div className="flex items-center justify-between">
+							<span className="text-white/35">Tris</span>
+							<span className="font-mono text-white/60">{gameStats ? (gameStats.triangles >= 1000 ? `${(gameStats.triangles / 1000).toFixed(0)}K` : gameStats.triangles) : "--"}</span>
+						</div>
+						<div className="flex items-center justify-between">
+							<span className="text-white/35">Geo</span>
+							<span className="font-mono text-white/60">{gameStats?.geometries ?? "--"}</span>
+						</div>
+						<div className="flex items-center justify-between">
+							<span className="text-white/35">Tex</span>
+							<span className="font-mono text-white/60">{gameStats?.textures ?? "--"}</span>
+						</div>
+						<div className="flex items-center justify-between">
+							<span className="text-white/35">Mem</span>
+							<span className="font-mono text-white/60">{gameStats?.memory != null ? `${gameStats.memory}MB` : "--"}</span>
+						</div>
 					</div>
-					<div className="flex items-center justify-between">
-						<span className="text-white/35">Tris</span>
-						<span className="font-mono text-white/60">{gameStats ? (gameStats.triangles >= 1000 ? `${(gameStats.triangles / 1000).toFixed(0)}K` : gameStats.triangles) : "--"}</span>
-					</div>
-					<div className="flex items-center justify-between">
-						<span className="text-white/35">Geo</span>
-						<span className="font-mono text-white/60">{gameStats?.geometries ?? "--"}</span>
-					</div>
-					<div className="flex items-center justify-between">
-						<span className="text-white/35">Tex</span>
-						<span className="font-mono text-white/60">{gameStats?.textures ?? "--"}</span>
-					</div>
-					<div className="flex items-center justify-between">
-						<span className="text-white/35">Mem</span>
-						<span className="font-mono text-white/60">{gameStats?.memory != null ? `${gameStats.memory}MB` : "--"}</span>
-					</div>
-				</div>
+				)}
 			</div>
 		</div>
 	);

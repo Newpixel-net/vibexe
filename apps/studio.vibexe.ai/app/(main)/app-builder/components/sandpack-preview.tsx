@@ -2756,7 +2756,7 @@ export function SandpackPreview({
 										iframeRef={iframeRef as React.RefObject<HTMLIFrameElement | null>}
 										refreshRef={sandpackRefreshRef}
 										suppressRecompile={gameEditor.enabled}
-										runtimeUrl={is2DGame ? "/api/app-builder/game-runtime-2d?v=1" : undefined}
+										runtimeUrl={is2DGame ? "/api/app-builder/game-runtime-2d?v=2" : undefined}
 									/>
 								) : (
 								<SandpackProvider
@@ -2868,7 +2868,7 @@ export function SandpackPreview({
 								iframeRef={iframeRef as React.RefObject<HTMLIFrameElement | null>}
 								refreshRef={sandpackRefreshRef}
 								suppressRecompile={gameEditor.enabled}
-								runtimeUrl={is2DGame ? "/api/app-builder/game-runtime-2d?v=1" : undefined}
+								runtimeUrl={is2DGame ? "/api/app-builder/game-runtime-2d?v=2" : undefined}
 							/>
 						) : (
 						<SandpackProvider
@@ -2976,6 +2976,7 @@ export function SandpackPreview({
 						recordingBlobUrl={gameEditor.recordingBlobUrl}
 						qualityPreset={gameEditor.gameSettings.performance?.qualityPreset || "high"}
 						maximizeOnPlay={gameEditor.maximizeOnPlay}
+						is2D={is2DGame}
 						onPlay={gameEditor.playSimulation}
 						onPause={gameEditor.pauseSimulation}
 						onStep={gameEditor.stepSimulation}

@@ -218,6 +218,80 @@ window.addEventListener('unhandledrejection', function(e) {
         window.parent.postMessage({ type: 'vibexe-runtime-bundle-loaded' }, '*');
       }
 
+      // ===== Command Center commands =====
+      if (ev.data.type && ev.data.type.indexOf('game-cmd-') === 0) {
+        switch (ev.data.type) {
+          case 'game-cmd-play':
+            window.__vibexe_game_paused__ = false;
+            break;
+          case 'game-cmd-pause':
+            window.__vibexe_game_paused__ = true;
+            break;
+          case 'game-cmd-step':
+            window.__vibexe_step_frame__ = true;
+            break;
+          case 'game-cmd-reset':
+            window.location.reload();
+            break;
+          case 'game-cmd-time-scale':
+            window.__vibexe_time_scale__ = ev.data.scale;
+            break;
+          case 'game-cmd-request-stats': {
+            var s = { fps: 0, drawCalls: 0, triangles: 0, geometries: 0, textures: 0, memory: 0 };
+            var fpsEl = document.getElementById('__vibexe_fps__');
+            if (fpsEl) { var parsed = parseInt(fpsEl.textContent); if (!isNaN(parsed)) s.fps = parsed; }
+            if (performance && performance.memory) s.memory = Math.round(performance.memory.usedJSHeapSize / (1024 * 1024));
+            window.parent.postMessage({ type: 'game-cmd-stats-report', stats: s }, '*');
+            break;
+          }
+          case 'game-cmd-start-record': {
+            try {
+              var canvas = null;
+              var app = window.__vibexe_pixiApp__;
+              if (app && app.canvas) canvas = app.canvas;
+              if (!canvas) canvas = document.querySelector('canvas');
+              if (!canvas) { console.error('[2D CommandCenter] No canvas found'); break; }
+              var stream = canvas.captureStream(30);
+              var mimeType = MediaRecorder.isTypeSupported('video/webm;codecs=vp9') ? 'video/webm;codecs=vp9' : 'video/webm';
+              var mr = new MediaRecorder(stream, { mimeType: mimeType, videoBitsPerSecond: 5000000 });
+              var chunks = [];
+              mr.ondataavailable = function(e) { if (e.data.size > 0) chunks.push(e.data); };
+              mr.onstop = function() {
+                var blob = new Blob(chunks, { type: 'video/webm' });
+                blob.arrayBuffer().then(function(buf) {
+                  window.parent.postMessage({ type: 'game-cmd-recording-ready', buffer: buf }, '*', [buf]);
+                });
+              };
+              mr.start(100);
+              window.__vibexe_mediaRecorder__ = mr;
+            } catch (e) { console.error('[2D CommandCenter] Record start failed:', e.message); }
+            break;
+          }
+          case 'game-cmd-stop-record': {
+            var mr2 = window.__vibexe_mediaRecorder__;
+            if (mr2 && mr2.state !== 'inactive') mr2.stop();
+            window.__vibexe_mediaRecorder__ = null;
+            break;
+          }
+          case 'game-cmd-screenshot': {
+            try {
+              var cvs = null;
+              var pixiApp = window.__vibexe_pixiApp__;
+              if (pixiApp && pixiApp.canvas) cvs = pixiApp.canvas;
+              if (!cvs) cvs = document.querySelector('canvas');
+              if (!cvs) break;
+              cvs.toBlob(function(blob) {
+                if (!blob) return;
+                blob.arrayBuffer().then(function(buf) {
+                  window.parent.postMessage({ type: 'game-cmd-screenshot-ready', buffer: buf }, '*', [buf]);
+                });
+              }, 'image/png');
+            } catch (e) { console.error('[2D CommandCenter] Screenshot failed:', e.message); }
+            break;
+          }
+        }
+      }
+
       // Full reload
       if (ev.data.type === 'vibexe-reload') {
         if (ev.data.bootstrap) {

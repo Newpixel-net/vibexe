@@ -1169,7 +1169,11 @@ export function GameEditorProvider({ children }: { children: ReactNode }) {
 
 	const stopRecording = useCallback(() => {
 		sendToIframe({ type: "game-cmd-stop-record" });
-		// State will change to "ready" when we receive the blob back
+		// Fallback: if no blob comes back within 2s (e.g. runtime didn't support recording),
+		// reset state so UI doesn't stay stuck on "recording"
+		setTimeout(() => {
+			setRecordingState((s) => (s === "recording" ? "idle" : s));
+		}, 2000);
 	}, [sendToIframe]);
 
 	const setRecordingReady = useCallback((blobUrl: string) => {
