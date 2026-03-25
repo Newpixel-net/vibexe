@@ -39,7 +39,7 @@ import {
 	Zap,
 } from "lucide-react";
 import { useSearchParams } from "next/navigation";
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useDeferredValue, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import {
 	DropdownMenu,
@@ -897,7 +897,30 @@ export function ChatColumn({
 	}, [isLoading, messages, saveToDb, appName, appId, onAppNameChange]);
 
 	// Convert AI SDK messages to VibeSDK ChatMessage format
-	const chatMessages = useMemo(() => toChatMessages(messages), [messages]);
+	// During streaming, throttle updates to prevent 7+ useEffects from re-running on every token
+	const [chatMessages, setChatMessages] = useState<ReturnType<typeof toChatMessages>>([]);
+	const chatMessagesRef = useRef(chatMessages);
+	const throttleTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+	useEffect(() => {
+		const converted = toChatMessages(messages);
+		chatMessagesRef.current = converted;
+		if (isLoading) {
+			// During streaming: throttle updates to every 800ms
+			if (!throttleTimer.current) {
+				throttleTimer.current = setTimeout(() => {
+					setChatMessages(chatMessagesRef.current);
+					throttleTimer.current = null;
+				}, 800);
+			}
+		} else {
+			// Not streaming: update immediately
+			if (throttleTimer.current) {
+				clearTimeout(throttleTimer.current);
+				throttleTimer.current = null;
+			}
+			setChatMessages(converted);
+		}
+	}, [messages, isLoading]);
 
 	// --- Pipeline action detection ---
 	// Detect if last assistant message is a review with issues (Review Feedback Loop)
