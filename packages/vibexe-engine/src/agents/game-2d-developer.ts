@@ -266,9 +266,40 @@ export default class GameScene2D implements GameScene {
 **COMMON MISTAKES THAT CRASH THE GAME:**
 - \`update(dt, engine)\` — WRONG order! It's \`update(engine, dt)\`
 - \`dt.x = ...\` or \`dt.position = ...\` — dt is a number (0.016), NOT a sprite
+- \`someVar.addChild(x)\` when someVar is null — ALWAYS check before: \`if (someVar) someVar.addChild(x)\`
+- \`this.player.x = ...\` in update when this.player was never assigned — enter() must complete fully
 - \`new PIXI.GlowFilter()\` — use \`new PIXI.filters.GlowFilter()\` or just reference from config/assets helpers
 - Forgetting \`engine.input.endFrame()\` at end of update — keys get stuck
 - Creating filters/textures inside update() — create them once in enter(), reuse in update()
+- Referencing variables in update() that are only set AFTER an await in enter() — set defaults BEFORE awaits
+
+**NULL SAFETY — enter() MUST succeed fully:**
+If enter() crashes halfway, update() variables will be undefined and the game freezes. Use defensive defaults:
+\`\`\`typescript
+// GOOD — safe defaults before any awaits or complex logic
+private playerSprite: any = null;
+private physics: any = null;
+
+async enter(engine: Engine2D) {
+  // Set up safe defaults first
+  var PAL = PALETTES["space"];
+  var app = engine.app, W = app.screen.width, H = app.screen.height;
+
+  // Build visuals (if this crashes, at least sky renders)
+  this.container.addChild(drawSkyGradient(W, H, PAL.skyTop, PAL.skyBottom));
+
+  // Physics + player (wrap risky code)
+  this.physics = new PhysicsWorld(0, 980);
+  this.playerSprite = drawPlayerCharacter(48, PAL.player, PAL.playerLight);
+  this.container.addChild(this.playerSprite);
+
+  // Store update closure ONLY after all setup succeeds
+  this._update = (dt) => {
+    if (!this.playerSprite || !this.physics) return; // null guard
+    // ... game logic ...
+  };
+}
+\`\`\`
 
 ## OPTIONAL: compose_game Quick-Start
 

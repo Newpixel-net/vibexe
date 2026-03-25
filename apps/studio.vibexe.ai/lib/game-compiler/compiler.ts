@@ -14,7 +14,7 @@ import { generateRuntimeBootstrap } from "./runtime-bootstrap";
 
 // Bump this when generateGameEntry() or the compiler wrapper changes
 // so esbuild cache busts without waiting for CACHE_TTL expiry
-const COMPILER_VERSION = "27";
+const COMPILER_VERSION = "28";
 
 // In-memory LRU cache for compiled bundles
 const bundleCache = new Map<string, { bundle: string; timestamp: number }>();
@@ -432,16 +432,55 @@ const _SceneClass = _m.GameScene2D || _m.GameScene || _m.PlatformerGameScene
       // Ensure scene has required properties
       if (!scene.name) scene.name = 'game';
       if (!scene.container) scene.container = new PIXI.Container();
-      // Wrap update() in try/catch so errors don't kill the render loop
+
+      // Track enter() success — disable update() if enter() fails
+      let _enterOk = false;
+      let _updateErrCount = 0;
+
+      // Wrap update() — skip if enter failed, catch errors, disable after 5 failures
       if (scene.update) {
         const _origUpdate = scene.update.bind(scene);
-        let _updateErrLogged = false;
         scene.update = function(eng: any, dt: number) {
+          if (!_enterOk || _updateErrCount >= 5) return;
           try { _origUpdate(eng, dt); } catch(e: any) {
-            if (!_updateErrLogged) { console.error('[Engine2D] Scene update() error:', e?.message || e); _updateErrLogged = true; }
+            _updateErrCount++;
+            if (_updateErrCount === 1) console.error('[Engine2D] Scene update() error:', e?.message || e);
+            if (_updateErrCount >= 5) console.warn('[Engine2D] update() disabled after 5 errors');
           }
         };
       }
+
+      // Wrap enter() — track async errors, show overlay on failure
+      const _origEnter = scene.enter ? scene.enter.bind(scene) : null;
+      if (_origEnter) {
+        scene.enter = function(eng: any, data?: any) {
+          try {
+            const result = _origEnter(eng, data);
+            if (result && typeof result.then === 'function') {
+              result.then(() => { _enterOk = true; }).catch((e: any) => {
+                console.error('[Engine2D] Scene enter() async error:', e?.message || e);
+                _showError(e?.message || String(e));
+              });
+            } else {
+              _enterOk = true;
+            }
+            return result;
+          } catch(e: any) {
+            console.error('[Engine2D] Scene enter() error:', e);
+            _showError(e?.message || String(e));
+          }
+        };
+      }
+
+      function _showError(msg: string) {
+        const root = document.getElementById('root');
+        if (!root) return;
+        const el = document.createElement('div');
+        el.style.cssText = 'position:absolute;bottom:8px;left:8px;right:8px;padding:10px 14px;background:rgba(255,60,60,0.85);color:#fff;font:12px/1.4 monospace;border-radius:6px;z-index:9999;max-height:80px;overflow:auto;backdrop-filter:blur(4px)';
+        el.textContent = 'Game Error: ' + msg;
+        root.appendChild(el);
+      }
+
       if (engine.addScene) {
         engine.addScene(scene);
         // Also try to add GameOverScene
@@ -454,18 +493,9 @@ const _SceneClass = _m.GameScene2D || _m.GameScene || _m.PlatformerGameScene
             engine.addScene(goScene);
           }
         } catch(e) {}
-        try {
-          engine.switchScene(scene.name || 'game');
-        } catch(enterErr) {
-          console.error('[2D Boot] Scene enter() error:', enterErr);
-          // Show error overlay so user knows something went wrong
-          const errEl = document.createElement('div');
-          errEl.style.cssText = 'position:absolute;top:8px;left:8px;right:8px;padding:12px;background:rgba(255,50,50,0.9);color:#fff;font:13px/1.4 monospace;border-radius:6px;z-index:9999;max-height:120px;overflow:auto';
-          errEl.textContent = '[Game Error] ' + (enterErr instanceof Error ? enterErr.message : String(enterErr));
-          document.getElementById('root')?.appendChild(errEl);
-        }
-      } else if (scene.enter) {
-        try { scene.enter(engine); } catch(e) { console.error('[2D Boot] Fatal:', e); }
+        engine.switchScene(scene.name || 'game');
+      } else if (_origEnter) {
+        scene.enter(engine);
       }
     } else {
       console.error('[2D Boot] No game scene found. Exports:', Object.keys(_m));
