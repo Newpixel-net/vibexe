@@ -673,20 +673,31 @@ $$function create(config) {
   var scoreText = null;
   var heartSprites = [];
   var hudContainer = null;
+  var _engine = null;
 
   return {
     id: 'hud-basic',
     init: function(engine) {
+      _engine = engine;
       hudContainer = new PIXI.Container();
 
-      // Score text
+      // Score text — use PIXI.Text with positional args for v8 compat
       if (showScore) {
-        scoreText = new PIXI.Text({ text: 'Score: 0', style: {
-          fontFamily: 'Arial, sans-serif',
-          fontSize: fontSize,
-          fill: 0xFFFFFF,
-          stroke: { color: 0x000000, width: 3 },
-        }});
+        try {
+          scoreText = new PIXI.Text({ text: 'Score: 0', style: {
+            fontFamily: 'Arial, sans-serif',
+            fontSize: fontSize,
+            fill: 0xFFFFFF,
+            stroke: { color: 0x000000, width: 3 },
+          }});
+        } catch(e) {
+          // Fallback for different PIXI.Text signatures
+          scoreText = new PIXI.Text('Score: 0', {
+            fontFamily: 'Arial, sans-serif',
+            fontSize: fontSize,
+            fill: 0xFFFFFF,
+          });
+        }
         scoreText.x = 16;
         scoreText.y = 16;
         hudContainer.addChild(scoreText);
@@ -694,7 +705,7 @@ $$function create(config) {
 
       // Heart sprites for lives
       if (showLives) {
-        var screenW = engine.app.screen ? engine.app.screen.width : 800;
+        var screenW = (engine.app && engine.app.screen) ? engine.app.screen.width : 800;
         for (var i = 0; i < initialLives; i++) {
           var heart = drawHeart(18, 0xFF4444);
           heart.x = screenW - 30 - i * 28;
@@ -704,10 +715,13 @@ $$function create(config) {
         }
       }
 
-      engine.uiLayer.addChild(hudContainer);
+      if (engine.uiLayer) {
+        engine.uiLayer.addChild(hudContainer);
+      } else {
+        engine.world.addChild(hudContainer);
+      }
     },
     update: function(engine, dt) {
-      // Optionally poll score from coins feature
       if (scoreText) {
         var coinsFeature = engine.features.get('collectible-coins');
         if (coinsFeature) {
@@ -724,8 +738,8 @@ $$function create(config) {
         for (var i = 0; i < heartSprites.length; i++) {
           heartSprites[i].visible = i < lives;
         }
-        if (lives <= 0) {
-          engine.features.emit('player.died', {});
+        if (lives <= 0 && _engine) {
+          _engine.features.emit('player.died', {});
         }
       }
     },
@@ -735,6 +749,7 @@ $$function create(config) {
       hudContainer = null;
       scoreText = null;
       heartSprites = [];
+      _engine = null;
     }
   };
 }$$,
@@ -812,11 +827,13 @@ $$function create(config) {
       // Vignette overlay (fixed on screen)
       if (showVignette) {
         try {
-          var screenW = engine.app.screen ? engine.app.screen.width : 800;
-          var screenH = engine.app.screen ? engine.app.screen.height : 600;
+          var screenW = (engine.app && engine.app.screen) ? engine.app.screen.width : 800;
+          var screenH = (engine.app && engine.app.screen) ? engine.app.screen.height : 600;
           vignetteSprite = drawVignette(screenW, screenH);
           vignetteSprite.alpha = 0.4 * intensity;
-          engine.uiLayer.addChild(vignetteSprite);
+          if (engine.uiLayer) {
+            engine.uiLayer.addChild(vignetteSprite);
+          }
         } catch(e) { console.warn('[ambient] vignette failed:', e); }
       }
     },
