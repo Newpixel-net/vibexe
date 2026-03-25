@@ -59,6 +59,7 @@ let _instance: SpritesheetCapture | null = null;
 export class SpritesheetCapture {
 	private THREE: any = null;
 	private GLTFLoader: any = null;
+	private SkeletonUtils: any = null;
 	private renderer: any = null;
 	private scene: any = null;
 	private camera: any = null;
@@ -89,9 +90,14 @@ export class SpritesheetCapture {
 				const { GLTFLoader } = await import(
 					"three/examples/jsm/loaders/GLTFLoader.js"
 				);
+				// @ts-ignore — SkeletonUtils needed for proper skinned mesh cloning
+				const { SkeletonUtils } = await import(
+					"three/examples/jsm/utils/SkeletonUtils.js"
+				);
 
 				this.THREE = THREE;
 				this.GLTFLoader = GLTFLoader;
+				this.SkeletonUtils = SkeletonUtils;
 
 				// Offscreen renderer — never attached to DOM
 				this.renderer = new THREE.WebGLRenderer({
@@ -148,8 +154,12 @@ export class SpritesheetCapture {
 			loader.load(
 				url,
 				(gltf: any) => {
-					const model = gltf.scene.clone();
 					const animations = gltf.animations || [];
+
+					// Use SkeletonUtils.clone for animated models (preserves skeleton bindings)
+					const model = animations.length > 0 && this.SkeletonUtils
+						? this.SkeletonUtils.clone(gltf.scene)
+						: gltf.scene.clone();
 
 					// Auto-fit model to camera view
 					this.autoFit(model);
@@ -160,7 +170,7 @@ export class SpritesheetCapture {
 						mixer = new THREE.AnimationMixer(model);
 					}
 
-					// Cache the original for cloning
+					// Cache the original GLTF for re-cloning
 					if (!this.modelCache.has(url)) {
 						this.modelCache.set(url, gltf);
 					}
@@ -264,6 +274,7 @@ export class SpritesheetCapture {
 
 	/**
 	 * Capture animation frames from a skeletal animation clip.
+	 * Creates a fresh mixer per capture to avoid state corruption.
 	 * Samples evenly across the clip duration.
 	 */
 	async captureAnimation(
@@ -271,10 +282,11 @@ export class SpritesheetCapture {
 		config: Partial<AnimationCaptureConfig> = {},
 		onProgress?: (pct: number) => void,
 	): Promise<CapturedFrame[]> {
-		if (!loaded.mixer || loaded.animations.length === 0) {
+		if (loaded.animations.length === 0) {
 			throw new Error("Model has no animations");
 		}
 
+		const THREE = this.THREE;
 		const frames = config.frames || 16;
 		const clip = config.clipName
 			? loaded.animations.find((c: any) => c.name === config.clipName)
@@ -289,15 +301,27 @@ export class SpritesheetCapture {
 		const prefix = config.prefix || clip.name || "anim";
 
 		this.setModel(loaded.model);
-		const action = loaded.mixer.clipAction(clip);
+
+		// Create a FRESH mixer for this capture to avoid stale state
+		// Stop any existing mixer actions first
+		if (loaded.mixer) {
+			loaded.mixer.stopAllAction();
+			loaded.mixer.setTime(0);
+		}
+		const mixer = new THREE.AnimationMixer(loaded.model);
+		const action = mixer.clipAction(clip);
 		action.play();
 
 		const result: CapturedFrame[] = [];
 
 		for (let i = 0; i < frames; i++) {
-			// Set time to evenly sample the clip
+			// Reset mixer to time 0, then advance to target time
+			// This ensures deterministic pose at each sample point
 			const t = (clip.duration * i) / frames;
-			loaded.mixer.setTime(t);
+			mixer.setTime(0);
+			mixer.update(t);
+
+			this.renderer.render(this.scene, this.camera);
 
 			const blob = await this.captureFrame();
 			const name = `${prefix}_${String(i).padStart(4, "0")}`;
@@ -311,7 +335,11 @@ export class SpritesheetCapture {
 			if (onProgress) onProgress((i + 1) / frames);
 		}
 
+		// Cleanup: stop action, reset mixer, remove model from scene
 		action.stop();
+		mixer.stopAllAction();
+		mixer.setTime(0);
+		mixer.update(0);
 		this.scene.remove(loaded.model);
 
 		return result;

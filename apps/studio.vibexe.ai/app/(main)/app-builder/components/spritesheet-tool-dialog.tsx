@@ -199,8 +199,16 @@ export function SpritesheetToolDialog({ appId, open, onOpenChange, onGenerated }
 		controls.target.set(0, 0, 0);
 		controls.update();
 
-		// Clone model into preview scene
-		const previewModel = loaded.model.clone();
+		// Clone model into preview scene — use SkeletonUtils for animated models
+		let SkeletonUtils: any = null;
+		try {
+			// @ts-ignore
+			const mod = await import("three/examples/jsm/utils/SkeletonUtils.js");
+			SkeletonUtils = mod.SkeletonUtils;
+		} catch { /* fallback to simple clone */ }
+		const previewModel = (loaded.animations.length > 0 && SkeletonUtils)
+			? SkeletonUtils.clone(loaded.model)
+			: loaded.model.clone();
 		scene.add(previewModel);
 
 		// Play first animation if available
