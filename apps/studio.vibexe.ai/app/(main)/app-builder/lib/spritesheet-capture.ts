@@ -129,7 +129,7 @@ export class SpritesheetCapture {
 					0.1,
 					100,
 				);
-				this.camera.position.set(0, 0.8, 2.5);
+				this.camera.position.set(0, 0.5, 3.5);
 				this.camera.lookAt(0, 0, 0);
 
 				this.initialized = true;
@@ -183,14 +183,15 @@ export class SpritesheetCapture {
 		});
 	}
 
-	/** Auto-fit model to fill the camera frame */
+	/** Auto-fit model to fill the camera frame with padding */
 	private autoFit(model: any): void {
 		const THREE = this.THREE;
 		const box = new THREE.Box3().setFromObject(model);
 		const center = box.getCenter(new THREE.Vector3());
 		const size = box.getSize(new THREE.Vector3());
 		const maxDim = Math.max(size.x, size.y, size.z);
-		const scale = maxDim > 0 ? 1.5 / maxDim : 1;
+		// Scale to 1.0 units (was 1.5 — too tight, model was clipped)
+		const scale = maxDim > 0 ? 1.0 / maxDim : 1;
 
 		model.position.sub(center);
 		model.scale.multiplyScalar(scale);

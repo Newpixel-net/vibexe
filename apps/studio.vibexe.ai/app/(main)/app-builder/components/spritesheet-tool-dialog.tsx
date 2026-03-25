@@ -189,7 +189,7 @@ export function SpritesheetToolDialog({ appId, open, onOpenChange, onGenerated }
 
 		// Camera
 		const camera = new THREE.PerspectiveCamera(45, w / h, 0.1, 100);
-		camera.position.set(0, 0.8, 2.5);
+		camera.position.set(0, 0.5, 3.5);
 		camera.lookAt(0, 0, 0);
 
 		// OrbitControls — user can drag to rotate, scroll to zoom
