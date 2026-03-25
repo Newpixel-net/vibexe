@@ -6,8 +6,11 @@
  * - Skeletal animation frames (idle, walk, attack, etc.)
  * - Multi-angle captures (4/8 directions × animation frames)
  *
- * Reuses the same singleton + dynamic import pattern as asset-thumbnail-renderer.ts.
- * Three.js is only loaded when the first capture is requested.
+ * Key design decisions based on research:
+ * - Orthographic camera (no perspective distortion — standard for 2D game sprites)
+ * - toDataURL() for synchronous frame capture (toBlob is async and unreliable)
+ * - Camera positioned at model's bounding box center height
+ * - Height-based scaling so characters fill the frame vertically
  */
 
 export interface CapturedFrame {
@@ -24,36 +27,29 @@ export interface LoadedModel {
 }
 
 export interface RotationCaptureConfig {
-	frames: number; // number of frames (default 30)
-	axis: "x" | "y" | "z"; // rotation axis (default 'y')
-	prefix?: string; // frame name prefix (default 'rotate')
+	frames: number;
+	axis: "x" | "y" | "z";
+	prefix?: string;
 }
 
 export interface AnimationCaptureConfig {
-	frames: number; // frames to sample from the animation (default 16)
-	clipName?: string; // animation clip name (uses first if omitted)
-	prefix?: string; // frame name prefix (default uses clip name)
+	frames: number;
+	clipName?: string;
+	prefix?: string;
 }
 
 export interface MultiAngleCaptureConfig {
-	angles: number; // 4 or 8 camera angles
-	animFrames: number; // frames per animation per angle
-	clips?: string[]; // which animations to capture (all if omitted)
+	angles: number;
+	animFrames: number;
+	clips?: string[];
 }
 
 const ANGLE_NAMES_8 = [
-	"front",
-	"front-right",
-	"right",
-	"back-right",
-	"back",
-	"back-left",
-	"left",
-	"front-left",
+	"front", "front-right", "right", "back-right",
+	"back", "back-left", "left", "front-left",
 ];
 const ANGLE_NAMES_4 = ["front", "right", "back", "left"];
 
-// Singleton
 let _instance: SpritesheetCapture | null = null;
 
 export class SpritesheetCapture {
@@ -74,26 +70,19 @@ export class SpritesheetCapture {
 		this.frameHeight = height;
 
 		if (this.initialized && this.renderer) {
-			// Resize if dimensions changed
 			this.renderer.setSize(width, height);
-			this.camera.aspect = width / height;
-			this.camera.updateProjectionMatrix();
 			return;
 		}
 		if (this.initPromise) return this.initPromise;
 
 		this.initPromise = (async () => {
 			try {
-				// @ts-ignore — three is an optional dependency, dynamically loaded
+				// @ts-ignore
 				const THREE = await import("three");
 				// @ts-ignore
-				const { GLTFLoader } = await import(
-					"three/examples/jsm/loaders/GLTFLoader.js"
-				);
-				// @ts-ignore — SkeletonUtils needed for proper skinned mesh cloning
-				const { SkeletonUtils } = await import(
-					"three/examples/jsm/utils/SkeletonUtils.js"
-				);
+				const { GLTFLoader } = await import("three/examples/jsm/loaders/GLTFLoader.js");
+				// @ts-ignore
+				const { SkeletonUtils } = await import("three/examples/jsm/utils/SkeletonUtils.js");
 
 				this.THREE = THREE;
 				this.GLTFLoader = GLTFLoader;
@@ -108,28 +97,22 @@ export class SpritesheetCapture {
 				this.renderer.setSize(width, height);
 				this.renderer.setPixelRatio(1);
 				this.renderer.outputColorSpace = THREE.SRGBColorSpace;
-				this.renderer.setClearColor(0x000000, 0); // transparent
+				this.renderer.setClearColor(0x000000, 0);
 
-				// Scene with lighting
+				// Scene with front-facing lighting
 				this.scene = new THREE.Scene();
-				const ambient = new THREE.AmbientLight(0xffffff, 0.7);
-				this.scene.add(ambient);
-				const dir = new THREE.DirectionalLight(0xffffff, 0.9);
-				dir.position.set(2, 3, -2);
-				this.scene.add(dir);
-				// Fill light from opposite side
-				const fill = new THREE.DirectionalLight(0xffffff, 0.3);
-				fill.position.set(-2, 1, 1);
-				this.scene.add(fill);
+				this.scene.add(new THREE.AmbientLight(0xffffff, 0.8));
+				const keyLight = new THREE.DirectionalLight(0xffffff, 0.8);
+				keyLight.position.set(1, 2, -3); // In front of model (model faces -Z)
+				this.scene.add(keyLight);
+				const fillLight = new THREE.DirectionalLight(0xffffff, 0.3);
+				fillLight.position.set(-1, 1, 2);
+				this.scene.add(fillLight);
 
-				// Camera
-				this.camera = new THREE.PerspectiveCamera(
-					45,
-					width / height,
-					0.1,
-					100,
-				);
-				this.camera.position.set(0, 0.4, -2.5);
+				// Orthographic camera — no perspective distortion, standard for game sprites
+				// Frustum will be set dynamically by fitCameraToModel()
+				this.camera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0.1, 100);
+				this.camera.position.set(0, 0, -5); // In front of model (faces -Z)
 				this.camera.lookAt(0, 0, 0);
 
 				this.initialized = true;
@@ -142,7 +125,7 @@ export class SpritesheetCapture {
 		return this.initPromise;
 	}
 
-	/** Load a 3D model from URL. Returns model, animation clips, and mixer. */
+	/** Load a 3D model from URL */
 	async loadModel(url: string): Promise<LoadedModel> {
 		await this.init(this.frameWidth, this.frameHeight);
 		if (!this.initialized) throw new Error("Three.js not initialized");
@@ -156,21 +139,19 @@ export class SpritesheetCapture {
 				(gltf: any) => {
 					const animations = gltf.animations || [];
 
-					// Use SkeletonUtils.clone for animated models (preserves skeleton bindings)
+					// SkeletonUtils.clone preserves skeleton bindings for animated models
 					const model = animations.length > 0 && this.SkeletonUtils
 						? this.SkeletonUtils.clone(gltf.scene)
 						: gltf.scene.clone();
 
-					// Auto-fit model to camera view
-					this.autoFit(model);
+					// Center model at origin
+					this.centerModel(model);
 
-					// Create animation mixer if model has animations
 					let mixer: any = null;
 					if (animations.length > 0) {
 						mixer = new THREE.AnimationMixer(model);
 					}
 
-					// Cache the original GLTF for re-cloning
 					if (!this.modelCache.has(url)) {
 						this.modelCache.set(url, gltf);
 					}
@@ -183,68 +164,74 @@ export class SpritesheetCapture {
 		});
 	}
 
-	/** Auto-fit model to fill the camera frame with padding */
-	private autoFit(model: any): void {
+	/** Center model at origin without scaling — scaling is done by camera frustum */
+	private centerModel(model: any): void {
 		const THREE = this.THREE;
+		model.updateMatrixWorld(true);
+		const box = new THREE.Box3().setFromObject(model);
+		const center = box.getCenter(new THREE.Vector3());
+		model.position.sub(center);
+	}
+
+	/** Fit the orthographic camera to show the model filling the frame.
+	 *  Call this AFTER setting the model in the scene and optionally posing it. */
+	private fitCameraToModel(model: any, padding = 1.15): void {
+		const THREE = this.THREE;
+		model.updateMatrixWorld(true);
 		const box = new THREE.Box3().setFromObject(model);
 		const size = box.getSize(new THREE.Vector3());
-		const maxDim = Math.max(size.x, size.y, size.z);
-		if (maxDim === 0) return;
+		const center = box.getCenter(new THREE.Vector3());
 
-		// For characters in T-pose, the bounding box width (arms extended) is
-		// much larger than height, making the character tiny in the frame.
-		// Use HEIGHT as primary scaling dimension when it's substantial (>30% of max),
-		// which ensures characters fill the frame vertically. Animation poses
-		// (idle, walk) have arms closer to body so width overflow is minimal.
-		// For flat/wide objects (height <30% of max), fall back to maxDim.
-		const targetSize = 1.8;
-		const primaryDim = size.y > maxDim * 0.3 ? size.y : maxDim;
-		const scale = targetSize / primaryDim;
-		model.scale.multiplyScalar(scale);
+		// Use model height as the primary dimension to fill the frame
+		// Add padding so animation poses don't get clipped
+		const halfH = (size.y * padding) / 2;
+		const halfW = (Math.max(size.x, size.z) * padding) / 2;
+		// For square frames, use the larger of the two
+		const halfExtent = Math.max(halfH, halfW);
 
-		// Recompute bounds AFTER scaling, then center at origin
-		model.updateMatrixWorld(true);
-		const newBox = new THREE.Box3().setFromObject(model);
-		const newCenter = newBox.getCenter(new THREE.Vector3());
-		model.position.sub(newCenter);
+		this.camera.left = -halfExtent;
+		this.camera.right = halfExtent;
+		this.camera.top = halfExtent;
+		this.camera.bottom = -halfExtent;
+		this.camera.updateProjectionMatrix();
+
+		// Position camera in front of model (model faces -Z), at model center height
+		this.camera.position.set(0, center.y, -5);
+		this.camera.lookAt(center.x, center.y, center.z);
 	}
 
-	/** Capture a single frame as a PNG blob */
-	private async captureFrame(): Promise<Blob> {
+	/** Capture a single frame — SYNCHRONOUS using toDataURL */
+	private captureFrameSync(): Blob {
 		this.renderer.render(this.scene, this.camera);
-		return new Promise<Blob>((resolve, reject) => {
-			this.renderer.domElement.toBlob(
-				(blob: Blob | null) => {
-					if (blob) resolve(blob);
-					else reject(new Error("toBlob returned null"));
-				},
-				"image/png",
-				1,
-			);
-		});
+		const dataUrl: string = this.renderer.domElement.toDataURL("image/png");
+		// Convert data URL to Blob
+		const byteString = atob(dataUrl.split(",")[1]);
+		const ab = new ArrayBuffer(byteString.length);
+		const ia = new Uint8Array(ab);
+		for (let i = 0; i < byteString.length; i++) {
+			ia[i] = byteString.charCodeAt(i);
+		}
+		return new Blob([ab], { type: "image/png" });
 	}
 
-	/** Render a single preview frame (adds model to scene, renders, returns canvas) */
+	/** Render a single preview frame */
 	renderPreview(loaded: LoadedModel): HTMLCanvasElement | null {
 		if (!this.initialized || !this.renderer) return null;
 		this.setModel(loaded.model);
+		this.fitCameraToModel(loaded.model);
 		this.renderer.render(this.scene, this.camera);
 		return this.renderer.domElement;
 	}
 
 	/** Add model to scene, removing any previous model (keeps lights) */
 	private setModel(model: any): void {
-		// Remove non-light children (lights are first 3 children)
 		while (this.scene.children.length > 3) {
 			this.scene.remove(this.scene.children[this.scene.children.length - 1]);
 		}
 		this.scene.add(model);
 	}
 
-	/**
-	 * Capture a rotation sequence — turntable rotation around an axis.
-	 * Returns array of CapturedFrame (PNG blobs).
-	 */
+	/** Capture a rotation sequence */
 	async captureRotation(
 		loaded: LoadedModel,
 		config: Partial<RotationCaptureConfig> = {},
@@ -255,40 +242,39 @@ export class SpritesheetCapture {
 		const prefix = config.prefix || "rotate";
 
 		this.setModel(loaded.model);
+		this.fitCameraToModel(loaded.model);
 		const originalRotation = loaded.model.rotation.clone();
 		const result: CapturedFrame[] = [];
 
 		for (let i = 0; i < frames; i++) {
-			// Set rotation for this frame
 			const angle = (Math.PI * 2 * i) / frames;
 			loaded.model.rotation.copy(originalRotation);
 			if (axis === "x") loaded.model.rotation.x += angle;
 			else if (axis === "y") loaded.model.rotation.y += angle;
 			else loaded.model.rotation.z += angle;
 
-			const blob = await this.captureFrame();
-			const name = `${prefix}_${String(i).padStart(4, "0")}`;
+			const blob = this.captureFrameSync();
 			result.push({
-				name,
+				name: `${prefix}_${String(i).padStart(4, "0")}`,
 				blob,
 				width: this.frameWidth,
 				height: this.frameHeight,
 			});
 
 			if (onProgress) onProgress((i + 1) / frames);
+			// Yield to UI every few frames
+			if (i % 4 === 0) await new Promise(r => setTimeout(r, 0));
 		}
 
-		// Restore rotation
 		loaded.model.rotation.copy(originalRotation);
 		this.scene.remove(loaded.model);
-
 		return result;
 	}
 
 	/**
 	 * Capture animation frames from a skeletal animation clip.
-	 * Creates a fresh mixer per capture to avoid state corruption.
-	 * Samples evenly across the clip duration.
+	 * Uses incremental mixer.update(delta) — the same pattern that works in the preview.
+	 * Uses synchronous toDataURL() to prevent async timing issues.
 	 */
 	async captureAnimation(
 		loaded: LoadedModel,
@@ -306,61 +292,59 @@ export class SpritesheetCapture {
 			: loaded.animations[0];
 
 		if (!clip) {
-			throw new Error(
-				`Animation clip not found: ${config.clipName || "(first)"}`,
-			);
+			throw new Error(`Animation clip not found: ${config.clipName || "(first)"}`);
 		}
 
 		const prefix = config.prefix || clip.name || "anim";
 
 		this.setModel(loaded.model);
 
-		// Create a FRESH mixer for this capture to avoid stale state
-		// Stop any existing mixer actions first
+		// Stop any existing mixer to avoid conflicts
 		if (loaded.mixer) {
 			loaded.mixer.stopAllAction();
-			loaded.mixer.setTime(0);
 		}
+
+		// Create a fresh mixer for capture
 		const mixer = new THREE.AnimationMixer(loaded.model);
 		const action = mixer.clipAction(clip);
 		action.play();
 
+		// Fit camera to the model in its first animation pose
+		mixer.setTime(0);
+		loaded.model.updateMatrixWorld(true);
+		this.fitCameraToModel(loaded.model, 1.2);
+
 		const result: CapturedFrame[] = [];
 
 		for (let i = 0; i < frames; i++) {
-			// Set absolute time — setTime resets all actions to 0 then advances
 			const t = (clip.duration * i) / frames;
+
+			// Use setTime for absolute positioning — internally resets to 0 then advances
 			mixer.setTime(t);
-			// Force full transform hierarchy update (critical for skinned meshes)
 			loaded.model.updateMatrixWorld(true);
 
-			const blob = await this.captureFrame();
-			const name = `${prefix}_${String(i).padStart(4, "0")}`;
+			// Synchronous capture — render + toDataURL in same tick
+			const blob = this.captureFrameSync();
 			result.push({
-				name,
+				name: `${prefix}_${String(i).padStart(4, "0")}`,
 				blob,
 				width: this.frameWidth,
 				height: this.frameHeight,
 			});
 
 			if (onProgress) onProgress((i + 1) / frames);
+			// Yield to UI every few frames so progress updates
+			if (i % 4 === 0) await new Promise(r => setTimeout(r, 0));
 		}
 
-		// Cleanup: stop action, reset mixer, remove model from scene
+		// Cleanup
 		action.stop();
 		mixer.stopAllAction();
-		mixer.setTime(0);
-		mixer.update(0);
 		this.scene.remove(loaded.model);
-
 		return result;
 	}
 
-	/**
-	 * Capture from multiple camera angles (4 or 8 directions).
-	 * For each angle: captures all selected animations (or rotation if no animations).
-	 * Returns a Map of angleName → CapturedFrame[].
-	 */
+	/** Capture from multiple camera angles */
 	async captureMultiAngle(
 		loaded: LoadedModel,
 		config: Partial<MultiAngleCaptureConfig> = {},
@@ -371,7 +355,6 @@ export class SpritesheetCapture {
 		const angleNames = numAngles === 4 ? ANGLE_NAMES_4 : ANGLE_NAMES_8;
 		const angleStep = (Math.PI * 2) / numAngles;
 
-		// Determine which clips to capture
 		const hasAnims = loaded.mixer && loaded.animations.length > 0;
 		const clipNames = config.clips
 			? config.clips
@@ -379,100 +362,81 @@ export class SpritesheetCapture {
 				? loaded.animations.map((c: any) => c.name || "anim")
 				: [];
 
-		const totalSteps =
-			numAngles * (clipNames.length > 0 ? clipNames.length * animFrames : animFrames);
+		const totalSteps = numAngles * (clipNames.length > 0 ? clipNames.length * animFrames : animFrames);
 		let step = 0;
 
 		const result = new Map<string, CapturedFrame[]>();
-
-		// Save original camera position
 		const origCamPos = this.camera.position.clone();
-		const camRadius = origCamPos.length();
-		const camY = origCamPos.y;
 
 		for (let a = 0; a < numAngles; a++) {
 			const angleName = angleNames[a];
 			const angle = angleStep * a;
 
-			// Position camera around the model
+			// Rotate camera around the model at its center height
+			const radius = 5;
 			this.camera.position.set(
-				Math.sin(angle) * camRadius,
-				camY,
-				Math.cos(angle) * camRadius,
+				Math.sin(angle) * radius,
+				origCamPos.y,
+				-Math.cos(angle) * radius,
 			);
-			this.camera.lookAt(0, 0, 0);
+			this.camera.lookAt(0, origCamPos.y, 0);
+			this.camera.updateProjectionMatrix();
 
 			if (clipNames.length > 0) {
-				// Capture each animation at this angle
 				for (const clipName of clipNames) {
-					const frames = await this.captureAnimation(loaded, {
+					const capturedFrames = await this.captureAnimation(loaded, {
 						frames: animFrames,
 						clipName,
 						prefix: `${clipName}_${angleName}`,
 					});
-					const key = `${clipName}_${angleName}`;
-					result.set(key, frames);
+					result.set(`${clipName}_${angleName}`, capturedFrames);
 					step += animFrames;
 					if (onProgress) onProgress(step / totalSteps);
 				}
 			} else {
-				// No animations — capture rotation at this angle
-				const frames = await this.captureRotation(loaded, {
+				const capturedFrames = await this.captureRotation(loaded, {
 					frames: animFrames,
 					prefix: `rotate_${angleName}`,
 				});
-				result.set(angleName, frames);
+				result.set(angleName, capturedFrames);
 				step += animFrames;
 				if (onProgress) onProgress(step / totalSteps);
 			}
 		}
 
-		// Restore camera
 		this.camera.position.copy(origCamPos);
-		this.camera.lookAt(0, 0, 0);
-
+		this.camera.lookAt(0, origCamPos.y, 0);
 		return result;
 	}
 
-	/** Get the list of animation clip names from a loaded model */
 	getAnimationNames(loaded: LoadedModel): string[] {
-		return loaded.animations.map(
-			(c: any, i: number) => c.name || `animation_${i}`,
-		);
+		return loaded.animations.map((c: any, i: number) => c.name || `animation_${i}`);
 	}
 
-	/** Get the Three.js module (for external use like OrbitControls in preview) */
 	getThree(): any {
 		return this.THREE;
 	}
 
-	/** Get the renderer's canvas element (for preview display) */
 	getCanvas(): HTMLCanvasElement | null {
 		return this.renderer?.domElement || null;
 	}
 
-	/** Set the capture camera position (called before generate to match user's preview angle) */
 	setCameraPosition(x: number, y: number, z: number): void {
 		if (this.camera) this.camera.position.set(x, y, z);
 	}
 
-	/** Set the capture camera look-at target */
 	setCameraTarget(x: number, y: number, z: number): void {
 		if (this.camera) this.camera.lookAt(x, y, z);
 	}
 
-	/** Get the camera object (for reading position) */
 	getCamera(): any {
 		return this.camera;
 	}
 
-	/** Dynamically import OrbitControls for interactive preview */
 	async getOrbitControlsClass(): Promise<any> {
 		await this.init(this.frameWidth, this.frameHeight);
 		// @ts-ignore
-		const { OrbitControls } = await import(
-			"three/examples/jsm/controls/OrbitControls.js"
-		);
+		const { OrbitControls } = await import("three/examples/jsm/controls/OrbitControls.js");
 		return OrbitControls;
 	}
 
@@ -485,7 +449,6 @@ export class SpritesheetCapture {
 	}
 }
 
-/** Get or create the singleton capture instance */
 export function getCaptureInstance(): SpritesheetCapture {
 	if (!_instance) {
 		_instance = new SpritesheetCapture();

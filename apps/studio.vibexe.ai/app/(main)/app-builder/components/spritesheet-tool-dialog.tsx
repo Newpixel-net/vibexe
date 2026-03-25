@@ -177,19 +177,19 @@ export function SpritesheetToolDialog({ appId, open, onOpenChange, onGenerated }
 		container.appendChild(renderer.domElement);
 		renderer.domElement.style.borderRadius = "8px";
 
-		// Scene with lighting
+		// Scene with front-facing lighting
 		const scene = new THREE.Scene();
-		scene.add(new THREE.AmbientLight(0xffffff, 0.7));
-		const dir = new THREE.DirectionalLight(0xffffff, 0.9);
-		dir.position.set(2, 3, -2);
+		scene.add(new THREE.AmbientLight(0xffffff, 0.8));
+		const dir = new THREE.DirectionalLight(0xffffff, 0.8);
+		dir.position.set(1, 2, -3);
 		scene.add(dir);
 		const fill = new THREE.DirectionalLight(0xffffff, 0.3);
-		fill.position.set(-2, 1, 1);
+		fill.position.set(-1, 1, 2);
 		scene.add(fill);
 
-		// Camera
-		const camera = new THREE.PerspectiveCamera(45, w / h, 0.1, 100);
-		camera.position.set(0, 0.4, -2.5);
+		// Camera — front view (model faces -Z)
+		const camera = new THREE.PerspectiveCamera(35, w / h, 0.1, 100);
+		camera.position.set(0, 0, -4);
 		camera.lookAt(0, 0, 0);
 
 		// OrbitControls — user can drag to rotate, scroll to zoom
@@ -319,11 +319,7 @@ export function SpritesheetToolDialog({ appId, open, onOpenChange, onGenerated }
 		try {
 			const capture = getCaptureInstance();
 			await capture.init(frameSize, frameSize);
-
-			// Force camera to known-good front-facing position
-			// Do NOT sync from preview camera — previous debug showed top-down angle being used
-			capture.setCameraPosition(0, 0.4, -2.5);
-			capture.setCameraTarget(0, 0, 0);
+			// Camera is auto-fitted to model bounds by captureAnimation/captureRotation
 
 			const newResults: StoredSpritesheet[] = [];
 
