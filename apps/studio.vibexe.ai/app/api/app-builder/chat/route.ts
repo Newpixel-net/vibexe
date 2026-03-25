@@ -1042,12 +1042,18 @@ export default class GameScene2D implements GameScene {
 ${featureRegistrations}
     engine.features.initAll();
 
-    // === ADD CUSTOM VISUALS AND GAME LOGIC BELOW ===
-    // Features handle: visuals, player, platforms, coins, enemies, camera, HUD, atmosphere
-    // Add here: unique decorations, custom entities, special mechanics, story elements
+    // Load custom visuals (AI creates src/game/custom-visuals.ts)
+    try {
+      var _cv = await import("../game/custom-visuals");
+      if (_cv.setup) _cv.setup(engine, this.container);
+    } catch(e) { /* custom visuals not created yet — game works without them */ }
 
-    this._update = (dt: number) => {
+    var _customUpdate = null;
+    try { if (_cv && _cv.update) _customUpdate = _cv.update; } catch(e) {}
+
+    this._update = function(dt) {
       engine.features.updateAll(dt);
+      if (_customUpdate) try { _customUpdate(engine, dt); } catch(e) {}
       engine.input.endFrame();
     };
   }
@@ -1301,9 +1307,9 @@ After creating ALL files, end with a short summary. If the app has auth, include
 
 \`src/scenes/GameScene2D.ts\` already has working player, platforms, coins, enemies, camera, HUD, and visuals.
 
-Your job: use \`read_file("src/scenes/GameScene2D.ts")\` then \`patch_file\` to ADD custom decorations in the marked section. Do NOT rewrite from scratch. Do NOT use \`update_file\` on GameScene2D.ts — it is protected.
+Your job: create \`src/game/custom-visuals.ts\` with custom draw functions. The scaffold auto-imports it.
 
-CRITICAL: Write PLAIN JavaScript only — no TypeScript annotations (no \`: number\`, \`: string\`, \`as X\`). Use \`var\` not \`const/let\`. The scaffold code is plain JS. Create \`docs/README.md\` with a short game description.`);
+Do NOT touch GameScene2D.ts — it is LOCKED. Create ONLY \`src/game/custom-visuals.ts\` (export setup and update functions) and \`docs/README.md\`. Use \`var\` not \`const/let\`. Plain JavaScript only.`);
 		}
 		// 2D game addenda — simplified for Feature Bank auto-compose pipeline
 		// Core gameplay is already handled by the scaffold, AI just adds custom visuals

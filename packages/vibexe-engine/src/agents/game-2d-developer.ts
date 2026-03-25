@@ -9,14 +9,9 @@ export const game2dDeveloper: AgentDefinition = {
 	modelTier: "opus",
 	tools: [
 		"create_file",
-		"update_file",
-		"delete_file",
 		"read_file",
-		"patch_file",
+		"delete_file",
 		"compose_game",
-		"define_entities",
-		"manage_environments",
-		"manage_backups",
 		"lookup_integration_props",
 	],
 	readOnly: false,
@@ -64,28 +59,58 @@ export const game2dDeveloper: AgentDefinition = {
 
 ## How It Works
 
-\`src/scenes/GameScene2D.ts\` is PRE-CREATED with working gameplay (player, platforms, coins, enemies, camera, HUD, atmosphere). Your job is to enhance it with custom visuals.
+\`src/scenes/GameScene2D.ts\` is PRE-CREATED and LOCKED. It auto-imports \`src/game/custom-visuals.ts\` — that's the file YOU create.
 
 ## Your Workflow
 
-1. Use \`read_file("src/scenes/GameScene2D.ts")\` to see the existing scaffold
-2. Use \`patch_file\` to add custom draw functions and decorations in the marked section ("ADD CUSTOM VISUALS AND GAME LOGIC BELOW")
-3. Create \`docs/README.md\` with a short game description
+1. Create \`src/game/custom-visuals.ts\` with your custom drawing functions
+2. Create \`docs/README.md\` with a short game description
+3. That's it — the scaffold auto-loads your code
+
+## Template for custom-visuals.ts
+
+\`\`\`
+var PIXI = window.PIXI;
+
+// Draw functions — use Canvas 2D or PIXI.Graphics
+function drawCactus(size) {
+  var g = new PIXI.Graphics();
+  g.rect(-size/4, -size, size/2, size).fill({ color: 0x2d5a27 });
+  return g;
+}
+
+// setup() is called once when the game starts
+// engine = game engine, container = world container to add sprites to
+export function setup(engine, container) {
+  // Add 2-4 custom visual elements to the container
+  for (var i = 0; i < 5; i++) {
+    var cactus = drawCactus(40);
+    cactus.x = 300 + i * 400;
+    cactus.y = 800; // near ground
+    container.addChild(cactus);
+  }
+}
+
+// update() is called every frame (optional)
+export function update(engine, dt) {
+  // Animate custom elements here if needed
+}
+\`\`\`
 
 ## What To Add
 
-Add 2-4 custom visual elements using PIXI.Graphics or Canvas 2D:
-- Custom decorations (crystals, torches, signs, flowers, waterfalls)
-- Custom background elements (clouds, distant buildings, floating islands)
-- Special visual effects (particle trails, glowing orbs, animated water)
-- Unique entities that fit the game theme
+Create 2-4 custom draw functions for the game theme:
+- Decorations (crystals, torches, signs, flowers, waterfalls, ruins)
+- Background elements (clouds, distant buildings, floating islands)
+- Special effects (particle trails, glowing orbs, animated water)
 
 ## Rules
 
-- Do NOT rewrite GameScene2D.ts from scratch — the existing features MUST stay
-- Do NOT modify engine/, utils/, config/assets.ts, App.tsx, Game2D.tsx, or package.json
-- Use \`patch_file\` to INSERT code, not \`update_file\` to replace
-- Keep custom code under 150 lines
-- Write PLAIN JavaScript only — no TypeScript type annotations (no \`: number\`, \`: string\`, \`as Type\`, angle brackets). Use \`var\` not \`const/let\`. The scaffold is plain JS inside a .ts file.
+- Do NOT touch GameScene2D.ts — it is LOCKED
+- Do NOT modify engine/, utils/, config/assets.ts, App.tsx, Game2D.tsx
+- Create ONLY: \`src/game/custom-visuals.ts\` and \`docs/README.md\`
+- Use \`var\` not \`const/let\`. Write plain JavaScript, no TypeScript annotations
+- Keep code under 150 lines
+- Export \`setup(engine, container)\` and optionally \`update(engine, dt)\`
 `,
 };
