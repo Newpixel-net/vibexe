@@ -181,15 +181,15 @@ export function SpritesheetToolDialog({ appId, open, onOpenChange, onGenerated }
 		const scene = new THREE.Scene();
 		scene.add(new THREE.AmbientLight(0xffffff, 0.7));
 		const dir = new THREE.DirectionalLight(0xffffff, 0.9);
-		dir.position.set(2, 3, 2);
+		dir.position.set(2, 3, -2);
 		scene.add(dir);
 		const fill = new THREE.DirectionalLight(0xffffff, 0.3);
-		fill.position.set(-2, 1, -1);
+		fill.position.set(-2, 1, 1);
 		scene.add(fill);
 
 		// Camera
 		const camera = new THREE.PerspectiveCamera(45, w / h, 0.1, 100);
-		camera.position.set(0, 0.4, 2.5);
+		camera.position.set(0, 0.4, -2.5);
 		camera.lookAt(0, 0, 0);
 
 		// OrbitControls — user can drag to rotate, scroll to zoom
@@ -322,7 +322,7 @@ export function SpritesheetToolDialog({ appId, open, onOpenChange, onGenerated }
 
 			// Force camera to known-good front-facing position
 			// Do NOT sync from preview camera — previous debug showed top-down angle being used
-			capture.setCameraPosition(0, 0.4, 2.5);
+			capture.setCameraPosition(0, 0.4, -2.5);
 			capture.setCameraTarget(0, 0, 0);
 
 			const newResults: StoredSpritesheet[] = [];

@@ -115,11 +115,11 @@ export class SpritesheetCapture {
 				const ambient = new THREE.AmbientLight(0xffffff, 0.7);
 				this.scene.add(ambient);
 				const dir = new THREE.DirectionalLight(0xffffff, 0.9);
-				dir.position.set(2, 3, 2);
+				dir.position.set(2, 3, -2);
 				this.scene.add(dir);
 				// Fill light from opposite side
 				const fill = new THREE.DirectionalLight(0xffffff, 0.3);
-				fill.position.set(-2, 1, -1);
+				fill.position.set(-2, 1, 1);
 				this.scene.add(fill);
 
 				// Camera
@@ -129,7 +129,7 @@ export class SpritesheetCapture {
 					0.1,
 					100,
 				);
-				this.camera.position.set(0, 0.4, 2.5);
+				this.camera.position.set(0, 0.4, -2.5);
 				this.camera.lookAt(0, 0, 0);
 
 				this.initialized = true;
