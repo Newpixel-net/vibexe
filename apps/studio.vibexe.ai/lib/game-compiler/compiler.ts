@@ -14,7 +14,7 @@ import { generateRuntimeBootstrap } from "./runtime-bootstrap";
 
 // Bump this when generateGameEntry() or the compiler wrapper changes
 // so esbuild cache busts without waiting for CACHE_TTL expiry
-const COMPILER_VERSION = "29";
+const COMPILER_VERSION = "30";
 
 // In-memory LRU cache for compiled bundles
 const bundleCache = new Map<string, { bundle: string; timestamp: number }>();
@@ -120,9 +120,26 @@ function createVirtualPlugin(files: Map<string, string>, enabledModuleIds?: stri
 
 			// Load virtual files
 			build.onLoad({ filter: /.*/, namespace: "virtual" }, (args) => {
-				const content = files.get(args.path);
+				let content = files.get(args.path);
 				if (content === undefined)
 					return { errors: [{ text: `Not found: ${args.path}` }] };
+
+				// Auto-append re-exports to config/assets.ts so AI can import from anywhere
+				if (args.path.endsWith("config/assets.ts") || args.path === "config/assets.ts") {
+					const reExports: string[] = [];
+					const effectsPath = findFileByName(files, "effects.ts") || findFileByName(files, "engine/effects.ts");
+					const physicsPath = findFileByName(files, "physics.ts") || findFileByName(files, "engine/physics.ts");
+					const mediaPath = findFileByName(files, "media-stock.ts") || findFileByName(files, "utils/media-stock.ts");
+					if (effectsPath && !content.includes("createAmbientEffect"))
+						reExports.push(`export { createAmbientEffect, createSnowEffect, createRainEffect, onJumpDust, onLandImpact, onCollectSparkle, onDeathExplosion } from "../${effectsPath}";`);
+					if (physicsPath && !content.includes("PhysicsWorld"))
+						reExports.push(`export { PhysicsWorld, createBody, createStaticBody, createOneWayPlatform, CharacterController } from "../${physicsPath}";`);
+					if (mediaPath && !content.includes("_loadSpriteLib"))
+						reExports.push(`export { _loadSpriteLib, _sheetCache } from "../${mediaPath}";`);
+					if (reExports.length > 0)
+						content = content + "\n// Auto-injected re-exports\n" + reExports.join("\n") + "\n";
+				}
+
 				const ext = args.path.split(".").pop() || "tsx";
 				const loaders: Record<string, esbuild.Loader> = {
 					tsx: "tsx", ts: "ts", jsx: "jsx", js: "js", css: "css", json: "json",
