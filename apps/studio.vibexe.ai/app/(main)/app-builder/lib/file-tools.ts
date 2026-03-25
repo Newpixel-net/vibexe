@@ -75,8 +75,8 @@ export function createFileTools(appId: string, options?: FileToolsOptions) {
 	}
 
 	/** Check if a path is forbidden — returns rejection message or null */
-	function checkForbidden(filePath: string): string | null {
-		if (protectedPaths.has(filePath)) {
+	function checkForbidden(filePath: string, skipProtected = false): string | null {
+		if (!skipProtected && protectedPaths.has(filePath)) {
 			console.log(`[FileTools] BLOCKED protected path: ${filePath}`);
 			return `File "${filePath}" is a pre-created template and cannot be overwritten. Import from it instead.`;
 		}
@@ -228,7 +228,8 @@ export function createFileTools(appId: string, options?: FileToolsOptions) {
 			}),
 			execute: async ({ path: rawPath, anchor, position, code }) => {
 				const path = rewritePath(rawPath);
-				const blocked = checkForbidden(path);
+				// patch_file skips protectedPaths check — patching adds code, doesn't overwrite
+				const blocked = checkForbidden(path, true);
 				if (blocked) {
 					return { success: false, action: "patched", path, error: blocked };
 				}

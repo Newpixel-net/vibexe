@@ -1593,6 +1593,11 @@ An App Store listing has been analyzed and injected into the project context abo
 		if (isGameProject || isGame2d || isGame3d) {
 			const templateFiles = isGame2d ? GAME_2D_TEMPLATE_FILES : GAME_3D_TEMPLATE_FILES;
 			const protectedPaths = new Set(templateFiles.map((t) => t.path));
+			// During build phase for 2D games, protect GameScene2D.ts from being overwritten
+			// (it's auto-composed with Feature Bank — AI should only patch_file to add decorations)
+			if (isGame2d && hasPlanOnly) {
+				protectedPaths.add("src/scenes/GameScene2D.ts");
+			}
 			const forbiddenPatterns: RegExp[] = isGame2d
 				? [
 					// Block helper scenes + prevent AI from creating 3D scenes in 2D projects
