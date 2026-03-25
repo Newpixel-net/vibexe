@@ -42,14 +42,14 @@ export async function uploadSpritesheet(
 	}
 	const atlasData = await atlasRes.json();
 
-	// Upload metadata JSON
+	// Upload metadata JSON (use text/plain since storage endpoint only allows text/*)
 	const metaBlob = new Blob([JSON.stringify(metadata, null, 2)], {
-		type: "application/json",
+		type: "text/plain",
 	});
 	const metaForm = new FormData();
 	metaForm.append(
 		"file",
-		new File([metaBlob], "sheet.json", { type: "application/json" }),
+		new File([metaBlob], "sheet.json", { type: "text/plain" }),
 	);
 	metaForm.append("path", `${basePath}/sheet.json`);
 
