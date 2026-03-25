@@ -699,7 +699,7 @@ export const AIMessage = memo(function AIMessage({
 			</div>
 		</div>
 	);
-}
+});
 
 interface MessageListProps {
 	messages: ChatMessage[];
@@ -751,4 +751,4 @@ export function MessageList({ messages, isLoading, aiName }: MessageListProps) {
 			})}
 		</div>
 	);
-});
+}
