@@ -211,12 +211,10 @@ export class SpritesheetCapture {
 		const size = box.getSize(new THREE.Vector3());
 		const center = box.getCenter(new THREE.Vector3());
 
-		// Use model height as the primary dimension to fill the frame
-		// Add padding so animation poses don't get clipped
-		const halfH = (size.y * padding) / 2;
-		const halfW = (Math.max(size.x, size.z) * padding) / 2;
-		// For square frames, use the larger of the two
-		const halfExtent = Math.max(halfH, halfW);
+		// Use model HEIGHT to fill the frame vertically.
+		// For characters in T-pose, width >> height, but during animation
+		// arms are close to body. Use height with generous padding.
+		const halfExtent = (size.y * padding) / 2;
 
 		this.camera.left = -halfExtent;
 		this.camera.right = halfExtent;
