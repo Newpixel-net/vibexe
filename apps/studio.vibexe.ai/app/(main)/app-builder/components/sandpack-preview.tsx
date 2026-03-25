@@ -2344,6 +2344,10 @@ export function SandpackPreview({
 	const is2DGame = isGameMode && files.some(f => f.path === "src/engine/core.ts" || f.path === "src/components/Game2D.tsx");
 	const useLightweightRuntime = isGameMode && (!!dependencies.three || is2DGame);
 
+	// 2D games: don't show game preview until build phase creates custom-visuals.ts
+	// During plan phase, only templates + README exist — showing a running game is confusing
+	const hasGameBeenBuilt = !is2DGame || files.some(f => f.path === "src/game/custom-visuals.ts");
+
 	// Enabled module IDs for lightweight runtime compiler
 	const enabledModuleIds = useMemo(() => {
 		const installed = gameEditor.gameSettings?.modules?.installed;
@@ -2735,15 +2739,27 @@ export function SandpackPreview({
 
 			{/* Sandpack container - fills remaining space */}
 			<div className={`sandpack-container relative flex-1 flex flex-col min-h-0 overflow-hidden bg-muted/20 p-2 ${isGameMode && gameEditor.maximizeOnPlay ? "fixed inset-0 z-[100] p-0" : ""}`}>
-				{/* Generation overlay — hide game preview while AI is building to prevent freeze */}
-				{isGenerating && isGameMode && useLightweightRuntime && (
+				{/* Game preview overlay — shows during AI generation OR before build phase */}
+				{isGameMode && useLightweightRuntime && (isGenerating || !hasGameBeenBuilt) && (
 					<div className="absolute inset-0 z-50 flex flex-col items-center justify-center bg-[#0a0a14]/95 backdrop-blur-sm rounded-lg">
 						<div className="flex flex-col items-center gap-4">
-							<div className="w-16 h-16 rounded-full border-2 border-violet-500/30 border-t-violet-400 animate-spin" />
-							<div className="text-center">
-								<p className="text-white/80 text-sm font-medium">Building your game...</p>
-								<p className="text-white/40 text-xs mt-1">Preview will appear when generation completes</p>
-							</div>
+							{isGenerating ? (
+								<>
+									<div className="w-16 h-16 rounded-full border-2 border-violet-500/30 border-t-violet-400 animate-spin" />
+									<div className="text-center">
+										<p className="text-white/80 text-sm font-medium">Building your game...</p>
+										<p className="text-white/40 text-xs mt-1">Preview will appear when generation completes</p>
+									</div>
+								</>
+							) : (
+								<div className="text-center">
+									<div className="w-16 h-16 mx-auto mb-3 rounded-2xl bg-violet-500/10 border border-violet-500/20 flex items-center justify-center">
+										<svg className="w-8 h-8 text-violet-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M14.25 2.26a2 2 0 0 0-4.5 0M12 15V9m0 0-2.5 2.5M12 9l2.5 2.5M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" /></svg>
+									</div>
+									<p className="text-white/70 text-sm font-medium">Game plan ready</p>
+									<p className="text-white/40 text-xs mt-1">{"Say 'build it' in the chat to generate your game"}</p>
+								</div>
+							)}
 						</div>
 					</div>
 				)}
@@ -2767,8 +2783,8 @@ export function SandpackPreview({
 										enabledModuleIds={enabledModuleIds}
 										iframeRef={iframeRef as React.RefObject<HTMLIFrameElement | null>}
 										refreshRef={sandpackRefreshRef}
-										suppressRecompile={gameEditor.enabled || !!isGenerating}
-										isGenerating={!!isGenerating}
+										suppressRecompile={gameEditor.enabled || !!isGenerating || !hasGameBeenBuilt}
+										isGenerating={!!isGenerating || !hasGameBeenBuilt}
 										runtimeUrl={is2DGame ? "/api/app-builder/game-runtime-2d?v=2" : undefined}
 									/>
 								) : (
@@ -2880,8 +2896,8 @@ export function SandpackPreview({
 								enabledModuleIds={enabledModuleIds}
 								iframeRef={iframeRef as React.RefObject<HTMLIFrameElement | null>}
 								refreshRef={sandpackRefreshRef}
-								suppressRecompile={gameEditor.enabled || !!isGenerating}
-								isGenerating={!!isGenerating}
+								suppressRecompile={gameEditor.enabled || !!isGenerating || !hasGameBeenBuilt}
+								isGenerating={!!isGenerating || !hasGameBeenBuilt}
 								runtimeUrl={is2DGame ? "/api/app-builder/game-runtime-2d?v=2" : undefined}
 							/>
 						) : (
