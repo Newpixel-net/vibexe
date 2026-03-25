@@ -15,10 +15,10 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import {
 	Dialog,
 	DialogContent,
+	DialogDescription,
 	DialogTitle,
 	DialogHeader,
 } from "@vibexe-internal/ui/dialog";
-import { Button } from "@/components/ui/button";
 import {
 	Box,
 	Camera,
@@ -358,6 +358,9 @@ export function SpritesheetToolDialog({ appId, open, onOpenChange, onGenerated }
 						<Grid3X3 className="size-4 text-blue-400" />
 						3D → 2D Spritesheet Generator
 					</DialogTitle>
+					<DialogDescription className="sr-only">
+						Load a 3D model and generate a PIXI.Spritesheet atlas for use in 2D games.
+					</DialogDescription>
 				</DialogHeader>
 
 				<div className="flex min-h-[480px]">
@@ -423,13 +426,14 @@ export function SpritesheetToolDialog({ appId, open, onOpenChange, onGenerated }
 										placeholder="https://...model.glb"
 										className="flex-1 px-3 py-1.5 rounded-md bg-white/[0.04] border border-white/[0.08] text-sm text-white/80 placeholder:text-white/20 focus:outline-none focus:border-blue-500/50"
 									/>
-									<Button
+									<button
+										type="button"
 										onClick={() => loadModel(modelUrl)}
 										disabled={!modelUrl || isWorking}
-										className="text-xs"
+										className="px-4 py-1.5 rounded-md text-xs font-medium bg-blue-500/20 text-blue-400 border border-blue-500/30 hover:bg-blue-500/30 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
 									>
 										Load
-									</Button>
+									</button>
 								</div>
 							)}
 
@@ -666,19 +670,20 @@ export function SpritesheetToolDialog({ appId, open, onOpenChange, onGenerated }
 
 							{/* Buttons */}
 							<div className="flex gap-2">
-								<Button
+								<button
+									type="button"
 									onClick={runPreview}
 									disabled={!loadedModel || isWorking}
-									variant="link"
-									className="text-xs gap-1"
+									className="flex items-center gap-1 px-4 py-2 rounded-md text-xs font-medium text-white/60 hover:text-white/80 bg-white/[0.04] border border-white/[0.08] hover:bg-white/[0.08] transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
 								>
 									<Play className="size-3" />
 									Preview
-								</Button>
-								<Button
+								</button>
+								<button
+									type="button"
 									onClick={generate}
 									disabled={!loadedModel || isWorking}
-									className="flex-1 text-xs gap-1"
+									className="flex-1 flex items-center justify-center gap-1 px-4 py-2 rounded-md text-xs font-medium bg-blue-500/20 text-blue-400 border border-blue-500/30 hover:bg-blue-500/30 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
 								>
 									{isWorking ? (
 										<Loader2 className="size-3 animate-spin" />
@@ -686,7 +691,7 @@ export function SpritesheetToolDialog({ appId, open, onOpenChange, onGenerated }
 										<Camera className="size-3" />
 									)}
 									{phase === "done" ? "Regenerate" : "Generate Spritesheet"}
-								</Button>
+								</button>
 							</div>
 						</div>
 					</div>
