@@ -14,7 +14,7 @@ import { generateRuntimeBootstrap } from "./runtime-bootstrap";
 
 // Bump this when generateGameEntry() or the compiler wrapper changes
 // so esbuild cache busts without waiting for CACHE_TTL expiry
-const COMPILER_VERSION = "37";
+const COMPILER_VERSION = "38";
 
 // In-memory LRU cache for compiled bundles
 const bundleCache = new Map<string, { bundle: string; timestamp: number }>();
@@ -145,11 +145,13 @@ function createVirtualPlugin(files: Map<string, string>, enabledModuleIds?: stri
 				// Regex strip first (handles broken code esbuild.transform can't parse),
 				// then esbuild.transform as second pass for anything regex missed.
 				if (args.path.includes("GameScene2D")) {
-					// Pass 1: regex — catch common TS patterns even in broken code
+					// Pass 1: regex — strip `: Type` annotations from params and variables
+					// Matches word boundary + `: type` patterns, preserving the identifier
+					const tsTypes = "number|string|boolean|any|void|object|unknown|never|undefined|null|Array|Record|Map|Set|Engine2D|GameScene";
 					content = content
-						.replace(/(\w)\s*:\s*(number|string|boolean|any|void|object|unknown|never|undefined|null)(?=\s*[,)\]=;])/g, "$1")
+						.replace(new RegExp("(\\w+)\\s*:\\s*(?:" + tsTypes + ")(?:\\[\\])?", "g"), "$1")
 						.replace(/\bas\s+[A-Za-z][\w.]*/g, "")
-						.replace(/<[A-Za-z][\w<>,\s]*>/g, "");
+						.replace(/<[A-Za-z][\w<>,|\s]*>/g, "");
 					// Pass 2: esbuild.transform — strip any remaining TS cleanly
 					try {
 						const stripped = await esbuild.transform(content, { loader: "tsx", target: "es2020" });
