@@ -352,7 +352,7 @@ export function SpritesheetToolDialog({ appId, open, onOpenChange, onGenerated }
 
 	return (
 		<Dialog open={open} onOpenChange={onOpenChange}>
-			<DialogContent className="max-w-[860px] w-[95vw] max-h-[90vh] p-0 gap-0 overflow-hidden bg-[#0d0d1a] border-white/10">
+			<DialogContent className="max-w-[860px] w-[95vw] max-h-[90vh] p-0 gap-0 overflow-hidden bg-[#0d0d1a] border-white/10 [&>button]:hidden">
 				<DialogHeader className="px-5 py-3 border-b border-white/[0.06]">
 					<DialogTitle className="flex items-center gap-2 text-base font-medium text-white/90">
 						<Grid3X3 className="size-4 text-blue-400" />
@@ -363,7 +363,7 @@ export function SpritesheetToolDialog({ appId, open, onOpenChange, onGenerated }
 					</DialogDescription>
 				</DialogHeader>
 
-				<div className="flex flex-col md:flex-row overflow-y-auto" style={{ maxHeight: "calc(90vh - 56px)" }}>
+				<div className="flex flex-col md:flex-row overflow-x-hidden overflow-y-auto" style={{ maxHeight: "calc(90vh - 56px)" }}>
 					{/* Left column: Preview canvases */}
 					<div className="w-full md:w-[280px] flex-shrink-0 border-b md:border-b-0 md:border-r border-white/[0.06] flex flex-col">
 						{/* 3D Model Preview */}
@@ -395,7 +395,7 @@ export function SpritesheetToolDialog({ appId, open, onOpenChange, onGenerated }
 					</div>
 
 					{/* Right column: Controls */}
-					<div className="flex-1 flex flex-col overflow-y-auto min-w-0">
+					<div className="flex-1 flex flex-col overflow-y-auto overflow-x-hidden min-w-0">
 						{/* Model Source Tabs */}
 						<div className="px-4 pt-3 pb-2 border-b border-white/[0.06]">
 							<div className="flex gap-1 mb-3">
@@ -457,16 +457,18 @@ export function SpritesheetToolDialog({ appId, open, onOpenChange, onGenerated }
 
 							{/* Media stock browser */}
 							{sourceTab === "stock" && (
-								<div className="max-h-[120px] overflow-y-auto space-y-1">
-									{STOCK_PACKS.map((pack) => (
-										<button
-											key={pack.id}
-											onClick={() => handleStockSelect(pack.id, `${pack.path ? pack.path + "/" : ""}sample${pack.ext}`)}
-											className="w-full text-left px-3 py-2 rounded-md text-xs text-white/60 hover:bg-white/[0.04] hover:text-white/80 transition-colors"
-										>
-											{pack.name}
-										</button>
-									))}
+								<div className="px-3 py-4 text-center">
+									<div className="text-xs text-white/30 mb-2">Available 3D model packs:</div>
+									<div className="space-y-1">
+										{STOCK_PACKS.map((pack) => (
+											<div key={pack.id} className="text-xs text-white/50 px-3 py-1.5 rounded-md bg-white/[0.03]">
+												{pack.name}
+											</div>
+										))}
+									</div>
+									<div className="text-[10px] text-white/20 mt-2">
+										Use the URL tab to paste a model link, or Upload a .glb file
+									</div>
 								</div>
 							)}
 						</div>
@@ -487,7 +489,7 @@ export function SpritesheetToolDialog({ appId, open, onOpenChange, onGenerated }
 							{/* Frame Size */}
 							<div>
 								<label className="text-[10px] uppercase tracking-wider text-white/30 block mb-1">Frame Size</label>
-								<div className="flex gap-1">
+								<div className="flex flex-wrap gap-1">
 									{[64, 128, 256, 512].map((s) => (
 										<button
 											key={s}
@@ -636,7 +638,7 @@ export function SpritesheetToolDialog({ appId, open, onOpenChange, onGenerated }
 						</div>
 
 						{/* Action buttons + status */}
-						<div className="px-4 py-3 border-t border-white/[0.06] space-y-2">
+						<div className="px-4 py-3 border-t border-white/[0.06] space-y-2 flex-shrink-0 bg-[#0d0d1a]">
 							{/* Progress bar */}
 							{isWorking && (
 								<div className="space-y-1">
