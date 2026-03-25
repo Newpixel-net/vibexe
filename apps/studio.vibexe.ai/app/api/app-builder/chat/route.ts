@@ -57,7 +57,7 @@ import {
 } from "@/app/(main)/app-builder/lib/app-store-analyzer";
 import { db } from "@/db";
 import { featureBankSnippets } from "@/db/schema";
-import { eq } from "drizzle-orm";
+import { eq, inArray } from "drizzle-orm";
 import { getUser } from "@/lib/auth/get-user";
 import { getSupabaseConfig, getAppBackendType } from "@/lib/app-database/supabase-connect";
 import { resolveAllProviderApiKeys } from "@/lib/team-ai-provider-keys";
@@ -989,14 +989,78 @@ const supabase = createClient("${supabaseConfig.url}", "${supabaseConfig.anonKey
 				}
 			}
 
-			// 2D games: inject MINIMAL placeholder so preview compiles during plan phase
-			// AI overwrites this completely with its unique game during build phase
+			// 2D games: auto-compose Feature Bank scaffold so preview works during plan phase
+			// AND so the build phase starts with working gameplay features already in place
 			if (isGame2d && !existingPaths.has("src/scenes/GameScene2D.ts")) {
 				const theme = game2dBrief?.theme || "forest";
-				const placeholderScene = `// Placeholder — AI will overwrite with unique game
+				const wW = game2dBrief?.worldWidth || 4000;
+				const wH = game2dBrief?.worldHeight || 900;
+				const groundY = wH - 60;
+				const gravity = game2dBrief?.gravity || 980;
+				const moveSpeed = game2dBrief?.moveSpeed || 280;
+				const jumpForce = game2dBrief?.jumpForce || 520;
+
+				// Fetch 8 core Feature Bank features from DB
+				const coreFeatureIds = ["visual-layers", "player-platformer", "level-platforms", "collectible-coins", "enemy-patrol", "camera-follow", "hud-basic", "ambient-atmosphere"];
+				let autoComposeScene = "";
+				try {
+					const coreFeatures = await db.select().from(featureBankSnippets).where(inArray(featureBankSnippets.id, coreFeatureIds));
+					let featureFactories = "";
+					let featureRegistrations = "";
+					const sharedConfig = { theme, worldWidth: wW, worldHeight: wH, groundY, gravity, moveSpeed, jumpForce };
+
+					for (const bf of coreFeatures) {
+						const safeId = bf.id.replace(/-/g, "_");
+						const deps = (bf.dependencies as string[]) || [];
+						const config = { ...sharedConfig };
+						featureFactories += `\n// --- Feature: ${bf.name} (${bf.id}) ---\nvar __feature_${safeId}_factory = (function() {\n  try {\n    ${bf.code}\n    return typeof create !== 'undefined' ? create : typeof createFeature !== 'undefined' ? createFeature : function(cfg) { return { id: '${bf.id}', init: function(){}, update: function(){}, destroy: function(){} }; };\n  } catch(e) { console.warn('[FeatureBank] load error:', e); return function(cfg) { return { id: '${bf.id}', init: function(){}, update: function(){}, destroy: function(){} }; }; }\n})();\n`;
+						featureRegistrations += `    engine.features.register('${bf.id}', __feature_${safeId}_factory, ${JSON.stringify(config)}, ${JSON.stringify(deps)});\n`;
+					}
+
+					autoComposeScene = `// Auto-composed Feature Bank game — features handle core gameplay
+// AI: Add custom visuals, decorations, and unique mechanics below the marked section
+import { Engine2D, GameScene } from "../engine/core";
+import { PhysicsWorld, createBody, createStaticBody, createOneWayPlatform, CharacterController } from "../engine/physics";
+import { createAmbientEffect, onJumpDust, onLandImpact, onCollectSparkle, onDeathExplosion } from "../engine/effects";
+import { PALETTES, drawSkyGradient, drawStars, drawMountainRange, drawCloud, drawGroundStrip, drawPlatformBlock, drawPlayerCharacter, drawCoinToken, drawEnemySlime, drawHeart, drawLSystemTree, TREE_PRESETS, createWaterSurface, createLavaSurface, createLightingLayer, drawVignette, drawAtmosphericFog } from "../config/assets";
+import { _loadSpriteLib, _sheetCache } from "../utils/media-stock";
+${featureFactories}
+export default class GameScene2D implements GameScene {
+  name = 'game';
+  container = new PIXI.Container();
+  private _update: ((dt: number) => void) | null = null;
+
+  async enter(engine: Engine2D) {
+    await _loadSpriteLib("${theme}");
+
+    // Register and initialize Feature Bank features
+${featureRegistrations}
+    engine.features.initAll();
+
+    // === ADD CUSTOM VISUALS AND GAME LOGIC BELOW ===
+    // Features handle: visuals, player, platforms, coins, enemies, camera, HUD, atmosphere
+    // Add here: unique decorations, custom entities, special mechanics, story elements
+
+    this._update = (dt: number) => {
+      engine.features.updateAll(dt);
+      engine.input.endFrame();
+    };
+  }
+
+  update(engine: Engine2D, dt: number) { this._update?.(dt); }
+
+  exit(engine: Engine2D) {
+    engine.features.destroy();
+  }
+}
+`;
+					console.log(`[Chat API] Auto-composed Feature Bank scaffold (theme: ${theme}, features: ${coreFeatures.length}/8)`);
+				} catch (e) {
+					console.error(`[Chat API] Feature Bank auto-compose failed, falling back to placeholder:`, e);
+					// Fallback to simple placeholder
+					autoComposeScene = `// Placeholder — Feature Bank auto-compose failed
 import { Engine2D, GameScene } from "../engine/core";
 import { PALETTES, drawSkyGradient } from "../config/assets";
-
 export default class GameScene2D implements GameScene {
   name = 'game';
   container = new PIXI.Container();
@@ -1004,8 +1068,7 @@ export default class GameScene2D implements GameScene {
   async enter(engine: Engine2D) {
     var PAL = PALETTES["${theme}"];
     var app = engine.app, W = app.screen.width, H = app.screen.height;
-    var sky = drawSkyGradient(W, H, PAL.skyTop, PAL.skyBottom);
-    this.container.addChild(sky);
+    this.container.addChild(drawSkyGradient(W, H, PAL.skyTop, PAL.skyBottom));
     var txt = new PIXI.Text({ text: "Building your game...", style: { fill: 0xFFFFFF, fontSize: 20, fontWeight: "bold", stroke: { color: 0x000000, width: 3 } } });
     txt.anchor.set(0.5); txt.x = W / 2; txt.y = H / 2;
     this.container.addChild(txt);
@@ -1015,11 +1078,12 @@ export default class GameScene2D implements GameScene {
   exit(engine: Engine2D) {}
 }
 `;
+				}
+
 				try {
-					await saveFile(appId, "src/scenes/GameScene2D.ts", placeholderScene, "typescript");
-					console.log(`[Chat API] Minimal placeholder scene injected (theme: ${theme})`);
+					await saveFile(appId, "src/scenes/GameScene2D.ts", autoComposeScene, "typescript");
 				} catch (e) {
-					console.error(`[Chat API] Placeholder injection failed:`, e);
+					console.error(`[Chat API] Scene save failed:`, e);
 				}
 			}
 
@@ -1224,6 +1288,30 @@ After creating ALL files, end with a short summary. If the app has auth, include
 
 **MINIMUM**: Your GameScene3D.ts must call at least 5 different factory helpers. Every platform, collectible, player, barrier, and decoration MUST use the corresponding factory.`);
 
+			}
+			// 2D game "build" phase: tell AI that GameScene2D.ts is pre-created with Feature Bank
+			if (isGame2d) {
+				runtimeAddenda.push(`## CRITICAL: 2D Game — Feature Bank Pre-Built
+
+**\`src/scenes/GameScene2D.ts\` is PRE-CREATED** with Feature Bank core features that provide working gameplay:
+- visual-layers (sky, mountains, clouds, ground, trees)
+- player-platformer (physics, player sprite, movement, jumping)
+- level-platforms (auto-generated platforms with physics)
+- collectible-coins (coins, collection, score tracking)
+- enemy-patrol (patrol enemies, stomp kills, damage)
+- camera-follow (smooth camera tracking)
+- hud-basic (score display, lives hearts)
+- ambient-atmosphere (particles, lighting, vignette)
+
+**You MUST follow this workflow:**
+1. Use \`read_file("src/scenes/GameScene2D.ts")\` FIRST to see the existing Feature Bank scaffold
+2. Use \`patch_file\` to ADD custom visuals and unique game elements in the marked section
+3. Do NOT rewrite GameScene2D.ts from scratch — the Feature Bank features MUST remain
+4. Add custom draw functions, decorations, story elements, and unique mechanics ON TOP of the scaffold
+5. Create \`src/config/constants.ts\` for game-specific constants
+6. Create \`docs/README.md\` with game description
+
+**NEVER delete or replace the Feature Bank feature registrations.** They provide tested, working gameplay.`);
 			}
 		}
 		// 2D game addenda — runs for ALL calls (new AND returning) so
