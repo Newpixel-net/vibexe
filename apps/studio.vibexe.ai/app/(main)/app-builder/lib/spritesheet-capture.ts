@@ -129,7 +129,7 @@ export class SpritesheetCapture {
 					0.1,
 					100,
 				);
-				this.camera.position.set(0, 0.5, 3.5);
+				this.camera.position.set(0, 0.3, 2.8);
 				this.camera.lookAt(0, 0, 0);
 
 				this.initialized = true;
@@ -187,14 +187,20 @@ export class SpritesheetCapture {
 	private autoFit(model: any): void {
 		const THREE = this.THREE;
 		const box = new THREE.Box3().setFromObject(model);
-		const center = box.getCenter(new THREE.Vector3());
 		const size = box.getSize(new THREE.Vector3());
 		const maxDim = Math.max(size.x, size.y, size.z);
-		// Scale to 1.0 units (was 1.5 — too tight, model was clipped)
-		const scale = maxDim > 0 ? 1.0 / maxDim : 1;
+		if (maxDim === 0) return;
 
-		model.position.sub(center);
+		// Scale first — 1.4 units fills ~80% of the camera viewport
+		const targetSize = 1.4;
+		const scale = targetSize / maxDim;
 		model.scale.multiplyScalar(scale);
+
+		// Recompute bounds AFTER scaling, then center at origin
+		model.updateMatrixWorld(true);
+		const newBox = new THREE.Box3().setFromObject(model);
+		const newCenter = newBox.getCenter(new THREE.Vector3());
+		model.position.sub(newCenter);
 	}
 
 	/** Capture a single frame as a PNG blob */
@@ -316,13 +322,11 @@ export class SpritesheetCapture {
 		const result: CapturedFrame[] = [];
 
 		for (let i = 0; i < frames; i++) {
-			// Reset mixer to time 0, then advance to target time
-			// This ensures deterministic pose at each sample point
+			// Set absolute time — setTime resets all actions to 0 then advances
 			const t = (clip.duration * i) / frames;
-			mixer.setTime(0);
-			mixer.update(t);
-
-			this.renderer.render(this.scene, this.camera);
+			mixer.setTime(t);
+			// Force full transform hierarchy update (critical for skinned meshes)
+			loaded.model.updateMatrixWorld(true);
 
 			const blob = await this.captureFrame();
 			const name = `${prefix}_${String(i).padStart(4, "0")}`;
