@@ -59,6 +59,7 @@ import { db } from "@/db";
 import { featureBankSnippets } from "@/db/schema";
 import { eq, inArray } from "drizzle-orm";
 import { getUser } from "@/lib/auth/get-user";
+import { listFiles } from "@/lib/app-storage/storage-manager";
 import { getSupabaseConfig, getAppBackendType } from "@/lib/app-database/supabase-connect";
 import { resolveAllProviderApiKeys } from "@/lib/team-ai-provider-keys";
 import { syncWiki } from "@/lib/wiki/wiki-sync";
@@ -1345,6 +1346,42 @@ var playerGfx = playerTex
 
 **IMPORTANT**: Always use \`.catch(() => null)\` and fallback to drawing helpers if sprite loading fails.
 These sprites have white backgrounds — set blendMode or use alpha masking if needed.`);
+		}
+		// Spritesheet catalog — inform AI about user-generated spritesheets from the 3D→2D tool
+		if (isGame2d) {
+			try {
+				const sheetResult = await listFiles(appId, "spritesheets/", 100);
+				const sheetFiles = sheetResult.files || [];
+				// Group by spritesheet name
+				const sheets = new Map<string, { atlasUrl?: string; metadataUrl?: string }>();
+				for (const f of sheetFiles) {
+					const m = f.path.match(/^spritesheets\/([^/]+)\/(sheet\.png|sheet\.json)$/);
+					if (!m) continue;
+					if (!sheets.has(m[1])) sheets.set(m[1], {});
+					const entry = sheets.get(m[1])!;
+					if (m[2] === "sheet.png") entry.atlasUrl = f.url;
+					if (m[2] === "sheet.json") entry.metadataUrl = f.url;
+				}
+				const complete = Array.from(sheets.entries()).filter(([, v]) => v.atlasUrl && v.metadataUrl);
+				if (complete.length > 0) {
+					const lines = complete.map(([name, v]) =>
+						`- **${name}**: \`await engine.assets.loadSpritesheet("${name}", "${v.atlasUrl}", "${v.metadataUrl}")\``
+					).join("\n");
+					runtimeAddenda.push(`## Custom Spritesheets (3D→2D Generated)
+
+${lines}
+
+**Usage**: Load in enter(), then create AnimatedSprites:
+\`\`\`typescript
+await engine.assets.loadSpritesheet("${complete[0][0]}", "${complete[0][1].atlasUrl}", "${complete[0][1].metadataUrl}");
+var animNames = engine.assets.animationNames("${complete[0][0]}");
+var sprite = engine.assets.animation("${complete[0][0]}", animNames[0]);
+\`\`\``);
+					console.log(`[Chat API] Injected ${complete.length} custom spritesheet(s) into prompt`);
+				}
+			} catch (e) {
+				console.warn("[Chat API] Failed to fetch spritesheet catalog:", e);
+			}
 		}
 		if (isReturningUser && !isGame2d) {
 			// Normal existing project — edit/add files

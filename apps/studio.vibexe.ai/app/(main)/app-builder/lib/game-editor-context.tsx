@@ -104,6 +104,8 @@ export interface SceneDefinition {
 	cameraPosition?: number[];
 	cameraTarget?: number[];
 	worldBuilder?: import("./world-builder-types").WorldBuilderSceneData;
+	/** Scene type — '2d' for standard PixiJS scene, '3d-mod' for 3D model viewing/spritesheet capture */
+	type?: "2d" | "3d-mod";
 }
 
 export function createDefaultScene(name = "Level 1", isDefault = true): SceneDefinition {
@@ -446,10 +448,13 @@ interface GameEditorContextValue {
 	addLight: (type: "point" | "spot", options?: { color?: string; intensity?: number; position?: { x: number; y: number; z: number }; distance?: number; decay?: number; angle?: number; penumbra?: number; target?: { x: number; y: number; z: number } }) => void;
 	updateLight: (name: string, props: Record<string, any>) => void;
 	removeLight: (name: string) => void;
+	// 2D game detection (set externally by sandpack-preview via setIs2DGame)
+	is2DGame: boolean;
+	setIs2DGame: (v: boolean) => void;
 	// Multi-scene / level management
 	scenes: SceneDefinition[];
 	activeSceneId: string;
-	addScene: (name?: string) => SceneDefinition;
+	addScene: (name?: string, type?: "2d" | "3d-mod") => SceneDefinition;
 	removeScene: (sceneId: string) => void;
 	renameScene: (sceneId: string, name: string) => void;
 	switchScene: (sceneId: string) => void;
@@ -491,6 +496,7 @@ interface GameEditorContextValue {
 const GameEditorContext = createContext<GameEditorContextValue | null>(null);
 
 export function GameEditorProvider({ children }: { children: ReactNode }) {
+	const [is2DGame, setIs2DGame] = useState(false);
 	const [enabled, setEnabledState] = useState(false);
 	const [sceneTree, setSceneTree] = useState<SceneNode | null>(null);
 	const [selectedObject, setSelectedObject] = useState<SelectedSceneObject | null>(null);
@@ -1228,9 +1234,12 @@ export function GameEditorProvider({ children }: { children: ReactNode }) {
 		}
 	}, [gameSettings.scenes, gameSettings.activeSceneId]);
 
-	const addScene = useCallback((name?: string) => {
+	const addScene = useCallback((name?: string, type?: "2d" | "3d-mod") => {
 		const sceneCount = scenes.length;
-		const newScene = createDefaultScene(name || `Level ${sceneCount + 1}`, false);
+		const newScene: SceneDefinition = {
+			...createDefaultScene(name || `Level ${sceneCount + 1}`, false),
+			type: type || (is2DGame ? "2d" : undefined),
+		};
 		setScenesState((prev) => [...prev, newScene]);
 		// Persist to game settings
 		setGameSettingsState((prev) => ({
@@ -1239,7 +1248,7 @@ export function GameEditorProvider({ children }: { children: ReactNode }) {
 		}));
 		setIsDirty(true);
 		return newScene;
-	}, [scenes.length]);
+	}, [scenes.length, is2DGame]);
 
 	const removeScene = useCallback((sceneId: string) => {
 		setScenesState((prev) => {
@@ -1276,10 +1285,14 @@ export function GameEditorProvider({ children }: { children: ReactNode }) {
 		// Deselect current object and clear scene tree (will be re-populated after load)
 		setSelectedObject(null);
 		setSceneTree(null);
-		// Tell iframe to switch scenes
-		sendToIframe({ type: "game-editor-switch-scene", sceneId });
+		// Tell iframe to switch scenes — use different message type for 2D games
+		if (is2DGame) {
+			sendToIframe({ type: "vibexe-2d-switch-scene", sceneId });
+		} else {
+			sendToIframe({ type: "game-editor-switch-scene", sceneId });
+		}
 		setIsDirty(true);
-	}, [activeSceneId, sendToIframe]);
+	}, [activeSceneId, sendToIframe, is2DGame]);
 
 	const updateSceneObjects = useCallback((sceneId: string, objects: SceneObjectDef[]) => {
 		setScenesState((prev) => {
@@ -1412,6 +1425,9 @@ export function GameEditorProvider({ children }: { children: ReactNode }) {
 		addLight,
 		updateLight,
 		removeLight,
+		// 2D game flag
+		is2DGame,
+		setIs2DGame,
 		// Multi-scene / level management
 		scenes,
 		activeSceneId,
@@ -1472,7 +1488,7 @@ export function GameEditorProvider({ children }: { children: ReactNode }) {
 		setCameraQuaternion, snapCameraToView, editorProjection, setEditorProjection,
 		toggleEditorProjection, pivotMode, setPivotMode, togglePivotMode,
 		isSettingsOpen, toggleSettings, addLight, updateLight, removeLight,
-		scenes, activeSceneId, addScene, removeScene, renameScene, switchScene,
+		is2DGame, scenes, activeSceneId, addScene, removeScene, renameScene, switchScene,
 		updateSceneObjects, updateSceneTerrain, updateSceneCamera, getActiveScene,
 		saveAsPrefab, deletePrefab,
 		commandCenterOpen, simulationState, timeScale, gameStats,

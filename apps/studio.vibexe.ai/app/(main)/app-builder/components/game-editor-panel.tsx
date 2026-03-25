@@ -73,6 +73,8 @@ export function GameEditorPanel({ settingsProps }: GameEditorPanelProps) {
 		updateTiling,
 		updateTextureParams,
 		updateCameraProperty,
+		// 2D game flag
+		is2DGame,
 		// Multi-scene / level
 		scenes,
 		activeSceneId,
@@ -106,6 +108,7 @@ export function GameEditorPanel({ settingsProps }: GameEditorPanelProps) {
 	const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
 	const [prefabDialogOpen, setPrefabDialogOpen] = useState(false);
 	const [prefabNameValue, setPrefabNameValue] = useState("");
+	const [sceneTypeDropdownOpen, setSceneTypeDropdownOpen] = useState(false);
 
 	// Close light dropdown on outside click
 	useEffect(() => {
@@ -114,6 +117,14 @@ export function GameEditorPanel({ settingsProps }: GameEditorPanelProps) {
 		const timer = setTimeout(() => document.addEventListener("click", handler), 0);
 		return () => { clearTimeout(timer); document.removeEventListener("click", handler); };
 	}, [lightDropdownOpen]);
+
+	// Close scene type dropdown on outside click
+	useEffect(() => {
+		if (!sceneTypeDropdownOpen) return;
+		const handler = () => setSceneTypeDropdownOpen(false);
+		const timer = setTimeout(() => document.addEventListener("click", handler), 0);
+		return () => { clearTimeout(timer); document.removeEventListener("click", handler); };
+	}, [sceneTypeDropdownOpen]);
 
 	// Auto-switch to Properties tab when an object is selected
 	useEffect(() => {
@@ -267,7 +278,8 @@ export function GameEditorPanel({ settingsProps }: GameEditorPanelProps) {
 
 	return (
 		<div data-game-editor-panel className="absolute top-0 right-0 bottom-0 w-[260px] bg-[#0f0f1a]/95 backdrop-blur-xl border-l border-white/[0.08] flex flex-col z-30 overflow-hidden">
-			{/* Scene Hierarchy */}
+			{/* Scene Hierarchy — 3D games only (2D games have no 3D scene tree) */}
+			{!is2DGame && (
 			<div className="flex-shrink-0 border-b border-white/[0.08]">
 				<div className="flex items-center justify-between px-3 py-2">
 					<span className="text-[11px] font-semibold text-white/40 uppercase tracking-wider">
@@ -344,6 +356,7 @@ export function GameEditorPanel({ settingsProps }: GameEditorPanelProps) {
 					)}
 				</div>
 			</div>
+			)}
 
 			{/* Scenes / Levels */}
 			<div className="flex-shrink-0 border-b border-white/[0.08]">
@@ -357,14 +370,47 @@ export function GameEditorPanel({ settingsProps }: GameEditorPanelProps) {
 						Scenes
 						<span className="text-[9px] font-normal text-white/20 ml-1">({scenes.length})</span>
 					</button>
-					<button
-						type="button"
-						onClick={() => addScene()}
-						className="p-0.5 rounded hover:bg-white/[0.08] text-white/30 hover:text-white/60 transition-colors"
-						title="Add new scene / level"
-					>
-						<Plus className="w-3 h-3" />
-					</button>
+					{is2DGame ? (
+						<div className="relative">
+							<button
+								type="button"
+								onClick={() => setSceneTypeDropdownOpen((v) => !v)}
+								className="p-0.5 rounded hover:bg-white/[0.08] text-white/30 hover:text-white/60 transition-colors"
+								title="Add new scene"
+							>
+								<Plus className="w-3 h-3" />
+							</button>
+							{sceneTypeDropdownOpen && (
+								<div className="absolute right-0 top-full mt-1 bg-[#1a1a2e] border border-white/[0.12] rounded-lg shadow-xl z-50 min-w-[140px] py-1">
+									<button
+										type="button"
+										onClick={() => { addScene(undefined, "2d"); setSceneTypeDropdownOpen(false); }}
+										className="w-full flex items-center gap-2 px-3 py-1.5 text-[10px] text-white/60 hover:bg-white/[0.06] hover:text-white/80 transition-colors"
+									>
+										<Layers className="w-3 h-3 text-emerald-400" />
+										2D Scene
+									</button>
+									<button
+										type="button"
+										onClick={() => { addScene("3D Model", "3d-mod"); setSceneTypeDropdownOpen(false); }}
+										className="w-full flex items-center gap-2 px-3 py-1.5 text-[10px] text-white/60 hover:bg-white/[0.06] hover:text-white/80 transition-colors"
+									>
+										<Box className="w-3 h-3 text-violet-400" />
+										3D Mod Scene
+									</button>
+								</div>
+							)}
+						</div>
+					) : (
+						<button
+							type="button"
+							onClick={() => addScene()}
+							className="p-0.5 rounded hover:bg-white/[0.08] text-white/30 hover:text-white/60 transition-colors"
+							title="Add new scene / level"
+						>
+							<Plus className="w-3 h-3" />
+						</button>
+					)}
 				</div>
 				{scenesExpanded && (
 					<div className="px-1 pb-1.5 space-y-0.5 max-h-[15vh] overflow-y-auto scrollbar-thin">
@@ -406,6 +452,9 @@ export function GameEditorPanel({ settingsProps }: GameEditorPanelProps) {
 										/>
 									) : (
 										<span className="flex-1 truncate">{scene.name}</span>
+									)}
+									{scene.type === "3d-mod" && (
+										<span className="text-[7px] px-1 py-0.5 rounded bg-violet-500/20 text-violet-300 uppercase flex-shrink-0">3D</span>
 									)}
 									{scene.isDefault && (
 										<span className="text-[8px] text-white/20 uppercase flex-shrink-0">default</span>

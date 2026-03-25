@@ -1329,6 +1329,33 @@ export class AssetsSystem {
   has(key: string): boolean {
     return this._cache.has(key);
   }
+
+  /** Load a PIXI.Spritesheet from atlas URL + JSON metadata URL.
+   *  After loading, use engine.assets.animation(name, 'animName') to get AnimatedSprite. */
+  async loadSpritesheet(name: string, atlasUrl: string, jsonUrl: string): Promise<any> {
+    try {
+      var [jsonData, atlasTex] = await Promise.all([
+        fetch(jsonUrl).then(r => r.json()),
+        PIXI.Assets.load(atlasUrl),
+      ]);
+      // Override meta.image — atlas is already loaded as texture
+      var sheet = new PIXI.Spritesheet(atlasTex, jsonData);
+      await sheet.parse();
+      this._cache.set(name, sheet);
+      console.log('[Assets] Spritesheet loaded:', name, 'animations:', Object.keys(sheet.animations || {}));
+      return sheet;
+    } catch(e) {
+      console.warn('[Assets] Failed to load spritesheet:', name, e);
+      return null;
+    }
+  }
+
+  /** List animation names from a loaded spritesheet */
+  animationNames(key: string): string[] {
+    var sheet = this._cache.get(key);
+    if (!sheet || !sheet.animations) return [];
+    return Object.keys(sheet.animations);
+  }
 }
 
 // ---------------------------------------------------------------------------

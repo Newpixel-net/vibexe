@@ -2349,6 +2349,9 @@ export function SandpackPreview({
 	const is2DGame = isGameMode && files.some(f => f.path === "src/engine/core.ts" || f.path === "src/components/Game2D.tsx");
 	const useLightweightRuntime = isGameMode && (!!dependencies.three || is2DGame);
 
+	// Sync 2D game detection into game editor context so scene CRUD can adapt
+	useEffect(() => { gameEditor.setIs2DGame(is2DGame); }, [is2DGame]); // eslint-disable-line react-hooks/exhaustive-deps
+
 	// 2D games: don't show game preview until build phase creates custom-visuals.ts
 	// During plan phase, only templates + README exist — showing a running game is confusing
 	const hasGameBeenBuilt = !is2DGame || files.some(f => f.path === "src/game/custom-visuals.ts");
