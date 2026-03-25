@@ -1237,7 +1237,10 @@ export function ChatColumn({
 	const fetchedToolIds = useRef<Set<string>>(new Set());
 
 	// Stream file updates: trigger onFilesChange per completed file tool during streaming
+	// Skip during active generation — files will refresh once after generation ends
+	// (builder-layout.tsx has post-generation refreshes at 2s, 5s, 10s, 16s)
 	useEffect(() => {
+		if (isLoading) return; // Don't refetch files while AI is streaming — causes React jank
 		if (chatMessages.length === 0) return;
 
 		const latestMessage = chatMessages[chatMessages.length - 1];
@@ -1268,7 +1271,7 @@ export function ChatColumn({
 		if (hasNewCompletion) {
 			onFilesChange();
 		}
-	}, [chatMessages, onFilesChange]);
+	}, [chatMessages, onFilesChange, isLoading]);
 
 	// Stream doc updates: detect running create_file/update_file for .md files
 	useEffect(() => {
