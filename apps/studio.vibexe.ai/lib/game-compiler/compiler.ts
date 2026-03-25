@@ -14,7 +14,7 @@ import { generateRuntimeBootstrap } from "./runtime-bootstrap";
 
 // Bump this when generateGameEntry() or the compiler wrapper changes
 // so esbuild cache busts without waiting for CACHE_TTL expiry
-const COMPILER_VERSION = "25";
+const COMPILER_VERSION = "26";
 
 // In-memory LRU cache for compiled bundles
 const bundleCache = new Map<string, { bundle: string; timestamp: number }>();
@@ -369,6 +369,12 @@ const _SceneClass = _m.GameScene2D || _m.GameScene || _m.PlatformerGameScene
     const PIXI = (window as any).PIXI;
     const Proton = (window as any).Proton;
     if (!PIXI) { console.error('[2D Boot] PIXI not found on window'); return; }
+
+    // Defensive: promote pixi-filters to top-level PIXI namespace
+    if (PIXI.filters) {
+      var _fns = ['GlowFilter','DropShadowFilter','OutlineFilter','BloomFilter','BlurFilter','ColorMatrixFilter','AdjustmentFilter','AdvancedBloomFilter','GodrayFilter','MotionBlurFilter'];
+      for (var _i = 0; _i < _fns.length; _i++) { if (PIXI.filters[_fns[_i]] && !PIXI[_fns[_i]]) PIXI[_fns[_i]] = PIXI.filters[_fns[_i]]; }
+    }
 
     // Defensive: patch addChild to skip invalid objects (common AI mistake)
     const _isValidChild = (c: any) => c != null && typeof c === 'object' && ('children' in c || 'texture' in c || c instanceof PIXI.Container);
