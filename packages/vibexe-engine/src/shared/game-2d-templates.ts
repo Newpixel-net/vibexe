@@ -22,6 +22,12 @@ export { type TemplateFile };
 const VISUAL_HELPERS_CONTENT = `
 const PIXI = (window as any).PIXI;
 
+// Promote pixi-filters to top-level PIXI namespace (AI writes PIXI.GlowFilter not PIXI.filters.GlowFilter)
+if (PIXI.filters) {
+  var _fNames = ['GlowFilter','DropShadowFilter','OutlineFilter','BloomFilter','BlurFilter','ColorMatrixFilter','AdjustmentFilter','AdvancedBloomFilter','GodrayFilter','MotionBlurFilter'];
+  for (var _fi = 0; _fi < _fNames.length; _fi++) { if (PIXI.filters[_fNames[_fi]] && !PIXI[_fNames[_fi]]) PIXI[_fNames[_fi]] = PIXI.filters[_fNames[_fi]]; }
+}
+
 // ============================================================================
 // RUNTIME FEATURE DETECTION
 // ============================================================================
