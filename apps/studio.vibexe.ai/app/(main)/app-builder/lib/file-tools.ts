@@ -348,11 +348,11 @@ export function createFileTools(appId: string, options?: FileToolsOptions) {
 
 		compose_game: tool({
 			description:
-				"OPTIONAL quick-start scaffold for a 2D game. Generates a minimal GameScene2D.ts skeleton (~80 lines) with engine init, player, ground, camera, and basic physics. You then build your unique game ON TOP of this scaffold. Preferred approach: write GameScene2D.ts from scratch instead.",
+				"RECOMMENDED: Compose a 2D game using Feature Bank core features. Pass features array with core IDs: visual-layers, player-platformer, level-platforms, collectible-coins, enemy-patrol, camera-follow, hud-basic, ambient-atmosphere. Features handle gameplay — you add custom visuals on top (~100-150 lines).",
 			inputSchema: z.object({
 				theme: z.string().describe("Game theme palette key: forest, sunset, space, volcanic, candy, arctic, dark, ocean"),
 				genre: z.string().describe("Game genre: platformer, runner, shooter, puzzle"),
-				features: z.string().optional().describe("JSON array of Feature Bank features: [{\"id\":\"double-jump\",\"config\":{\"maxJumps\":2}},...]"),
+				features: z.string().optional().describe("JSON array of Feature Bank features to compose. RECOMMENDED core set: [{\"id\":\"visual-layers\",\"config\":{\"theme\":\"forest\"}},{\"id\":\"player-platformer\",\"config\":{\"theme\":\"forest\"}},{\"id\":\"level-platforms\",\"config\":{\"theme\":\"forest\"}},{\"id\":\"collectible-coins\",\"config\":{\"theme\":\"forest\"}},{\"id\":\"enemy-patrol\",\"config\":{\"theme\":\"forest\"}},{\"id\":\"camera-follow\",\"config\":{}},{\"id\":\"hud-basic\",\"config\":{}},{\"id\":\"ambient-atmosphere\",\"config\":{\"theme\":\"forest\"}}]"),
 				gravity: z.number().optional().describe("Gravity strength (default: 980)"),
 				moveSpeed: z.number().optional().describe("Player move speed (default: 280)"),
 				jumpForce: z.number().optional().describe("Player jump force (default: 520)"),
@@ -369,6 +369,7 @@ export function createFileTools(appId: string, options?: FileToolsOptions) {
 						worldWidth: worldWidth ?? 4000,
 						worldHeight: worldHeight ?? 900,
 					};
+					const groundY = cfg.worldHeight - 60;
 
 					// Fetch Feature Bank snippets if requested
 					let featureFactories = "";
@@ -387,7 +388,9 @@ export function createFileTools(appId: string, options?: FileToolsOptions) {
 							for (const id of featureIds) { if (!foundIds.has(id)) missingIds.push(id); }
 
 							for (const bankFeature of bankFeatures) {
-								const config = features.find(f => f.id === bankFeature.id)?.config || {};
+								// Merge shared config values (theme, worldWidth, groundY, etc.) into feature config
+								const userConfig = features.find(f => f.id === bankFeature.id)?.config || {};
+								const config = { theme: cfg.theme, worldWidth: cfg.worldWidth, worldHeight: cfg.worldHeight, groundY, gravity: cfg.gravity, moveSpeed: cfg.moveSpeed, jumpForce: cfg.jumpForce, ...userConfig };
 								const deps = (bankFeature.dependencies as string[]) || [];
 								featureFactories += `\n// --- Feature: ${bankFeature.name} (${bankFeature.id}) ---\nvar __feature_${bankFeature.id.replace(/-/g, "_")}_factory = (function() {\n  try {\n    ${bankFeature.code}\n    return typeof create !== 'undefined' ? create : typeof createFeature !== 'undefined' ? createFeature : function(cfg: any) { return { id: '${bankFeature.id}', init: function(){}, update: function(){}, destroy: function(){} }; };\n  } catch(e) { console.warn('[FeatureBank] load error:', e); return function(cfg: any) { return { id: '${bankFeature.id}', init: function(){}, update: function(){}, destroy: function(){} }; }; }\n})();\n`;
 								featureRegistrations += `    engine.features.register('${bankFeature.id}', __feature_${bankFeature.id.replace(/-/g, "_")}_factory, ${JSON.stringify(config)}, ${JSON.stringify(deps)});\n`;
@@ -395,9 +398,52 @@ export function createFileTools(appId: string, options?: FileToolsOptions) {
 						} catch { /* ignore bad JSON */ }
 					}
 
-					// Generate minimal scaffold — just the skeleton, AI builds the rest
-					const sceneCode = `// Minimal scaffold — build your unique game on top of this
-import { Engine2D, GameScene, createGame2D, loadAssets } from "../engine/core";
+					// Detect if core features handle gameplay (thin scaffold) vs legacy mode
+					const hasCoreFeatures = featureIds.includes('player-platformer');
+
+					let sceneCode: string;
+					if (hasCoreFeatures) {
+						// Feature-based scaffold — features handle all gameplay
+						sceneCode = `// Feature Bank game — features handle gameplay, add custom visuals below
+import { Engine2D, GameScene } from "../engine/core";
+import { PhysicsWorld, createBody, createStaticBody, createOneWayPlatform, CharacterController } from "../engine/physics";
+import { createAmbientEffect, onJumpDust, onLandImpact, onCollectSparkle, onDeathExplosion } from "../engine/effects";
+import { PALETTES, drawSkyGradient, drawStars, drawMountainRange, drawCloud, drawGroundStrip, drawPlatformBlock, drawPlayerCharacter, drawCoinToken, drawEnemySlime, drawHeart, drawLSystemTree, TREE_PRESETS, createWaterSurface, createLavaSurface, createLightingLayer, drawVignette, drawAtmosphericFog } from "../config/assets";
+import { _loadSpriteLib, _sheetCache } from "../utils/media-stock";
+${featureFactories}
+export default class GameScene2D implements GameScene {
+  name = 'game';
+  container = new PIXI.Container();
+  private _update: ((dt: number) => void) | null = null;
+
+  async enter(engine: Engine2D) {
+    await _loadSpriteLib("${cfg.theme}");
+
+    // Register and initialize Feature Bank features
+${featureRegistrations}
+    engine.features.initAll();
+
+    // === ADD CUSTOM VISUALS AND GAME LOGIC BELOW ===
+    // Features handle: visuals, player, platforms, coins, enemies, camera, HUD, atmosphere
+    // You add: unique decorations, custom entities, special mechanics, story elements
+
+    this._update = (dt: number) => {
+      engine.features.updateAll(dt);
+      engine.input.endFrame();
+    };
+  }
+
+  update(engine: Engine2D, dt: number) { this._update?.(dt); }
+
+  exit(engine: Engine2D) {
+    engine.features.destroy();
+  }
+}
+`;
+					} else {
+						// Legacy scaffold — scaffold creates player, physics, camera
+						sceneCode = `// Minimal scaffold — build your unique game on top of this
+import { Engine2D, GameScene } from "../engine/core";
 import { PhysicsWorld, createBody, createStaticBody, createOneWayPlatform, CharacterController } from "../engine/physics";
 import { createAmbientEffect, onJumpDust, onLandImpact, onCollectSparkle, onDeathExplosion } from "../engine/effects";
 import { PALETTES, drawSkyGradient, drawStars, drawMountainRange, drawCloud, drawGroundStrip, drawPlatformBlock, drawPlayerCharacter, drawCoinToken, drawEnemySlime, drawHeart, drawLSystemTree, TREE_PRESETS, createWaterSurface, createLavaSurface, createLightingLayer, drawVignette, drawAtmosphericFog } from "../config/assets";
@@ -412,7 +458,7 @@ export default class GameScene2D implements GameScene {
     var PAL = PALETTES["${cfg.theme}"];
     var W = ${cfg.worldWidth}, H = ${cfg.worldHeight}, GROUND_Y = H - 60;
     var world = this.container;
-    var physics = new PhysicsWorld(0, ${cfg.gravity});
+    var physics = new PhysicsWorld(${cfg.gravity});
 
     await _loadSpriteLib("${cfg.theme}");
 
@@ -423,17 +469,19 @@ export default class GameScene2D implements GameScene {
     // Ground
     var ground = drawGroundStrip(W, GROUND_Y, 60, PAL.ground, PAL.groundTop);
     world.addChild(ground);
-    createStaticBody(physics, 0, GROUND_Y, W, 60);
+    var groundBody = createStaticBody(W / 2, GROUND_Y + 30, W, 60);
+    physics.addBody(groundBody);
 
     // Player
     var playerGfx = drawPlayerCharacter(48, PAL.player, PAL.playerLight);
     playerGfx.x = 120; playerGfx.y = GROUND_Y - 48;
     world.addChild(playerGfx);
-    var playerBody = createBody(physics, 120, GROUND_Y - 48, 36, 48, { tag: "player" });
+    var playerBody = createBody(120, GROUND_Y - 48, 36, 48, { tag: "player" });
     playerBody.sprite = playerGfx;
-    var controller = new CharacterController(playerBody, { moveSpeed: ${cfg.moveSpeed}, jumpForce: ${cfg.jumpForce}, gravity: ${cfg.gravity} });
+    physics.addBody(playerBody);
+    var controller = new CharacterController(playerBody, { moveSpeed: ${cfg.moveSpeed}, jumpForce: ${cfg.jumpForce} });
 
-${featureRegistrations ? "    // Feature Bank\n" + featureRegistrations + "    engine.features.initAll(engine);\n" : ""}
+${featureRegistrations ? "    // Feature Bank\n" + featureRegistrations + "    engine.features.initAll();\n" : ""}
     // Camera
     engine.camera.follow(playerBody);
     engine.camera.worldWidth = W;
@@ -446,8 +494,10 @@ ${featureRegistrations ? "    // Feature Bank\n" + featureRegistrations + "    e
     this._update = (dt: number) => {
       controller.update(engine.input, dt);
       physics.update(dt);
-      engine.features.updateAll(engine, dt);
-      engine.camera.update(dt);
+      engine.features.updateAll(dt);
+      // Sync player sprite to physics body
+      playerGfx.x = playerBody.x;
+      playerGfx.y = playerBody.y;
       engine.input.endFrame();
     };
   }
@@ -460,8 +510,10 @@ ${featureRegistrations ? "    // Feature Bank\n" + featureRegistrations + "    e
   }
 }
 `;
+					}
+
 					const file = await saveFile(appId, "src/scenes/GameScene2D.ts", sceneCode, "typescript");
-					console.log(`[compose_game] Minimal scaffold generated (theme: ${cfg.theme}, genre: ${genre})`);
+					console.log(`[compose_game] ${hasCoreFeatures ? 'Feature Bank' : 'Legacy'} scaffold generated (theme: ${cfg.theme}, genre: ${genre}, features: ${featureIds.length})`);
 
 					return {
 						success: true,
@@ -470,7 +522,9 @@ ${featureRegistrations ? "    // Feature Bank\n" + featureRegistrations + "    e
 						fileId: file.id,
 						featuresLoaded: featureIds.filter(id => !missingIds.includes(id)),
 						featuresMissing: missingIds,
-						message: "Minimal scaffold created. Now build your unique game on top — add platforms, enemies, coins, particles, custom entities, and UI.",
+						message: hasCoreFeatures
+							? "Feature Bank scaffold created. Features handle gameplay — add custom visuals, unique decorations, and special mechanics on top."
+							: "Minimal scaffold created. Now build your unique game on top — add platforms, enemies, coins, particles, custom entities, and UI.",
 					};
 				} catch (error) {
 					console.error("compose_game error:", error);

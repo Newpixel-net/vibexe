@@ -193,21 +193,25 @@ The Creative Brief in your prompt has 10 dimensions. Implement ALL of them:
 ## RULE #3: FILE STRUCTURE
 
 Create these files:
-1. \`src/scenes/GameScene2D.ts\` — your ENTIRE game scene (write from scratch, 300-800 lines)
-2. \`src/game/*.ts\` — optional helper files for complex custom mechanics (enemies, level-gen, items)
-3. \`src/config/constants.ts\` — game constants
-4. \`docs/README.md\` — brief game description
+1. \`src/scenes/GameScene2D.ts\` — your game scene. Call compose_game first (Feature Bank handles core gameplay), then add custom visuals and mechanics on top (~100-200 lines of custom code).
+2. \`src/game/*.ts\` — optional helper files for complex custom mechanics
+3. \`docs/README.md\` — brief game description
 
 **NEVER create or modify**: App.tsx, Game2D.tsx, BootScene.ts, MenuScene.ts, GameOverScene.ts, or any file in engine/, utils/, config/assets.ts, package.json
 
-## RULE #4: FEATURE BANK SNIPPETS
+## RULE #4: FEATURE BANK — USE CORE FEATURES
 
-Feature Bank provides pre-tested mechanics you can register:
-\`\`\`
-engine.features.register('feature-id', factoryFunction, configObject, dependencyArray);
-\`\`\`
+**ALWAYS call compose_game with core Feature Bank features first.** Core features provide pre-tested, working gameplay:
+- \`visual-layers\` — sky, mountains, clouds, ground, trees
+- \`player-platformer\` — physics, player sprite, movement, jumping
+- \`level-platforms\` — platform layout with physics bodies
+- \`collectible-coins\` — coins, collection, score tracking
+- \`enemy-patrol\` — patrol enemies, stomp kills, damage
+- \`camera-follow\` — smooth camera tracking player
+- \`hud-basic\` — score display + lives hearts
+- \`ambient-atmosphere\` — particles, lighting, vignette
 
-Mix Feature Bank snippets with your own CUSTOM code. Your game should have BOTH pre-tested mechanics AND unique custom elements.
+After compose_game creates the scaffold, you add CUSTOM visuals and unique mechanics on top (~100-150 lines). Do NOT rewrite physics, player, or camera from scratch — features handle that.
 
 ## RULE #5: CRITICAL LIFECYCLE
 
@@ -237,14 +241,12 @@ export default class GameScene2D implements GameScene {
     this._update = (dt) => {
       // dt = delta time in SECONDS (e.g. 0.016 at 60fps)
       // dt is a NUMBER — never set properties on it!
-      playerBody.velocity.x = 0;
-      if (engine.input.isDown('ArrowRight')) playerBody.velocity.x = moveSpeed;
-      physics.step(dt);
-      playerSprite.x = playerBody.position.x;
-      playerSprite.y = playerBody.position.y;
-      engine.camera.follow(playerSprite.x, playerSprite.y);
-      engine.camera.applyTo(this.container);
+      controller.update(engine.input, dt);
+      physics.update(dt);
+      playerSprite.x = playerBody.x;
+      playerSprite.y = playerBody.y;
       engine.input.endFrame();
+      // NOTE: engine handles camera.update() automatically — do NOT call it manually
     };
   }
 
@@ -289,7 +291,7 @@ async enter(engine: Engine2D) {
   this.container.addChild(drawSkyGradient(W, H, PAL.skyTop, PAL.skyBottom));
 
   // Physics + player (wrap risky code)
-  this.physics = new PhysicsWorld(0, 980);
+  this.physics = new PhysicsWorld(980);
   this.playerSprite = drawPlayerCharacter(48, PAL.player, PAL.playerLight);
   this.container.addChild(this.playerSprite);
 
@@ -301,9 +303,11 @@ async enter(engine: Engine2D) {
 }
 \`\`\`
 
-## OPTIONAL: compose_game Quick-Start
+## RECOMMENDED: compose_game with Feature Bank
 
-You may optionally call \`compose_game\` for a minimal scaffold (engine init + player + ground), then build on top. But this is OPTIONAL — writing from scratch is preferred for maximum uniqueness.
+**ALWAYS call compose_game first** with the core Feature Bank features. Pass your chosen theme and the full core feature set. Features handle player, physics, camera, platforms, coins, enemies, HUD — you focus on unique visuals and custom game mechanics.
+
+Example: \`compose_game({ theme: "forest", genre: "platformer", features: "[{\\"id\\":\\"visual-layers\\"},{\\"id\\":\\"player-platformer\\"},{\\"id\\":\\"level-platforms\\"},{\\"id\\":\\"collectible-coins\\"},{\\"id\\":\\"enemy-patrol\\"},{\\"id\\":\\"camera-follow\\"},{\\"id\\":\\"hud-basic\\"},{\\"id\\":\\"ambient-atmosphere\\"}]" })\`
 
 ${buildAssetReferencePrompt()}
 `,

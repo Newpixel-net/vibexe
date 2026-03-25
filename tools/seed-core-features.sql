@@ -1,0 +1,846 @@
+-- Feature Bank Core Features — 8 pre-tested gameplay subsystems
+-- These replace AI writing game logic from scratch. AI composes features + adds custom visuals.
+--
+-- Run: PGPASSWORD=V1bexe2026Pg psql -h 127.0.0.1 -U vibexe -d vibexe -f /opt/vibexe/tools/seed-core-features.sql
+--
+-- Uses ON CONFLICT to be idempotent (safe to re-run).
+
+-- ============================================================================
+-- 1. VISUAL-LAYERS — Background visual stack (standalone, run first)
+-- ============================================================================
+
+INSERT INTO feature_bank_snippets (id, name, description, category, type, engine, version, keywords, parameters, dependencies, genres, code, is_built_in, is_verified)
+VALUES (
+  'visual-layers',
+  'Visual Layers',
+  'Complete background visual stack: sky gradient, stars, mountains, clouds, ground, decorative trees. Configurable per theme.',
+  'Core/Visuals',
+  'instruction',
+  '2d',
+  '1.0.0',
+  '["background","sky","mountains","clouds","ground","trees","visuals","scenery"]',
+  '[
+    {"name":"theme","type":"select","default":"forest","options":["forest","sunset","space","volcanic","candy","arctic","dark","ocean"],"description":"Color palette theme"},
+    {"name":"worldWidth","type":"number","default":4000,"min":800,"max":10000,"description":"World width in pixels"},
+    {"name":"worldHeight","type":"number","default":900,"min":400,"max":2000,"description":"World height in pixels"},
+    {"name":"groundY","type":"number","default":840,"min":200,"max":1800,"description":"Ground Y position"},
+    {"name":"treeCount","type":"number","default":8,"min":0,"max":30,"description":"Number of decorative trees"},
+    {"name":"cloudCount","type":"number","default":6,"min":0,"max":20,"description":"Number of clouds"}
+  ]',
+  '[]',
+  '["platformer","runner","shooter","puzzle"]',
+$$function create(config) {
+  var theme = config.theme || 'forest';
+  var worldW = config.worldWidth || 4000;
+  var worldH = config.worldHeight || 900;
+  var groundY = config.groundY || (worldH - 60);
+  var treeCount = config.treeCount || 8;
+  var cloudCount = config.cloudCount || 6;
+  var layerContainer = null;
+  var cloudList = [];
+
+  return {
+    id: 'visual-layers',
+    init: function(engine) {
+      var PAL = PALETTES[theme] || PALETTES.forest;
+      layerContainer = new PIXI.Container();
+
+      // Sky gradient
+      var sky = drawSkyGradient(worldW, worldH, PAL.skyTop, PAL.skyBottom);
+      layerContainer.addChild(sky);
+
+      // Stars for night/space themes
+      if (theme === 'space' || theme === 'dark' || theme === 'arctic') {
+        var stars = drawStars(worldW, worldH * 0.6, 200);
+        layerContainer.addChild(stars);
+      }
+
+      // Mountain ranges (back to front, using palette mountain colors)
+      var mtns = PAL.mountains || [];
+      for (var i = 0; i < mtns.length; i++) {
+        var mtn = drawMountainRange(worldW, groundY, mtns[i], 0.4 + i * 0.2,
+          60 - i * 10, 160 - i * 30, 120 + i * 40, theme, i);
+        layerContainer.addChild(mtn);
+      }
+
+      // Clouds
+      for (var c = 0; c < cloudCount; c++) {
+        var cloud = drawCloud(60 + Math.random() * 80, 30 + Math.random() * 30);
+        cloud.x = Math.random() * worldW;
+        cloud.y = 30 + Math.random() * (groundY * 0.3);
+        cloud.alpha = 0.4 + Math.random() * 0.4;
+        layerContainer.addChild(cloud);
+        cloudList.push({ sprite: cloud, speed: 8 + Math.random() * 15 });
+      }
+
+      // Ground strip
+      var ground = drawGroundStrip(worldW, groundY, 60, PAL.ground, PAL.groundTop, theme);
+      layerContainer.addChild(ground);
+
+      // Decorative trees
+      var presets = TREE_PRESETS[theme] || ['oak'];
+      if (presets.length > 0) {
+        for (var t = 0; t < treeCount; t++) {
+          var preset = presets[Math.floor(Math.random() * presets.length)];
+          var tx = 100 + (worldW - 200) * (t / treeCount) + (Math.random() - 0.5) * 100;
+          var tree = drawLSystemTree(tx, groundY, preset, theme, Math.floor(Math.random() * 9999));
+          layerContainer.addChild(tree);
+        }
+      }
+
+      // Insert behind scene content
+      engine.world.addChildAt(layerContainer, 0);
+    },
+    update: function(engine, dt) {
+      for (var i = 0; i < cloudList.length; i++) {
+        cloudList[i].sprite.x += cloudList[i].speed * dt;
+        if (cloudList[i].sprite.x > worldW + 100) cloudList[i].sprite.x = -100;
+      }
+    },
+    getGroundY: function() { return groundY; },
+    getPalette: function() { return PALETTES[theme] || PALETTES.forest; },
+    destroy: function() {
+      if (layerContainer && layerContainer.parent) layerContainer.parent.removeChild(layerContainer);
+      layerContainer = null;
+      cloudList = [];
+    }
+  };
+}$$,
+  true, true
+)
+ON CONFLICT (id) DO UPDATE SET
+  name = EXCLUDED.name,
+  description = EXCLUDED.description,
+  category = EXCLUDED.category,
+  parameters = EXCLUDED.parameters,
+  dependencies = EXCLUDED.dependencies,
+  code = EXCLUDED.code,
+  is_verified = EXCLUDED.is_verified,
+  updated_at = NOW();
+
+
+-- ============================================================================
+-- 2. PLAYER-PLATFORMER — Complete player with physics, input, movement
+-- ============================================================================
+
+INSERT INTO feature_bank_snippets (id, name, description, category, type, engine, version, keywords, parameters, dependencies, genres, code, is_built_in, is_verified)
+VALUES (
+  'player-platformer',
+  'Player Platformer',
+  'Complete player character: physics world, body, sprite, CharacterController with movement/jumping. Exposes getPlayer(), getPhysics(), getController() for other features.',
+  'Core/Player',
+  'instruction',
+  '2d',
+  '1.0.0',
+  '["player","movement","jump","physics","controller","character","platformer"]',
+  '[
+    {"name":"moveSpeed","type":"number","default":280,"min":100,"max":600,"description":"Horizontal move speed"},
+    {"name":"jumpForce","type":"number","default":520,"min":200,"max":900,"description":"Jump force"},
+    {"name":"gravity","type":"number","default":980,"min":200,"max":2000,"description":"Gravity strength"},
+    {"name":"groundY","type":"number","default":840,"min":200,"max":1800,"description":"Ground Y position"},
+    {"name":"theme","type":"select","default":"forest","options":["forest","sunset","space","volcanic","candy","arctic","dark","ocean"],"description":"Color palette for player sprite"},
+    {"name":"worldWidth","type":"number","default":4000,"min":800,"max":10000,"description":"World width"},
+    {"name":"worldHeight","type":"number","default":900,"min":400,"max":2000,"description":"World height"},
+    {"name":"startX","type":"number","default":120,"min":0,"max":1000,"description":"Player start X position"},
+    {"name":"doubleJump","type":"boolean","default":true,"description":"Allow double jump"},
+    {"name":"wallSlide","type":"boolean","default":true,"description":"Allow wall slide and wall jump"}
+  ]',
+  '[]',
+  '["platformer","runner","shooter","puzzle"]',
+$$function create(config) {
+  var moveSpeed = config.moveSpeed || 280;
+  var jumpForce = config.jumpForce || 520;
+  var gravity = config.gravity || 980;
+  var groundY = config.groundY || 840;
+  var theme = config.theme || 'forest';
+  var worldW = config.worldWidth || 4000;
+  var worldH = config.worldHeight || 900;
+  var startX = config.startX || 120;
+  var physics = null;
+  var playerBody = null;
+  var playerSprite = null;
+  var controller = null;
+
+  return {
+    id: 'player-platformer',
+    init: function(engine) {
+      var PAL = PALETTES[theme] || PALETTES.forest;
+
+      // Create physics world
+      physics = new PhysicsWorld(gravity);
+
+      // Ground body (full width)
+      var groundBody = createStaticBody(worldW / 2, groundY + 30, worldW, 60);
+      physics.addBody(groundBody);
+
+      // Player sprite
+      playerSprite = drawPlayerCharacter(48, PAL.player, PAL.playerLight);
+      playerSprite.x = startX;
+      playerSprite.y = groundY - 48;
+      engine.world.addChild(playerSprite);
+
+      // Player physics body
+      playerBody = createBody(startX, groundY - 48, 36, 48, { tag: 'player' });
+      playerBody.sprite = playerSprite;
+      physics.addBody(playerBody);
+
+      // Character controller
+      controller = new CharacterController(playerBody, {
+        moveSpeed: moveSpeed,
+        jumpForce: jumpForce,
+        doubleJump: config.doubleJump !== false,
+        wallSlide: config.wallSlide !== false,
+      });
+    },
+    update: function(engine, dt) {
+      if (!controller || !physics) return;
+
+      // Read input and update controller
+      controller.update(engine.input, dt);
+
+      // Step physics
+      physics.update(dt);
+
+      // Sync sprite to physics body
+      if (playerSprite && playerBody) {
+        playerSprite.x = playerBody.x;
+        playerSprite.y = playerBody.y;
+        if (playerSprite.scale) {
+          var absX = Math.abs(playerSprite.scale.x) || 1;
+          playerSprite.scale.x = controller.facingRight ? absX : -absX;
+        }
+      }
+
+      // Jump/land effects
+      if (controller.justLanded) {
+        try { onLandImpact(playerSprite.x, playerSprite.y + 20); } catch(e) {}
+      }
+    },
+    getPlayer: function() { return { sprite: playerSprite, body: playerBody }; },
+    getPhysics: function() { return physics; },
+    getController: function() { return controller; },
+    destroy: function() {
+      if (playerSprite && playerSprite.parent) playerSprite.parent.removeChild(playerSprite);
+      physics = null; playerBody = null; playerSprite = null; controller = null;
+    }
+  };
+}$$,
+  true, true
+)
+ON CONFLICT (id) DO UPDATE SET
+  name = EXCLUDED.name,
+  description = EXCLUDED.description,
+  category = EXCLUDED.category,
+  parameters = EXCLUDED.parameters,
+  dependencies = EXCLUDED.dependencies,
+  code = EXCLUDED.code,
+  is_verified = EXCLUDED.is_verified,
+  updated_at = NOW();
+
+
+-- ============================================================================
+-- 3. LEVEL-PLATFORMS — Platform layout generation
+-- ============================================================================
+
+INSERT INTO feature_bank_snippets (id, name, description, category, type, engine, version, keywords, parameters, dependencies, genres, code, is_built_in, is_verified)
+VALUES (
+  'level-platforms',
+  'Level Platforms',
+  'Platform layout: auto-generates or uses explicit positions. Creates physics bodies and themed visuals. Depends on player-platformer for physics world.',
+  'Core/Level',
+  'instruction',
+  '2d',
+  '1.0.0',
+  '["platforms","level","layout","terrain","blocks"]',
+  '[
+    {"name":"theme","type":"select","default":"forest","options":["forest","sunset","space","volcanic","candy","arctic","dark","ocean"],"description":"Platform visual theme"},
+    {"name":"groundY","type":"number","default":840,"min":200,"max":1800,"description":"Ground Y position"},
+    {"name":"worldWidth","type":"number","default":4000,"min":800,"max":10000,"description":"World width"},
+    {"name":"platformCount","type":"number","default":8,"min":1,"max":30,"description":"Number of platforms to generate (if no explicit layout)"},
+    {"name":"minWidth","type":"number","default":100,"min":40,"max":400,"description":"Minimum platform width"},
+    {"name":"maxWidth","type":"number","default":220,"min":60,"max":600,"description":"Maximum platform width"}
+  ]',
+  '["player-platformer"]',
+  '["platformer","runner","puzzle"]',
+$$function create(config) {
+  var theme = config.theme || 'forest';
+  var groundY = config.groundY || 840;
+  var worldW = config.worldWidth || 4000;
+  var platformCount = config.platformCount || 8;
+  var minW = config.minWidth || 100;
+  var maxW = config.maxWidth || 220;
+  var sprites = [];
+
+  return {
+    id: 'level-platforms',
+    init: function(engine) {
+      var PAL = PALETTES[theme] || PALETTES.forest;
+      var playerFeature = engine.features.get('player-platformer');
+      var physics = playerFeature ? playerFeature.getPhysics() : null;
+      if (!physics) { console.warn('[level-platforms] No physics world found'); return; }
+
+      // Use explicit platforms or generate random layout
+      var plats = config.platforms || null;
+      if (!plats) {
+        plats = [];
+        for (var i = 0; i < platformCount; i++) {
+          var pw = minW + Math.random() * (maxW - minW);
+          var px = 200 + (worldW - 400) * (i / platformCount) + (Math.random() - 0.5) * 80;
+          var py = groundY - 80 - Math.random() * 280;
+          plats.push({ x: px, y: py, width: pw, height: 20 });
+        }
+      }
+
+      for (var i = 0; i < plats.length; i++) {
+        var p = plats[i];
+        var pw = p.width || 120;
+        var ph = p.height || 20;
+
+        // Visual
+        var sprite = drawPlatformBlock(pw, ph, PAL.platform, PAL.platformTop, theme);
+        sprite.x = p.x;
+        sprite.y = p.y;
+        engine.world.addChild(sprite);
+        sprites.push(sprite);
+
+        // Physics body (center-based positioning)
+        var body = p.oneWay
+          ? createOneWayPlatform(p.x + pw / 2, p.y + ph / 2, pw, ph)
+          : createStaticBody(p.x + pw / 2, p.y + ph / 2, pw, ph, { tag: 'platform' });
+        physics.addBody(body);
+      }
+    },
+    destroy: function() {
+      for (var i = 0; i < sprites.length; i++) {
+        if (sprites[i] && sprites[i].parent) sprites[i].parent.removeChild(sprites[i]);
+      }
+      sprites = [];
+    }
+  };
+}$$,
+  true, true
+)
+ON CONFLICT (id) DO UPDATE SET
+  name = EXCLUDED.name,
+  description = EXCLUDED.description,
+  category = EXCLUDED.category,
+  parameters = EXCLUDED.parameters,
+  dependencies = EXCLUDED.dependencies,
+  code = EXCLUDED.code,
+  is_verified = EXCLUDED.is_verified,
+  updated_at = NOW();
+
+
+-- ============================================================================
+-- 4. COLLECTIBLE-COINS — Coin spawning, collection, score tracking
+-- ============================================================================
+
+INSERT INTO feature_bank_snippets (id, name, description, category, type, engine, version, keywords, parameters, dependencies, genres, code, is_built_in, is_verified)
+VALUES (
+  'collectible-coins',
+  'Collectible Coins',
+  'Spawns coins at positions (or randomly), detects collection via proximity, tracks score, emits events. Depends on player-platformer for player position.',
+  'Core/Collectibles',
+  'instruction',
+  '2d',
+  '1.0.0',
+  '["coins","collectible","score","pickup","collect"]',
+  '[
+    {"name":"theme","type":"select","default":"forest","options":["forest","sunset","space","volcanic","candy","arctic","dark","ocean"],"description":"Coin visual theme"},
+    {"name":"count","type":"number","default":15,"min":1,"max":100,"description":"Number of coins to spawn (if no explicit positions)"},
+    {"name":"coinValue","type":"number","default":10,"min":1,"max":100,"description":"Score per coin"},
+    {"name":"collectRadius","type":"number","default":40,"min":15,"max":80,"description":"Collection proximity radius"},
+    {"name":"groundY","type":"number","default":840,"min":200,"max":1800,"description":"Ground Y for random placement"},
+    {"name":"worldWidth","type":"number","default":4000,"min":800,"max":10000,"description":"World width for random placement"}
+  ]',
+  '["player-platformer"]',
+  '["platformer","runner","puzzle"]',
+$$function create(config) {
+  var theme = config.theme || 'forest';
+  var coinCount = config.count || 15;
+  var coinValue = config.coinValue || 10;
+  var collectRadius = config.collectRadius || 40;
+  var groundY = config.groundY || 840;
+  var worldW = config.worldWidth || 4000;
+  var coinList = [];
+  var score = 0;
+  var totalCollected = 0;
+
+  return {
+    id: 'collectible-coins',
+    init: function(engine) {
+      var PAL = PALETTES[theme] || PALETTES.forest;
+      var positions = config.coins || null;
+
+      if (!positions) {
+        positions = [];
+        for (var i = 0; i < coinCount; i++) {
+          positions.push({
+            x: 200 + (worldW - 400) * (i / coinCount) + (Math.random() - 0.5) * 60,
+            y: groundY - 40 - Math.random() * 280
+          });
+        }
+      }
+
+      for (var i = 0; i < positions.length; i++) {
+        var sprite = drawCoinToken(12, PAL.coin, PAL.coinGlow);
+        sprite.x = positions[i].x;
+        sprite.y = positions[i].y;
+        engine.world.addChild(sprite);
+        coinList.push({ sprite: sprite, baseY: positions[i].y, collected: false });
+      }
+    },
+    update: function(engine, dt) {
+      var playerFeature = engine.features.get('player-platformer');
+      if (!playerFeature) return;
+      var player = playerFeature.getPlayer();
+      if (!player || !player.body) return;
+      var px = player.body.x;
+      var py = player.body.y;
+      var now = Date.now();
+
+      for (var i = 0; i < coinList.length; i++) {
+        var c = coinList[i];
+        if (c.collected) continue;
+
+        // Bobbing animation
+        c.sprite.y = c.baseY + Math.sin(now * 0.003 + i) * 4;
+
+        // Proximity check
+        var dx = c.sprite.x - px;
+        var dy = c.sprite.y - py;
+        if (dx * dx + dy * dy < collectRadius * collectRadius) {
+          c.collected = true;
+          score += coinValue;
+          totalCollected++;
+          try { onCollectSparkle(c.sprite.x, c.sprite.y); } catch(e) {}
+          if (c.sprite.parent) c.sprite.parent.removeChild(c.sprite);
+          engine.features.emit('coin.collected', { score: score, value: coinValue, total: totalCollected });
+        }
+      }
+    },
+    getScore: function() { return score; },
+    getTotalCollected: function() { return totalCollected; },
+    destroy: function() {
+      for (var i = 0; i < coinList.length; i++) {
+        if (coinList[i].sprite && coinList[i].sprite.parent) coinList[i].sprite.parent.removeChild(coinList[i].sprite);
+      }
+      coinList = [];
+      score = 0;
+      totalCollected = 0;
+    }
+  };
+}$$,
+  true, true
+)
+ON CONFLICT (id) DO UPDATE SET
+  name = EXCLUDED.name,
+  description = EXCLUDED.description,
+  category = EXCLUDED.category,
+  parameters = EXCLUDED.parameters,
+  dependencies = EXCLUDED.dependencies,
+  code = EXCLUDED.code,
+  is_verified = EXCLUDED.is_verified,
+  updated_at = NOW();
+
+
+-- ============================================================================
+-- 5. ENEMY-PATROL — Patrol enemies with player collision
+-- ============================================================================
+
+INSERT INTO feature_bank_snippets (id, name, description, category, type, engine, version, keywords, parameters, dependencies, genres, code, is_built_in, is_verified)
+VALUES (
+  'enemy-patrol',
+  'Enemy Patrol',
+  'Patrol enemies that walk back and forth. Stomp to kill (bounce), touch sides to take damage. Emits events for kills and damage. Depends on player-platformer.',
+  'Core/Enemies',
+  'instruction',
+  '2d',
+  '1.0.0',
+  '["enemy","patrol","slime","damage","stomp","combat"]',
+  '[
+    {"name":"theme","type":"select","default":"forest","options":["forest","sunset","space","volcanic","candy","arctic","dark","ocean"],"description":"Enemy visual theme"},
+    {"name":"count","type":"number","default":5,"min":1,"max":20,"description":"Number of enemies (if no explicit layout)"},
+    {"name":"damage","type":"number","default":1,"min":1,"max":5,"description":"Damage dealt to player on contact"},
+    {"name":"groundY","type":"number","default":840,"min":200,"max":1800,"description":"Ground Y for placement"},
+    {"name":"worldWidth","type":"number","default":4000,"min":800,"max":10000,"description":"World width for placement"},
+    {"name":"hitCooldownTime","type":"number","default":1.0,"min":0.3,"max":3.0,"description":"Seconds of invulnerability after taking damage"}
+  ]',
+  '["player-platformer"]',
+  '["platformer","runner"]',
+$$function create(config) {
+  var theme = config.theme || 'forest';
+  var dmg = config.damage || 1;
+  var groundY = config.groundY || 840;
+  var worldW = config.worldWidth || 4000;
+  var enemyCount = config.count || 5;
+  var cooldownTime = config.hitCooldownTime || 1.0;
+  var enemyList = [];
+  var hitCooldown = 0;
+
+  return {
+    id: 'enemy-patrol',
+    init: function(engine) {
+      var PAL = PALETTES[theme] || PALETTES.forest;
+      var defs = config.enemies || null;
+
+      if (!defs) {
+        defs = [];
+        for (var i = 0; i < enemyCount; i++) {
+          var ex = 400 + (worldW - 600) * (i / enemyCount);
+          var patrolRange = 60 + Math.random() * 80;
+          defs.push({
+            x: ex, y: groundY - 24,
+            patrolMin: ex - patrolRange, patrolMax: ex + patrolRange,
+            speed: 40 + Math.random() * 40
+          });
+        }
+      }
+
+      for (var i = 0; i < defs.length; i++) {
+        var d = defs[i];
+        var sprite = drawEnemySlime(32, PAL.enemy, PAL.enemyLight);
+        sprite.x = d.x;
+        sprite.y = d.y;
+        engine.world.addChild(sprite);
+        enemyList.push({
+          sprite: sprite,
+          patrolMin: d.patrolMin || d.x - 80,
+          patrolMax: d.patrolMax || d.x + 80,
+          speed: d.speed || 50,
+          dir: 1, alive: true
+        });
+      }
+    },
+    update: function(engine, dt) {
+      hitCooldown -= dt;
+      var playerFeature = engine.features.get('player-platformer');
+      if (!playerFeature) return;
+      var player = playerFeature.getPlayer();
+
+      for (var i = 0; i < enemyList.length; i++) {
+        var e = enemyList[i];
+        if (!e.alive) continue;
+
+        // Patrol movement
+        e.sprite.x += e.speed * e.dir * dt;
+        if (e.sprite.x >= e.patrolMax) e.dir = -1;
+        if (e.sprite.x <= e.patrolMin) e.dir = 1;
+
+        // Flip sprite
+        if (e.sprite.scale) {
+          var absScale = Math.abs(e.sprite.scale.x) || 1;
+          e.sprite.scale.x = e.dir > 0 ? absScale : -absScale;
+        }
+
+        // Player collision
+        if (player && player.body && hitCooldown <= 0) {
+          var dx = e.sprite.x - player.body.x;
+          var dy = e.sprite.y - player.body.y;
+          if (Math.abs(dx) < 36 && Math.abs(dy) < 36) {
+            if (player.body.vy > 0 && dy > 10) {
+              // Stomp kill — player was falling and above enemy
+              e.alive = false;
+              try { onDeathExplosion(e.sprite.x, e.sprite.y); } catch(ex) {}
+              if (e.sprite.parent) e.sprite.parent.removeChild(e.sprite);
+              player.body.vy = -300;
+              engine.features.emit('enemy.killed', { index: i });
+            } else {
+              // Player takes damage
+              hitCooldown = cooldownTime;
+              engine.features.emit('player.damaged', { damage: dmg });
+              player.body.vx = dx > 0 ? -200 : 200;
+              player.body.vy = -150;
+            }
+          }
+        }
+      }
+    },
+    destroy: function() {
+      for (var i = 0; i < enemyList.length; i++) {
+        if (enemyList[i].sprite && enemyList[i].sprite.parent) enemyList[i].sprite.parent.removeChild(enemyList[i].sprite);
+      }
+      enemyList = [];
+    }
+  };
+}$$,
+  true, true
+)
+ON CONFLICT (id) DO UPDATE SET
+  name = EXCLUDED.name,
+  description = EXCLUDED.description,
+  category = EXCLUDED.category,
+  parameters = EXCLUDED.parameters,
+  dependencies = EXCLUDED.dependencies,
+  code = EXCLUDED.code,
+  is_verified = EXCLUDED.is_verified,
+  updated_at = NOW();
+
+
+-- ============================================================================
+-- 6. CAMERA-FOLLOW — Smooth camera tracking player
+-- ============================================================================
+
+INSERT INTO feature_bank_snippets (id, name, description, category, type, engine, version, keywords, parameters, dependencies, genres, code, is_built_in, is_verified)
+VALUES (
+  'camera-follow',
+  'Camera Follow',
+  'Smooth camera that follows the player with configurable smoothing and dead zones. Depends on player-platformer for follow target.',
+  'Core/Camera',
+  'instruction',
+  '2d',
+  '1.0.0',
+  '["camera","follow","scroll","smooth","tracking"]',
+  '[
+    {"name":"smoothing","type":"number","default":0.08,"min":0.01,"max":0.5,"description":"Camera smoothing (lower = smoother)"},
+    {"name":"deadZoneX","type":"number","default":50,"min":0,"max":200,"description":"Horizontal dead zone before camera moves"},
+    {"name":"deadZoneY","type":"number","default":30,"min":0,"max":150,"description":"Vertical dead zone before camera moves"},
+    {"name":"worldWidth","type":"number","default":4000,"min":800,"max":10000,"description":"World width for camera bounds"},
+    {"name":"worldHeight","type":"number","default":900,"min":400,"max":2000,"description":"World height for camera bounds"}
+  ]',
+  '["player-platformer"]',
+  '["platformer","runner","shooter","puzzle"]',
+$$function create(config) {
+  var smoothing = config.smoothing || 0.08;
+  var worldW = config.worldWidth || 4000;
+  var worldH = config.worldHeight || 900;
+  var deadZoneX = config.deadZoneX || 50;
+  var deadZoneY = config.deadZoneY || 30;
+
+  return {
+    id: 'camera-follow',
+    init: function(engine) {
+      var playerFeature = engine.features.get('player-platformer');
+      if (!playerFeature) { console.warn('[camera-follow] No player feature'); return; }
+      var player = playerFeature.getPlayer();
+      if (!player || !player.body) return;
+
+      engine.camera.worldWidth = worldW;
+      engine.camera.worldHeight = worldH;
+      engine.camera.smoothing = smoothing;
+      engine.camera.deadZoneX = deadZoneX;
+      engine.camera.deadZoneY = deadZoneY;
+      engine.camera.follow(player.body);
+    },
+    update: function(engine, dt) {
+      // Engine game loop already calls camera.update(engine.world) every frame.
+      // Nothing to do here — camera config and follow target set in init().
+    },
+    destroy: function() {}
+  };
+}$$,
+  true, true
+)
+ON CONFLICT (id) DO UPDATE SET
+  name = EXCLUDED.name,
+  description = EXCLUDED.description,
+  category = EXCLUDED.category,
+  parameters = EXCLUDED.parameters,
+  dependencies = EXCLUDED.dependencies,
+  code = EXCLUDED.code,
+  is_verified = EXCLUDED.is_verified,
+  updated_at = NOW();
+
+
+-- ============================================================================
+-- 7. HUD-BASIC — Score display, lives/hearts, coin counter
+-- ============================================================================
+
+INSERT INTO feature_bank_snippets (id, name, description, category, type, engine, version, keywords, parameters, dependencies, genres, code, is_built_in, is_verified)
+VALUES (
+  'hud-basic',
+  'Basic HUD',
+  'Heads-up display with score counter and heart-based lives. Listens for coin.collected and player.damaged events. Standalone — no dependencies required.',
+  'Core/UI',
+  'instruction',
+  '2d',
+  '1.0.0',
+  '["hud","score","lives","hearts","ui","display","health"]',
+  '[
+    {"name":"showScore","type":"boolean","default":true,"description":"Show score counter"},
+    {"name":"showLives","type":"boolean","default":true,"description":"Show lives as hearts"},
+    {"name":"initialLives","type":"number","default":3,"min":1,"max":10,"description":"Starting number of lives"},
+    {"name":"fontSize","type":"number","default":20,"min":12,"max":40,"description":"Score text size"}
+  ]',
+  '[]',
+  '["platformer","runner","shooter","puzzle"]',
+$$function create(config) {
+  var showScore = config.showScore !== false;
+  var showLives = config.showLives !== false;
+  var initialLives = config.initialLives || 3;
+  var fontSize = config.fontSize || 20;
+  var lives = initialLives;
+  var scoreText = null;
+  var heartSprites = [];
+  var hudContainer = null;
+
+  return {
+    id: 'hud-basic',
+    init: function(engine) {
+      hudContainer = new PIXI.Container();
+
+      // Score text
+      if (showScore) {
+        scoreText = new PIXI.Text({ text: 'Score: 0', style: {
+          fontFamily: 'Arial, sans-serif',
+          fontSize: fontSize,
+          fill: 0xFFFFFF,
+          stroke: { color: 0x000000, width: 3 },
+        }});
+        scoreText.x = 16;
+        scoreText.y = 16;
+        hudContainer.addChild(scoreText);
+      }
+
+      // Heart sprites for lives
+      if (showLives) {
+        var screenW = engine.app.screen ? engine.app.screen.width : 800;
+        for (var i = 0; i < initialLives; i++) {
+          var heart = drawHeart(18, 0xFF4444);
+          heart.x = screenW - 30 - i * 28;
+          heart.y = 22;
+          hudContainer.addChild(heart);
+          heartSprites.push(heart);
+        }
+      }
+
+      engine.uiLayer.addChild(hudContainer);
+    },
+    update: function(engine, dt) {
+      // Optionally poll score from coins feature
+      if (scoreText) {
+        var coinsFeature = engine.features.get('collectible-coins');
+        if (coinsFeature) {
+          scoreText.text = 'Score: ' + coinsFeature.getScore();
+        }
+      }
+    },
+    onEvent: function(event, data) {
+      if (event === 'coin.collected' && scoreText) {
+        scoreText.text = 'Score: ' + (data && data.score || 0);
+      }
+      if (event === 'player.damaged') {
+        lives = Math.max(0, lives - (data && data.damage || 1));
+        for (var i = 0; i < heartSprites.length; i++) {
+          heartSprites[i].visible = i < lives;
+        }
+        if (lives <= 0) {
+          engine.features.emit('player.died', {});
+        }
+      }
+    },
+    getLives: function() { return lives; },
+    destroy: function() {
+      if (hudContainer && hudContainer.parent) hudContainer.parent.removeChild(hudContainer);
+      hudContainer = null;
+      scoreText = null;
+      heartSprites = [];
+    }
+  };
+}$$,
+  true, true
+)
+ON CONFLICT (id) DO UPDATE SET
+  name = EXCLUDED.name,
+  description = EXCLUDED.description,
+  category = EXCLUDED.category,
+  parameters = EXCLUDED.parameters,
+  dependencies = EXCLUDED.dependencies,
+  code = EXCLUDED.code,
+  is_verified = EXCLUDED.is_verified,
+  updated_at = NOW();
+
+
+-- ============================================================================
+-- 8. AMBIENT-ATMOSPHERE — Theme particles, lighting, vignette
+-- ============================================================================
+
+INSERT INTO feature_bank_snippets (id, name, description, category, type, engine, version, keywords, parameters, dependencies, genres, code, is_built_in, is_verified)
+VALUES (
+  'ambient-atmosphere',
+  'Ambient Atmosphere',
+  'Theme-based ambient effects: particle systems (fireflies/snow/rain/embers), lighting layers, and vignette overlay. Standalone.',
+  'Core/Effects',
+  'instruction',
+  '2d',
+  '1.0.0',
+  '["ambient","particles","lighting","vignette","atmosphere","effects","weather"]',
+  '[
+    {"name":"theme","type":"select","default":"forest","options":["forest","sunset","space","volcanic","candy","arctic","dark","ocean"],"description":"Theme for ambient effects"},
+    {"name":"intensity","type":"number","default":1.0,"min":0.1,"max":2.0,"description":"Effect intensity multiplier"},
+    {"name":"lightingAlpha","type":"number","default":0.6,"min":0,"max":1.0,"description":"Lighting layer opacity"},
+    {"name":"showVignette","type":"boolean","default":true,"description":"Show vignette overlay"},
+    {"name":"worldWidth","type":"number","default":4000,"min":800,"max":10000,"description":"World width"},
+    {"name":"worldHeight","type":"number","default":900,"min":400,"max":2000,"description":"World height"},
+    {"name":"groundY","type":"number","default":840,"min":200,"max":1800,"description":"Ground Y for lighting placement"}
+  ]',
+  '[]',
+  '["platformer","runner","shooter","puzzle"]',
+$$function create(config) {
+  var theme = config.theme || 'forest';
+  var intensity = config.intensity || 1.0;
+  var lightingAlpha = config.lightingAlpha || 0.6;
+  var showVignette = config.showVignette !== false;
+  var worldW = config.worldWidth || 4000;
+  var worldH = config.worldHeight || 900;
+  var groundY = config.groundY || 840;
+  var ambientEffect = null;
+  var lightingLayer = null;
+  var vignetteSprite = null;
+
+  return {
+    id: 'ambient-atmosphere',
+    init: function(engine) {
+      var PAL = PALETTES[theme] || PALETTES.forest;
+
+      // Ambient particles (fireflies, dust, leaves, embers, pollen)
+      if (PAL.ambient) {
+        try {
+          ambientEffect = createAmbientEffect(PAL.ambient, worldW, worldH);
+        } catch(e) { console.warn('[ambient] particles failed:', e); }
+      }
+
+      // Lighting layer
+      try {
+        lightingLayer = createLightingLayer(theme, worldW, groundY, []);
+        if (lightingLayer) {
+          lightingLayer.alpha = lightingAlpha * intensity;
+          engine.world.addChild(lightingLayer);
+        }
+      } catch(e) { console.warn('[ambient] lighting failed:', e); }
+
+      // Vignette overlay (fixed on screen)
+      if (showVignette) {
+        try {
+          var screenW = engine.app.screen ? engine.app.screen.width : 800;
+          var screenH = engine.app.screen ? engine.app.screen.height : 600;
+          vignetteSprite = drawVignette(screenW, screenH);
+          vignetteSprite.alpha = 0.4 * intensity;
+          engine.uiLayer.addChild(vignetteSprite);
+        } catch(e) { console.warn('[ambient] vignette failed:', e); }
+      }
+    },
+    update: function(engine, dt) {
+      if (ambientEffect && ambientEffect.update) {
+        try { ambientEffect.update(dt); } catch(e) {}
+      }
+    },
+    destroy: function() {
+      if (ambientEffect && ambientEffect.destroy) try { ambientEffect.destroy(); } catch(e) {}
+      if (lightingLayer && lightingLayer.parent) lightingLayer.parent.removeChild(lightingLayer);
+      if (vignetteSprite && vignetteSprite.parent) vignetteSprite.parent.removeChild(vignetteSprite);
+      ambientEffect = null; lightingLayer = null; vignetteSprite = null;
+    }
+  };
+}$$,
+  true, true
+)
+ON CONFLICT (id) DO UPDATE SET
+  name = EXCLUDED.name,
+  description = EXCLUDED.description,
+  category = EXCLUDED.category,
+  parameters = EXCLUDED.parameters,
+  dependencies = EXCLUDED.dependencies,
+  code = EXCLUDED.code,
+  is_verified = EXCLUDED.is_verified,
+  updated_at = NOW();
