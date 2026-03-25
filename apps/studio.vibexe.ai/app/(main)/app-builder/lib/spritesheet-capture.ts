@@ -174,6 +174,34 @@ export class SpritesheetCapture {
 		model.position.sub(center);
 	}
 
+	/** Reload model completely from scratch — no cloning, fresh GLTF load.
+	 *  This guarantees pristine skeleton bindings with zero shared state. */
+	private async reloadModelFresh(loaded: LoadedModel): Promise<LoadedModel> {
+		if (!loaded.url) {
+			// Fallback: clone from loaded.model
+			const model = this.SkeletonUtils
+				? this.SkeletonUtils.clone(loaded.model)
+				: loaded.model.clone();
+			this.centerModel(model);
+			return { model, animations: loaded.animations, mixer: null };
+		}
+
+		const THREE = this.THREE;
+		return new Promise((resolve, reject) => {
+			const loader = new this.GLTFLoader();
+			loader.load(
+				loaded.url!,
+				(gltf: any) => {
+					const model = gltf.scene; // Use the scene DIRECTLY — no cloning
+					this.centerModel(model);
+					resolve({ model, animations: gltf.animations || [], mixer: null, url: loaded.url });
+				},
+				undefined,
+				(err: any) => reject(err),
+			);
+		});
+	}
+
 	/** Fit the orthographic camera to show the model filling the frame.
 	 *  Call this AFTER setting the model in the scene and optionally posing it. */
 	private fitCameraToModel(model: any, padding = 1.15): void {
@@ -297,20 +325,21 @@ export class SpritesheetCapture {
 		}
 
 		const prefix = config.prefix || clip.name || "anim";
+		const clipName = config.clipName || clip.name;
 
-		// Clone from the ORIGINAL gltf.scene (not loaded.model which may have stale state).
-		// This is the same as what loadModel() does — fresh skeleton bindings every time.
-		const cachedGltf = loaded.url ? this.modelCache.get(loaded.url) : null;
-		const sourceScene = cachedGltf ? cachedGltf.scene : loaded.model;
-		const captureModel = this.SkeletonUtils
-			? this.SkeletonUtils.clone(sourceScene)
-			: sourceScene.clone();
-		this.centerModel(captureModel);
+		// RELOAD the model from scratch — SkeletonUtils.clone has proven unreliable
+		// for preserving animation bindings across multiple clones.
+		const captureLoaded = await this.reloadModelFresh(loaded);
+		const captureModel = captureLoaded.model;
 		this.setModel(captureModel);
 
-		// Create mixer on the FRESH clone (no stale state)
+		// Find the clip in the freshly loaded animations
+		const freshClip = captureLoaded.animations.find((c: any) => c.name === clipName)
+			|| captureLoaded.animations[0];
+
+		// Create mixer on the freshly loaded model
 		const mixer = new THREE.AnimationMixer(captureModel);
-		const action = mixer.clipAction(clip);
+		const action = mixer.clipAction(freshClip);
 		action.play();
 
 		// Advance to first animation pose for camera fitting
