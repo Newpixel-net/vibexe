@@ -1377,7 +1377,6 @@ ${injectedFiles.map((f) => `- \`${f}\``).join("\n")}
 - The package.json already includes \`"three": "^0.162.0"\` — do NOT recreate it`);
 			}
 			// 2D: no infrastructure addendum needed — AI only creates custom-visuals.ts
-			}
 		}
 		if (isGameProject || isGame2d || isGame3d) {
 			if (isGame3d) {
