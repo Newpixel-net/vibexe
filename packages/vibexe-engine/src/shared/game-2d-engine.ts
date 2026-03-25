@@ -470,6 +470,11 @@ export class Camera2D {
     worldContainer.y = -Math.round(this.y);
   }
 
+  // Alias — AI commonly writes camera.applyTo(container)
+  applyTo(worldContainer: any): void {
+    this.update(worldContainer);
+  }
+
   // Convert screen coords to world coords
   screenToWorld(sx: number, sy: number): { x: number; y: number } {
     return { x: sx + this.x, y: sy + this.y };

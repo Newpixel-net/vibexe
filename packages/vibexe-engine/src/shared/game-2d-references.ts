@@ -78,10 +78,10 @@ var ctrl = new CharacterController(playerBody, { moveSpeed: 280, jumpForce: 520 
 
 ### Pattern 6: Camera Follow
 \`\`\`typescript
-// In update loop:
-var cam = engine.camera;
-cam.follow(playerSprite.x, playerSprite.y);
-cam.applyTo(this.container);
+// In enter(): set camera target
+engine.camera.follow(playerSprite); // pass the sprite object, not x/y
+// The engine auto-updates camera each frame — no need to call in update()
+// Camera auto-applies to this.container via engine tick
 \`\`\`
 
 ### Pattern 7: Collectible with Juice
