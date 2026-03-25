@@ -309,18 +309,28 @@ export class SpritesheetCapture {
 		const action = mixer.clipAction(clip);
 		action.play();
 
-		// Fit camera to the model in its first animation pose
-		mixer.setTime(0);
+		// Advance to first frame to get the animation pose (not T-pose)
+		// Use update() which is the ONLY reliable way to evaluate skeletal animations
+		mixer.update(0.001);
 		loaded.model.updateMatrixWorld(true);
-		this.fitCameraToModel(loaded.model, 1.2);
+		this.fitCameraToModel(loaded.model, 1.15);
 
 		const result: CapturedFrame[] = [];
+		const timeStep = clip.duration / frames;
+
+		// Reset mixer to start
+		mixer.setTime(0);
+		mixer.update(0);
 
 		for (let i = 0; i < frames; i++) {
-			const t = (clip.duration * i) / frames;
-
-			// Use setTime for absolute positioning — internally resets to 0 then advances
-			mixer.setTime(t);
+			// Advance by incremental delta — the ONLY pattern that reliably
+			// updates skeletal bone transforms. mixer.setTime() does NOT
+			// properly evaluate bone poses for skinned meshes.
+			if (i === 0) {
+				mixer.update(0.0001); // Tiny nudge to activate the first frame
+			} else {
+				mixer.update(timeStep);
+			}
 			loaded.model.updateMatrixWorld(true);
 
 			// Synchronous capture — render + toDataURL in same tick
