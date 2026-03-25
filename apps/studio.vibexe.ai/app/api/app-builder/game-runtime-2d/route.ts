@@ -80,8 +80,14 @@ canvas{display:block;width:100%;height:100%}
     console.warn('[2D Runtime] GSAP or PixiPlugin not available — juice effects disabled');
   }
 
-  // Verify pixi-filters
+  // Verify pixi-filters and promote to top-level PIXI.* aliases
   if (PIXI.filters && PIXI.filters.DropShadowFilter) {
+    // AI often writes PIXI.GlowFilter instead of PIXI.filters.GlowFilter — alias both
+    var _filterNames = ['GlowFilter', 'DropShadowFilter', 'OutlineFilter', 'BloomFilter', 'BlurFilter', 'ColorMatrixFilter'];
+    for (var _fi = 0; _fi < _filterNames.length; _fi++) {
+      var _fn = _filterNames[_fi];
+      if (PIXI.filters[_fn] && !PIXI[_fn]) PIXI[_fn] = PIXI.filters[_fn];
+    }
     console.log('[2D Runtime] pixi-filters loaded (DropShadow, Glow, Outline, Bloom available)');
   } else {
     console.warn('[2D Runtime] pixi-filters not available — filter effects disabled');
