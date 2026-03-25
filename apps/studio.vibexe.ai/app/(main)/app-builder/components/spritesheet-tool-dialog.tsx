@@ -352,7 +352,7 @@ export function SpritesheetToolDialog({ appId, open, onOpenChange, onGenerated }
 
 	return (
 		<Dialog open={open} onOpenChange={onOpenChange}>
-			<DialogContent className="max-w-[860px] w-[95vw] max-h-[90vh] p-0 gap-0 overflow-hidden bg-[#0d0d1a] border-white/10 [&>button]:hidden">
+			<DialogContent className="max-w-[1080px] w-[96vw] max-h-[90vh] p-0 gap-0 overflow-hidden bg-[#0d0d1a] border-white/10 [&>button]:hidden">
 				<DialogHeader className="px-5 py-3 border-b border-white/[0.06]">
 					<DialogTitle className="flex items-center gap-2 text-base font-medium text-white/90">
 						<Grid3X3 className="size-4 text-blue-400" />
@@ -365,13 +365,13 @@ export function SpritesheetToolDialog({ appId, open, onOpenChange, onGenerated }
 
 				<div className="flex flex-col md:flex-row overflow-x-hidden overflow-y-auto" style={{ maxHeight: "calc(90vh - 56px)" }}>
 					{/* Left column: Preview canvases */}
-					<div className="w-full md:w-[280px] flex-shrink-0 border-b md:border-b-0 md:border-r border-white/[0.06] flex flex-col">
+					<div className="w-full md:w-[340px] flex-shrink-0 border-b md:border-b-0 md:border-r border-white/[0.06] flex flex-col">
 						{/* 3D Model Preview */}
 						<div className="flex-1 min-h-[200px] flex items-center justify-center bg-[#080812] p-4">
 							<canvas
 								ref={previewCanvasRef}
 								className="rounded-lg bg-black/30 border border-white/[0.06] max-w-full"
-								style={{ width: 200, height: 200, imageRendering: "pixelated" }}
+								style={{ width: 260, height: 260, imageRendering: "pixelated" }}
 							/>
 						</div>
 
