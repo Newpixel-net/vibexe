@@ -14,7 +14,7 @@ import { generateRuntimeBootstrap } from "./runtime-bootstrap";
 
 // Bump this when generateGameEntry() or the compiler wrapper changes
 // so esbuild cache busts without waiting for CACHE_TTL expiry
-const COMPILER_VERSION = "36";
+const COMPILER_VERSION = "37";
 
 // In-memory LRU cache for compiled bundles
 const bundleCache = new Map<string, { bundle: string; timestamp: number }>();
@@ -142,17 +142,20 @@ function createVirtualPlugin(files: Map<string, string>, enabledModuleIds?: stri
 
 				// Pre-strip TypeScript from GameScene2D.ts — Feature Bank scaffold
 				// uses plain JS IIFEs, but AI (Kimi K2.5) adds type annotations.
-				// Use esbuild.transform to reliably strip all TS before bundling.
+				// Regex strip first (handles broken code esbuild.transform can't parse),
+				// then esbuild.transform as second pass for anything regex missed.
 				if (args.path.includes("GameScene2D")) {
+					// Pass 1: regex — catch common TS patterns even in broken code
+					content = content
+						.replace(/(\w)\s*:\s*(number|string|boolean|any|void|object|unknown|never|undefined|null)(?=\s*[,)\]=;])/g, "$1")
+						.replace(/\bas\s+[A-Za-z][\w.]*/g, "")
+						.replace(/<[A-Za-z][\w<>,\s]*>/g, "");
+					// Pass 2: esbuild.transform — strip any remaining TS cleanly
 					try {
-						const stripped = await esbuild.transform(content, {
-							loader: "ts",
-							target: "es2020",
-							// Strip types only, don't minify or change syntax
-						});
+						const stripped = await esbuild.transform(content, { loader: "tsx", target: "es2020" });
 						content = stripped.code;
 					} catch {
-						// If transform fails, continue with original content
+						// If transform also fails, regex-stripped content is the best we have
 					}
 				}
 
