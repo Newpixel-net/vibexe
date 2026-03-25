@@ -315,6 +315,17 @@ export class SpritesheetCapture {
 
 		this.setModel(loaded.model);
 
+		// Debug: log capture state
+		const box = new THREE.Box3().setFromObject(loaded.model);
+		const boxSize = box.getSize(new THREE.Vector3());
+		const boxCenter = box.getCenter(new THREE.Vector3());
+		console.log("[CAPTURE] Camera pos:", this.camera.position.x.toFixed(2), this.camera.position.y.toFixed(2), this.camera.position.z.toFixed(2));
+		console.log("[CAPTURE] Model pos:", loaded.model.position.x.toFixed(2), loaded.model.position.y.toFixed(2), loaded.model.position.z.toFixed(2));
+		console.log("[CAPTURE] Model scale:", loaded.model.scale.x.toFixed(3));
+		console.log("[CAPTURE] BBox size:", boxSize.x.toFixed(2), boxSize.y.toFixed(2), boxSize.z.toFixed(2));
+		console.log("[CAPTURE] BBox center:", boxCenter.x.toFixed(2), boxCenter.y.toFixed(2), boxCenter.z.toFixed(2));
+		console.log("[CAPTURE] Renderer:", this.renderer.getSize(new THREE.Vector2()).x, "x", this.renderer.getSize(new THREE.Vector2()).y);
+
 		// Create a FRESH mixer for this capture to avoid stale state
 		// Stop any existing mixer actions first
 		if (loaded.mixer) {
