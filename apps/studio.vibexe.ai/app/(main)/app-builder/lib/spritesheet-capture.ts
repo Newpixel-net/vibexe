@@ -297,43 +297,32 @@ export class SpritesheetCapture {
 
 		const prefix = config.prefix || clip.name || "anim";
 
-		this.setModel(loaded.model);
+		// Clone the model fresh for each capture — the SAME pattern as the preview.
+		// Using loaded.model directly fails because its skeleton has stale mixer state.
+		const captureModel = this.SkeletonUtils
+			? this.SkeletonUtils.clone(loaded.model)
+			: loaded.model.clone();
+		this.centerModel(captureModel);
+		this.setModel(captureModel);
 
-		// Stop any existing mixer to avoid conflicts
-		if (loaded.mixer) {
-			loaded.mixer.stopAllAction();
-		}
-
-		// Create a fresh mixer for capture
-		const mixer = new THREE.AnimationMixer(loaded.model);
+		// Create mixer on the FRESH clone (no stale state)
+		const mixer = new THREE.AnimationMixer(captureModel);
 		const action = mixer.clipAction(clip);
 		action.play();
 
-		// Advance to first frame to get the animation pose (not T-pose)
-		// Use update() which is the ONLY reliable way to evaluate skeletal animations
-		mixer.update(0.001);
-		loaded.model.updateMatrixWorld(true);
-		this.fitCameraToModel(loaded.model, 1.15);
+		// Advance to first animation pose for camera fitting
+		mixer.update(0.016);
+		captureModel.updateMatrixWorld(true);
+		this.fitCameraToModel(captureModel, 1.15);
 
 		const result: CapturedFrame[] = [];
 		const timeStep = clip.duration / frames;
 
-		// Reset mixer to start
-		mixer.setTime(0);
-		mixer.update(0);
-
 		for (let i = 0; i < frames; i++) {
-			// Advance by incremental delta — the ONLY pattern that reliably
-			// updates skeletal bone transforms. mixer.setTime() does NOT
-			// properly evaluate bone poses for skinned meshes.
-			if (i === 0) {
-				mixer.update(0.0001); // Tiny nudge to activate the first frame
-			} else {
-				mixer.update(timeStep);
-			}
-			loaded.model.updateMatrixWorld(true);
+			// Use incremental update — same pattern as preview's requestAnimationFrame loop
+			mixer.update(i === 0 ? 0.001 : timeStep);
+			captureModel.updateMatrixWorld(true);
 
-			// Synchronous capture — render + toDataURL in same tick
 			const blob = this.captureFrameSync();
 			result.push({
 				name: `${prefix}_${String(i).padStart(4, "0")}`,
@@ -343,14 +332,13 @@ export class SpritesheetCapture {
 			});
 
 			if (onProgress) onProgress((i + 1) / frames);
-			// Yield to UI every few frames so progress updates
 			if (i % 4 === 0) await new Promise(r => setTimeout(r, 0));
 		}
 
 		// Cleanup
 		action.stop();
 		mixer.stopAllAction();
-		this.scene.remove(loaded.model);
+		this.scene.remove(captureModel);
 		return result;
 	}
 
