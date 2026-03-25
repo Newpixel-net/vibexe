@@ -295,11 +295,21 @@ function ToolStatusIndicator({ event, isActiveGeneration }: { event: ToolEvent; 
 		const past = effectiveStatus === "interrupted" || effectiveStatus === "completed";
 		switch (event.toolName) {
 			case "createFile":
-			case "create_file":
-				return `${past ? "Created" : "Creating"} ${(event.args as { path?: string }).path || "file"}`;
+			case "create_file": {
+				const createResult = event.result as { success?: boolean } | undefined;
+				const createBlocked = past && createResult?.success === false;
+				return createBlocked
+					? `Blocked create of ${(event.args as { path?: string }).path || "file"} (protected)`
+					: `${past ? "Created" : "Creating"} ${(event.args as { path?: string }).path || "file"}`;
+			}
 			case "updateFile":
-			case "update_file":
-				return `${past ? "Updated" : "Updating"} ${(event.args as { path?: string }).path || "file"}`;
+			case "update_file": {
+				const updateResult = event.result as { success?: boolean } | undefined;
+				const updateBlocked = past && updateResult?.success === false;
+				return updateBlocked
+					? `Blocked update to ${(event.args as { path?: string }).path || "file"} (protected)`
+					: `${past ? "Updated" : "Updating"} ${(event.args as { path?: string }).path || "file"}`;
+			}
 			case "deleteFile":
 			case "delete_file":
 				return `${past ? "Deleted" : "Deleting"} ${(event.args as { path?: string }).path || "file"}`;

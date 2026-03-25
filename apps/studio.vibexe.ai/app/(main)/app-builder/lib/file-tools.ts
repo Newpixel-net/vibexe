@@ -213,7 +213,7 @@ export function createFileTools(appId: string, options?: FileToolsOptions) {
 				anchor: z
 					.string()
 					.describe(
-						'A unique string that exists in the file to locate the insertion point. For GameScene2D.ts, use "// === AI ENHANCEMENT ZONE ===" or the closing brace of enter().',
+						'A unique string that exists in the file to locate the insertion point. For GameScene2D.ts, use "// === ADD CUSTOM VISUALS AND GAME LOGIC BELOW ===" as the anchor.',
 					),
 				position: z
 					.enum(["before", "after"])

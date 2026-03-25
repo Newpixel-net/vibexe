@@ -1289,14 +1289,14 @@ After creating ALL files, end with a short summary. If the app has auth, include
 **MINIMUM**: Your GameScene3D.ts must call at least 5 different factory helpers. Every platform, collectible, player, barrier, and decoration MUST use the corresponding factory.`);
 
 			}
-			// 2D game "build" phase: GameScene2D.ts is pre-created with working gameplay
-			if (isGame2d) {
-				runtimeAddenda.push(`## 2D Game — GameScene2D.ts Already Works
+		}
+		// 2D game: whenever GameScene2D.ts already exists, tell AI to patch not rewrite
+		if (isGame2d && existingPaths.has("src/scenes/GameScene2D.ts")) {
+			runtimeAddenda.push(`## 2D Game — GameScene2D.ts Already Works
 
 \`src/scenes/GameScene2D.ts\` already has working player, platforms, coins, enemies, camera, HUD, and visuals.
 
-Your job: use \`read_file("src/scenes/GameScene2D.ts")\` then \`patch_file\` to ADD custom decorations in the marked section. Do NOT rewrite from scratch. Create \`docs/README.md\` with a short game description.`);
-			}
+Your job: use \`read_file("src/scenes/GameScene2D.ts")\` then \`patch_file\` to ADD custom decorations in the marked section. Do NOT rewrite from scratch. Do NOT use \`update_file\` on GameScene2D.ts — it is protected. Create \`docs/README.md\` with a short game description.`);
 		}
 		// 2D game addenda — simplified for Feature Bank auto-compose pipeline
 		// Core gameplay is already handled by the scaffold, AI just adds custom visuals
@@ -1593,9 +1593,9 @@ An App Store listing has been analyzed and injected into the project context abo
 		if (isGameProject || isGame2d || isGame3d) {
 			const templateFiles = isGame2d ? GAME_2D_TEMPLATE_FILES : GAME_3D_TEMPLATE_FILES;
 			const protectedPaths = new Set(templateFiles.map((t) => t.path));
-			// During build phase for 2D games, protect GameScene2D.ts from being overwritten
+			// For 2D games, protect GameScene2D.ts whenever it already exists
 			// (it's auto-composed with Feature Bank — AI should only patch_file to add decorations)
-			if (isGame2d && hasPlanOnly) {
+			if (isGame2d && existingPaths.has("src/scenes/GameScene2D.ts")) {
 				protectedPaths.add("src/scenes/GameScene2D.ts");
 			}
 			const forbiddenPatterns: RegExp[] = isGame2d
