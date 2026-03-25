@@ -17,6 +17,7 @@ import {
 	useSandpackNavigation,
 } from "@codesandbox/sandpack-react";
 import {
+	Box,
 	Camera,
 	Check,
 	ChevronDown,
@@ -2352,6 +2353,10 @@ export function SandpackPreview({
 	// Sync 2D game detection into game editor context so scene CRUD can adapt
 	useEffect(() => { gameEditor.setIs2DGame(is2DGame); }, [is2DGame]); // eslint-disable-line react-hooks/exhaustive-deps
 
+	// Detect if the active scene is a 3D-mod scene (should show empty/3D view instead of 2D game)
+	const activeSceneIs3DMod = is2DGame && gameEditor.enabled &&
+		gameEditor.scenes.find(s => s.id === gameEditor.activeSceneId)?.type === "3d-mod";
+
 	// 2D games: don't show game preview until build phase creates custom-visuals.ts
 	// During plan phase, only templates + README exist — showing a running game is confusing
 	const hasGameBeenBuilt = !is2DGame || files.some(f => f.path === "src/game/custom-visuals.ts");
@@ -2758,6 +2763,30 @@ export function SandpackPreview({
 
 			{/* Sandpack container - fills remaining space */}
 			<div className={`sandpack-container relative flex-1 flex flex-col min-h-0 overflow-hidden bg-muted/20 p-2 ${isGameMode && gameEditor.maximizeOnPlay ? "fixed inset-0 z-[100] p-0" : ""}`}>
+				{/* 3D Mod Scene overlay — hides 2D game when viewing a 3D model scene */}
+				{activeSceneIs3DMod && (
+					<div className="absolute inset-0 z-50 flex flex-col items-center justify-center bg-[#0a0a14] rounded-lg">
+						<div className="flex flex-col items-center gap-4">
+							<div className="w-20 h-20 rounded-2xl bg-violet-500/10 border border-violet-500/20 flex items-center justify-center">
+								<Box className="w-10 h-10 text-violet-400" />
+							</div>
+							<div className="text-center">
+								<p className="text-white/80 text-sm font-medium">3D Model Scene</p>
+								<p className="text-white/40 text-xs mt-1 max-w-[260px]">
+									Use the Sprites tool in the toolbar to load a 3D model and generate spritesheets for your 2D game.
+								</p>
+							</div>
+							<button
+								type="button"
+								onClick={() => setSpritesheetDialogOpen(true)}
+								className="mt-2 flex items-center gap-2 px-4 py-2 rounded-lg bg-violet-500/20 text-violet-300 text-xs font-medium border border-violet-500/30 hover:bg-violet-500/30 transition-colors"
+							>
+								<Film className="w-4 h-4" />
+								Open Spritesheet Tool
+							</button>
+						</div>
+					</div>
+				)}
 				{/* Game preview overlay — shows during AI generation OR before build phase */}
 				{isGameMode && useLightweightRuntime && (isGenerating || !hasGameBeenBuilt) && (
 					<div className="absolute inset-0 z-50 flex flex-col items-center justify-center bg-[#0a0a14]/95 backdrop-blur-sm rounded-lg">

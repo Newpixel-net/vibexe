@@ -1240,15 +1240,16 @@ export function GameEditorProvider({ children }: { children: ReactNode }) {
 			...createDefaultScene(name || `Level ${sceneCount + 1}`, false),
 			type: type || (is2DGame ? "2d" : undefined),
 		};
-		setScenesState((prev) => [...prev, newScene]);
-		// Persist to game settings
+		// Use current scenes state (not prev.scenes from gameSettings which may be undefined)
+		const updatedScenes = [...scenes, newScene];
+		setScenesState(updatedScenes);
 		setGameSettingsState((prev) => ({
 			...prev,
-			scenes: [...(prev.scenes || []), newScene],
+			scenes: updatedScenes,
 		}));
 		setIsDirty(true);
 		return newScene;
-	}, [scenes.length, is2DGame]);
+	}, [scenes, is2DGame]);
 
 	const removeScene = useCallback((sceneId: string) => {
 		setScenesState((prev) => {
