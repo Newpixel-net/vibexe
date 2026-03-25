@@ -1291,7 +1291,7 @@ After creating ALL files, end with a short summary. If the app has auth, include
 			}
 		}
 		// 2D game: whenever GameScene2D.ts already exists, tell AI to patch not rewrite
-		if (isGame2d && existingPaths.has("src/scenes/GameScene2D.ts")) {
+		if (isGame2d && existingFiles.some((f) => f.path === "src/scenes/GameScene2D.ts")) {
 			runtimeAddenda.push(`## 2D Game — GameScene2D.ts Already Works
 
 \`src/scenes/GameScene2D.ts\` already has working player, platforms, coins, enemies, camera, HUD, and visuals.
@@ -1595,7 +1595,7 @@ An App Store listing has been analyzed and injected into the project context abo
 			const protectedPaths = new Set(templateFiles.map((t) => t.path));
 			// For 2D games, protect GameScene2D.ts whenever it already exists
 			// (it's auto-composed with Feature Bank — AI should only patch_file to add decorations)
-			if (isGame2d && existingPaths.has("src/scenes/GameScene2D.ts")) {
+			if (isGame2d && existingFiles.some((f) => f.path === "src/scenes/GameScene2D.ts")) {
 				protectedPaths.add("src/scenes/GameScene2D.ts");
 			}
 			const forbiddenPatterns: RegExp[] = isGame2d
