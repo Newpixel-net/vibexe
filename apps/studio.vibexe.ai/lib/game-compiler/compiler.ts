@@ -370,6 +370,21 @@ const _SceneClass = _m.GameScene2D || _m.GameScene || _m.PlatformerGameScene
     const Proton = (window as any).Proton;
     if (!PIXI) { console.error('[2D Boot] PIXI not found on window'); return; }
 
+    // Defensive: patch addChild to skip null/undefined (common AI mistake)
+    const _origAddChild = PIXI.Container.prototype.addChild;
+    PIXI.Container.prototype.addChild = function(...children: any[]) {
+      const safe = children.filter((c: any) => c != null);
+      if (safe.length === 0) { console.warn('[Engine2D] addChild called with null/undefined — skipped'); return this; }
+      return _origAddChild.apply(this, safe);
+    };
+    const _origAddChildAt = PIXI.Container.prototype.addChildAt;
+    if (_origAddChildAt) {
+      PIXI.Container.prototype.addChildAt = function(child: any, index: number) {
+        if (child == null) { console.warn('[Engine2D] addChildAt called with null/undefined — skipped'); return this; }
+        return _origAddChildAt.call(this, child, index);
+      };
+    }
+
     // Import additional template files if they exist
     try { await import("./config/assets"); } catch(e) {}
     try { await import("./engine/effects"); } catch(e) {}
@@ -396,17 +411,33 @@ const _SceneClass = _m.GameScene2D || _m.GameScene || _m.PlatformerGameScene
     // Create and start game scene
     if (_SceneClass) {
       const scene = typeof _SceneClass === 'function' ? new _SceneClass() : _SceneClass;
+      // Ensure scene has required properties
+      if (!scene.name) scene.name = 'game';
+      if (!scene.container) scene.container = new PIXI.Container();
       if (engine.addScene) {
         engine.addScene(scene);
         // Also try to add GameOverScene
         try {
           const gom = await import("./scenes/GameOverScene");
           const GoScene = (gom as any).GameOverScene || (gom as any).default;
-          if (GoScene) engine.addScene(typeof GoScene === 'function' ? new GoScene() : GoScene);
+          if (GoScene) {
+            const goScene = typeof GoScene === 'function' ? new GoScene() : GoScene;
+            if (!goScene.container) goScene.container = new PIXI.Container();
+            engine.addScene(goScene);
+          }
         } catch(e) {}
-        engine.switchScene(scene.name || 'game');
+        try {
+          engine.switchScene(scene.name || 'game');
+        } catch(enterErr) {
+          console.error('[2D Boot] Scene enter() error:', enterErr);
+          // Show error overlay so user knows something went wrong
+          const errEl = document.createElement('div');
+          errEl.style.cssText = 'position:absolute;top:8px;left:8px;right:8px;padding:12px;background:rgba(255,50,50,0.9);color:#fff;font:13px/1.4 monospace;border-radius:6px;z-index:9999;max-height:120px;overflow:auto';
+          errEl.textContent = '[Game Error] ' + (enterErr instanceof Error ? enterErr.message : String(enterErr));
+          document.getElementById('root')?.appendChild(errEl);
+        }
       } else if (scene.enter) {
-        scene.enter(engine);
+        try { scene.enter(engine); } catch(e) { console.error('[2D Boot] Fatal:', e); }
       }
     } else {
       console.error('[2D Boot] No game scene found. Exports:', Object.keys(_m));

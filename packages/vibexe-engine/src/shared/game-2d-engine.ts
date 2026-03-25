@@ -191,10 +191,10 @@ export class Engine2D {
 
   switchScene(name: SceneName, data?: any): void {
     if (this.currentScene) {
-      this.juice.killAll();
-      this.currentScene.exit(this);
-      this.world.removeChild(this.currentScene.container);
-      this.uiLayer.removeChildren();
+      try { this.juice.killAll(); } catch(e) {}
+      try { this.currentScene.exit(this); } catch(e) {}
+      try { this.world.removeChild(this.currentScene.container); } catch(e) {}
+      try { this.uiLayer.removeChildren(); } catch(e) {}
     }
     const next = this.scenes.get(name);
     if (!next) {
@@ -202,8 +202,12 @@ export class Engine2D {
       return;
     }
     this.currentScene = next;
-    this.world.addChild(next.container);
-    next.enter(this, data);
+    if (next.container) this.world.addChild(next.container);
+    try {
+      next.enter(this, data);
+    } catch(e) {
+      console.error('[Engine2D] Scene enter() error:', e);
+    }
     console.log('[Engine2D] Scene:', name);
   }
 
