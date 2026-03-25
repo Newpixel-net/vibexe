@@ -24,6 +24,7 @@ export interface LoadedModel {
 	model: any; // THREE.Group
 	animations: any[]; // THREE.AnimationClip[]
 	mixer: any | null; // THREE.AnimationMixer | null
+	url?: string; // source URL for re-cloning from cache
 }
 
 export interface RotationCaptureConfig {
@@ -156,7 +157,7 @@ export class SpritesheetCapture {
 						this.modelCache.set(url, gltf);
 					}
 
-					resolve({ model, animations, mixer });
+					resolve({ model, animations, mixer, url });
 				},
 				undefined,
 				(err: any) => reject(err),
@@ -297,11 +298,13 @@ export class SpritesheetCapture {
 
 		const prefix = config.prefix || clip.name || "anim";
 
-		// Clone the model fresh for each capture — the SAME pattern as the preview.
-		// Using loaded.model directly fails because its skeleton has stale mixer state.
+		// Clone from the ORIGINAL gltf.scene (not loaded.model which may have stale state).
+		// This is the same as what loadModel() does — fresh skeleton bindings every time.
+		const cachedGltf = loaded.url ? this.modelCache.get(loaded.url) : null;
+		const sourceScene = cachedGltf ? cachedGltf.scene : loaded.model;
 		const captureModel = this.SkeletonUtils
-			? this.SkeletonUtils.clone(loaded.model)
-			: loaded.model.clone();
+			? this.SkeletonUtils.clone(sourceScene)
+			: sourceScene.clone();
 		this.centerModel(captureModel);
 		this.setModel(captureModel);
 
