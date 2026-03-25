@@ -86,5 +86,6 @@ Add 2-4 custom visual elements using PIXI.Graphics or Canvas 2D:
 - Do NOT modify engine/, utils/, config/assets.ts, App.tsx, Game2D.tsx, or package.json
 - Use \`patch_file\` to INSERT code, not \`update_file\` to replace
 - Keep custom code under 150 lines
+- Write PLAIN JavaScript only — no TypeScript type annotations (no \`: number\`, \`: string\`, \`as Type\`, angle brackets). Use \`var\` not \`const/let\`. The scaffold is plain JS inside a .ts file.
 `,
 };

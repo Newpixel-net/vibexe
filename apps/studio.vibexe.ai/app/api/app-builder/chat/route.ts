@@ -1301,7 +1301,9 @@ After creating ALL files, end with a short summary. If the app has auth, include
 
 \`src/scenes/GameScene2D.ts\` already has working player, platforms, coins, enemies, camera, HUD, and visuals.
 
-Your job: use \`read_file("src/scenes/GameScene2D.ts")\` then \`patch_file\` to ADD custom decorations in the marked section. Do NOT rewrite from scratch. Do NOT use \`update_file\` on GameScene2D.ts — it is protected. Create \`docs/README.md\` with a short game description.`);
+Your job: use \`read_file("src/scenes/GameScene2D.ts")\` then \`patch_file\` to ADD custom decorations in the marked section. Do NOT rewrite from scratch. Do NOT use \`update_file\` on GameScene2D.ts — it is protected.
+
+CRITICAL: Write PLAIN JavaScript only — no TypeScript annotations (no \`: number\`, \`: string\`, \`as X\`). Use \`var\` not \`const/let\`. The scaffold code is plain JS. Create \`docs/README.md\` with a short game description.`);
 		}
 		// 2D game addenda — simplified for Feature Bank auto-compose pipeline
 		// Core gameplay is already handled by the scaffold, AI just adds custom visuals
