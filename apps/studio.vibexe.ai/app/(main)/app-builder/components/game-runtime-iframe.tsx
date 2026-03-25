@@ -30,6 +30,8 @@ interface GameRuntimeIframeProps {
 	suppressRecompile?: boolean;
 	/** Override the runtime URL (default: 3D runtime). Use for 2D games. */
 	runtimeUrl?: string;
+	/** When true, hide iframe (display:none) to free GPU during AI generation */
+	isGenerating?: boolean;
 }
 
 export function GameRuntimeIframe({
@@ -42,6 +44,7 @@ export function GameRuntimeIframe({
 	refreshRef,
 	suppressRecompile,
 	runtimeUrl,
+	isGenerating,
 }: GameRuntimeIframeProps) {
 	const [compileError, setCompileError] = useState<string | null>(null);
 	const [isCompiling, setIsCompiling] = useState(false);
@@ -69,6 +72,18 @@ export function GameRuntimeIframe({
 	// This prevents the #1 source of freezes: a full 20-file recompile on every toggle.
 	const suppressRecompileRef = useRef(suppressRecompile);
 	suppressRecompileRef.current = suppressRecompile;
+
+	// Single recompile when AI generation ends — replaces all suppressed intermediate compiles
+	const prevIsGenerating = useRef(isGenerating);
+	useEffect(() => {
+		if (prevIsGenerating.current && !isGenerating) {
+			console.log("[GameRuntime] Generation ended, triggering single recompile");
+			lastHash.current = "";
+			const timer = setTimeout(() => compileAndInject(), 300);
+			return () => clearTimeout(timer);
+		}
+		prevIsGenerating.current = isGenerating;
+	}, [isGenerating, compileAndInject]);
 
 	// Compile game code server-side
 	const compileAndInject = useCallback(async () => {
@@ -285,6 +300,7 @@ export function GameRuntimeIframe({
 				ref={iframeRef}
 				src={runtimeUrl || "/api/app-builder/game-runtime?bv=191"}
 				className="w-full h-full border-0"
+				style={isGenerating ? { display: "none" } : undefined}
 				title="Game Preview"
 				allow="autoplay; fullscreen; webgpu"
 			/>

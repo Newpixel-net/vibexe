@@ -48,6 +48,7 @@ import {
 	Undo2,
 	Waves,
 	X,
+	Loader2,
 } from "lucide-react";
 import { MobilePublishPanel } from "./mobile-publish-panel";
 import { PHONE_FRAME, PhoneFrame } from "./phone-frame";
@@ -2735,6 +2736,20 @@ export function SandpackPreview({
 
 			{/* Sandpack container - fills remaining space */}
 			<div className={`sandpack-container relative flex-1 flex flex-col min-h-0 overflow-hidden bg-muted/20 p-2 ${isGameMode && gameEditor.maximizeOnPlay ? "fixed inset-0 z-[100] p-0" : ""}`}>
+				{/* Generation overlay — hide game preview while AI is building to prevent freeze */}
+				{isGenerating && isGameMode && useLightweightRuntime && (
+					<div className="absolute inset-0 z-50 flex flex-col items-center justify-center bg-[#0a0a14]/95 backdrop-blur-sm rounded-lg">
+						<div className="flex flex-col items-center gap-4">
+							<div className="w-16 h-16 rounded-full border-2 border-white/10 flex items-center justify-center">
+								<Loader2 className="w-8 h-8 text-violet-400 animate-spin" />
+							</div>
+							<div className="text-center">
+								<p className="text-white/80 text-sm font-medium">Building your game...</p>
+								<p className="text-white/40 text-xs mt-1">Preview will appear when generation completes</p>
+							</div>
+						</div>
+					</div>
+				)}
 				{isMobileFrame ? (
 					/* Mobile frame mode: phone frame (left) + publish panel (right) */
 					<div className="flex items-center justify-center gap-6 w-full h-full">
@@ -2755,7 +2770,8 @@ export function SandpackPreview({
 										enabledModuleIds={enabledModuleIds}
 										iframeRef={iframeRef as React.RefObject<HTMLIFrameElement | null>}
 										refreshRef={sandpackRefreshRef}
-										suppressRecompile={gameEditor.enabled}
+										suppressRecompile={gameEditor.enabled || !!isGenerating}
+										isGenerating={!!isGenerating}
 										runtimeUrl={is2DGame ? "/api/app-builder/game-runtime-2d?v=2" : undefined}
 									/>
 								) : (
@@ -2867,7 +2883,8 @@ export function SandpackPreview({
 								enabledModuleIds={enabledModuleIds}
 								iframeRef={iframeRef as React.RefObject<HTMLIFrameElement | null>}
 								refreshRef={sandpackRefreshRef}
-								suppressRecompile={gameEditor.enabled}
+								suppressRecompile={gameEditor.enabled || !!isGenerating}
+								isGenerating={!!isGenerating}
 								runtimeUrl={is2DGame ? "/api/app-builder/game-runtime-2d?v=2" : undefined}
 							/>
 						) : (
