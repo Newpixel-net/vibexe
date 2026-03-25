@@ -55,11 +55,40 @@ interface Props {
 	onGenerated?: (result: StoredSpritesheet) => void;
 }
 
-// Simple list of media-stock 3D packs for the browser
-const STOCK_PACKS = [
-	{ id: "kaykit-platformer", name: "KayKit Platformer", path: "Assets/gltf", ext: ".gltf" },
-	{ id: "meshy-characters", name: "Meshy Characters", path: "", ext: ".glb" },
-	{ id: "platformer-project", name: "Platformer Project", path: "", ext: ".glb" },
+// Curated 3D models from media-stock with real file paths
+interface StockModel { name: string; path: string; }
+interface StockPack { id: string; label: string; models: StockModel[]; }
+
+const STOCK_PACKS: StockPack[] = [
+	{
+		id: "meshy-characters", label: "Animated Characters",
+		models: [
+			{ name: "Warrior (Animated)", path: "meshy-characters/Warrior_figure_Animations.glb" },
+		],
+	},
+	{
+		id: "platformer-project", label: "Platformer Characters & Props",
+		models: [
+			{ name: "Lily", path: "platformer-project/characters/Lily.glb" },
+			{ name: "Slime", path: "platformer-project/characters/Slime.glb" },
+			{ name: "Glider", path: "platformer-project/objects/glider.glb" },
+			{ name: "Dice", path: "platformer-project/objects/dice.glb" },
+			{ name: "Flamethrower", path: "platformer-project/objects/flamethrower.glb" },
+			{ name: "Log", path: "platformer-project/objects/log.glb" },
+			{ name: "Disc", path: "platformer-project/objects/disc.glb" },
+		],
+	},
+	{
+		id: "kaykit-skeletons", label: "KayKit Skeletons",
+		models: [
+			{ name: "Skeleton Rogue", path: "kaykit-skeletons/Skeleton_Rogue.glb" },
+			{ name: "Skeleton Mage", path: "kaykit-skeletons/Skeleton_Mage.glb" },
+			{ name: "Skeleton Arrow", path: "kaykit-skeletons/Skeleton_Arrow.gltf" },
+			{ name: "Skeleton Axe", path: "kaykit-skeletons/Skeleton_Axe.gltf" },
+			{ name: "Skeleton Crossbow", path: "kaykit-skeletons/Skeleton_Crossbow.gltf" },
+			{ name: "Skeleton Blade", path: "kaykit-skeletons/Skeleton_Blade.gltf" },
+		],
+	},
 ];
 
 // ---------------------------------------------------------------------------
@@ -172,8 +201,8 @@ export function SpritesheetToolDialog({ appId, open, onOpenChange, onGenerated }
 	}, [appId, loadModel]);
 
 	// Handle media stock selection
-	const handleStockSelect = useCallback((packId: string, modelPath: string) => {
-		const url = `/api/app-builder/media-stock-3d/${packId}/${encodeURI(modelPath)}`;
+	const handleStockSelect = useCallback((modelPath: string) => {
+		const url = `/api/app-builder/media-stock-3d/${encodeURI(modelPath)}`;
 		setModelUrl(url);
 		loadModel(url);
 	}, [loadModel]);
@@ -458,18 +487,24 @@ export function SpritesheetToolDialog({ appId, open, onOpenChange, onGenerated }
 
 							{/* Media stock browser */}
 							{sourceTab === "stock" && (
-								<div className="px-3 py-4 text-center">
-									<div className="text-xs text-white/30 mb-2">Available 3D model packs:</div>
-									<div className="space-y-1">
-										{STOCK_PACKS.map((pack) => (
-											<div key={pack.id} className="text-xs text-white/50 px-3 py-1.5 rounded-md bg-white/[0.03]">
-												{pack.name}
+								<div className="max-h-[180px] overflow-y-auto space-y-2 py-1">
+									{STOCK_PACKS.map((pack) => (
+										<div key={pack.id}>
+											<div className="text-[10px] uppercase tracking-wider text-white/30 px-1 mb-1">{pack.label}</div>
+											<div className="space-y-0.5">
+												{pack.models.map((model) => (
+													<button
+														key={model.path}
+														onClick={() => handleStockSelect(model.path)}
+														disabled={phase === "loading"}
+														className="w-full text-left px-3 py-1.5 rounded-md text-xs text-white/60 hover:bg-white/[0.06] hover:text-white/90 transition-colors disabled:opacity-40"
+													>
+														{model.name}
+													</button>
+												))}
 											</div>
-										))}
-									</div>
-									<div className="text-[10px] text-white/20 mt-2">
-										Use the URL tab to paste a model link, or Upload a .glb file
-									</div>
+										</div>
+									))}
 								</div>
 							)}
 						</div>
