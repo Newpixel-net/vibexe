@@ -71,6 +71,7 @@ export class Engine2D {
   ui: UISystem;
   assets: AssetsSystem;
   features: FeatureManager;
+  pixi: PixiAdvancedSystem;
 
   // Simple event bus — AI uses engine.events.emit(name, data)
   events = {
@@ -113,6 +114,7 @@ export class Engine2D {
     this.ui = new UISystem(this);
     this.assets = new AssetsSystem(this);
     this.features = new FeatureManager(this);
+    this.pixi = new PixiAdvancedSystem(this);
   }
 
   async init(rootEl?: HTMLElement): Promise<void> {
@@ -1489,6 +1491,146 @@ export class FeatureManager {
     });
 
     this._initOrder = order;
+  }
+}
+
+// ---------------------------------------------------------------------------
+// PixiAdvancedSystem — engine.pixi.* namespace (PixiJS 8.x advanced features)
+// ---------------------------------------------------------------------------
+
+export class PixiAdvancedSystem {
+  private engine: Engine2D;
+
+  constructor(engine: Engine2D) {
+    this.engine = engine;
+  }
+
+  // --- Mesh ---
+
+  /** Create a rope mesh from an array of points — chains, vines, tentacles */
+  rope(points: {x: number; y: number}[], texture: any, config?: any): any {
+    var pts = points.map(function(p) { return new PIXI.Point(p.x, p.y); });
+    var mesh = new PIXI.MeshRope({ texture: texture, points: pts });
+    if (config && config.textureScale) mesh.textureScale = config.textureScale;
+    return mesh;
+  }
+
+  /** Create a plane mesh for deformation — water surfaces, flags, cloth */
+  plane(texture: any, verticesX?: number, verticesY?: number): any {
+    return new PIXI.MeshPlane({ texture: texture, verticesX: verticesX || 10, verticesY: verticesY || 10 });
+  }
+
+  // --- DisplacementFilter ---
+
+  /** Apply displacement filter — heat shimmer, underwater distortion, portals */
+  displacement(sprite: any, scaleX?: number, scaleY?: number, container?: any): any {
+    var filter = new PIXI.DisplacementFilter({ sprite: sprite, scale: { x: scaleX || 20, y: scaleY || 20 } });
+    var target = container || this.engine.world;
+    if (!target.filters) target.filters = [];
+    target.filters.push(filter);
+    return { filter: filter, sprite: sprite };
+  }
+
+  /** Remove a displacement filter from a container */
+  removeDisplacement(result: any, container?: any): void {
+    var target = container || this.engine.world;
+    if (target.filters) {
+      var idx = target.filters.indexOf(result.filter);
+      if (idx >= 0) target.filters.splice(idx, 1);
+    }
+  }
+
+  // --- RenderTexture ---
+
+  /** Create a render texture for offscreen rendering — minimaps, reflections, trails */
+  renderTexture(width?: number, height?: number): any {
+    var w = width || this.engine.config.width;
+    var h = height || this.engine.config.height;
+    return PIXI.RenderTexture.create({ width: w, height: h });
+  }
+
+  /** Render a display object into a render texture */
+  renderTo(renderTexture: any, displayObject: any): void {
+    this.engine.app.renderer.render({ container: displayObject, target: renderTexture });
+  }
+
+  // --- ParticleContainer ---
+
+  /** Create a high-performance particle container — bullet hell, star fields (10-100x faster than Proton for simple sprites) */
+  particleContainer(options?: any): any {
+    return new PIXI.ParticleContainer({
+      dynamicProperties: {
+        position: true,
+        scale: true,
+        rotation: true,
+        tint: true,
+        ...(options || {})
+      }
+    });
+  }
+
+  // --- Masking ---
+
+  /** Apply a sprite as a mask — fog of war, spotlight, reveal effects */
+  spriteMask(target: any, maskSprite: any): void {
+    target.mask = maskSprite;
+  }
+
+  /** Apply a graphics shape as a mask — circular viewport, terrain cutouts */
+  graphicsMask(target: any, maskGraphics: any): void {
+    target.mask = maskGraphics;
+  }
+
+  /** Remove mask from a display object */
+  removeMask(target: any): void {
+    target.mask = null;
+  }
+
+  // --- NineSliceSprite ---
+
+  /** Create a nine-slice sprite — scalable UI panels, dialogue boxes, health bars */
+  nineSlice(texture: any, left: number, top: number, right: number, bottom: number): any {
+    return new PIXI.NineSliceSprite({
+      texture: texture, leftWidth: left, topHeight: top, rightWidth: right, bottomHeight: bottom
+    });
+  }
+
+  // --- BitmapText ---
+
+  /** Create bitmap text — fast pre-rendered text for HUD/score (faster than PIXI.Text) */
+  bitmapText(text: string, style?: any): any {
+    var defaultStyle = {
+      fontFamily: 'Arial',
+      fontSize: 24,
+      fill: 0xffffff,
+      ...(style || {})
+    };
+    return new PIXI.BitmapText({ text: text, style: defaultStyle });
+  }
+
+  // --- Blend Modes ---
+
+  /** Set blend mode — add (glow), multiply (shadow), screen (light) */
+  blendMode(sprite: any, mode: string): void {
+    var modes: Record<string, string> = {
+      normal: 'normal', add: 'add', multiply: 'multiply',
+      screen: 'screen', overlay: 'overlay', erase: 'erase',
+    };
+    sprite.blendMode = modes[mode] || mode;
+  }
+
+  // --- Video Texture ---
+
+  /** Create a video texture — animated backgrounds, cutscenes, TV screen props */
+  videoTexture(url: string, config?: any): any {
+    var video = document.createElement('video');
+    video.src = url;
+    video.loop = (config && config.loop !== undefined) ? config.loop : true;
+    video.muted = true;
+    video.playsInline = true;
+    if (!config || config.autoPlay !== false) video.play().catch(function() {});
+    var texture = PIXI.Texture.from(video);
+    return { texture: texture, video: video };
   }
 }
 
