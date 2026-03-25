@@ -10,9 +10,6 @@ export const game2dDeveloper: AgentDefinition = {
 	tools: [
 		"create_file",
 		"read_file",
-		"delete_file",
-		"compose_game",
-		"lookup_integration_props",
 	],
 	readOnly: false,
 	skills: ["coding-standards"],
