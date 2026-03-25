@@ -2,7 +2,7 @@
  * Spritesheet Storage — Upload and list generated spritesheets.
  *
  * Uses the existing /api/apps/{appId}/storage endpoint.
- * Spritesheets are stored under: spritesheets/{name}/sheet.png + sheet.json
+ * Spritesheets are stored under: spritesheets/{model}/{anim}/sheet.png + sheet.json
  */
 
 import type { SpritesheetJSON } from "./spritesheet-packer";
@@ -15,15 +15,18 @@ export interface StoredSpritesheet {
 
 /**
  * Upload a generated spritesheet (atlas PNG + metadata JSON) to app storage.
+ * Each animation gets its own subfolder: spritesheets/{model}/{anim}/
  */
 export async function uploadSpritesheet(
 	appId: string,
-	name: string,
+	modelName: string,
+	animName: string,
 	atlasBlob: Blob,
 	metadata: SpritesheetJSON,
 ): Promise<StoredSpritesheet> {
-	const safeName = name.replace(/[^a-zA-Z0-9_-]/g, "_").toLowerCase();
-	const basePath = `spritesheets/${safeName}`;
+	const safeModel = modelName.replace(/[^a-zA-Z0-9_-]/g, "_").toLowerCase();
+	const safeAnim = animName.replace(/[^a-zA-Z0-9_-]/g, "_").toLowerCase();
+	const basePath = `spritesheets/${safeModel}/${safeAnim}`;
 
 	// Upload atlas PNG
 	const atlasForm = new FormData();
@@ -63,7 +66,7 @@ export async function uploadSpritesheet(
 	const metaData = await metaRes.json();
 
 	return {
-		name: safeName,
+		name: `${safeModel}_${safeAnim}`,
 		atlasUrl: atlasData.url,
 		metadataUrl: metaData.url,
 	};
@@ -71,35 +74,51 @@ export async function uploadSpritesheet(
 
 /**
  * List all spritesheets stored for an app.
+ * Matches path: spritesheets/{model}/{anim}/sheet.png|sheet.json
  */
 export async function listSpritesheets(
 	appId: string,
 ): Promise<StoredSpritesheet[]> {
 	const res = await fetch(
-		`/api/apps/${appId}/storage?prefix=spritesheets/&limit=100`,
+		`/api/apps/${appId}/storage?prefix=spritesheets/&limit=200`,
 	);
 	if (!res.ok) return [];
 
 	const data = await res.json();
 	const files: Array<{ path: string; url: string }> = data.files || [];
 
-	// Group by spritesheet name (files come as spritesheets/{name}/sheet.png etc.)
+	// Group by model+anim name
 	const sheets = new Map<
 		string,
 		{ atlasUrl?: string; metadataUrl?: string }
 	>();
 
 	for (const file of files) {
+		// Match both old format (spritesheets/{name}/sheet.png) and new (spritesheets/{model}/{anim}/sheet.png)
 		const match = file.path.match(
+			/^spritesheets\/([^/]+)\/([^/]+)\/(sheet\.png|sheet\.json)$/,
+		);
+		if (match) {
+			const name = `${match[1]}_${match[2]}`;
+			const type = match[3];
+			if (!sheets.has(name)) sheets.set(name, {});
+			const entry = sheets.get(name)!;
+			if (type === "sheet.png") entry.atlasUrl = file.url;
+			if (type === "sheet.json") entry.metadataUrl = file.url;
+			continue;
+		}
+		// Old format fallback
+		const oldMatch = file.path.match(
 			/^spritesheets\/([^/]+)\/(sheet\.png|sheet\.json)$/,
 		);
-		if (!match) continue;
-		const name = match[1];
-		const type = match[2];
-		if (!sheets.has(name)) sheets.set(name, {});
-		const entry = sheets.get(name)!;
-		if (type === "sheet.png") entry.atlasUrl = file.url;
-		if (type === "sheet.json") entry.metadataUrl = file.url;
+		if (oldMatch) {
+			const name = oldMatch[1];
+			const type = oldMatch[2];
+			if (!sheets.has(name)) sheets.set(name, {});
+			const entry = sheets.get(name)!;
+			if (type === "sheet.png") entry.atlasUrl = file.url;
+			if (type === "sheet.json") entry.metadataUrl = file.url;
+		}
 	}
 
 	const result: StoredSpritesheet[] = [];

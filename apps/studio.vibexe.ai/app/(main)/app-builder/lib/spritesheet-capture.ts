@@ -412,6 +412,31 @@ export class SpritesheetCapture {
 		return this.renderer?.domElement || null;
 	}
 
+	/** Set the capture camera position (called before generate to match user's preview angle) */
+	setCameraPosition(x: number, y: number, z: number): void {
+		if (this.camera) this.camera.position.set(x, y, z);
+	}
+
+	/** Set the capture camera look-at target */
+	setCameraTarget(x: number, y: number, z: number): void {
+		if (this.camera) this.camera.lookAt(x, y, z);
+	}
+
+	/** Get the camera object (for reading position) */
+	getCamera(): any {
+		return this.camera;
+	}
+
+	/** Dynamically import OrbitControls for interactive preview */
+	async getOrbitControlsClass(): Promise<any> {
+		await this.init(this.frameWidth, this.frameHeight);
+		// @ts-ignore
+		const { OrbitControls } = await import(
+			"three/examples/jsm/controls/OrbitControls.js"
+		);
+		return OrbitControls;
+	}
+
 	dispose(): void {
 		this.renderer?.dispose();
 		this.modelCache.clear();

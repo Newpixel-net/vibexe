@@ -3,12 +3,8 @@
 /**
  * Spritesheet Tool Dialog — 3D to 2D spritesheet generator.
  *
- * Provides a full UI for:
- * - Loading 3D models (URL, file upload, or media-stock browser)
- * - Previewing models in an embedded Three.js canvas with orbit controls
- * - Configuring capture settings (frame size, count, axis, animations, multi-angle)
- * - Live flipbook preview before full generation
- * - Generating and uploading PIXI.Spritesheet-compatible atlases
+ * Interactive 3D preview with OrbitControls — user orbits the model to choose
+ * their camera angle, selects animations, and generates one spritesheet per animation.
  */
 
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -23,22 +19,18 @@ import {
 	Box,
 	Camera,
 	Check,
-	ChevronDown,
-	Film,
 	Grid3X3,
 	Link2,
 	Loader2,
 	Play,
-	RotateCcw,
 	Upload,
-	X,
 } from "lucide-react";
 import {
 	getCaptureInstance,
 	type CapturedFrame,
 	type LoadedModel,
 } from "../lib/spritesheet-capture";
-import { packFrames, packMultiAngle } from "../lib/spritesheet-packer";
+import { packFrames } from "../lib/spritesheet-packer";
 import { uploadSpritesheet, type StoredSpritesheet } from "../lib/spritesheet-storage";
 
 // ---------------------------------------------------------------------------
@@ -46,7 +38,7 @@ import { uploadSpritesheet, type StoredSpritesheet } from "../lib/spritesheet-st
 // ---------------------------------------------------------------------------
 
 type ModelSourceTab = "url" | "upload" | "stock";
-type Phase = "idle" | "loading" | "previewing" | "capturing" | "packing" | "uploading" | "done" | "error";
+type Phase = "idle" | "loading" | "capturing" | "packing" | "uploading" | "done" | "error";
 
 interface Props {
 	appId: string;
@@ -55,7 +47,7 @@ interface Props {
 	onGenerated?: (result: StoredSpritesheet) => void;
 }
 
-// Curated 3D models from media-stock with real file paths
+// Curated 3D models from media-stock
 interface StockModel { name: string; path: string; }
 interface StockPack { id: string; label: string; models: StockModel[]; }
 
@@ -103,11 +95,8 @@ export function SpritesheetToolDialog({ appId, open, onOpenChange, onGenerated }
 
 	// Settings
 	const [frameSize, setFrameSize] = useState(128);
-	const [frameCount, setFrameCount] = useState(24);
+	const [frameCount, setFrameCount] = useState(8);
 	const [rotationAxis, setRotationAxis] = useState<"x" | "y" | "z">("y");
-	const [bgTransparent, setBgTransparent] = useState(true);
-	const [multiAngle, setMultiAngle] = useState(false);
-	const [angleCount, setAngleCount] = useState(8);
 	const [selectedAnims, setSelectedAnims] = useState<Set<string>>(new Set());
 	const [spriteName, setSpriteName] = useState("sprite");
 
@@ -117,14 +106,127 @@ export function SpritesheetToolDialog({ appId, open, onOpenChange, onGenerated }
 	const [errorMsg, setErrorMsg] = useState("");
 	const [loadedModel, setLoadedModel] = useState<LoadedModel | null>(null);
 	const [animNames, setAnimNames] = useState<string[]>([]);
-	const [previewFrames, setPreviewFrames] = useState<CapturedFrame[]>([]);
-	const [result, setResult] = useState<StoredSpritesheet | null>(null);
+	const [results, setResults] = useState<StoredSpritesheet[]>([]);
 
-	// Refs
-	const previewCanvasRef = useRef<HTMLCanvasElement>(null);
-	const flipbookCanvasRef = useRef<HTMLCanvasElement>(null);
-	const flipbookIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+	// Refs — interactive 3D preview
+	const previewContainerRef = useRef<HTMLDivElement>(null);
+	const previewRendererRef = useRef<any>(null);
+	const orbitControlsRef = useRef<any>(null);
+	const previewAnimFrameRef = useRef<number>(0);
+	const previewCameraRef = useRef<any>(null);
 	const abortRef = useRef(false);
+
+	// ---------------------------------------------------------------------------
+	// Preview cleanup
+	// ---------------------------------------------------------------------------
+
+	const cleanupPreview = useCallback(() => {
+		if (previewAnimFrameRef.current) {
+			cancelAnimationFrame(previewAnimFrameRef.current);
+			previewAnimFrameRef.current = 0;
+		}
+		if (orbitControlsRef.current) {
+			orbitControlsRef.current.dispose();
+			orbitControlsRef.current = null;
+		}
+		if (previewRendererRef.current) {
+			previewRendererRef.current.dispose();
+			previewRendererRef.current = null;
+		}
+		if (previewContainerRef.current) {
+			previewContainerRef.current.innerHTML = "";
+		}
+		previewCameraRef.current = null;
+	}, []);
+
+	// Cleanup on unmount / dialog close
+	useEffect(() => {
+		if (!open) cleanupPreview();
+		return () => cleanupPreview();
+	}, [open, cleanupPreview]);
+
+	// ---------------------------------------------------------------------------
+	// Initialize live 3D preview with OrbitControls
+	// ---------------------------------------------------------------------------
+
+	const initPreviewRenderer = useCallback(async (loaded: LoadedModel) => {
+		const capture = getCaptureInstance();
+		const THREE = capture.getThree();
+		if (!THREE || !previewContainerRef.current) return;
+
+		let OrbitControls: any;
+		try {
+			OrbitControls = await capture.getOrbitControlsClass();
+		} catch {
+			console.warn("[SpritesheetTool] OrbitControls not available");
+			return;
+		}
+
+		cleanupPreview();
+
+		// Visible renderer for preview panel
+		const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+		const container = previewContainerRef.current;
+		const w = container.clientWidth || 280;
+		const h = container.clientHeight || 280;
+		renderer.setSize(w, h);
+		renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+		renderer.outputColorSpace = THREE.SRGBColorSpace;
+		renderer.setClearColor(0x080812, 1);
+		container.innerHTML = "";
+		container.appendChild(renderer.domElement);
+		renderer.domElement.style.borderRadius = "8px";
+
+		// Scene with lighting
+		const scene = new THREE.Scene();
+		scene.add(new THREE.AmbientLight(0xffffff, 0.7));
+		const dir = new THREE.DirectionalLight(0xffffff, 0.9);
+		dir.position.set(2, 3, 2);
+		scene.add(dir);
+		const fill = new THREE.DirectionalLight(0xffffff, 0.3);
+		fill.position.set(-2, 1, -1);
+		scene.add(fill);
+
+		// Camera
+		const camera = new THREE.PerspectiveCamera(45, w / h, 0.1, 100);
+		camera.position.set(0, 0.8, 2.5);
+		camera.lookAt(0, 0, 0);
+
+		// OrbitControls — user can drag to rotate, scroll to zoom
+		const controls = new OrbitControls(camera, renderer.domElement);
+		controls.enableDamping = true;
+		controls.dampingFactor = 0.08;
+		controls.target.set(0, 0, 0);
+		controls.update();
+
+		// Clone model into preview scene
+		const previewModel = loaded.model.clone();
+		scene.add(previewModel);
+
+		// Play first animation if available
+		let mixer: any = null;
+		if (loaded.animations.length > 0) {
+			mixer = new THREE.AnimationMixer(previewModel);
+			const action = mixer.clipAction(loaded.animations[0]);
+			action.play();
+		}
+
+		// Store refs
+		previewRendererRef.current = renderer;
+		orbitControlsRef.current = controls;
+		previewCameraRef.current = camera;
+
+		// Render loop
+		const clock = new THREE.Clock();
+		function animate() {
+			previewAnimFrameRef.current = requestAnimationFrame(animate);
+			const delta = clock.getDelta();
+			if (mixer) mixer.update(delta);
+			controls.update();
+			renderer.render(scene, camera);
+		}
+		animate();
+	}, [cleanupPreview]);
 
 	// ---------------------------------------------------------------------------
 	// Model loading
@@ -136,8 +238,7 @@ export function SpritesheetToolDialog({ appId, open, onOpenChange, onGenerated }
 		setErrorMsg("");
 		setLoadedModel(null);
 		setAnimNames([]);
-		setPreviewFrames([]);
-		setResult(null);
+		setResults([]);
 
 		try {
 			const capture = getCaptureInstance();
@@ -145,31 +246,29 @@ export function SpritesheetToolDialog({ appId, open, onOpenChange, onGenerated }
 			const loaded = await capture.loadModel(url);
 			setLoadedModel(loaded);
 
-			// Get animation names
 			const names = capture.getAnimationNames(loaded);
 			setAnimNames(names);
-			setSelectedAnims(new Set(names)); // select all by default
+			// Select common platformer animations by default, or all if few
+			if (names.length <= 5) {
+				setSelectedAnims(new Set(names));
+			} else {
+				const common = new Set(["idle", "walk", "run", "jump", "fall", "die", "attack"]);
+				const selected = names.filter(n => common.has(n.toLowerCase()));
+				setSelectedAnims(new Set(selected.length > 0 ? selected : names.slice(0, 5)));
+			}
 
-			// Derive name from URL
 			const urlName = url.split("/").pop()?.replace(/\.(glb|gltf)$/i, "") || "sprite";
 			setSpriteName(urlName.replace(/[^a-zA-Z0-9_-]/g, "_").toLowerCase());
 
-			// Render a single preview frame to the 3D preview canvas
-			const rendered = capture.renderPreview(loaded);
-			if (rendered && previewCanvasRef.current) {
-				const canvas = previewCanvasRef.current;
-				canvas.width = frameSize;
-				canvas.height = frameSize;
-				const ctx = canvas.getContext("2d");
-				if (ctx) ctx.drawImage(rendered, 0, 0, frameSize, frameSize);
-			}
+			// Start interactive preview
+			await initPreviewRenderer(loaded);
 
 			setPhase("idle");
 		} catch (err: any) {
 			setPhase("error");
 			setErrorMsg(err?.message || "Failed to load model");
 		}
-	}, [frameSize]);
+	}, [frameSize, initPreviewRenderer]);
 
 	// Handle file upload
 	const handleFileUpload = useCallback(async (file: File) => {
@@ -178,21 +277,14 @@ export function SpritesheetToolDialog({ appId, open, onOpenChange, onGenerated }
 			return;
 		}
 		setFileName(file.name);
-
-		// Upload to app storage first
 		const form = new FormData();
 		form.append("file", file);
 		form.append("path", `spritesheets/_uploads/${file.name}`);
-
 		try {
-			const res = await fetch(`/api/apps/${appId}/storage`, {
-				method: "POST",
-				body: form,
-			});
+			const res = await fetch(`/api/apps/${appId}/storage`, { method: "POST", body: form });
 			if (!res.ok) throw new Error("Upload failed");
 			const data = await res.json();
-			setModelUrl(data.url);
-			await loadModel(data.url);
+			loadModel(data.url);
 		} catch (err: any) {
 			setErrorMsg(err?.message || "Upload failed");
 		}
@@ -206,176 +298,94 @@ export function SpritesheetToolDialog({ appId, open, onOpenChange, onGenerated }
 	}, [loadModel]);
 
 	// ---------------------------------------------------------------------------
-	// Flipbook preview
-	// ---------------------------------------------------------------------------
-
-	const runPreview = useCallback(async () => {
-		if (!loadedModel) return;
-		setPhase("previewing");
-		abortRef.current = false;
-
-		try {
-			const capture = getCaptureInstance();
-			await capture.init(frameSize, frameSize);
-
-			let frames: CapturedFrame[];
-			if (animNames.length > 0 && selectedAnims.size > 0) {
-				const firstAnim = [...selectedAnims][0];
-				frames = await capture.captureAnimation(loadedModel, {
-					frames: 8,
-					clipName: firstAnim,
-					prefix: "preview",
-				});
-			} else {
-				frames = await capture.captureRotation(loadedModel, {
-					frames: 8,
-					axis: rotationAxis,
-					prefix: "preview",
-				});
-			}
-
-			setPreviewFrames(frames);
-			startFlipbook(frames);
-			setPhase("idle");
-		} catch (err: any) {
-			setPhase("error");
-			setErrorMsg(err?.message || "Preview failed");
-		}
-	}, [loadedModel, frameSize, rotationAxis, animNames, selectedAnims]);
-
-	const startFlipbook = useCallback((frames: CapturedFrame[]) => {
-		if (flipbookIntervalRef.current) clearInterval(flipbookIntervalRef.current);
-		if (frames.length === 0) return;
-
-		let idx = 0;
-		const canvas = flipbookCanvasRef.current;
-		if (!canvas) return;
-		canvas.width = frames[0].width;
-		canvas.height = frames[0].height;
-
-		flipbookIntervalRef.current = setInterval(async () => {
-			const frame = frames[idx % frames.length];
-			const img = new Image();
-			const url = URL.createObjectURL(frame.blob);
-			img.onload = () => {
-				const ctx = canvas.getContext("2d");
-				if (ctx) {
-					ctx.clearRect(0, 0, canvas.width, canvas.height);
-					ctx.drawImage(img, 0, 0);
-				}
-				URL.revokeObjectURL(url);
-			};
-			img.src = url;
-			idx++;
-		}, 100);
-	}, []);
-
-	// Cleanup flipbook on unmount
-	useEffect(() => {
-		return () => {
-			if (flipbookIntervalRef.current) clearInterval(flipbookIntervalRef.current);
-		};
-	}, []);
-
-	// ---------------------------------------------------------------------------
-	// Full generation
+	// Per-animation generation
 	// ---------------------------------------------------------------------------
 
 	const generate = useCallback(async () => {
 		if (!loadedModel) return;
 		setPhase("capturing");
 		setProgress(0);
+		setResults([]);
 		abortRef.current = false;
 
 		try {
 			const capture = getCaptureInstance();
 			await capture.init(frameSize, frameSize);
 
-			let allFrames: CapturedFrame[];
-
-			if (multiAngle) {
-				// Multi-angle capture
-				const angleMap = await capture.captureMultiAngle(loadedModel, {
-					angles: angleCount,
-					animFrames: frameCount,
-					clips: selectedAnims.size > 0 ? [...selectedAnims] : undefined,
-				}, (pct) => setProgress(pct * 0.6)); // 60% for capture
-
-				setPhase("packing");
-				const packed = await packMultiAngle(angleMap, {
-					imageName: "sheet.png",
-				});
-
-				setPhase("uploading");
-				setProgress(0.8);
-				const stored = await uploadSpritesheet(
-					appId,
-					spriteName,
-					packed.atlasBlob,
-					packed.metadata,
-				);
-
-				setResult(stored);
-			} else {
-				// Single angle capture
-				allFrames = [];
-
-				if (animNames.length > 0 && selectedAnims.size > 0) {
-					// Capture selected animations
-					const anims = [...selectedAnims];
-					for (let i = 0; i < anims.length; i++) {
-						const clipFrames = await capture.captureAnimation(loadedModel, {
-							frames: frameCount,
-							clipName: anims[i],
-							prefix: anims[i],
-						}, (pct) => {
-							const base = i / anims.length;
-							const slice = 1 / anims.length;
-							setProgress((base + pct * slice) * 0.6);
-						});
-						allFrames.push(...clipFrames);
-					}
+			// Sync camera from user's preview angle
+			if (previewCameraRef.current) {
+				const cam = previewCameraRef.current;
+				capture.setCameraPosition(cam.position.x, cam.position.y, cam.position.z);
+				if (orbitControlsRef.current) {
+					const t = orbitControlsRef.current.target;
+					capture.setCameraTarget(t.x, t.y, t.z);
 				} else {
-					// Capture rotation
-					allFrames = await capture.captureRotation(loadedModel, {
-						frames: frameCount,
-						axis: rotationAxis,
-						prefix: "rotate",
-					}, (pct) => setProgress(pct * 0.6));
+					capture.setCameraTarget(0, 0, 0);
 				}
-
-				setPhase("packing");
-				setProgress(0.7);
-				const packed = await packFrames(allFrames, {
-					imageName: "sheet.png",
-				});
-
-				setPhase("uploading");
-				setProgress(0.8);
-				const stored = await uploadSpritesheet(
-					appId,
-					spriteName,
-					packed.atlasBlob,
-					packed.metadata,
-				);
-
-				setResult(stored);
 			}
 
+			const newResults: StoredSpritesheet[] = [];
+
+			if (animNames.length > 0 && selectedAnims.size > 0) {
+				// Per-animation capture: one sheet per animation
+				const anims = [...selectedAnims];
+				for (let i = 0; i < anims.length; i++) {
+					if (abortRef.current) break;
+					const animName = anims[i];
+
+					// Capture frames for this animation
+					setPhase("capturing");
+					const frames = await capture.captureAnimation(loadedModel, {
+						frames: frameCount,
+						clipName: animName,
+						prefix: animName,
+					}, (pct) => {
+						const base = i / anims.length;
+						const slice = 1 / anims.length;
+						setProgress((base + pct * slice) * 0.6);
+					});
+
+					// Pack into its own atlas
+					setPhase("packing");
+					const packed = await packFrames(frames, { imageName: "sheet.png" });
+
+					// Upload
+					setPhase("uploading");
+					const stored = await uploadSpritesheet(appId, spriteName, animName, packed.atlasBlob, packed.metadata);
+					newResults.push(stored);
+					setProgress((i + 1) / anims.length);
+				}
+			} else {
+				// No animations — rotation capture (single sheet)
+				const frames = await capture.captureRotation(loadedModel, {
+					frames: frameCount,
+					axis: rotationAxis,
+					prefix: "rotate",
+				}, (pct) => setProgress(pct * 0.6));
+
+				setPhase("packing");
+				const packed = await packFrames(frames, { imageName: "sheet.png" });
+
+				setPhase("uploading");
+				const stored = await uploadSpritesheet(appId, spriteName, "rotate", packed.atlasBlob, packed.metadata);
+				newResults.push(stored);
+			}
+
+			setResults(newResults);
 			setProgress(1);
 			setPhase("done");
-			if (onGenerated && result) onGenerated(result);
+			if (onGenerated && newResults.length > 0) onGenerated(newResults[0]);
 		} catch (err: any) {
 			setPhase("error");
 			setErrorMsg(err?.message || "Generation failed");
 		}
-	}, [loadedModel, frameSize, frameCount, rotationAxis, multiAngle, angleCount, selectedAnims, animNames, appId, spriteName, onGenerated, result]);
+	}, [loadedModel, frameSize, frameCount, rotationAxis, selectedAnims, animNames, appId, spriteName, onGenerated]);
 
 	// ---------------------------------------------------------------------------
 	// Render
 	// ---------------------------------------------------------------------------
 
-	const isWorking = phase === "loading" || phase === "previewing" || phase === "capturing" || phase === "packing" || phase === "uploading";
+	const isWorking = phase === "loading" || phase === "capturing" || phase === "packing" || phase === "uploading";
 
 	return (
 		<Dialog open={open} onOpenChange={onOpenChange}>
@@ -386,54 +396,43 @@ export function SpritesheetToolDialog({ appId, open, onOpenChange, onGenerated }
 						3D → 2D Spritesheet Generator
 					</DialogTitle>
 					<DialogDescription className="sr-only">
-						Load a 3D model and generate a PIXI.Spritesheet atlas for use in 2D games.
+						Load a 3D model, orbit to choose your camera angle, and generate per-animation spritesheets.
 					</DialogDescription>
 				</DialogHeader>
 
 				<div className="flex flex-col md:flex-row overflow-x-hidden overflow-y-auto" style={{ maxHeight: "calc(90vh - 56px)" }}>
-					{/* Left column: Preview canvases */}
+					{/* Left column: Interactive 3D Preview / Results */}
 					<div className="hidden md:flex md:w-[300px] flex-shrink-0 border-r border-white/[0.06] flex-col">
-						{/* 3D Model Preview / Result Atlas */}
-						{phase === "done" && result ? (
-							<div className="flex-1 flex flex-col items-center justify-center bg-[#080812] p-3 gap-2">
-								<span className="text-[10px] uppercase tracking-wider text-white/30">Generated Atlas</span>
-								<div className="flex-1 flex items-center justify-center overflow-auto">
-									<img
-										src={result.atlasUrl}
-										alt="Spritesheet atlas"
-										className="max-w-full max-h-full object-contain rounded border border-white/[0.08]"
-										style={{ imageRendering: "pixelated" }}
-									/>
-								</div>
-								<span className="text-[10px] text-white/20">{result.name} — sheet.png</span>
+						{phase === "done" && results.length > 0 ? (
+							<div className="flex-1 flex flex-col bg-[#080812] p-3 gap-2 overflow-y-auto">
+								<span className="text-[10px] uppercase tracking-wider text-white/30 text-center">
+									Generated Sheets ({results.length})
+								</span>
+								{results.map((r) => (
+									<div key={r.name} className="flex flex-col items-center gap-1">
+										<img
+											src={r.atlasUrl}
+											alt={`${r.name} atlas`}
+											className="max-w-full max-h-[120px] object-contain rounded border border-white/[0.08]"
+											style={{ imageRendering: "pixelated" }}
+										/>
+										<span className="text-[10px] text-white/30">{r.name}</span>
+									</div>
+								))}
 							</div>
 						) : (
-							<>
-								<div className="flex-1 min-h-[200px] flex items-center justify-center bg-[#080812] p-3">
-									<canvas
-										ref={previewCanvasRef}
-										className="rounded-lg bg-black/30 border border-white/[0.06] max-w-full"
-										style={{ width: 220, height: 220, imageRendering: "pixelated" }}
-									/>
-								</div>
-								{/* Flipbook Preview */}
-								<div className="h-[120px] border-t border-white/[0.06] flex flex-col items-center justify-center bg-[#080812] p-2">
-									<span className="text-[10px] uppercase tracking-wider text-white/30 mb-1">
-										Flipbook Preview
-									</span>
-									{previewFrames.length > 0 ? (
-										<canvas
-											ref={flipbookCanvasRef}
-											className="rounded bg-black/30 border border-white/[0.06]"
-											style={{ width: 80, height: 80, imageRendering: "pixelated" }}
-										/>
-									) : (
-										<div className="text-xs text-white/20">
-											Click &quot;Preview&quot; to see animation
-										</div>
-									)}
-								</div>
-							</>
+							<div className="flex-1 flex flex-col">
+								{/* Live 3D preview — OrbitControls enabled */}
+								<div
+									ref={previewContainerRef}
+									className="flex-1 min-h-[280px] bg-[#080812] rounded-lg m-2"
+								/>
+								{loadedModel && (
+									<div className="px-3 pb-2 text-center text-[10px] text-white/20">
+										Drag to rotate · Scroll to zoom
+									</div>
+								)}
+							</div>
 						)}
 					</div>
 
@@ -558,9 +557,9 @@ export function SpritesheetToolDialog({ appId, open, onOpenChange, onGenerated }
 
 							{/* Frame Count */}
 							<div>
-								<label className="text-[10px] uppercase tracking-wider text-white/30 block mb-1">Frame Count</label>
+								<label className="text-[10px] uppercase tracking-wider text-white/30 block mb-1">Frames per Animation</label>
 								<div className="flex gap-1">
-									{[8, 16, 24, 30].map((c) => (
+									{[4, 8, 12, 16].map((c) => (
 										<button
 											key={c}
 											onClick={() => setFrameCount(c)}
@@ -576,7 +575,7 @@ export function SpritesheetToolDialog({ appId, open, onOpenChange, onGenerated }
 								</div>
 							</div>
 
-							{/* Rotation Axis */}
+							{/* Rotation Axis (only when no animations) */}
 							{animNames.length === 0 && (
 								<div>
 									<label className="text-[10px] uppercase tracking-wider text-white/30 block mb-1">Rotation Axis</label>
@@ -598,40 +597,13 @@ export function SpritesheetToolDialog({ appId, open, onOpenChange, onGenerated }
 								</div>
 							)}
 
-							{/* Background */}
-							<div>
-								<label className="text-[10px] uppercase tracking-wider text-white/30 block mb-1">Background</label>
-								<div className="flex gap-1">
-									<button
-										onClick={() => setBgTransparent(true)}
-										className={`px-3 py-1 rounded text-xs transition-colors ${
-											bgTransparent
-												? "bg-blue-500/20 text-blue-400"
-												: "text-white/40 hover:text-white/60 bg-white/[0.03]"
-										}`}
-									>
-										Transparent
-									</button>
-									<button
-										onClick={() => setBgTransparent(false)}
-										className={`px-3 py-1 rounded text-xs transition-colors ${
-											!bgTransparent
-												? "bg-blue-500/20 text-blue-400"
-												: "text-white/40 hover:text-white/60 bg-white/[0.03]"
-										}`}
-									>
-										Solid
-									</button>
-								</div>
-							</div>
-
-							{/* Animations (if model has them) */}
+							{/* Animations */}
 							{animNames.length > 0 && (
 								<div>
 									<label className="text-[10px] uppercase tracking-wider text-white/30 block mb-1">
 										Animations ({selectedAnims.size}/{animNames.length})
 									</label>
-									<div className="flex flex-wrap gap-1">
+									<div className="flex flex-wrap gap-1 max-h-[120px] overflow-y-auto">
 										{animNames.map((name) => (
 											<button
 												key={name}
@@ -655,41 +627,10 @@ export function SpritesheetToolDialog({ appId, open, onOpenChange, onGenerated }
 									</div>
 								</div>
 							)}
-
-							{/* Multi-Angle */}
-							<div>
-								<label className="flex items-center gap-2 cursor-pointer">
-									<input
-										type="checkbox"
-										checked={multiAngle}
-										onChange={(e) => setMultiAngle(e.target.checked)}
-										className="rounded border-white/20"
-									/>
-									<span className="text-xs text-white/50">Multi-Angle Capture</span>
-								</label>
-								{multiAngle && (
-									<div className="flex gap-1 mt-1 ml-5">
-										{[4, 8].map((a) => (
-											<button
-												key={a}
-												onClick={() => setAngleCount(a)}
-												className={`px-3 py-1 rounded text-xs transition-colors ${
-													angleCount === a
-														? "bg-blue-500/20 text-blue-400"
-														: "text-white/40 hover:text-white/60 bg-white/[0.03]"
-												}`}
-											>
-												{a} angles
-											</button>
-										))}
-									</div>
-								)}
-							</div>
 						</div>
-
 						</div>{/* end scrollable area */}
 
-						{/* Action buttons + status */}
+						{/* Action buttons + status — pinned at bottom */}
 						<div className="px-4 py-3 border-t border-white/[0.06] space-y-2 flex-shrink-0 bg-[#0d0d1a]">
 							{/* Progress bar */}
 							{isWorking && (
@@ -715,20 +656,10 @@ export function SpritesheetToolDialog({ appId, open, onOpenChange, onGenerated }
 							)}
 
 							{/* Done */}
-							{phase === "done" && result && (
-								<div className="space-y-2">
-									<div className="text-xs text-emerald-400 bg-emerald-500/10 px-3 py-2 rounded flex items-center gap-2">
-										<Check className="size-3" />
-										Spritesheet saved: {result.name}
-									</div>
-									<div className="rounded border border-white/[0.08] bg-black/20 p-2 flex items-center justify-center max-h-[120px] overflow-hidden">
-										<img
-											src={result.atlasUrl}
-											alt={`${result.name} spritesheet atlas`}
-											className="max-w-full max-h-[100px] object-contain"
-											style={{ imageRendering: "pixelated" }}
-										/>
-									</div>
+							{phase === "done" && results.length > 0 && (
+								<div className="text-xs text-emerald-400 bg-emerald-500/10 px-3 py-2 rounded flex items-center gap-2">
+									<Check className="size-3" />
+									{results.length} spritesheet{results.length > 1 ? "s" : ""} saved
 								</div>
 							)}
 
@@ -736,25 +667,20 @@ export function SpritesheetToolDialog({ appId, open, onOpenChange, onGenerated }
 							<div className="flex gap-2 min-w-0">
 								<button
 									type="button"
-									onClick={runPreview}
-									disabled={!loadedModel || isWorking}
-									className="flex-shrink-0 flex items-center gap-1 px-3 py-2 rounded-md text-xs font-medium text-white/60 hover:text-white/80 bg-white/[0.04] border border-white/[0.08] hover:bg-white/[0.08] transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-								>
-									<Play className="size-3" />
-									Preview
-								</button>
-								<button
-									type="button"
 									onClick={generate}
-									disabled={!loadedModel || isWorking}
-									className="flex-1 min-w-0 flex items-center justify-center gap-1 px-3 py-2 rounded-md text-xs font-medium bg-blue-500/20 text-blue-400 border border-blue-500/30 hover:bg-blue-500/30 transition-colors disabled:opacity-40 disabled:cursor-not-allowed truncate"
+									disabled={!loadedModel || isWorking || (animNames.length > 0 && selectedAnims.size === 0)}
+									className="flex-1 min-w-0 flex items-center justify-center gap-1 px-3 py-2 rounded-md text-xs font-medium bg-blue-500/20 text-blue-400 border border-blue-500/30 hover:bg-blue-500/30 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
 								>
 									{isWorking ? (
 										<Loader2 className="size-3 animate-spin flex-shrink-0" />
 									) : (
 										<Camera className="size-3 flex-shrink-0" />
 									)}
-									<span className="truncate">{phase === "done" ? "Regenerate" : "Generate Spritesheet"}</span>
+									<span className="truncate">
+										{phase === "done" ? "Regenerate" : animNames.length > 0
+											? `Generate ${selectedAnims.size} Sheet${selectedAnims.size > 1 ? "s" : ""}`
+											: "Generate Spritesheet"}
+									</span>
 								</button>
 							</div>
 						</div>
