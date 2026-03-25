@@ -370,18 +370,20 @@ const _SceneClass = _m.GameScene2D || _m.GameScene || _m.PlatformerGameScene
     const Proton = (window as any).Proton;
     if (!PIXI) { console.error('[2D Boot] PIXI not found on window'); return; }
 
-    // Defensive: patch addChild to skip null/undefined (common AI mistake)
+    // Defensive: patch addChild to skip invalid objects (common AI mistake)
+    const _isValidChild = (c: any) => c != null && typeof c === 'object' && ('children' in c || 'texture' in c || c instanceof PIXI.Container);
     const _origAddChild = PIXI.Container.prototype.addChild;
     PIXI.Container.prototype.addChild = function(...children: any[]) {
-      const safe = children.filter((c: any) => c != null);
-      if (safe.length === 0) { console.warn('[Engine2D] addChild called with null/undefined — skipped'); return this; }
-      return _origAddChild.apply(this, safe);
+      const safe = children.filter(_isValidChild);
+      if (safe.length < children.length) console.warn('[Engine2D] addChild: filtered', children.length - safe.length, 'invalid children');
+      if (safe.length === 0) return this;
+      try { return _origAddChild.apply(this, safe); } catch(e) { console.warn('[Engine2D] addChild error:', e); return this; }
     };
     const _origAddChildAt = PIXI.Container.prototype.addChildAt;
     if (_origAddChildAt) {
       PIXI.Container.prototype.addChildAt = function(child: any, index: number) {
-        if (child == null) { console.warn('[Engine2D] addChildAt called with null/undefined — skipped'); return this; }
-        return _origAddChildAt.call(this, child, index);
+        if (!_isValidChild(child)) { console.warn('[Engine2D] addChildAt: invalid child skipped'); return this; }
+        try { return _origAddChildAt.call(this, child, index); } catch(e) { console.warn('[Engine2D] addChildAt error:', e); return this; }
       };
     }
 
