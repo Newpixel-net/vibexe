@@ -14,7 +14,7 @@ import { generateRuntimeBootstrap } from "./runtime-bootstrap";
 
 // Bump this when generateGameEntry() or the compiler wrapper changes
 // so esbuild cache busts without waiting for CACHE_TTL expiry
-const COMPILER_VERSION = "34";
+const COMPILER_VERSION = "35";
 
 // In-memory LRU cache for compiled bundles
 const bundleCache = new Map<string, { bundle: string; timestamp: number }>();
@@ -138,6 +138,18 @@ function createVirtualPlugin(files: Map<string, string>, enabledModuleIds?: stri
 						reExports.push(`export { _loadSpriteLib, _sheetCache } from "../${mediaPath}";`);
 					if (reExports.length > 0)
 						content = content + "\n// Auto-injected re-exports\n" + reExports.join("\n") + "\n";
+				}
+
+				// Strip TypeScript annotations from GameScene2D.ts — Feature Bank scaffold
+				// uses plain JS IIFEs, but AI (Kimi K2.5) sometimes adds type annotations
+				// like `: number`, `: string` that cause esbuild parse errors.
+				if (args.path.includes("GameScene2D")) {
+					content = content
+						.replace(/\((\w+)\s*:\s*(?:number|string|boolean|any|void|object)\)/g, "($1)")
+						.replace(/\((\w+)\s*:\s*(?:number|string|boolean|any|void|object)\s*,/g, "($1,")
+						.replace(/,\s*(\w+)\s*:\s*(?:number|string|boolean|any|void|object)\)/g, ", $1)")
+						.replace(/,\s*(\w+)\s*:\s*(?:number|string|boolean|any|void|object)\s*,/g, ", $1,")
+						.replace(/\bas\s+\w+/g, "");
 				}
 
 				const ext = args.path.split(".").pop() || "tsx";
