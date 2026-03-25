@@ -180,7 +180,7 @@ export class Engine2D {
     document.addEventListener('visibilitychange', () => {
       if (document.hidden) {
         this._paused = true;
-        this.app.ticker.stop();
+        try { this.app?.ticker?.stop(); } catch(e) {}
       } else {
         this._paused = false;
         this.app.ticker.start();
@@ -224,8 +224,7 @@ export class Engine2D {
   get paused(): boolean { return this._paused; }
   set paused(v: boolean) {
     this._paused = v;
-    if (v) this.app.ticker.stop();
-    else this.app.ticker.start();
+    try { if (v) this.app?.ticker?.stop(); else this.app?.ticker?.start(); } catch(e) {}
   }
 
   // Sprite factories
