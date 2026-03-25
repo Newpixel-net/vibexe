@@ -327,11 +327,27 @@ export function SpritesheetToolDialog({ appId, open, onOpenChange, onGenerated }
 			// Override with user's preview angle if they orbited
 			if (previewCameraRef.current) {
 				const cam = previewCameraRef.current;
+				// Debug: expose camera state before sync
+				(window as any).__captureDebug = {
+					previewCam: { x: cam.position.x, y: cam.position.y, z: cam.position.z },
+					orbitTarget: orbitControlsRef.current
+						? { x: orbitControlsRef.current.target.x, y: orbitControlsRef.current.target.y, z: orbitControlsRef.current.target.z }
+						: null,
+				};
 				capture.setCameraPosition(cam.position.x, cam.position.y, cam.position.z);
 				if (orbitControlsRef.current) {
 					const t = orbitControlsRef.current.target;
 					capture.setCameraTarget(t.x, t.y, t.z);
 				}
+			}
+
+			// Debug: expose final capture camera state
+			const captureCamera = capture.getCamera();
+			if (captureCamera) {
+				(window as any).__captureDebug = {
+					...(window as any).__captureDebug,
+					captureCam: { x: captureCamera.position.x, y: captureCamera.position.y, z: captureCamera.position.z },
+				};
 			}
 
 			const newResults: StoredSpritesheet[] = [];
