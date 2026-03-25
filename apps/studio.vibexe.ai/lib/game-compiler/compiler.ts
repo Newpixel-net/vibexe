@@ -387,6 +387,16 @@ const _SceneClass = _m.GameScene2D || _m.GameScene || _m.PlatformerGameScene
       };
     }
 
+    // Defensive: patch Proton.Emitter.addTo so both API patterns work
+    if (Proton && Proton.Emitter && Proton.Emitter.prototype && !Proton.Emitter.prototype.addTo) {
+      Proton.Emitter.prototype.addTo = function(protonInstance: any) {
+        if (protonInstance && typeof protonInstance.addEmitter === 'function') {
+          protonInstance.addEmitter(this);
+        }
+        return this;
+      };
+    }
+
     // Import additional template files if they exist
     try { await import("./config/assets"); } catch(e) {}
     try { await import("./engine/effects"); } catch(e) {}

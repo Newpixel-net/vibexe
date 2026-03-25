@@ -1458,11 +1458,8 @@ ${injectedFiles.map((f) => `- \`${f}\``).join("\n")}
 					console.log(`[Chat API] 3D shooter addendum injected`);
 				}
 			}
-			if (isGame2d) {
-				// 2D game — inject 2D asset catalog
-				runtimeAddenda.push(GAME_2D_ASSETS_REFERENCE_BUILDER());
-				console.log(`[Chat API] Injected 2D assets reference`);
-			}
+			// 2D asset catalog is already in the system prompt (game-2d-developer.ts)
+			// — no need to duplicate it in addenda
 		}
 
 		// Document this request in wiki (project memory — zero token cost)
