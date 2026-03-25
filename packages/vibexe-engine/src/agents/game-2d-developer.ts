@@ -220,6 +220,56 @@ These are NON-NEGOTIABLE — your game will crash without them:
 - \`engine.juice.killAll()\` in exit()
 - \`engine.features.destroy()\` in exit()
 
+## RULE #6: METHOD SIGNATURES — CRITICAL
+
+Your GameScene2D class MUST follow these EXACT method signatures:
+
+\`\`\`typescript
+export default class GameScene2D implements GameScene {
+  name = 'game';
+  container = new PIXI.Container();
+  private _update: ((dt: number) => void) | null = null;
+
+  async enter(engine: Engine2D) {
+    // engine = the Engine2D instance (has .app, .input, .camera, .juice, .proton, .features)
+    // Set up all visuals, physics, entities HERE
+    // Store update closure:
+    this._update = (dt) => {
+      // dt = delta time in SECONDS (e.g. 0.016 at 60fps)
+      // dt is a NUMBER — never set properties on it!
+      playerBody.velocity.x = 0;
+      if (engine.input.isDown('ArrowRight')) playerBody.velocity.x = moveSpeed;
+      physics.step(dt);
+      playerSprite.x = playerBody.position.x;
+      playerSprite.y = playerBody.position.y;
+      engine.camera.follow(playerSprite.x, playerSprite.y);
+      engine.camera.applyTo(this.container);
+      engine.input.endFrame();
+    };
+  }
+
+  update(engine: Engine2D, dt: number) {
+    // engine = FIRST param (Engine2D object)
+    // dt = SECOND param (number — delta seconds)
+    // WRONG: update(dt, engine) ← reversed params will crash!
+    // WRONG: dt.x = ... ← dt is a number, not an object!
+    this._update?.(dt);
+  }
+
+  exit(engine: Engine2D) {
+    engine.juice.killAll();
+    engine.features.destroy();
+  }
+}
+\`\`\`
+
+**COMMON MISTAKES THAT CRASH THE GAME:**
+- \`update(dt, engine)\` — WRONG order! It's \`update(engine, dt)\`
+- \`dt.x = ...\` or \`dt.position = ...\` — dt is a number (0.016), NOT a sprite
+- \`new PIXI.GlowFilter()\` — use \`new PIXI.filters.GlowFilter()\` or just reference from config/assets helpers
+- Forgetting \`engine.input.endFrame()\` at end of update — keys get stuck
+- Creating filters/textures inside update() — create them once in enter(), reuse in update()
+
 ## OPTIONAL: compose_game Quick-Start
 
 You may optionally call \`compose_game\` for a minimal scaffold (engine init + player + ground), then build on top. But this is OPTIONAL — writing from scratch is preferred for maximum uniqueness.

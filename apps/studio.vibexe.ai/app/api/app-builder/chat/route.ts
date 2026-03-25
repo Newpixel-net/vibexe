@@ -1332,7 +1332,14 @@ These sprites have white backgrounds — set blendMode or use alpha masking if n
 5. You MUST call \`await _loadSpriteLib(THEME)\` at the start of enter()
 6. You MUST call \`engine.input.endFrame()\` at end of update()
 7. You MUST call \`engine.juice.killAll()\` and \`engine.features.destroy()\` in exit()
-8. Use PIXI.Graphics and Canvas 2D to draw CUSTOM entities unique to this game`);
+8. Use PIXI.Graphics and Canvas 2D to draw CUSTOM entities unique to this game
+
+### CRITICAL — update() method signature:
+\`update(engine: Engine2D, dt: number)\` — engine is FIRST, dt (delta seconds) is SECOND.
+- dt is a NUMBER (0.016 at 60fps) — NEVER do \`dt.x\`, \`dt.position\`, or set any property on dt
+- Use the closure pattern: build game logic in enter(), store as \`this._update = (dt) => { ... }\`, call from update()
+- WRONG: \`update(dt, engine)\` — reversed params cause crashes
+- WRONG: \`dt.x = sprite.x\` — dt is not a sprite, it's delta time in seconds`);
 		} else if (isReturningUser) {
 			// Normal existing project — edit/add files
 			runtimeAddenda.push(`## Existing Project (${existingFiles.length} files)
