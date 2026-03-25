@@ -23,6 +23,7 @@ import {
 	ChevronUp,
 	Copy,
 	ExternalLink,
+	Film,
 	Crosshair,
 	Gauge,
 	Globe,
@@ -57,6 +58,7 @@ import { useVisualEdit } from "../lib/visual-edit-context";
 import { useGameEditor, type GizmoMode, type SceneDefinition, type SceneObjectDef } from "../lib/game-editor-context";
 import { useAssetThumbnail } from "../lib/asset-thumbnail-renderer";
 import { GameEditorPanel } from "./game-editor-panel";
+import { SpritesheetToolDialog } from "./spritesheet-tool-dialog";
 import { GameSettingsPanel } from "./game-settings-panel";
 import { SceneGizmo } from "./scene-gizmo";
 import { TerrainPainterPanel } from "./terrain-painter-panel";
@@ -977,6 +979,9 @@ export function SandpackPreview({
 	const isGameMode = projectType === "game" || projectType === "game-mobile";
 	const isGameModeRef = useRef(isGameMode);
 	isGameModeRef.current = isGameMode;
+
+	// Spritesheet tool dialog
+	const [spritesheetDialogOpen, setSpritesheetDialogOpen] = useState(false);
 
 	// Ref for triggering Sandpack refresh from outside SandpackProvider
 	const sandpackRefreshRef = useRef<(() => void) | null>(null);
@@ -2717,6 +2722,17 @@ export function SandpackPreview({
 							<span className="hidden lg:inline">Controls</span>
 						</button>
 					)}
+					{is2DGame && (
+						<button
+							type="button"
+							onClick={() => setSpritesheetDialogOpen(true)}
+							className="flex items-center gap-1 px-2 py-1.5 text-xs rounded-xl transition-all duration-200 text-white/40 hover:bg-white/[0.04] hover:text-white/70"
+							title="3D to 2D Spritesheet Tool"
+						>
+							<Film className="w-3.5 h-3.5" />
+							<span className="hidden lg:inline">Sprites</span>
+						</button>
+					)}
 					<PreviewLink appId={appId} />
 					<button
 						type="button"
@@ -3187,6 +3203,14 @@ export function SandpackPreview({
 					)
 				)}
 			</div>
+			{/* Spritesheet Tool Dialog (2D games only) */}
+			{is2DGame && (
+				<SpritesheetToolDialog
+					appId={appId}
+					open={spritesheetDialogOpen}
+					onOpenChange={setSpritesheetDialogOpen}
+				/>
+			)}
 		</div>
 	);
 }
