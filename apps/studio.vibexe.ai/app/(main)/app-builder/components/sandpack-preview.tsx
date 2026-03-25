@@ -48,7 +48,6 @@ import {
 	Undo2,
 	Waves,
 	X,
-	Loader2,
 } from "lucide-react";
 import { MobilePublishPanel } from "./mobile-publish-panel";
 import { PHONE_FRAME, PhoneFrame } from "./phone-frame";
@@ -2740,9 +2739,7 @@ export function SandpackPreview({
 				{isGenerating && isGameMode && useLightweightRuntime && (
 					<div className="absolute inset-0 z-50 flex flex-col items-center justify-center bg-[#0a0a14]/95 backdrop-blur-sm rounded-lg">
 						<div className="flex flex-col items-center gap-4">
-							<div className="w-16 h-16 rounded-full border-2 border-white/10 flex items-center justify-center">
-								<Loader2 className="w-8 h-8 text-violet-400 animate-spin" />
-							</div>
+							<div className="w-16 h-16 rounded-full border-2 border-violet-500/30 border-t-violet-400 animate-spin" />
 							<div className="text-center">
 								<p className="text-white/80 text-sm font-medium">Building your game...</p>
 								<p className="text-white/40 text-xs mt-1">Preview will appear when generation completes</p>
