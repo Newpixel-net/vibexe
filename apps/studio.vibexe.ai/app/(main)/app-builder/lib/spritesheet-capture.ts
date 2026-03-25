@@ -322,9 +322,14 @@ export class SpritesheetCapture {
 		const timeStep = clip.duration / frames;
 
 		for (let i = 0; i < frames; i++) {
-			// Use incremental update — same pattern as preview's requestAnimationFrame loop
+			// Advance animation by timeStep using incremental update
 			mixer.update(i === 0 ? 0.001 : timeStep);
 			captureModel.updateMatrixWorld(true);
+
+			// Yield to browser via requestAnimationFrame before each render.
+			// This ensures the GPU flushes and bone transforms are fully propagated —
+			// the same timing pattern as the preview's animation loop.
+			await new Promise<void>(resolve => requestAnimationFrame(() => resolve()));
 
 			const blob = this.captureFrameSync();
 			result.push({
@@ -335,7 +340,6 @@ export class SpritesheetCapture {
 			});
 
 			if (onProgress) onProgress((i + 1) / frames);
-			if (i % 4 === 0) await new Promise(r => setTimeout(r, 0));
 		}
 
 		// Cleanup
