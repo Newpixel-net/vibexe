@@ -277,6 +277,7 @@ export class Engine2D {
   }
 
   private _onResize(): void {
+    if (!this.app?.renderer) return;
     const w = window.innerWidth;
     const h = window.innerHeight;
     this.app.renderer.resize(w, h);
@@ -370,6 +371,13 @@ export class InputManager {
   isDown(key: string): boolean { return this.keys.has(key.toLowerCase()); }
   wasPressed(key: string): boolean { return this.justPressed.has(key.toLowerCase()); }
   wasReleased(key: string): boolean { return this.justReleased.has(key.toLowerCase()); }
+
+  // Aliases — AI commonly guesses these names
+  isPressed(key: string): boolean { return this.isDown(key); }
+  keyDown(key: string): boolean { return this.isDown(key); }
+  keyPressed(key: string): boolean { return this.wasPressed(key); }
+  pressed(key: string): boolean { return this.wasPressed(key); }
+  held(key: string): boolean { return this.isDown(key); }
 
   // Directional helpers
   get left(): boolean { return this.isDown('a') || this.isDown('arrowleft'); }
