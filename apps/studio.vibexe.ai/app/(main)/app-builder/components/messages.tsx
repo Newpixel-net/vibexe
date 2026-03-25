@@ -22,7 +22,7 @@ import {
 	User,
 	Volume2,
 } from "lucide-react";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import ReactMarkdown from "react-markdown";
 import rehypeExternalLinks from "rehype-external-links";
 import remarkGfm from "remark-gfm";
@@ -563,7 +563,7 @@ interface UserMessageProps {
 /**
  * User message — warm glass card with orange tint.
  */
-export function UserMessage({ message }: UserMessageProps) {
+export const UserMessage = memo(function UserMessage({ message }: UserMessageProps) {
 	const isVisualEdit = message.content?.startsWith("[VISUAL EDIT]");
 	// Extract the element tag from visual edit messages (e.g., "Element: <h1>")
 	const visualEditTag = isVisualEdit
@@ -615,7 +615,7 @@ export function UserMessage({ message }: UserMessageProps) {
 			</div>
 		</div>
 	);
-}
+});
 
 interface AIMessageProps {
 	message: ChatMessage;
@@ -629,7 +629,7 @@ interface AIMessageProps {
 /**
  * AI message — cool glass card with teal tint.
  */
-export function AIMessage({
+export const AIMessage = memo(function AIMessage({
 	message,
 	isLoading,
 	aiName = "Vibexe",
@@ -751,4 +751,4 @@ export function MessageList({ messages, isLoading, aiName }: MessageListProps) {
 			})}
 		</div>
 	);
-}
+});
