@@ -129,7 +129,7 @@ export class SpritesheetCapture {
 					0.1,
 					100,
 				);
-				this.camera.position.set(0, 0.3, 2.8);
+				this.camera.position.set(0, 0.4, 2.5);
 				this.camera.lookAt(0, 0, 0);
 
 				this.initialized = true;
@@ -191,8 +191,8 @@ export class SpritesheetCapture {
 		const maxDim = Math.max(size.x, size.y, size.z);
 		if (maxDim === 0) return;
 
-		// Scale first — 1.4 units fills ~80% of the camera viewport
-		const targetSize = 1.4;
+		// Scale first — 1.8 units fills ~85% of the camera viewport at z=2.5
+		const targetSize = 1.8;
 		const scale = targetSize / maxDim;
 		model.scale.multiplyScalar(scale);
 

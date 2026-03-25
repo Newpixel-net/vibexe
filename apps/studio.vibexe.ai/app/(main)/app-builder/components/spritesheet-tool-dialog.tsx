@@ -189,7 +189,7 @@ export function SpritesheetToolDialog({ appId, open, onOpenChange, onGenerated }
 
 		// Camera
 		const camera = new THREE.PerspectiveCamera(45, w / h, 0.1, 100);
-		camera.position.set(0, 0.3, 2.8);
+		camera.position.set(0, 0.4, 2.5);
 		camera.lookAt(0, 0, 0);
 
 		// OrbitControls — user can drag to rotate, scroll to zoom
@@ -320,15 +320,17 @@ export function SpritesheetToolDialog({ appId, open, onOpenChange, onGenerated }
 			const capture = getCaptureInstance();
 			await capture.init(frameSize, frameSize);
 
-			// Sync camera from user's preview angle
+			// Always start from a known-good default camera position
+			capture.setCameraPosition(0, 0.4, 2.5);
+			capture.setCameraTarget(0, 0, 0);
+
+			// Override with user's preview angle if they orbited
 			if (previewCameraRef.current) {
 				const cam = previewCameraRef.current;
 				capture.setCameraPosition(cam.position.x, cam.position.y, cam.position.z);
 				if (orbitControlsRef.current) {
 					const t = orbitControlsRef.current.target;
 					capture.setCameraTarget(t.x, t.y, t.z);
-				} else {
-					capture.setCameraTarget(0, 0, 0);
 				}
 			}
 
