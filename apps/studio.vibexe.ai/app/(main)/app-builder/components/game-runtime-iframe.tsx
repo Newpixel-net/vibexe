@@ -73,17 +73,8 @@ export function GameRuntimeIframe({
 	const suppressRecompileRef = useRef(suppressRecompile);
 	suppressRecompileRef.current = suppressRecompile;
 
-	// Single recompile when AI generation ends — replaces all suppressed intermediate compiles
-	const prevIsGenerating = useRef(isGenerating);
-	useEffect(() => {
-		if (prevIsGenerating.current && !isGenerating) {
-			console.log("[GameRuntime] Generation ended, triggering single recompile");
-			lastHash.current = "";
-			const timer = setTimeout(() => compileAndInject(), 300);
-			return () => clearTimeout(timer);
-		}
-		prevIsGenerating.current = isGenerating;
-	}, [isGenerating, compileAndInject]);
+	// Ref for compileAndInject so the generation-end effect doesn't depend on it
+	const compileAndInjectRef = useRef<() => void>(() => {});
 
 	// Compile game code server-side
 	const compileAndInject = useCallback(async () => {
@@ -271,6 +262,21 @@ export function GameRuntimeIframe({
 			clearTimeout(fallbackTimer);
 		};
 	}, [compileAndInject, iframeRef, onBundleLoaded]);
+
+	// Keep ref in sync so generation-end effect can call it without a dependency
+	compileAndInjectRef.current = compileAndInject;
+
+	// Single recompile when AI generation ends — replaces all suppressed intermediate compiles
+	const prevIsGenerating = useRef(isGenerating);
+	useEffect(() => {
+		if (prevIsGenerating.current && !isGenerating) {
+			console.log("[GameRuntime] Generation ended, triggering single recompile");
+			lastHash.current = "";
+			const timer = setTimeout(() => compileAndInjectRef.current(), 300);
+			return () => clearTimeout(timer);
+		}
+		prevIsGenerating.current = isGenerating;
+	}, [isGenerating]);
 
 	// Recompile when files change (debounced 500ms)
 	// suppressRecompile is read from a ref — mode toggle (Scene↔Game) no longer
