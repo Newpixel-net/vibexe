@@ -1289,85 +1289,20 @@ After creating ALL files, end with a short summary. If the app has auth, include
 **MINIMUM**: Your GameScene3D.ts must call at least 5 different factory helpers. Every platform, collectible, player, barrier, and decoration MUST use the corresponding factory.`);
 
 			}
-			// 2D game "build" phase: tell AI that GameScene2D.ts is pre-created with Feature Bank
+			// 2D game "build" phase: GameScene2D.ts is pre-created with working gameplay
 			if (isGame2d) {
-				runtimeAddenda.push(`## CRITICAL: 2D Game — Feature Bank Pre-Built
+				runtimeAddenda.push(`## 2D Game — GameScene2D.ts Already Works
 
-**\`src/scenes/GameScene2D.ts\` is PRE-CREATED** with Feature Bank core features that provide working gameplay:
-- visual-layers (sky, mountains, clouds, ground, trees)
-- player-platformer (physics, player sprite, movement, jumping)
-- level-platforms (auto-generated platforms with physics)
-- collectible-coins (coins, collection, score tracking)
-- enemy-patrol (patrol enemies, stomp kills, damage)
-- camera-follow (smooth camera tracking)
-- hud-basic (score display, lives hearts)
-- ambient-atmosphere (particles, lighting, vignette)
+\`src/scenes/GameScene2D.ts\` already has working player, platforms, coins, enemies, camera, HUD, and visuals.
 
-**You MUST follow this workflow:**
-1. Use \`read_file("src/scenes/GameScene2D.ts")\` FIRST to see the existing Feature Bank scaffold
-2. Use \`patch_file\` to ADD custom visuals and unique game elements in the marked section
-3. Do NOT rewrite GameScene2D.ts from scratch — the Feature Bank features MUST remain
-4. Add custom draw functions, decorations, story elements, and unique mechanics ON TOP of the scaffold
-5. Create \`src/config/constants.ts\` for game-specific constants
-6. Create \`docs/README.md\` with game description
-
-**NEVER delete or replace the Feature Bank feature registrations.** They provide tested, working gameplay.`);
+Your job: use \`read_file("src/scenes/GameScene2D.ts")\` then \`patch_file\` to ADD custom decorations in the marked section. Do NOT rewrite from scratch. Create \`docs/README.md\` with a short game description.`);
 			}
 		}
-		// 2D game addenda — runs for ALL calls (new AND returning) so
-		// the "build it" second call still gets skeleton/reference/sprite instructions.
+		// 2D game addenda — simplified for Feature Bank auto-compose pipeline
+		// Core gameplay is already handled by the scaffold, AI just adds custom visuals
 		if (isGame2d && game2dBrief) {
-			runtimeAddenda.push(buildCreativeBriefPrompt(game2dBrief));
-			// Creative Brief action items — tells the AI WHAT to build creatively
-			runtimeAddenda.push(`## Your Creative Brief Action Items
-
-Implement ALL of these dimensions in your unique game:
-
-1. **Theme**: ${game2dBrief.theme} — use \`PALETTES['${game2dBrief.theme}']\` for all colors
-2. **Mechanic Focus**: ${game2dBrief.mechanicEmphasis} — this drives your gameplay loop
-3. **Layout**: ${game2dBrief.layoutStyle} — how platforms and world are arranged
-4. **Difficulty**: ${game2dBrief.difficultyProfile} — affects platform widths, enemy speed, hazard count
-5. **Atmosphere**: ${game2dBrief.atmosphere} — particle effects, lighting, mood
-6. **Enemy Behavior**: ${game2dBrief.enemyBehavior} — how enemies move and attack
-7. **Level Shape**: ${game2dBrief.levelShape} — overall world geometry
-8. **Collectibles**: ${game2dBrief.collectiblePattern} — how coins/items are placed
-9. **Special Mechanic**: ${game2dBrief.specialMechanic} — unique gameplay ability
-10. **Art Style**: ${game2dBrief.artStyleDirection} — visual treatment and rendering approach
-
-### Numeric Parameters
-- gravity: ${game2dBrief.gravity}, moveSpeed: ${game2dBrief.moveSpeed}, jumpForce: ${game2dBrief.jumpForce}
-- worldWidth: ${game2dBrief.worldWidth}, platforms: ${game2dBrief.platformCount}, coins: ${game2dBrief.coinCount}, enemies: ${game2dBrief.enemyCount}
-- seed: ${game2dBrief.seed}
-
-**IMPORTANT: If the user explicitly mentions a theme in their prompt, override the theme above with the user's choice.**`);
-		}
-		// Feature Bank catalog — inject available features into prompt
-		if (isGame2d) {
-			const featureCatalog = await buildFeatureBankCatalog("2d");
-			if (featureCatalog) {
-				runtimeAddenda.push(featureCatalog);
-			}
-			// Auto-suggest Feature Bank snippets based on Creative Brief dimensions
-			if (game2dBrief) {
-				const suggestions: string[] = [];
-				// Enemy behavior mapping
-				const enemyMap: Record<string, string> = { "chase-aggressive": "enemy-chase", "ranged-tactical": "enemy-ranged", "swarm-overwhelming": "enemy-swarm", "patrol-simple": "enemy-patrol" };
-				if (enemyMap[game2dBrief.enemyBehavior]) suggestions.push(`- Enemy: \`${enemyMap[game2dBrief.enemyBehavior]}\` (matches ${game2dBrief.enemyBehavior})`);
-				// Atmosphere mapping
-				const atmoMap: Record<string, string> = { "snow-cold": "atmosphere-cold", "fireflies-warm": "atmosphere-warm", "embers-dark": "atmosphere-dark", "rain-moody": "atmosphere-storm" };
-				if (atmoMap[game2dBrief.atmosphere]) suggestions.push(`- Atmosphere: \`${atmoMap[game2dBrief.atmosphere]}\` (matches ${game2dBrief.atmosphere})`);
-				// Art style mapping
-				const styleMap: Record<string, string> = { "neon-glow": "style-neon-glow", "pixel-retro": "style-pixel-retro", "painterly-soft": "style-painterly", "cartoon-bold": "style-cartoon-bold" };
-				if (styleMap[game2dBrief.artStyleDirection]) suggestions.push(`- Visual: \`${styleMap[game2dBrief.artStyleDirection]}\` (matches ${game2dBrief.artStyleDirection})`);
-				// Special mechanic mapping
-				const mechMap: Record<string, string> = { "double-jump": "double-jump", "wall-slide": "wall-slide", "dash": "dash" };
-				if (mechMap[game2dBrief.specialMechanic]) suggestions.push(`- Mechanic: \`${mechMap[game2dBrief.specialMechanic]}\``);
-				if (suggestions.length > 0) {
-					runtimeAddenda.push(`## Recommended Feature Bank Snippets\nBased on your Creative Brief, consider using (optional — you can also implement these yourself):\n${suggestions.join("\n")}`);
-				}
-			}
-			// Reference games — creative inspiration
-			runtimeAddenda.push(GAME_2D_REFERENCE_GAMES);
+			runtimeAddenda.push(`## Game Theme: ${game2dBrief.theme}
+Use \`PALETTES['${game2dBrief.theme}']\` for colors. Art style: ${game2dBrief.artStyleDirection}. Atmosphere: ${game2dBrief.atmosphere}.`);
 		}
 		if (isGame2d && Object.keys(generatedSprites).length > 0) {
 			const spriteEntries = Object.entries(generatedSprites);
