@@ -711,7 +711,7 @@ If any issues need fixing, end with exactly: '---\\n*Click **Fix Issues** below 
 		const isReturningUser = existingFiles.length > 0;
 
 		// Get the assembled prompt for the primary agent (developer or single-agent flow)
-		const primaryAgent = pinnedAgent || developerAgent || plan.agents[0];
+		let primaryAgent = pinnedAgent || developerAgent || plan.agents[0];
 		let assembledPrompt = "";
 		if (pinnedAgent) {
 			// Directly assemble prompt for the pinned agent (bypass orchestration routing)
@@ -937,6 +937,11 @@ const supabase = createClient("${supabaseConfig.url}", "${supabaseConfig.anonKey
 				);
 				console.log(`[Chat API] Forcing game-2d-developer agent for 2D game`);
 			}
+		}
+		// Update primaryAgent if pinnedAgent was set after initial computation (e.g. 2D game detection)
+		// This ensures tool filtering at line ~1672 uses the correct agent's tool list
+		if (pinnedAgent && primaryAgent !== pinnedAgent) {
+			primaryAgent = pinnedAgent;
 		}
 
 		// ── 2D Game Seed Variety System ───────────────────────────────────
