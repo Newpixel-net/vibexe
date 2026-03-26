@@ -1399,36 +1399,20 @@ ${promptLines}
 
 \`\`\`typescript
 // In custom-visuals.ts setup():
-import { _sheetCache } from "../utils/media-stock";
-
 // 1. Load the spritesheets
 ${firstModelAnims.map(a => `await engine.assets.loadSpritesheet("${a.name}", "${a.atlasUrl}", "${a.metadataUrl}").catch(() => null);`).join("\n")}
 
-// 2. Build animation map and write to _sheetCache
-var anims = engine.assets.buildPlayerAnimations({
+// 2. Replace player with ONE call — maps animations + swaps visual automatically
+engine.assets.setPlayerSprites({
   idle: "${firstModelAnims.find(a => /idle/i.test(a.animName))?.name || firstModelAnims[0]?.name}",
   walk: "${firstModelAnims.find(a => /run|walk/i.test(a.animName))?.name || firstModelAnims[0]?.name}",
   jump: "${firstModelAnims.find(a => /jump/i.test(a.animName))?.name || firstModelAnims[0]?.name}",
 });
-if (anims) {
-  _sheetCache['hero'] = { animations: anims };
-  // 3. Replace player visual with AnimatedSprite
-  var pf = engine.features.get('player-platformer');
-  if (pf && pf.playerGfx) {
-    var spr = new PIXI.AnimatedSprite(anims['idle']);
-    spr.anchor.set(0.5, 1); spr.animationSpeed = 0.08; spr.play();
-    spr.x = pf.playerGfx.x; spr.y = pf.playerGfx.y;
-    spr.width = pf.playerGfx.width; spr.height = pf.playerGfx.height;
-    if (pf.playerGfx.parent) { pf.playerGfx.parent.addChild(spr); pf.playerGfx.parent.removeChild(pf.playerGfx); }
-    pf.playerGfx = spr;
-  }
-}
 \`\`\`
 
 **Key rules:**
-- \`buildPlayerAnimations()\` extracts textures, \`_sheetCache['hero']\` is set in custom-visuals.ts
+- \`setPlayerSprites()\` handles everything: maps to _sheetCache, replaces player visual, sets idle as default
 - Keys: \`idle\` (standing), \`walk\` (moving), \`jump\` (airborne) — feature switches automatically
-- MUST import \`_sheetCache\` from \`"../utils/media-stock"\`
 - Use \`.catch(() => null)\` on loadSpritesheet for graceful fallback
 - Do NOT write your own animation update loop — the feature handles it`);
 					console.log(`[Chat API] Injected ${complete.length} custom spritesheet(s) for ${byModel.size} model(s) into prompt`);
