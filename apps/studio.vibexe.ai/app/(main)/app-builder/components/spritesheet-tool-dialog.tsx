@@ -24,6 +24,7 @@ import {
 	Loader2,
 	Pencil,
 	Play,
+	Square,
 	Upload,
 } from "lucide-react";
 import {
@@ -235,6 +236,13 @@ export function SpritesheetToolDialog({ appId, open, onOpenChange, onGenerated }
 		const anims = previewAnimsRef.current;
 		if (!mixer || !anims.length) return;
 
+		// Toggle: if same clip playing, stop it
+		if (previewingAnim === clipName) {
+			mixer.stopAllAction();
+			setPreviewingAnim(null);
+			return;
+		}
+
 		// Find by name, fall back to index match
 		let clip = anims.find((c: any) => c.name === clipName);
 		if (!clip) {
@@ -246,7 +254,7 @@ export function SpritesheetToolDialog({ appId, open, onOpenChange, onGenerated }
 		mixer.stopAllAction();
 		mixer.clipAction(clip).reset().play();
 		setPreviewingAnim(clipName);
-	}, []);
+	}, [previewingAnim]);
 
 	// Draw axis gizmo on a small overlay canvas
 	const updateGizmo = useCallback((camera: any) => {
@@ -888,20 +896,23 @@ export function SpritesheetToolDialog({ appId, open, onOpenChange, onGenerated }
 
 											return (
 												<div key={name} className="flex items-center gap-0.5">
-													{/* Play preview button */}
+													{/* Play/Stop preview button */}
 													<button
 														onClick={(e) => {
 															e.stopPropagation();
 															playPreviewAnim(name);
 														}}
-														title={`Preview ${displayName}`}
+														title={previewingAnim === name ? `Stop ${displayName}` : `Preview ${displayName}`}
 														className={`p-1 rounded transition-colors ${
 															previewingAnim === name
 																? "text-blue-400 bg-blue-500/20"
 																: "text-white/20 hover:text-white/50 hover:bg-white/[0.04]"
 														}`}
 													>
-														<Play className="size-3 fill-current" />
+														{previewingAnim === name
+															? <Square className="size-3 fill-current" />
+															: <Play className="size-3 fill-current" />
+														}
 													</button>
 													{/* Select / rename button */}
 													<button
