@@ -1395,21 +1395,51 @@ These sprites have white backgrounds — set blendMode or use alpha masking if n
 
 **IMPORTANT**: The user has created custom character spritesheets. You MUST use these instead of drawPlayerCharacter/drawEnemySlime drawing helpers when the character matches.
 ${promptLines}
-**Usage in custom-visuals.ts setup():**
+**CRITICAL — How to replace the player character with custom sprites:**
+
+The player-platformer feature reads animations from \`_sheetCache['hero']\` with keys: \`idle\`, \`walk\`, \`jump\`.
+Custom spritesheets have their own animation names (e.g. "Idle", "Runing", "Jump").
+You MUST map custom animations into \`_sheetCache['hero']\` with the correct lowercase keys.
+
 \`\`\`typescript
-// Load all animations for a character
+// In custom-visuals.ts setup():
+import { _sheetCache } from "../utils/media-stock";
+
+// 1. Load all custom spritesheets
 ${firstModelAnims.map(a => `await engine.assets.loadSpritesheet("${a.name}", "${a.atlasUrl}", "${a.metadataUrl}").catch(() => null);`).join("\n")}
 
-// Create animated sprite from loaded sheet
-var animNames = engine.assets.animationNames("${firstModelAnims[0]?.name}");
-var sprite = engine.assets.animation("${firstModelAnims[0]?.name}", animNames[0]);
-sprite.anchor.set(0.5, 1);
-sprite.animationSpeed = 0.15;
-sprite.play();
+// 2. Build merged animation map for the player feature
+var mergedAnimations: Record<string, any[]> = {};
+// Map custom animation names to feature-expected keys:
+// idle → standing still, walk → moving left/right, jump → airborne
+${firstModelAnims.map(a => {
+	const anim = a.name;
+	return `var _an_${a.name.replace(/[^a-zA-Z0-9]/g, '_')} = engine.assets.animationNames("${anim}");
+if (_an_${a.name.replace(/[^a-zA-Z0-9]/g, '_')}.length > 0) {
+  var _spr = engine.assets.animation("${anim}", _an_${a.name.replace(/[^a-zA-Z0-9]/g, '_')}[0]);
+  if (_spr) mergedAnimations["${a.name.split('_').pop()?.toLowerCase()}"] = _spr.textures;
+}`;
+}).join("\n")}
+
+// 3. Map to feature-expected keys (idle, walk, jump)
+// Adjust mapping based on available animations:
+if (!mergedAnimations["idle"] && mergedAnimations["stand"]) mergedAnimations["idle"] = mergedAnimations["stand"];
+if (!mergedAnimations["walk"] && mergedAnimations["runing"]) mergedAnimations["walk"] = mergedAnimations["runing"];
+if (!mergedAnimations["walk"] && mergedAnimations["run"]) mergedAnimations["walk"] = mergedAnimations["run"];
+
+// 4. Store in _sheetCache so player-platformer feature auto-switches animations
+if (Object.keys(mergedAnimations).length > 0) {
+  _sheetCache['hero'] = { animations: mergedAnimations };
+}
 \`\`\`
 
-**Fallback**: Use \`.catch(() => null)\` on loadSpritesheet. If it returns null, fall back to drawing helpers.
-**These sprites have white backgrounds** — use blendMode or alpha masking if needed.`);
+**Key rules:**
+- ALWAYS map to \`_sheetCache['hero']\` — the feature reads from there
+- MUST have at minimum an \`idle\` animation — it's the default state
+- \`walk\` is used when moving, \`jump\` when airborne
+- The feature handles animation switching automatically — do NOT write your own update loop
+- Use \`.catch(() => null)\` on loadSpritesheet for graceful fallback
+- These sprites may have white backgrounds — use blendMode or alpha masking if needed`);
 					console.log(`[Chat API] Injected ${complete.length} custom spritesheet(s) for ${byModel.size} model(s) into prompt`);
 				}
 			} catch (e) {
