@@ -410,11 +410,12 @@ export class SpritesheetCapture {
 		}
 
 		// Fit camera to THIS animation's max bounding box
+		// Use the LARGEST dimension to ensure root motion doesn't clip
 		const maxSize = maxBox.getSize(new THREE.Vector3());
 		const maxCenter = maxBox.getCenter(new THREE.Vector3());
 		const heightAxis = this._heightAxis;
-		const modelHeight = heightAxis === "z" ? maxSize.z : maxSize.y;
-		const halfExtent = Math.max((modelHeight * 1.1) / 2, 0.5);
+		const maxDim = Math.max(maxSize.x, maxSize.y, maxSize.z);
+		const halfExtent = Math.max((maxDim * 1.1) / 2, 0.5);
 
 		this.camera.left = -halfExtent;
 		this.camera.right = halfExtent;
