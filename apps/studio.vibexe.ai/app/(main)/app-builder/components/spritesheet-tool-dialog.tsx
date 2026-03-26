@@ -321,8 +321,8 @@ export function SpritesheetToolDialog({ appId, open, onOpenChange, onGenerated }
 		const modelHeight = isZUp ? bsize.z : bsize.y;
 		const halfVFov = fovRad / 2;
 		const distForHeight = (modelHeight / 2) / Math.tan(halfVFov);
-		// 1.3x padding = model fills ~77% of frame height (head-to-toe with breathing room)
-		const camDist = Math.max(distForHeight * 1.3, 2);
+		// 1.6x padding = model fills ~63% of frame height (comfortable head-to-toe with margin)
+		const camDist = Math.max(distForHeight * 1.6, 2);
 
 		// Camera — use detected front direction, or fall back to axis default
 		const camera = new THREE.PerspectiveCamera(fovDeg, aspect, 0.1, 100);

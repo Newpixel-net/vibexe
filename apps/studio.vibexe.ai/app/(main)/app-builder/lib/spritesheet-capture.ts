@@ -603,8 +603,8 @@ export class SpritesheetCapture {
 			: [[0, 0, -1], [0, 0, 1], [1, 0, 0], [-1, 0, 0]];
 
 		// Convention: most 3D characters face -Z (Y-up) or -Y (Z-up).
-		// Camera must be OPPOSITE to facing direction to see the front.
-		const conventionDir = heightAxis === "z" ? [0, 1, 0] : [0, 0, 1];
+		// Camera at the same direction as the face (-Z or -Y) looks back at the front.
+		const conventionDir = heightAxis === "z" ? [0, -1, 0] : [0, 0, -1];
 
 		const model = loaded.model;
 		model.updateMatrixWorld(true);
