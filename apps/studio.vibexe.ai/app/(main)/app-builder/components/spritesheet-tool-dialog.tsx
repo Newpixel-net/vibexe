@@ -526,24 +526,30 @@ export function SpritesheetToolDialog({ appId, open, onOpenChange, onGenerated }
 			const capture = getCaptureInstance();
 			await capture.init(frameSize, frameSize);
 
-			// Sync preview camera direction to capture engine
+			// Sync preview camera to capture engine — direction + frustum
 			if (previewCameraRef.current && orbitControlsRef.current) {
 				const THREE = capture.getThree();
+				const cam = previewCameraRef.current;
+				const ctrl = orbitControlsRef.current;
 				const dir = new THREE.Vector3()
-					.subVectors(previewCameraRef.current.position, orbitControlsRef.current.target)
+					.subVectors(cam.position, ctrl.target)
 					.normalize();
 				capture.setCameraDirection({ x: dir.x, y: dir.y, z: dir.z });
+
+				// Sync frustum from preview perspective camera — capture will
+				// produce the exact same framing the user sees in the 3D preview
+				capture.setFrustumFromPreview(
+					cam.fov,
+					{ x: cam.position.x, y: cam.position.y, z: cam.position.z },
+					{ x: ctrl.target.x, y: ctrl.target.y, z: ctrl.target.z },
+					1, // square aspect for capture frames
+				);
 			}
 
 			const newResults: StoredSpritesheet[] = [];
 
 			if (animNames.length > 0 && selectedAnims.size > 0) {
-				// Pre-scan ALL selected animations to compute a unified frustum.
-				// This ensures the character is the SAME SIZE in every spritesheet.
 				const anims = [...selectedAnims];
-				await capture.precomputeSharedFrustum(loadedModel, anims, frameCount, (pct) => {
-					setProgress(pct * 0.2); // shared scan = first 20%
-				});
 
 				for (let i = 0; i < anims.length; i++) {
 					if (abortRef.current) break;

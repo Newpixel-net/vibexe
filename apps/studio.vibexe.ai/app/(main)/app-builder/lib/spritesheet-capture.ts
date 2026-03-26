@@ -69,6 +69,7 @@ export class SpritesheetCapture {
 	private _heightAxis: "y" | "z" = "y"; // Detected once on model load
 	// Shared frustum — when set, ALL animations use the same camera framing for consistent size
 	private _sharedFrustum: { left: number; right: number; top: number; bottom: number } | null = null;
+	private _previewTarget: { x: number; y: number; z: number } | null = null;
 
 	async init(width = 128, height = 128): Promise<void> {
 		this.frameWidth = width;
@@ -397,19 +398,26 @@ export class SpritesheetCapture {
 		const distance = 5;
 		const upVec = new THREE.Vector3(0, heightAxis === "z" ? 0 : 1, heightAxis === "z" ? 1 : 0);
 
-		// Position camera
+		// Position camera — use preview target if available for exact framing sync
+		const lookTarget = this._previewTarget
+			? new THREE.Vector3(this._previewTarget.x, this._previewTarget.y, this._previewTarget.z)
+			: new THREE.Vector3(0, 0, 0);
 		let camPos: any;
 		if (this._cameraDirection) {
 			const dir = this._cameraDirection;
-			camPos = new THREE.Vector3(dir.x * distance, dir.y * distance, dir.z * distance);
+			camPos = new THREE.Vector3(
+				lookTarget.x + dir.x * distance,
+				lookTarget.y + dir.y * distance,
+				lookTarget.z + dir.z * distance,
+			);
 		} else if (heightAxis === "z") {
-			camPos = new THREE.Vector3(0, -distance, 0);
+			camPos = new THREE.Vector3(lookTarget.x, lookTarget.y - distance, lookTarget.z);
 		} else {
-			camPos = new THREE.Vector3(0, 0, -distance);
+			camPos = new THREE.Vector3(lookTarget.x, lookTarget.y, lookTarget.z - distance);
 		}
 		this.camera.position.copy(camPos);
 		this.camera.up.copy(upVec);
-		this.camera.lookAt(0, 0, 0);
+		this.camera.lookAt(lookTarget.x, lookTarget.y, lookTarget.z);
 
 		if (this._sharedFrustum) {
 			// Use precomputed shared frustum — consistent size across all animations
@@ -846,6 +854,7 @@ export class SpritesheetCapture {
 	/** Clear the shared frustum so each animation computes its own. */
 	clearSharedFrustum(): void {
 		this._sharedFrustum = null;
+		this._previewTarget = null;
 	}
 
 	getThree(): any {
@@ -860,6 +869,37 @@ export class SpritesheetCapture {
 	 *  Called from dialog to sync preview camera angle to capture. */
 	setCameraDirection(dir: { x: number; y: number; z: number }): void {
 		this._cameraDirection = dir;
+	}
+
+	/** Compute orthographic frustum from the preview's perspective camera.
+	 *  This ensures capture matches exactly what the user sees in preview.
+	 *  @param fovDeg  PerspectiveCamera FOV in degrees
+	 *  @param camPos  Camera world position {x,y,z}
+	 *  @param target  OrbitControls target {x,y,z}
+	 *  @param aspect  Preview canvas aspect ratio (width/height)
+	 */
+	setFrustumFromPreview(
+		fovDeg: number,
+		camPos: { x: number; y: number; z: number },
+		target: { x: number; y: number; z: number },
+		aspect: number,
+	): void {
+		const THREE = this.THREE;
+		const dist = new THREE.Vector3(camPos.x, camPos.y, camPos.z)
+			.distanceTo(new THREE.Vector3(target.x, target.y, target.z));
+		const halfH = dist * Math.tan((fovDeg * Math.PI / 180) / 2);
+		const halfW = halfH * aspect;
+		// The orthographic frustum is centered on the target, camera looks at target
+		// We shift the frustum so the capture center = target projected onto the ortho plane
+		this._sharedFrustum = {
+			left: -halfW,
+			right: halfW,
+			bottom: -halfH,
+			top: halfH,
+		};
+		// Also store the target offset so captureAnimation centers on it
+		this._previewTarget = { x: target.x, y: target.y, z: target.z };
+		console.log(`[setFrustumFromPreview] fov=${fovDeg} dist=${dist.toFixed(2)} halfW=${halfW.toFixed(3)} halfH=${halfH.toFixed(3)} aspect=${aspect.toFixed(2)}`);
 	}
 
 	setCameraPosition(x: number, y: number, z: number): void {
