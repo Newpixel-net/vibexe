@@ -353,10 +353,9 @@ export class SpritesheetCapture {
 		const prefix = config.prefix || clip.name || "anim";
 		const clipName = config.clipName || clip.name;
 
-		// RELOAD the model from scratch for pristine skeleton bindings
+		// RELOAD the model from scratch for bind-pose measurement
 		const captureLoaded = await this.reloadModelFresh(loaded);
 		const captureModel = captureLoaded.model;
-		this.setModel(captureModel);
 
 		const freshClip = captureLoaded.animations.find((c: any) => c.name === clipName)
 			|| captureLoaded.animations[0];
@@ -387,64 +386,104 @@ export class SpritesheetCapture {
 		};
 
 		// =====================================================================
-		// PASS 1: Pre-scan ALL frames to find the MAXIMUM bounding box.
-		// Reload the model fresh for each scan frame to prevent root motion
-		// accumulation (skeleton.pose() doesn't reset root bone translation).
+		// PASS 1: Pixel-based scan — render each frame with a generous frustum
+		// and measure actual visible content bounds via readPixels.
+		//
+		// Box3.setFromObject() only captures the bind-pose mesh bbox — it does
+		// NOT see skinning deformation (extended limbs, kicks, spins, jumps).
+		// Pixel scanning captures exactly what's rendered, regardless of how
+		// the animation produces the motion.
 		// =====================================================================
-		const maxBox = new THREE.Box3(
-			new THREE.Vector3(Infinity, Infinity, Infinity),
-			new THREE.Vector3(-Infinity, -Infinity, -Infinity),
-		);
+		const heightAxis = this._heightAxis;
+		const distance = 5;
+		const upVec = new THREE.Vector3(0, heightAxis === "z" ? 0 : 1, heightAxis === "z" ? 1 : 0);
+
+		// Generous scan frustum — 5x the bind-pose extent, minimum ±10 units
+		captureModel.updateMatrixWorld(true);
+		const bindBox = new THREE.Box3().setFromObject(captureModel);
+		const bindSize = bindBox.getSize(new THREE.Vector3());
+		const bindMax = Math.max(bindSize.x, bindSize.y, bindSize.z);
+		const scanSize = Math.max(bindMax * 5, 10);
+
+		this.camera.left = -scanSize;
+		this.camera.right = scanSize;
+		this.camera.top = scanSize;
+		this.camera.bottom = -scanSize;
+		this.camera.updateProjectionMatrix();
+
+		// Position camera for scan (centered on origin where bind pose is)
+		let camPos: any;
+		if (this._cameraDirection) {
+			const dir = this._cameraDirection;
+			camPos = new THREE.Vector3(dir.x * distance, dir.y * distance, dir.z * distance);
+		} else if (heightAxis === "z") {
+			camPos = new THREE.Vector3(0, -distance, 0);
+		} else {
+			camPos = new THREE.Vector3(0, 0, -distance);
+		}
+		this.camera.position.copy(camPos);
+		this.camera.up.copy(upVec);
+		this.camera.lookAt(0, 0, 0);
+
+		// Scan all frames to find pixel-space content bounds
+		const w = this.frameWidth;
+		const h = this.frameHeight;
+		let minPxX = w, maxPxX = 0, minPxY = h, maxPxY = 0;
+		const gl = this.renderer.getContext();
+		const pixels = new Uint8Array(w * h * 4);
 
 		for (let i = 0; i < frames; i++) {
 			const targetTime = (clipDuration * i) / frames;
-			// Reload fresh for each scan to prevent root motion accumulation
 			const scanLoaded = await this.reloadModelFresh(loaded);
 			const scanClip = scanLoaded.animations.find((c: any) => c.name === clipName)
 				|| scanLoaded.animations[0];
+			this.setModel(scanLoaded.model);
 			const { mixer, action } = advanceToTime(scanLoaded.model, scanClip, targetTime);
-			const frameBox = new THREE.Box3().setFromObject(scanLoaded.model);
-			maxBox.union(frameBox);
+
+			await new Promise<void>(r => requestAnimationFrame(() => r()));
+			this.renderer.render(this.scene, this.camera);
+			gl.readPixels(0, 0, w, h, gl.RGBA, gl.UNSIGNED_BYTE, pixels);
+
+			// Find content bounds (WebGL: row 0 = bottom of image)
+			for (let py = 0; py < h; py++) {
+				for (let px = 0; px < w; px++) {
+					if (pixels[(py * w + px) * 4 + 3] > 0) {
+						if (px < minPxX) minPxX = px;
+						if (px > maxPxX) maxPxX = px;
+						if (py < minPxY) minPxY = py;
+						if (py > maxPxY) maxPxY = py;
+					}
+				}
+			}
+
 			action.stop();
 			mixer.stopAllAction();
+			this.scene.remove(scanLoaded.model);
+			if (onProgress) onProgress(((i + 1) / frames) * 0.4); // scan = 40% of progress
 		}
 
-		// Fit camera to THIS animation's max bounding box
-		// Use the LARGEST dimension to ensure root motion doesn't clip
-		const maxSize = maxBox.getSize(new THREE.Vector3());
-		const maxCenter = maxBox.getCenter(new THREE.Vector3());
-		const heightAxis = this._heightAxis;
-		const maxDim = Math.max(maxSize.x, maxSize.y, maxSize.z);
-		const halfExtent = Math.max((maxDim * 1.1) / 2, 0.5);
+		// Convert pixel bounds to camera frustum and set tight fit
+		if (maxPxX >= minPxX && maxPxY >= minPxY) {
+			const pxToWorld = (scanSize * 2) / w;
+			const contentLeft = -scanSize + minPxX * pxToWorld;
+			const contentRight = -scanSize + (maxPxX + 1) * pxToWorld;
+			const contentBottom = -scanSize + minPxY * pxToWorld;
+			const contentTop = -scanSize + (maxPxY + 1) * pxToWorld;
 
-		this.camera.left = -halfExtent;
-		this.camera.right = halfExtent;
-		this.camera.top = halfExtent;
-		this.camera.bottom = -halfExtent;
-		this.camera.updateProjectionMatrix();
+			// Center a square frustum on the content with padding
+			const cX = (contentLeft + contentRight) / 2;
+			const cY = (contentBottom + contentTop) / 2;
+			const eX = (contentRight - contentLeft) / 2;
+			const eY = (contentTop - contentBottom) / 2;
+			const halfExtent = Math.max(eX, eY, 0.5) * 1.15;
 
-		// Camera direction is locked (same viewing angle for all animations).
-		// But position and target are recomputed per-animation based on its max box center.
-		const distance = 5;
-		const upVec = new THREE.Vector3(0, heightAxis === "z" ? 0 : 1, heightAxis === "z" ? 1 : 0);
-		let camPos: any;
-
-		if (this._cameraDirection) {
-			const dir = this._cameraDirection;
-			camPos = new THREE.Vector3(
-				maxCenter.x + dir.x * distance,
-				maxCenter.y + dir.y * distance,
-				maxCenter.z + dir.z * distance,
-			);
-		} else if (heightAxis === "z") {
-			camPos = new THREE.Vector3(maxCenter.x, maxCenter.y - distance, maxCenter.z);
-		} else {
-			camPos = new THREE.Vector3(maxCenter.x, maxCenter.y, maxCenter.z - distance);
+			this.camera.left = cX - halfExtent;
+			this.camera.right = cX + halfExtent;
+			this.camera.bottom = cY - halfExtent;
+			this.camera.top = cY + halfExtent;
+			this.camera.updateProjectionMatrix();
 		}
-
-		this.camera.position.copy(camPos);
-		this.camera.up.copy(upVec);
-		this.camera.lookAt(maxCenter.x, maxCenter.y, maxCenter.z);
+		// Camera position/lookAt stay the same — only the frustum narrows
 
 		// =====================================================================
 		// PASS 2: Render each frame — reload model fresh per frame to prevent
@@ -474,7 +513,7 @@ export class SpritesheetCapture {
 			action.stop();
 			mixer.stopAllAction();
 			this.scene.remove(renderLoaded.model);
-			if (onProgress) onProgress((i + 1) / frames);
+			if (onProgress) onProgress(0.4 + ((i + 1) / frames) * 0.6); // render = last 60%
 		}
 
 		return result;
