@@ -116,12 +116,17 @@ export function SpritesheetToolDialog({ appId, open, onOpenChange, onGenerated }
 	const [modelZUp, setModelZUp] = useState(false);
 	const [modelFrontDir, setModelFrontDir] = useState<{ x: number; y: number; z: number } | null>(null);
 
+	// Animation preview
+	const [previewingAnim, setPreviewingAnim] = useState<string | null>(null);
+
 	// Refs — interactive 3D preview
 	const previewContainerRef = useRef<HTMLDivElement>(null);
 	const previewRendererRef = useRef<any>(null);
 	const orbitControlsRef = useRef<any>(null);
 	const previewAnimFrameRef = useRef<number>(0);
 	const previewCameraRef = useRef<any>(null);
+	const previewMixerRef = useRef<any>(null);
+	const previewAnimsRef = useRef<any[]>([]);
 	const gizmoCanvasRef = useRef<HTMLCanvasElement>(null);
 	const abortRef = useRef(false);
 
@@ -220,6 +225,24 @@ export function SpritesheetToolDialog({ appId, open, onOpenChange, onGenerated }
 		}
 		requestAnimationFrame(animateSnap);
 		setActiveView(presetId);
+	}, []);
+
+	// Play a specific animation in the 3D preview
+	const playPreviewAnim = useCallback((clipName: string) => {
+		const mixer = previewMixerRef.current;
+		const anims = previewAnimsRef.current;
+		if (!mixer || !anims.length) return;
+
+		// Stop all current actions
+		mixer.stopAllAction();
+
+		// Find and play the requested clip
+		const clip = anims.find((c: any) => c.name === clipName);
+		if (clip) {
+			const action = mixer.clipAction(clip);
+			action.reset().play();
+			setPreviewingAnim(clipName);
+		}
 	}, []);
 
 	// Draw axis gizmo on a small overlay canvas
@@ -370,6 +393,8 @@ export function SpritesheetToolDialog({ appId, open, onOpenChange, onGenerated }
 			const action = mixer.clipAction(loaded.animations[0]);
 			action.play();
 		}
+		previewMixerRef.current = mixer;
+		previewAnimsRef.current = loaded.animations;
 
 		// Track manual orbit to deselect view preset
 		let manualOrbitTimer: any = null;
@@ -863,33 +888,50 @@ export function SpritesheetToolDialog({ appId, open, onOpenChange, onGenerated }
 											}
 
 											return (
-												<button
-													key={name}
-													onClick={() => {
-														setSelectedAnims((prev) => {
-															const next = new Set(prev);
-															if (next.has(name)) next.delete(name);
-															else next.add(name);
-															return next;
-														});
-													}}
-													onDoubleClick={(e) => {
-														e.preventDefault();
-														setEditingAnim(name);
-													}}
-													className={`group flex items-center gap-1 px-2 py-1 rounded text-xs transition-colors ${
-														selectedAnims.has(name)
-															? "bg-emerald-500/20 text-emerald-400"
-															: "text-white/30 bg-white/[0.03]"
-													}`}
-												>
-													{selectedAnims.has(name) ? "✓ " : ""}
-													{displayName}
-													{animRenames[name] && (
-														<span className="text-[9px] text-white/15">({name})</span>
-													)}
-													<Pencil className="size-2.5 opacity-0 group-hover:opacity-40 transition-opacity flex-shrink-0" />
-												</button>
+												<div key={name} className="flex items-center gap-0.5">
+													{/* Play preview button */}
+													<button
+														onClick={(e) => {
+															e.stopPropagation();
+															playPreviewAnim(name);
+														}}
+														title={`Preview ${displayName}`}
+														className={`p-1 rounded transition-colors ${
+															previewingAnim === name
+																? "text-blue-400 bg-blue-500/20"
+																: "text-white/20 hover:text-white/50 hover:bg-white/[0.04]"
+														}`}
+													>
+														<Play className="size-3 fill-current" />
+													</button>
+													{/* Select / rename button */}
+													<button
+														onClick={() => {
+															setSelectedAnims((prev) => {
+																const next = new Set(prev);
+																if (next.has(name)) next.delete(name);
+																else next.add(name);
+																return next;
+															});
+														}}
+														onDoubleClick={(e) => {
+															e.preventDefault();
+															setEditingAnim(name);
+														}}
+														className={`group flex items-center gap-1 px-2 py-1 rounded text-xs transition-colors ${
+															selectedAnims.has(name)
+																? "bg-emerald-500/20 text-emerald-400"
+																: "text-white/30 bg-white/[0.03]"
+														}`}
+													>
+														{selectedAnims.has(name) ? "✓ " : ""}
+														{displayName}
+														{animRenames[name] && (
+															<span className="text-[9px] text-white/15">({name})</span>
+														)}
+														<Pencil className="size-2.5 opacity-0 group-hover:opacity-40 transition-opacity flex-shrink-0" />
+													</button>
+												</div>
 											);
 										})}
 									</div>
