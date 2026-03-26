@@ -453,6 +453,9 @@ export function SpritesheetToolDialog({ appId, open, onOpenChange, onGenerated }
 			const capture = getCaptureInstance();
 			await capture.init(frameSize, frameSize);
 
+			// Reset camera lock so first animation sets the camera, then all others reuse it
+			capture.resetCameraLock();
+
 			// Sync preview camera direction to capture engine
 			if (previewCameraRef.current && orbitControlsRef.current) {
 				const THREE = capture.getThree();

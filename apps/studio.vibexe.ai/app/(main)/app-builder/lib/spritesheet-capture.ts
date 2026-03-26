@@ -67,6 +67,7 @@ export class SpritesheetCapture {
 	private frameHeight = 128;
 	private _cameraDirection: { x: number; y: number; z: number } | null = null;
 	private _heightAxis: "y" | "z" = "y"; // Detected once on model load
+	private _lockedCameraState: { pos: any; up: any; target: any } | null = null;
 
 	async init(width = 128, height = 128): Promise<void> {
 		this.frameWidth = width;
@@ -219,21 +220,18 @@ export class SpritesheetCapture {
 	}
 
 	/** Fit the orthographic camera to show the model filling the frame.
-	 *  Detects which axis is the model's "height" (tallest dimension) and
-	 *  orients the camera to produce a proper 2D game sprite view. */
+	 *  Camera DIRECTION is locked on first call — only frustum size adapts per animation. */
 	private fitCameraToModel(model: any, padding = 1.15): void {
 		const THREE = this.THREE;
 		model.updateMatrixWorld(true);
 		const box = new THREE.Box3().setFromObject(model);
 		const size = box.getSize(new THREE.Vector3());
 		const center = box.getCenter(new THREE.Vector3());
-
-		// Use the height axis detected at model load time (consistent across all animations)
 		const heightAxis = this._heightAxis;
 
-		// Determine the model's visual height (tallest axis)
+		// Frustum: use the model's height along the detected axis
 		const modelHeight = heightAxis === "z" ? size.z : size.y;
-		const halfExtent = (modelHeight * padding) / 2;
+		const halfExtent = Math.max((modelHeight * padding) / 2, 0.5);
 
 		this.camera.left = -halfExtent;
 		this.camera.right = halfExtent;
@@ -241,32 +239,38 @@ export class SpritesheetCapture {
 		this.camera.bottom = -halfExtent;
 		this.camera.updateProjectionMatrix();
 
-		// Camera direction: use preview direction if set, otherwise auto-detect front
-		const distance = 5;
-		if (this._cameraDirection) {
-			// Custom direction from preview camera sync
-			const dir = this._cameraDirection;
-			this.camera.position.set(
-				center.x + dir.x * distance,
-				center.y + dir.y * distance,
-				center.z + dir.z * distance,
-			);
-			// Set up vector based on height axis
-			this.camera.up.set(0, heightAxis === "z" ? 0 : 1, heightAxis === "z" ? 1 : 0);
-			this.camera.lookAt(center.x, center.y, center.z);
-		} else {
-			// Default front view: camera along the DEPTH axis (shortest non-height dimension)
-			// For Z-up models: camera at -Y looking toward +Y, up = +Z
-			// For Y-up models: camera at -Z looking toward +Z, up = +Y
-			if (heightAxis === "z") {
-				this.camera.position.set(center.x, center.y - distance, center.z);
-				this.camera.up.set(0, 0, 1);
+		// Camera position/direction: compute ONCE, then reuse for all animations
+		if (!this._lockedCameraState) {
+			const distance = 5;
+			const upVec = new THREE.Vector3(0, heightAxis === "z" ? 0 : 1, heightAxis === "z" ? 1 : 0);
+			let camPos: any;
+			let camTarget = new THREE.Vector3(center.x, center.y, center.z);
+
+			if (this._cameraDirection) {
+				const dir = this._cameraDirection;
+				camPos = new THREE.Vector3(
+					center.x + dir.x * distance,
+					center.y + dir.y * distance,
+					center.z + dir.z * distance,
+				);
+			} else if (heightAxis === "z") {
+				camPos = new THREE.Vector3(center.x, center.y - distance, center.z);
 			} else {
-				this.camera.position.set(center.x, center.y, center.z - distance);
-				this.camera.up.set(0, 1, 0);
+				camPos = new THREE.Vector3(center.x, center.y, center.z - distance);
 			}
-			this.camera.lookAt(center.x, center.y, center.z);
+
+			this._lockedCameraState = { pos: camPos.clone(), up: upVec.clone(), target: camTarget.clone() };
 		}
+
+		// Apply the locked camera state
+		this.camera.position.copy(this._lockedCameraState.pos);
+		this.camera.up.copy(this._lockedCameraState.up);
+		this.camera.lookAt(this._lockedCameraState.target);
+	}
+
+	/** Call before a new generation batch to reset locked camera */
+	resetCameraLock(): void {
+		this._lockedCameraState = null;
 	}
 
 	/** Capture a single frame — SYNCHRONOUS using toDataURL */
