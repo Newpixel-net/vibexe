@@ -479,13 +479,13 @@ export class SpritesheetCapture {
 				const eX = (contentRight - contentLeft) / 2;
 				const eY = (contentTop - contentBottom) / 2;
 				const pad = 1.03;
-				const halfW = Math.max(eX, 0.1) * pad;
-				const halfH = Math.max(eY, 0.1) * pad;
+				// Force square frustum to match square output frame — prevents stretching
+				const half = Math.max(Math.max(eX, 0.1), Math.max(eY, 0.1)) * pad;
 
-				this.camera.left = cX - halfW;
-				this.camera.right = cX + halfW;
-				this.camera.bottom = cY - halfH;
-				this.camera.top = cY + halfH;
+				this.camera.left = cX - half;
+				this.camera.right = cX + half;
+				this.camera.bottom = cY - half;
+				this.camera.top = cY + half;
 				this.camera.updateProjectionMatrix();
 			}
 		}
@@ -820,16 +820,15 @@ export class SpritesheetCapture {
 			const cY = (contentBottom + contentTop) / 2;
 			const eX = (contentRight - contentLeft) / 2;
 			const eY = (contentTop - contentBottom) / 2;
-			// Tight padding (3%) and preserve aspect ratio — no forced square
+			// Force square frustum to match square output frame — prevents stretching
 			const pad = 1.03;
-			const halfW = Math.max(eX, 0.1) * pad;
-			const halfH = Math.max(eY, 0.1) * pad;
+			const half = Math.max(Math.max(eX, 0.1), Math.max(eY, 0.1)) * pad;
 
 			this._sharedFrustum = {
-				left: cX - halfW,
-				right: cX + halfW,
-				bottom: cY - halfH,
-				top: cY + halfH,
+				left: cX - half,
+				right: cX + half,
+				bottom: cY - half,
+				top: cY + half,
 			};
 		} else {
 			console.warn(`[sharedFrustum] NO content found! pixel bounds were minPx=[${minPxX},${minPxY}] maxPx=[${maxPxX},${maxPxY}]`);
