@@ -602,10 +602,6 @@ export class SpritesheetCapture {
 			? [[0, -1, 0], [0, 1, 0], [1, 0, 0], [-1, 0, 0]]
 			: [[0, 0, -1], [0, 0, 1], [1, 0, 0], [-1, 0, 0]];
 
-		// Convention: most 3D characters face -Z (Y-up) or -Y (Z-up).
-		// Camera at the same direction as the face (-Z or -Y) looks back at the front.
-		const conventionDir = heightAxis === "z" ? [0, -1, 0] : [0, 0, -1];
-
 		const model = loaded.model;
 		model.updateMatrixWorld(true);
 		const box = new THREE.Box3().setFromObject(model);
@@ -625,7 +621,7 @@ export class SpritesheetCapture {
 		const w = this.frameWidth, h = this.frameHeight;
 		const gl = this.renderer.getContext();
 		const px = new Uint8Array(w * h * 4);
-		const measured: { dir: number[]; width: number; edgeDensity: number }[] = [];
+		const measured: { dir: number[]; width: number; uniqueColors: number }[] = [];
 
 		for (const dir of dirs) {
 			this.camera.position.set(center.x + dir[0] * 5, center.y + dir[1] * 5, center.z + dir[2] * 5);
@@ -635,26 +631,23 @@ export class SpritesheetCapture {
 			gl.readPixels(0, 0, w, h, gl.RGBA, gl.UNSIGNED_BYTE, px);
 
 			let minX = w, maxX = 0;
-			// Measure edge density in head area (top 15% of content).
-			// Faces have many sharp edges (eyes, nose, mouth, jaw) vs backs which are smoother.
-			const topY = Math.floor(h * 0.85); // WebGL: higher row = top of image
-			let edgeCount = 0, headPixels = 0;
+			// Count unique colors in head area (top 20%).
+			// Faces have many distinct colors (skin, eyes, lips, hair, teeth)
+			// while backs have fewer (uniform armor, leather, cloth).
+			const topY = Math.floor(h * 0.80); // WebGL: higher row = top of image
+			const colorSet = new Set<number>();
 			for (let py = 0; py < h; py++) {
 				for (let p = 0; p < w; p++) {
 					const idx = (py * w + p) * 4;
 					if (px[idx + 3] > 10) {
 						if (p < minX) minX = p;
 						if (p > maxX) maxX = p;
-						// Count sharp color transitions in head region
-						if (py >= topY && p > 0) {
-							headPixels++;
-							const prevIdx = (py * w + p - 1) * 4;
-							if (px[prevIdx + 3] > 10) {
-								const diff = Math.abs(px[idx] - px[prevIdx])
-									+ Math.abs(px[idx + 1] - px[prevIdx + 1])
-									+ Math.abs(px[idx + 2] - px[prevIdx + 2]);
-								if (diff > 40) edgeCount++;
-							}
+						if (py >= topY) {
+							// Quantize to 5-bit per channel to reduce noise
+							const r = px[idx] >> 3;
+							const g = px[idx + 1] >> 3;
+							const b = px[idx + 2] >> 3;
+							colorSet.add((r << 10) | (g << 5) | b);
 						}
 					}
 				}
@@ -662,7 +655,7 @@ export class SpritesheetCapture {
 			measured.push({
 				dir,
 				width: maxX > minX ? maxX - minX + 1 : 0,
-				edgeDensity: headPixels > 0 ? edgeCount / headPixels : 0,
+				uniqueColors: colorSet.size,
 			});
 		}
 
@@ -672,18 +665,8 @@ export class SpritesheetCapture {
 		measured.sort((a, b) => b.width - a.width);
 		const top2 = measured.slice(0, 2);
 
-		// If convention direction is in the front/back pair, always use it.
-		// Heuristics (edge density, color variance) are unreliable for armored/detailed models.
-		const matchConv = (d: number[]) =>
-			d[0] === conventionDir[0] && d[1] === conventionDir[1] && d[2] === conventionDir[2];
-		const convCandidate = top2.find(m => matchConv(m.dir));
-
-		if (convCandidate) {
-			return { x: convCandidate.dir[0], y: convCandidate.dir[1], z: convCandidate.dir[2] };
-		}
-
-		// Convention not in front/back pair — use edge density to pick
-		const front = top2[0].edgeDensity >= top2[1].edgeDensity ? top2[0] : top2[1];
+		// Among the front/back pair, more unique colors in the head = front (face detail)
+		const front = top2[0].uniqueColors >= top2[1].uniqueColors ? top2[0] : top2[1];
 		return { x: front.dir[0], y: front.dir[1], z: front.dir[2] };
 	}
 
