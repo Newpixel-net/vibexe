@@ -693,8 +693,21 @@ export class SpritesheetCapture {
 		console.log("[detectModelFront]", top2.map(m =>
 			`dir=[${m.dir}] width=${m.width} colors=${m.uniqueColors}`).join(" | "));
 
-		// Among the front/back pair, more unique colors in the head = front (face detail)
-		const front = top2[0].uniqueColors >= top2[1].uniqueColors ? top2[0] : top2[1];
+		// Among the front/back pair, more unique colors in the head = front (face detail).
+		// But if scores are within 20%, it's ambiguous — use tiebreaker direction.
+		// Tiebreaker: +Z for Y-up, +Y for Z-up (camera sees model's front for most models).
+		const colorDiff = Math.abs(top2[0].uniqueColors - top2[1].uniqueColors);
+		const maxColors = Math.max(top2[0].uniqueColors, top2[1].uniqueColors);
+
+		let front;
+		if (maxColors === 0 || colorDiff / maxColors < 0.2) {
+			// Ambiguous — use tiebreaker
+			const tieDir = heightAxis === "z" ? [0, 1, 0] : [0, 0, 1];
+			const match = (d: number[]) => d[0] === tieDir[0] && d[1] === tieDir[1] && d[2] === tieDir[2];
+			front = top2.find(m => match(m.dir)) || top2[0];
+		} else {
+			front = top2[0].uniqueColors >= top2[1].uniqueColors ? top2[0] : top2[1];
+		}
 		console.log("[detectModelFront] picked dir=[" + front.dir + "] colors=" + front.uniqueColors);
 		return { x: front.dir[0], y: front.dir[1], z: front.dir[2] };
 	}
