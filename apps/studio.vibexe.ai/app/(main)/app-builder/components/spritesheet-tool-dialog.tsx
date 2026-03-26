@@ -552,7 +552,7 @@ export function SpritesheetToolDialog({ appId, open, onOpenChange, onGenerated }
 								{results.map((r) => (
 									<div key={r.name} className="flex flex-col items-center gap-1">
 										<img
-											src={r.atlasUrl}
+											src={`${r.atlasUrl}${r.atlasUrl.includes('?') ? '&' : '?'}_cb=${phase}`}
 											alt={`${r.name} atlas`}
 											className="max-w-full max-h-[120px] object-contain rounded border border-white/[0.08]"
 											style={{ imageRendering: "pixelated" }}
