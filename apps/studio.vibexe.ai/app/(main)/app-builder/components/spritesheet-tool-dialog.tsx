@@ -321,12 +321,12 @@ export function SpritesheetToolDialog({ appId, open, onOpenChange, onGenerated }
 		const camera = new THREE.PerspectiveCamera(35, w / h, 0.1, 100);
 		const upVec = new THREE.Vector3(0, isZUp ? 0 : 1, isZUp ? 1 : 0);
 		const defaultDir = isZUp ? new THREE.Vector3(0, -1, 0) : new THREE.Vector3(0, 0, -1);
-		const dir = frontDir ? new THREE.Vector3(frontDir.x, frontDir.y, frontDir.z) : defaultDir;
+		const camDir = frontDir ? new THREE.Vector3(frontDir.x, frontDir.y, frontDir.z) : defaultDir;
 
 		camera.position.set(
-			bcenter.x + dir.x * camDist,
-			bcenter.y + dir.y * camDist,
-			bcenter.z + dir.z * camDist,
+			bcenter.x + camDir.x * camDist,
+			bcenter.y + camDir.y * camDist,
+			bcenter.z + camDir.z * camDist,
 		);
 		camera.up.copy(upVec);
 		camera.lookAt(bcenter.x, bcenter.y, bcenter.z);
