@@ -610,7 +610,10 @@ export function SpritesheetToolDialog({ appId, open, onOpenChange, onGenerated }
 
 	return (
 		<Dialog open={open} onOpenChange={onOpenChange}>
-			<DialogContent className="!w-[900px] max-w-[96vw] max-h-[92vh] p-0 gap-0 overflow-hidden !bg-[#0d0d1a] border border-white/10 [&>button]:hidden [&>[aria-hidden]]:hidden" style={{ backgroundColor: "#0d0d1a" }}>
+			<DialogContent className="!w-[900px] max-w-[96vw] max-h-[92vh] p-0 gap-0 overflow-hidden !bg-[#0d0d1a] border border-white/10 [&>button]:hidden" style={{ backgroundColor: "#0d0d1a" }}>
+				{/* Solid background layer to override glass transparency */}
+				<div className="absolute inset-0 bg-[#0d0d1a] rounded-[12px] z-[1]" />
+				<div className="relative z-[2] flex flex-col h-full">
 				<DialogHeader className="px-5 py-3 border-b border-white/[0.06]">
 					<DialogTitle className="flex items-center gap-2 text-base font-medium text-white/90">
 						<Grid3X3 className="size-4 text-blue-400" />
@@ -1016,6 +1019,7 @@ export function SpritesheetToolDialog({ appId, open, onOpenChange, onGenerated }
 							</div>
 						</div>
 					</div>
+				</div>
 				</div>
 			</DialogContent>
 		</Dialog>
