@@ -65,10 +65,13 @@ export async function uploadSpritesheet(
 	}
 	const metaData = await metaRes.json();
 
+	// Append cache-buster so regenerated sheets always show fresh content
+	const cb = `_t=${Date.now()}`;
+	const bustUrl = (u: string) => u + (u.includes("?") ? "&" : "?") + cb;
 	return {
 		name: `${safeModel}_${safeAnim}`,
-		atlasUrl: atlasData.url,
-		metadataUrl: metaData.url,
+		atlasUrl: bustUrl(atlasData.url),
+		metadataUrl: bustUrl(metaData.url),
 	};
 }
 

@@ -559,6 +559,8 @@ export function SpritesheetToolDialog({ appId, open, onOpenChange, onGenerated }
 					const originalName = anims[i];
 					const outputName = animRenames[originalName] || originalName;
 
+					// Re-init before each animation to guarantee correct frame size
+					await capture.init(frameSize, frameSize);
 					setPhase("capturing");
 					const frames = await capture.captureAnimation(loadedModel, {
 						frames: frameCount,
