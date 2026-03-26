@@ -1020,16 +1020,33 @@ const supabase = createClient("${supabaseConfig.url}", "${supabaseConfig.anonKey
 					}
 					const completeSheets = Array.from(earlySheets.entries()).filter(([, v]) => v.atlasUrl && v.metadataUrl);
 					if (completeSheets.length > 0) {
-						// Find idle/walk/jump animations for setPlayerSprites
-						const idleSheet = completeSheets.find(([, v]) => /idle/i.test(v.animName));
-						const walkSheet = completeSheets.find(([, v]) => /run|walk/i.test(v.animName));
-						const jumpSheet = completeSheets.find(([, v]) => /jump/i.test(v.animName));
-						if (idleSheet) {
-							const loads = completeSheets.map(([name, v]) =>
+						// Group by model — pick ONE model for the player (first with idle animation)
+						const byModel = new Map<string, Array<[string, { atlasUrl?: string; metadataUrl?: string; modelName: string; animName: string }]>>();
+						for (const entry of completeSheets) {
+							const model = entry[1].modelName;
+							if (!byModel.has(model)) byModel.set(model, []);
+							byModel.get(model)!.push(entry);
+						}
+						// Find first model that has an idle animation
+						let playerModel: string | null = null;
+						let playerSheets: typeof completeSheets = [];
+						for (const [model, sheets] of byModel) {
+							if (sheets.some(([, v]) => /idle/i.test(v.animName))) {
+								playerModel = model;
+								playerSheets = sheets;
+								break;
+							}
+						}
+						if (playerModel && playerSheets.length > 0) {
+							const idleSheet = playerSheets.find(([, v]) => /idle/i.test(v.animName))!;
+							const walkSheet = playerSheets.find(([, v]) => /run|walk/i.test(v.animName));
+							const jumpSheet = playerSheets.find(([, v]) => /jump/i.test(v.animName));
+							// Load only this model's sheets
+							const loads = playerSheets.map(([name, v]) =>
 								`    await engine.assets.loadSpritesheet("${name}", "${v.atlasUrl}", "${v.metadataUrl}").catch(() => null);`
 							).join("\n");
-							spritesheetInjectCode = `\n    // Load custom character spritesheets (auto-injected)\n${loads}\n    engine.assets.setPlayerSprites({ idle: "${idleSheet[0]}", walk: "${walkSheet?.[0] || idleSheet[0]}", jump: "${jumpSheet?.[0] || idleSheet[0]}" });\n`;
-							console.log(`[Chat API] Injected ${completeSheets.length} spritesheet loads into scene template`);
+							spritesheetInjectCode = `\n    // Load ${playerModel} spritesheets (auto-injected)\n${loads}\n    engine.assets.setPlayerSprites({ idle: "${idleSheet[0]}", walk: "${walkSheet?.[0] || idleSheet[0]}", jump: "${jumpSheet?.[0] || idleSheet[0]}" });\n`;
+							console.log(`[Chat API] Injected ${playerSheets.length} spritesheet loads for model '${playerModel}' into scene template`);
 						}
 					}
 				} catch (e) {
@@ -1418,9 +1435,10 @@ These sprites have white backgrounds — set blendMode or use alpha masking if n
 					}
 
 					let promptLines = "";
-					const firstModelAnims: Array<{ name: string; atlasUrl: string; metadataUrl: string }> = [];
+					let firstModelName = "";
+					const firstModelAnims: Array<{ name: string; animName: string; atlasUrl: string; metadataUrl: string }> = [];
 					for (const [model, anims] of byModel) {
-						if (firstModelAnims.length === 0) firstModelAnims.push(...anims);
+						if (firstModelAnims.length === 0) { firstModelName = model; firstModelAnims.push(...anims); }
 						const animList = anims.map(a => a.animName).join(", ");
 						promptLines += `\n### ${model} (${anims.length} animation${anims.length > 1 ? "s" : ""}): ${animList}\n`;
 						for (const a of anims) {
@@ -1430,28 +1448,15 @@ These sprites have white backgrounds — set blendMode or use alpha masking if n
 
 					runtimeAddenda.push(`## Custom Spritesheets (User-Generated from 3D Models)
 
-**IMPORTANT**: The user has created custom character spritesheets. You MUST use these instead of drawPlayerCharacter/drawEnemySlime drawing helpers when the character matches.
+The user has created custom character spritesheets from 3D models. Each MODEL is a separate character — NEVER mix animations from different models.
 ${promptLines}
-**How to replace the player character with custom sprites:**
+**CRITICAL: The scene template already loads spritesheets and calls setPlayerSprites() before features init. The player character is ALREADY using custom sprites. Do NOT call setPlayerSprites again in custom-visuals.ts — it would overwrite the working setup.**
 
-\`\`\`typescript
-// In custom-visuals.ts setup():
-// 1. Load the spritesheets
-${firstModelAnims.map(a => `await engine.assets.loadSpritesheet("${a.name}", "${a.atlasUrl}", "${a.metadataUrl}").catch(() => null);`).join("\n")}
+**If you need to add MORE custom sprite characters (enemies, NPCs), use engine.assets.loadSpritesheet() + engine.assets.animation() for each. Keep all animations for one character from the SAME model.**
 
-// 2. Replace player with ONE call — maps animations + swaps visual automatically
-engine.assets.setPlayerSprites({
-  idle: "${firstModelAnims.find(a => /idle/i.test(a.animName))?.name || firstModelAnims[0]?.name}",
-  walk: "${firstModelAnims.find(a => /run|walk/i.test(a.animName))?.name || firstModelAnims[0]?.name}",
-  jump: "${firstModelAnims.find(a => /jump/i.test(a.animName))?.name || firstModelAnims[0]?.name}",
-});
-\`\`\`
-
-**Key rules:**
-- \`setPlayerSprites()\` handles everything: maps to _sheetCache, replaces player visual, sets idle as default
-- Keys: \`idle\` (standing), \`walk\` (moving), \`jump\` (airborne) — feature switches automatically
-- Use \`.catch(() => null)\` on loadSpritesheet for graceful fallback
-- Do NOT write your own animation update loop — the feature handles it`);
+**Available models and their roles:**
+- **${firstModelName}**: Use as PLAYER character (idle/walk/jump already mapped)
+${byModel.size > 1 ? Array.from(byModel.keys()).filter(m => m !== firstModelName).map(m => `- **${m}**: Available for enemies/NPCs`).join("\n") : ""}`);
 					console.log(`[Chat API] Injected ${complete.length} custom spritesheet(s) for ${byModel.size} model(s) into prompt`);
 				}
 			} catch (e) {
