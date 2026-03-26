@@ -67,7 +67,8 @@ export class SpritesheetCapture {
 	private frameHeight = 128;
 	private _cameraDirection: { x: number; y: number; z: number } | null = null;
 	private _heightAxis: "y" | "z" = "y"; // Detected once on model load
-	// _lockedCameraState removed — each animation fits its own camera to its max bounding box
+	// Shared frustum — when set, ALL animations use the same camera framing for consistent size
+	private _sharedFrustum: { left: number; right: number; top: number; bottom: number } | null = null;
 
 	async init(width = 128, height = 128): Promise<void> {
 		this.frameWidth = width;
@@ -386,32 +387,16 @@ export class SpritesheetCapture {
 		};
 
 		// =====================================================================
-		// PASS 1: Pixel-based scan — render each frame with a generous frustum
-		// and measure actual visible content bounds via readPixels.
-		//
-		// Box3.setFromObject() only captures the bind-pose mesh bbox — it does
-		// NOT see skinning deformation (extended limbs, kicks, spins, jumps).
-		// Pixel scanning captures exactly what's rendered, regardless of how
-		// the animation produces the motion.
+		// PASS 1: Set up camera frustum.
+		// If a shared frustum was precomputed (via precomputeSharedFrustum),
+		// use it directly — this ensures consistent character size across all
+		// animations. Otherwise, do a per-animation pixel scan.
 		// =====================================================================
 		const heightAxis = this._heightAxis;
 		const distance = 5;
 		const upVec = new THREE.Vector3(0, heightAxis === "z" ? 0 : 1, heightAxis === "z" ? 1 : 0);
 
-		// Generous scan frustum — 5x the bind-pose extent, minimum ±10 units
-		captureModel.updateMatrixWorld(true);
-		const bindBox = new THREE.Box3().setFromObject(captureModel);
-		const bindSize = bindBox.getSize(new THREE.Vector3());
-		const bindMax = Math.max(bindSize.x, bindSize.y, bindSize.z);
-		const scanSize = Math.max(bindMax * 5, 10);
-
-		this.camera.left = -scanSize;
-		this.camera.right = scanSize;
-		this.camera.top = scanSize;
-		this.camera.bottom = -scanSize;
-		this.camera.updateProjectionMatrix();
-
-		// Position camera for scan (centered on origin where bind pose is)
+		// Position camera
 		let camPos: any;
 		if (this._cameraDirection) {
 			const dir = this._cameraDirection;
@@ -425,65 +410,81 @@ export class SpritesheetCapture {
 		this.camera.up.copy(upVec);
 		this.camera.lookAt(0, 0, 0);
 
-		// Scan all frames to find pixel-space content bounds
-		const w = this.frameWidth;
-		const h = this.frameHeight;
-		let minPxX = w, maxPxX = 0, minPxY = h, maxPxY = 0;
-		const gl = this.renderer.getContext();
-		const pixels = new Uint8Array(w * h * 4);
+		if (this._sharedFrustum) {
+			// Use precomputed shared frustum — consistent size across all animations
+			this.camera.left = this._sharedFrustum.left;
+			this.camera.right = this._sharedFrustum.right;
+			this.camera.bottom = this._sharedFrustum.bottom;
+			this.camera.top = this._sharedFrustum.top;
+			this.camera.updateProjectionMatrix();
+			if (onProgress) onProgress(0.4);
+		} else {
+			// Per-animation pixel scan (fallback when no shared frustum)
+			captureModel.updateMatrixWorld(true);
+			const bindBox = new THREE.Box3().setFromObject(captureModel);
+			const bindSize = bindBox.getSize(new THREE.Vector3());
+			const bindMax = Math.max(bindSize.x, bindSize.y, bindSize.z);
+			const scanSize = Math.max(bindMax * 5, 10);
 
-		for (let i = 0; i < frames; i++) {
-			const targetTime = (clipDuration * i) / frames;
-			const scanLoaded = await this.reloadModelFresh(loaded);
-			const scanClip = scanLoaded.animations.find((c: any) => c.name === clipName)
-				|| scanLoaded.animations[0];
-			this.setModel(scanLoaded.model);
-			const { mixer, action } = advanceToTime(scanLoaded.model, scanClip, targetTime);
+			this.camera.left = -scanSize;
+			this.camera.right = scanSize;
+			this.camera.top = scanSize;
+			this.camera.bottom = -scanSize;
+			this.camera.updateProjectionMatrix();
 
-			await new Promise<void>(r => requestAnimationFrame(() => r()));
-			this.renderer.render(this.scene, this.camera);
-			gl.readPixels(0, 0, w, h, gl.RGBA, gl.UNSIGNED_BYTE, pixels);
+			const w = this.frameWidth, h = this.frameHeight;
+			let minPxX = w, maxPxX = 0, minPxY = h, maxPxY = 0;
+			const gl = this.renderer.getContext();
+			const pixels = new Uint8Array(w * h * 4);
 
-			// Find content bounds (WebGL: row 0 = bottom of image)
-			for (let py = 0; py < h; py++) {
-				for (let px = 0; px < w; px++) {
-					if (pixels[(py * w + px) * 4 + 3] > 0) {
-						if (px < minPxX) minPxX = px;
-						if (px > maxPxX) maxPxX = px;
-						if (py < minPxY) minPxY = py;
-						if (py > maxPxY) maxPxY = py;
+			for (let i = 0; i < frames; i++) {
+				const targetTime = (clipDuration * i) / frames;
+				const scanLoaded = await this.reloadModelFresh(loaded);
+				const scanClip = scanLoaded.animations.find((c: any) => c.name === clipName)
+					|| scanLoaded.animations[0];
+				this.setModel(scanLoaded.model);
+				const { mixer, action } = advanceToTime(scanLoaded.model, scanClip, targetTime);
+
+				await new Promise<void>(r => requestAnimationFrame(() => r()));
+				this.renderer.render(this.scene, this.camera);
+				gl.readPixels(0, 0, w, h, gl.RGBA, gl.UNSIGNED_BYTE, pixels);
+
+				for (let py = 0; py < h; py++) {
+					for (let px = 0; px < w; px++) {
+						if (pixels[(py * w + px) * 4 + 3] > 0) {
+							if (px < minPxX) minPxX = px;
+							if (px > maxPxX) maxPxX = px;
+							if (py < minPxY) minPxY = py;
+							if (py > maxPxY) maxPxY = py;
+						}
 					}
 				}
+
+				action.stop(); mixer.stopAllAction();
+				this.scene.remove(scanLoaded.model);
+				if (onProgress) onProgress(((i + 1) / frames) * 0.4);
 			}
 
-			action.stop();
-			mixer.stopAllAction();
-			this.scene.remove(scanLoaded.model);
-			if (onProgress) onProgress(((i + 1) / frames) * 0.4); // scan = 40% of progress
+			if (maxPxX >= minPxX && maxPxY >= minPxY) {
+				const pxToWorld = (scanSize * 2) / w;
+				const contentLeft = -scanSize + minPxX * pxToWorld;
+				const contentRight = -scanSize + (maxPxX + 1) * pxToWorld;
+				const contentBottom = -scanSize + minPxY * pxToWorld;
+				const contentTop = -scanSize + (maxPxY + 1) * pxToWorld;
+
+				const cX = (contentLeft + contentRight) / 2;
+				const cY = (contentBottom + contentTop) / 2;
+				const eX = (contentRight - contentLeft) / 2;
+				const eY = (contentTop - contentBottom) / 2;
+				const halfExtent = Math.max(eX, eY, 0.5) * 1.15;
+
+				this.camera.left = cX - halfExtent;
+				this.camera.right = cX + halfExtent;
+				this.camera.bottom = cY - halfExtent;
+				this.camera.top = cY + halfExtent;
+				this.camera.updateProjectionMatrix();
+			}
 		}
-
-		// Convert pixel bounds to camera frustum and set tight fit
-		if (maxPxX >= minPxX && maxPxY >= minPxY) {
-			const pxToWorld = (scanSize * 2) / w;
-			const contentLeft = -scanSize + minPxX * pxToWorld;
-			const contentRight = -scanSize + (maxPxX + 1) * pxToWorld;
-			const contentBottom = -scanSize + minPxY * pxToWorld;
-			const contentTop = -scanSize + (maxPxY + 1) * pxToWorld;
-
-			// Center a square frustum on the content with padding
-			const cX = (contentLeft + contentRight) / 2;
-			const cY = (contentBottom + contentTop) / 2;
-			const eX = (contentRight - contentLeft) / 2;
-			const eY = (contentTop - contentBottom) / 2;
-			const halfExtent = Math.max(eX, eY, 0.5) * 1.15;
-
-			this.camera.left = cX - halfExtent;
-			this.camera.right = cX + halfExtent;
-			this.camera.bottom = cY - halfExtent;
-			this.camera.top = cY + halfExtent;
-			this.camera.updateProjectionMatrix();
-		}
-		// Camera position/lookAt stay the same — only the frustum narrows
 
 		// =====================================================================
 		// PASS 2: Render each frame — reload model fresh per frame to prevent
@@ -663,6 +664,130 @@ export class SpritesheetCapture {
 		// Among the two widest, higher head color variance = front (face detail > back of head)
 		const front = measured[0].headVariance >= measured[1].headVariance ? measured[0] : measured[1];
 		return { x: front.dir[0], y: front.dir[1], z: front.dir[2] };
+	}
+
+	/** Pre-scan ALL animations to compute a single shared frustum.
+	 *  This ensures consistent character size across all generated spritesheets. */
+	async precomputeSharedFrustum(
+		loaded: LoadedModel,
+		clipNames: string[],
+		framesPerClip: number,
+		onProgress?: (pct: number) => void,
+	): Promise<void> {
+		this._sharedFrustum = null; // Reset
+		await this.init(this.frameWidth, this.frameHeight);
+		const THREE = this.THREE;
+		const heightAxis = this._heightAxis;
+
+		// Set up generous scan frustum
+		const captureModel = (await this.reloadModelFresh(loaded)).model;
+		captureModel.updateMatrixWorld(true);
+		const bindBox = new THREE.Box3().setFromObject(captureModel);
+		const bindSize = bindBox.getSize(new THREE.Vector3());
+		const bindMax = Math.max(bindSize.x, bindSize.y, bindSize.z);
+		const scanSize = Math.max(bindMax * 5, 10);
+
+		this.camera.left = -scanSize;
+		this.camera.right = scanSize;
+		this.camera.top = scanSize;
+		this.camera.bottom = -scanSize;
+		this.camera.updateProjectionMatrix();
+
+		const distance = 5;
+		const upVec = new THREE.Vector3(0, heightAxis === "z" ? 0 : 1, heightAxis === "z" ? 1 : 0);
+		let camPos: any;
+		if (this._cameraDirection) {
+			const dir = this._cameraDirection;
+			camPos = new THREE.Vector3(dir.x * distance, dir.y * distance, dir.z * distance);
+		} else if (heightAxis === "z") {
+			camPos = new THREE.Vector3(0, -distance, 0);
+		} else {
+			camPos = new THREE.Vector3(0, 0, -distance);
+		}
+		this.camera.position.copy(camPos);
+		this.camera.up.copy(upVec);
+		this.camera.lookAt(0, 0, 0);
+
+		const w = this.frameWidth, h = this.frameHeight;
+		let minPxX = w, maxPxX = 0, minPxY = h, maxPxY = 0;
+		const gl = this.renderer.getContext();
+		const pixels = new Uint8Array(w * h * 4);
+		const step = 1 / 60;
+		const totalFrames = clipNames.length * framesPerClip;
+		let frameIdx = 0;
+
+		for (const clipName of clipNames) {
+			const freshLoaded = await this.reloadModelFresh(loaded);
+			const clip = freshLoaded.animations.find((c: any) => c.name === clipName) || freshLoaded.animations[0];
+			if (!clip) continue;
+			const clipDuration = clip.duration;
+
+			for (let i = 0; i < framesPerClip; i++) {
+				const targetTime = (clipDuration * i) / framesPerClip;
+				const scanLoaded = await this.reloadModelFresh(loaded);
+				const scanClip = scanLoaded.animations.find((c: any) => c.name === clipName) || scanLoaded.animations[0];
+				this.setModel(scanLoaded.model);
+
+				// Advance animation
+				scanLoaded.model.traverse((child: any) => {
+					if (child.isSkinnedMesh && child.skeleton) child.skeleton.pose();
+				});
+				const m = new THREE.AnimationMixer(scanLoaded.model);
+				const a = m.clipAction(scanClip);
+				a.play();
+				let t = 0;
+				while (t < targetTime) { const dt = Math.min(step, targetTime - t); m.update(dt); t += dt; }
+				if (targetTime === 0) m.update(0.001);
+				scanLoaded.model.updateMatrixWorld(true);
+
+				await new Promise<void>(r => requestAnimationFrame(() => r()));
+				this.renderer.render(this.scene, this.camera);
+				gl.readPixels(0, 0, w, h, gl.RGBA, gl.UNSIGNED_BYTE, pixels);
+
+				for (let py = 0; py < h; py++) {
+					for (let px = 0; px < w; px++) {
+						if (pixels[(py * w + px) * 4 + 3] > 0) {
+							if (px < minPxX) minPxX = px;
+							if (px > maxPxX) maxPxX = px;
+							if (py < minPxY) minPxY = py;
+							if (py > maxPxY) maxPxY = py;
+						}
+					}
+				}
+
+				a.stop(); m.stopAllAction();
+				this.scene.remove(scanLoaded.model);
+				frameIdx++;
+				if (onProgress) onProgress(frameIdx / totalFrames);
+			}
+		}
+
+		// Convert pixel bounds to frustum
+		if (maxPxX >= minPxX && maxPxY >= minPxY) {
+			const pxToWorld = (scanSize * 2) / w;
+			const contentLeft = -scanSize + minPxX * pxToWorld;
+			const contentRight = -scanSize + (maxPxX + 1) * pxToWorld;
+			const contentBottom = -scanSize + minPxY * pxToWorld;
+			const contentTop = -scanSize + (maxPxY + 1) * pxToWorld;
+
+			const cX = (contentLeft + contentRight) / 2;
+			const cY = (contentBottom + contentTop) / 2;
+			const eX = (contentRight - contentLeft) / 2;
+			const eY = (contentTop - contentBottom) / 2;
+			const halfExtent = Math.max(eX, eY, 0.5) * 1.15;
+
+			this._sharedFrustum = {
+				left: cX - halfExtent,
+				right: cX + halfExtent,
+				bottom: cY - halfExtent,
+				top: cY + halfExtent,
+			};
+		}
+	}
+
+	/** Clear the shared frustum so each animation computes its own. */
+	clearSharedFrustum(): void {
+		this._sharedFrustum = null;
 	}
 
 	getThree(): any {

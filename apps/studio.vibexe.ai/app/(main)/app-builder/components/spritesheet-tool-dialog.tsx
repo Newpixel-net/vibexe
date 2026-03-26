@@ -495,8 +495,13 @@ export function SpritesheetToolDialog({ appId, open, onOpenChange, onGenerated }
 			const newResults: StoredSpritesheet[] = [];
 
 			if (animNames.length > 0 && selectedAnims.size > 0) {
-				// Per-animation capture: one sheet per animation
+				// Pre-scan ALL selected animations to compute a unified frustum.
+				// This ensures the character is the SAME SIZE in every spritesheet.
 				const anims = [...selectedAnims];
+				await capture.precomputeSharedFrustum(loadedModel, anims, frameCount, (pct) => {
+					setProgress(pct * 0.2); // shared scan = first 20%
+				});
+
 				for (let i = 0; i < anims.length; i++) {
 					if (abortRef.current) break;
 					const originalName = anims[i];
@@ -511,7 +516,7 @@ export function SpritesheetToolDialog({ appId, open, onOpenChange, onGenerated }
 					}, (pct) => {
 						const base = i / anims.length;
 						const slice = 1 / anims.length;
-						setProgress((base + pct * slice) * 0.6);
+						setProgress(0.2 + (base + pct * slice) * 0.4); // 20-60% range
 					});
 
 					// Pack into its own atlas
@@ -540,11 +545,13 @@ export function SpritesheetToolDialog({ appId, open, onOpenChange, onGenerated }
 				newResults.push(stored);
 			}
 
+			capture.clearSharedFrustum();
 			setResults(newResults);
 			setProgress(1);
 			setPhase("done");
 			if (onGenerated && newResults.length > 0) onGenerated(newResults[0]);
 		} catch (err: any) {
+			getCaptureInstance().clearSharedFrustum();
 			setPhase("error");
 			setErrorMsg(err?.message || "Generation failed");
 		}
