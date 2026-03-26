@@ -631,10 +631,10 @@ export class SpritesheetCapture {
 			gl.readPixels(0, 0, w, h, gl.RGBA, gl.UNSIGNED_BYTE, px);
 
 			let minX = w, maxX = 0;
-			// Count unique colors in head area (top 20%).
-			// Faces have many distinct colors (skin, eyes, lips, hair, teeth)
-			// while backs have fewer (uniform armor, leather, cloth).
-			const topY = Math.floor(h * 0.80); // WebGL: higher row = top of image
+			// Count unique colors in HEAD ONLY (top 10% of content).
+			// Must be restricted to just the head — armor on chest/back is deceptive.
+			// Face has eyes, nose, mouth, beard, skin tones. Back of head is uniform.
+			const topY = Math.floor(h * 0.90); // WebGL: higher row = top of image
 			const colorSet = new Set<number>();
 			for (let py = 0; py < h; py++) {
 				for (let p = 0; p < w; p++) {
