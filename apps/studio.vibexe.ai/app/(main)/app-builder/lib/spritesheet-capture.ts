@@ -633,25 +633,33 @@ export class SpritesheetCapture {
 			this.renderer.render(this.scene, this.camera);
 			gl.readPixels(0, 0, w, h, gl.RGBA, gl.UNSIGNED_BYTE, px);
 
-			let minX = w, maxX = 0;
-			// Count unique colors in HEAD ONLY (top 10% of content).
-			// Must be restricted to just the head — armor on chest/back is deceptive.
-			// Face has eyes, nose, mouth, beard, skin tones. Back of head is uniform.
-			const topY = Math.floor(h * 0.90); // WebGL: higher row = top of image
-			const colorSet = new Set<number>();
+			// Pass 1: find actual content bounds (model may be small in the frame)
+			let minX = w, maxX = 0, minY = h, maxY = 0;
 			for (let py = 0; py < h; py++) {
 				for (let p = 0; p < w; p++) {
 					const idx = (py * w + p) * 4;
 					if (px[idx + 3] > 10) {
 						if (p < minX) minX = p;
 						if (p > maxX) maxX = p;
-						if (py >= topY) {
-							// Quantize to 5-bit per channel to reduce noise
-							const r = px[idx] >> 3;
-							const g = px[idx + 1] >> 3;
-							const b = px[idx + 2] >> 3;
-							colorSet.add((r << 10) | (g << 5) | b);
-						}
+						if (py < minY) minY = py;
+						if (py > maxY) maxY = py;
+					}
+				}
+			}
+
+			// Pass 2: count unique colors in top 15% of CONTENT (the actual head region)
+			const contentHeight = maxY - minY;
+			const headStart = Math.floor(maxY - contentHeight * 0.15); // top 15% of content
+			const colorSet = new Set<number>();
+			for (let py = headStart; py <= maxY; py++) {
+				for (let p = minX; p <= maxX; p++) {
+					const idx = (py * w + p) * 4;
+					if (px[idx + 3] > 10) {
+						// Quantize to 5-bit per channel to reduce noise
+						const r = px[idx] >> 3;
+						const g = px[idx + 1] >> 3;
+						const b = px[idx + 2] >> 3;
+						colorSet.add((r << 10) | (g << 5) | b);
 					}
 				}
 			}
