@@ -1039,7 +1039,9 @@ const supabase = createClient("${supabaseConfig.url}", "${supabaseConfig.anonKey
 
 			// 2D games: auto-compose Feature Bank scaffold so preview works during plan phase
 			// AND so the build phase starts with working gameplay features already in place
-			if (isGame2d && !existingPaths.has("src/scenes/GameScene2D.ts")) {
+			// Also recreate if custom spritesheets need injection (template includes loadSpritesheet calls)
+			const needsSceneRefresh = spritesheetInjectCode.length > 0;
+			if (isGame2d && (!existingPaths.has("src/scenes/GameScene2D.ts") || needsSceneRefresh)) {
 				const theme = game2dBrief?.theme || "forest";
 				const wW = game2dBrief?.worldWidth || 4000;
 				const wH = game2dBrief?.worldHeight || 900;
