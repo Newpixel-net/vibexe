@@ -22,6 +22,7 @@ import {
 	Grid3X3,
 	Link2,
 	Loader2,
+	Pencil,
 	Play,
 	Upload,
 } from "lucide-react";
@@ -107,6 +108,8 @@ export function SpritesheetToolDialog({ appId, open, onOpenChange, onGenerated }
 	const [loadedModel, setLoadedModel] = useState<LoadedModel | null>(null);
 	const [animNames, setAnimNames] = useState<string[]>([]);
 	const [results, setResults] = useState<StoredSpritesheet[]>([]);
+	const [animRenames, setAnimRenames] = useState<Record<string, string>>({});
+	const [editingAnim, setEditingAnim] = useState<string | null>(null);
 
 	// View controls
 	const [activeView, setActiveView] = useState<string>("front");
@@ -373,6 +376,8 @@ export function SpritesheetToolDialog({ appId, open, onOpenChange, onGenerated }
 		setErrorMsg("");
 		setLoadedModel(null);
 		setAnimNames([]);
+		setAnimRenames({});
+		setEditingAnim(null);
 		setResults([]);
 
 		try {
@@ -469,14 +474,15 @@ export function SpritesheetToolDialog({ appId, open, onOpenChange, onGenerated }
 				const anims = [...selectedAnims];
 				for (let i = 0; i < anims.length; i++) {
 					if (abortRef.current) break;
-					const animName = anims[i];
+					const originalName = anims[i];
+					const outputName = animRenames[originalName] || originalName;
 
-					// Capture frames for this animation
+					// Capture frames — clipName is the original GLB clip name, prefix uses the (possibly renamed) output name
 					setPhase("capturing");
 					const frames = await capture.captureAnimation(loadedModel, {
 						frames: frameCount,
-						clipName: animName,
-						prefix: animName,
+						clipName: originalName,
+						prefix: outputName,
 					}, (pct) => {
 						const base = i / anims.length;
 						const slice = 1 / anims.length;
@@ -487,9 +493,9 @@ export function SpritesheetToolDialog({ appId, open, onOpenChange, onGenerated }
 					setPhase("packing");
 					const packed = await packFrames(frames, { imageName: "sheet.png" });
 
-					// Upload
+					// Upload — use the renamed output name for storage path
 					setPhase("uploading");
-					const stored = await uploadSpritesheet(appId, spriteName, animName, packed.atlasBlob, packed.metadata);
+					const stored = await uploadSpritesheet(appId, spriteName, outputName, packed.atlasBlob, packed.metadata);
 					newResults.push(stored);
 					setProgress((i + 1) / anims.length);
 				}
@@ -517,7 +523,7 @@ export function SpritesheetToolDialog({ appId, open, onOpenChange, onGenerated }
 			setPhase("error");
 			setErrorMsg(err?.message || "Generation failed");
 		}
-	}, [loadedModel, frameSize, frameCount, rotationAxis, selectedAnims, animNames, appId, spriteName, onGenerated]);
+	}, [loadedModel, frameSize, frameCount, rotationAxis, selectedAnims, animRenames, animNames, appId, spriteName, onGenerated]);
 
 	// ---------------------------------------------------------------------------
 	// Render
@@ -771,28 +777,78 @@ export function SpritesheetToolDialog({ appId, open, onOpenChange, onGenerated }
 								<div>
 									<label className="text-[10px] uppercase tracking-wider text-white/30 block mb-1">
 										Animations ({selectedAnims.size}/{animNames.length})
+										<span className="normal-case tracking-normal ml-1 text-white/20">— double-click to rename</span>
 									</label>
 									<div className="flex flex-wrap gap-1 max-h-[120px] overflow-y-auto">
-										{animNames.map((name) => (
-											<button
-												key={name}
-												onClick={() => {
-													setSelectedAnims((prev) => {
-														const next = new Set(prev);
-														if (next.has(name)) next.delete(name);
-														else next.add(name);
-														return next;
-													});
-												}}
-												className={`px-2 py-1 rounded text-xs transition-colors ${
-													selectedAnims.has(name)
-														? "bg-emerald-500/20 text-emerald-400"
-														: "text-white/30 bg-white/[0.03]"
-												}`}
-											>
-												{selectedAnims.has(name) ? "✓ " : ""}{name}
-											</button>
-										))}
+										{animNames.map((name) => {
+											const displayName = animRenames[name] || name;
+											const isEditing = editingAnim === name;
+
+											if (isEditing) {
+												return (
+													<form
+														key={name}
+														className="flex items-center gap-1"
+														onSubmit={(e) => {
+															e.preventDefault();
+															setEditingAnim(null);
+														}}
+													>
+														<input
+															autoFocus
+															defaultValue={displayName}
+															className="w-24 px-2 py-1 rounded text-xs bg-blue-500/10 border border-blue-500/40 text-white/90 focus:outline-none"
+															onBlur={(e) => {
+																const val = e.target.value.trim();
+																if (val && val !== name) {
+																	setAnimRenames((prev) => ({ ...prev, [name]: val }));
+																} else if (!val || val === name) {
+																	setAnimRenames((prev) => {
+																		const next = { ...prev };
+																		delete next[name];
+																		return next;
+																	});
+																}
+																setEditingAnim(null);
+															}}
+															onKeyDown={(e) => {
+																if (e.key === "Escape") setEditingAnim(null);
+															}}
+														/>
+													</form>
+												);
+											}
+
+											return (
+												<button
+													key={name}
+													onClick={() => {
+														setSelectedAnims((prev) => {
+															const next = new Set(prev);
+															if (next.has(name)) next.delete(name);
+															else next.add(name);
+															return next;
+														});
+													}}
+													onDoubleClick={(e) => {
+														e.preventDefault();
+														setEditingAnim(name);
+													}}
+													className={`group flex items-center gap-1 px-2 py-1 rounded text-xs transition-colors ${
+														selectedAnims.has(name)
+															? "bg-emerald-500/20 text-emerald-400"
+															: "text-white/30 bg-white/[0.03]"
+													}`}
+												>
+													{selectedAnims.has(name) ? "✓ " : ""}
+													{displayName}
+													{animRenames[name] && (
+														<span className="text-[9px] text-white/15">({name})</span>
+													)}
+													<Pencil className="size-2.5 opacity-0 group-hover:opacity-40 transition-opacity flex-shrink-0" />
+												</button>
+											);
+										})}
 									</div>
 								</div>
 							)}
