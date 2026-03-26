@@ -70,6 +70,7 @@ export class SpritesheetCapture {
 	// Shared frustum — when set, ALL animations use the same camera framing for consistent size
 	private _sharedFrustum: { left: number; right: number; top: number; bottom: number } | null = null;
 	private _previewTarget: { x: number; y: number; z: number } | null = null;
+	private _zoomFactor: number = 1.0; // 1.0 = auto, <1 = zoom in (larger character), >1 = zoom out
 
 	async init(width = 128, height = 128): Promise<void> {
 		this.frameWidth = width;
@@ -479,8 +480,8 @@ export class SpritesheetCapture {
 				const eX = (contentRight - contentLeft) / 2;
 				const eY = (contentTop - contentBottom) / 2;
 				const pad = 1.03;
-				const halfW = Math.max(eX, 0.1) * pad;
-				const halfH = Math.max(eY, 0.1) * pad;
+				const halfW = Math.max(eX, 0.1) * pad * this._zoomFactor;
+				const halfH = Math.max(eY, 0.1) * pad * this._zoomFactor;
 
 				this.camera.left = cX - halfW;
 				this.camera.right = cX + halfW;
@@ -821,8 +822,8 @@ export class SpritesheetCapture {
 			const eX = (contentRight - contentLeft) / 2;
 			const eY = (contentTop - contentBottom) / 2;
 			const pad = 1.03;
-			const halfW = Math.max(eX, 0.1) * pad;
-			const halfH = Math.max(eY, 0.1) * pad;
+			const halfW = Math.max(eX, 0.1) * pad * this._zoomFactor;
+			const halfH = Math.max(eY, 0.1) * pad * this._zoomFactor;
 
 			this._sharedFrustum = {
 				left: cX - halfW,
@@ -853,6 +854,12 @@ export class SpritesheetCapture {
 	 *  Called from dialog to sync preview camera angle to capture. */
 	setCameraDirection(dir: { x: number; y: number; z: number }): void {
 		this._cameraDirection = dir;
+	}
+
+	/** Set zoom factor for capture frustum. <1 = zoom in (larger character), >1 = zoom out.
+	 *  Applied as a multiplier on the computed frustum half-extents. */
+	setZoomFactor(factor: number): void {
+		this._zoomFactor = Math.max(0.1, Math.min(factor, 5.0));
 	}
 
 	setCameraPosition(x: number, y: number, z: number): void {

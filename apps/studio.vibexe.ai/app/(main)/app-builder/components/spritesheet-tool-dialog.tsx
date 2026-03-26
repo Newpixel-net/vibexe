@@ -119,6 +119,10 @@ export function SpritesheetToolDialog({ appId, open, onOpenChange, onGenerated }
 
 	// Animation preview
 	const [previewingAnim, setPreviewingAnim] = useState<string | null>(null);
+	// Cache-busting counter for result images
+	const [generationId, setGenerationId] = useState(0);
+	// Capture zoom: 1.0 = auto fit, <1 = zoom in (larger character)
+	const [captureZoom, setCaptureZoom] = useState(0.85);
 
 	// Refs — interactive 3D preview
 	const previewContainerRef = useRef<HTMLDivElement>(null);
@@ -521,12 +525,13 @@ export function SpritesheetToolDialog({ appId, open, onOpenChange, onGenerated }
 		setProgress(0);
 		setResults([]);
 		abortRef.current = false;
+		setGenerationId(prev => prev + 1);
 
 		try {
 			const capture = getCaptureInstance();
 			await capture.init(frameSize, frameSize);
 
-			// Sync preview camera direction — shared frustum handles sizing.
+			// Sync preview camera direction and zoom factor
 			if (previewCameraRef.current && orbitControlsRef.current) {
 				const THREE = capture.getThree();
 				const dir = new THREE.Vector3()
@@ -534,6 +539,7 @@ export function SpritesheetToolDialog({ appId, open, onOpenChange, onGenerated }
 					.normalize();
 				capture.setCameraDirection({ x: dir.x, y: dir.y, z: dir.z });
 			}
+			capture.setZoomFactor(captureZoom);
 
 			const newResults: StoredSpritesheet[] = [];
 
@@ -600,7 +606,7 @@ export function SpritesheetToolDialog({ appId, open, onOpenChange, onGenerated }
 			setPhase("error");
 			setErrorMsg(err?.message || "Generation failed");
 		}
-	}, [loadedModel, frameSize, frameCount, rotationAxis, selectedAnims, animRenames, animNames, appId, spriteName, onGenerated]);
+	}, [loadedModel, frameSize, frameCount, rotationAxis, selectedAnims, animRenames, animNames, appId, spriteName, onGenerated, captureZoom]);
 
 	// ---------------------------------------------------------------------------
 	// Render
@@ -635,7 +641,7 @@ export function SpritesheetToolDialog({ appId, open, onOpenChange, onGenerated }
 								{results.map((r) => (
 									<div key={r.name} className="flex flex-col items-center gap-1">
 										<img
-											src={`${r.atlasUrl}${r.atlasUrl.includes('?') ? '&' : '?'}_cb=${phase}`}
+											src={`${r.atlasUrl}${r.atlasUrl.includes('?') ? '&' : '?'}_cb=${generationId}`}
 											alt={`${r.name} atlas`}
 											className="max-w-full max-h-[120px] object-contain rounded border border-white/[0.08]"
 											style={{ imageRendering: "pixelated" }}
@@ -829,6 +835,29 @@ export function SpritesheetToolDialog({ appId, open, onOpenChange, onGenerated }
 									))}
 								</div>
 							</div>
+
+							{/* Capture Zoom — controls character size in output */}
+							{loadedModel && (
+								<div>
+									<label className="text-[10px] uppercase tracking-wider text-white/30 block mb-1">
+										Character Scale — {Math.round((1 / captureZoom) * 100)}%
+									</label>
+									<input
+										type="range"
+										min="0.4"
+										max="1.5"
+										step="0.05"
+										value={captureZoom}
+										onChange={(e) => setCaptureZoom(parseFloat(e.target.value))}
+										className="w-full h-1.5 rounded-full appearance-none cursor-pointer bg-white/[0.06] accent-blue-500"
+									/>
+									<div className="flex justify-between text-[9px] text-white/20 mt-0.5">
+										<span>Large</span>
+										<span>Auto</span>
+										<span>Small</span>
+									</div>
+								</div>
+							)}
 
 							{/* Rotation Axis (only when no animations) */}
 							{animNames.length === 0 && (
