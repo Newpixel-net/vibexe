@@ -588,6 +588,74 @@ export class SpritesheetCapture {
 		return loaded.animations.map((c: any, i: number) => c.name || `animation_${i}`);
 	}
 
+	/** Detect which direction the model faces by rendering from 4 cardinal
+	 *  directions and comparing silhouette widths.
+	 *  Returns the camera direction vector for the "front" view (from model to camera). */
+	async detectModelFront(loaded: LoadedModel): Promise<{ x: number; y: number; z: number }> {
+		await this.init(this.frameWidth, this.frameHeight);
+		const THREE = this.THREE;
+		const heightAxis = this._heightAxis;
+
+		// 4 candidate camera directions perpendicular to height axis
+		const dirs = heightAxis === "z"
+			? [[0, -1, 0], [0, 1, 0], [1, 0, 0], [-1, 0, 0]]
+			: [[0, 0, -1], [0, 0, 1], [1, 0, 0], [-1, 0, 0]];
+
+		const model = loaded.model;
+		model.updateMatrixWorld(true);
+		const box = new THREE.Box3().setFromObject(model);
+		const center = box.getCenter(new THREE.Vector3());
+		const size = box.getSize(new THREE.Vector3());
+		const half = Math.max(size.x, size.y, size.z) * 1.5;
+
+		this.camera.left = -half;
+		this.camera.right = half;
+		this.camera.top = half;
+		this.camera.bottom = -half;
+		this.camera.updateProjectionMatrix();
+
+		const up = new THREE.Vector3(0, heightAxis === "z" ? 0 : 1, heightAxis === "z" ? 1 : 0);
+		this.setModel(model);
+
+		const w = this.frameWidth, h = this.frameHeight;
+		const gl = this.renderer.getContext();
+		const px = new Uint8Array(w * h * 4);
+		const measured: { dir: number[]; width: number; upperRatio: number }[] = [];
+
+		for (const dir of dirs) {
+			this.camera.position.set(center.x + dir[0] * 5, center.y + dir[1] * 5, center.z + dir[2] * 5);
+			this.camera.up.copy(up);
+			this.camera.lookAt(center.x, center.y, center.z);
+			this.renderer.render(this.scene, this.camera);
+			gl.readPixels(0, 0, w, h, gl.RGBA, gl.UNSIGNED_BYTE, px);
+
+			let minX = w, maxX = 0, upper = 0, total = 0;
+			for (let py = 0; py < h; py++) {
+				for (let p = 0; p < w; p++) {
+					if (px[(py * w + p) * 4 + 3] > 10) {
+						if (p < minX) minX = p;
+						if (p > maxX) maxX = p;
+						total++;
+						if (py > h / 2) upper++;
+					}
+				}
+			}
+			measured.push({
+				dir,
+				width: maxX > minX ? maxX - minX + 1 : 0,
+				upperRatio: total > 0 ? upper / total : 0,
+			});
+		}
+
+		this.scene.remove(model);
+
+		// Widest silhouette = front or back (shoulder width > body depth)
+		measured.sort((a, b) => b.width - a.width);
+		// Among the two widest, more upper-half pixels = front (face/head detail)
+		const front = measured[0].upperRatio >= measured[1].upperRatio ? measured[0] : measured[1];
+		return { x: front.dir[0], y: front.dir[1], z: front.dir[2] };
+	}
+
 	getThree(): any {
 		return this.THREE;
 	}

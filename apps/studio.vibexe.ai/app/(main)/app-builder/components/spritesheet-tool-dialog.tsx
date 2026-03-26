@@ -114,6 +114,7 @@ export function SpritesheetToolDialog({ appId, open, onOpenChange, onGenerated }
 	// View controls
 	const [activeView, setActiveView] = useState<string>("front");
 	const [modelZUp, setModelZUp] = useState(false);
+	const [modelFrontDir, setModelFrontDir] = useState<{ x: number; y: number; z: number } | null>(null);
 
 	// Refs — interactive 3D preview
 	const previewContainerRef = useRef<HTMLDivElement>(null);
@@ -157,22 +158,30 @@ export function SpritesheetToolDialog({ appId, open, onOpenChange, onGenerated }
 	// View presets — snap camera to axis-aligned positions
 	// ---------------------------------------------------------------------------
 
-	// View presets adapt to model's up axis (Z-up vs Y-up)
-	const VIEW_PRESETS = modelZUp ? [
-		// Z-up model: height along Z, camera along Y for front view
-		{ id: "front", label: "Front", dir: [0, -1, 0] },
-		{ id: "back", label: "Back", dir: [0, 1, 0] },
-		{ id: "right", label: "Right", dir: [1, 0, 0] },
-		{ id: "left", label: "Left", dir: [-1, 0, 0] },
-		{ id: "top", label: "Top", dir: [0, 0, 1] },
-	] : [
-		// Y-up model: standard orientation
-		{ id: "front", label: "Front", dir: [0, 0, -1] },
-		{ id: "back", label: "Back", dir: [0, 0, 1] },
-		{ id: "right", label: "Right", dir: [1, 0, 0] },
-		{ id: "left", label: "Left", dir: [-1, 0, 0] },
-		{ id: "top", label: "Top", dir: [0, 1, 0] },
-	];
+	// View presets — auto-detected from model's facing direction.
+	// "Left"/"Right" labels = character's facing direction on screen, not camera position.
+	const VIEW_PRESETS = (() => {
+		const up: number[] = modelZUp ? [0, 0, 1] : [0, 1, 0];
+		const defaultFront: number[] = modelZUp ? [0, -1, 0] : [0, 0, -1];
+
+		const f = modelFrontDir ? [modelFrontDir.x, modelFrontDir.y, modelFrontDir.z] : defaultFront;
+		// cross(front, up) = character's right side
+		const r = [
+			f[1] * up[2] - f[2] * up[1],
+			f[2] * up[0] - f[0] * up[2],
+			f[0] * up[1] - f[1] * up[0],
+		];
+		const len = Math.sqrt(r[0] * r[0] + r[1] * r[1] + r[2] * r[2]) || 1;
+		r[0] /= len; r[1] /= len; r[2] /= len;
+
+		return [
+			{ id: "front", label: "Front", dir: f },
+			{ id: "back", label: "Back", dir: [-f[0], -f[1], -f[2]] },
+			{ id: "right", label: "Right", dir: [-r[0], -r[1], -r[2]] },
+			{ id: "left", label: "Left", dir: [r[0], r[1], r[2]] },
+			{ id: "top", label: "Top", dir: up },
+		];
+	})();
 
 	const snapToView = useCallback((presetId: string) => {
 		const camera = previewCameraRef.current;
@@ -378,6 +387,7 @@ export function SpritesheetToolDialog({ appId, open, onOpenChange, onGenerated }
 		setAnimNames([]);
 		setAnimRenames({});
 		setEditingAnim(null);
+		setModelFrontDir(null);
 		setResults([]);
 
 		try {
@@ -391,6 +401,10 @@ export function SpritesheetToolDialog({ appId, open, onOpenChange, onGenerated }
 			const mbox = new THREE.Box3().setFromObject(loaded.model);
 			const msz = mbox.getSize(new THREE.Vector3());
 			setModelZUp(msz.z > msz.y);
+
+			// Auto-detect which direction the model faces
+			const frontDir = await capture.detectModelFront(loaded);
+			setModelFrontDir(frontDir);
 
 			const names = capture.getAnimationNames(loaded);
 			setAnimNames(names);
