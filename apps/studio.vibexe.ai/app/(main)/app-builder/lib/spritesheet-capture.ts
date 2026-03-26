@@ -477,12 +477,14 @@ export class SpritesheetCapture {
 				const cY = (contentBottom + contentTop) / 2;
 				const eX = (contentRight - contentLeft) / 2;
 				const eY = (contentTop - contentBottom) / 2;
-				const halfExtent = Math.max(eX, eY, 0.5) * 1.15;
+				const pad = 1.03;
+				const halfW = Math.max(eX, 0.1) * pad;
+				const halfH = Math.max(eY, 0.1) * pad;
 
-				this.camera.left = cX - halfExtent;
-				this.camera.right = cX + halfExtent;
-				this.camera.bottom = cY - halfExtent;
-				this.camera.top = cY + halfExtent;
+				this.camera.left = cX - halfW;
+				this.camera.right = cX + halfW;
+				this.camera.bottom = cY - halfH;
+				this.camera.top = cY + halfH;
 				this.camera.updateProjectionMatrix();
 			}
 		}
@@ -823,15 +825,18 @@ export class SpritesheetCapture {
 			const cY = (contentBottom + contentTop) / 2;
 			const eX = (contentRight - contentLeft) / 2;
 			const eY = (contentTop - contentBottom) / 2;
-			const halfExtent = Math.max(eX, eY, 0.5) * 1.15;
+			// Tight padding (3%) and preserve aspect ratio — no forced square
+			const pad = 1.03;
+			const halfW = Math.max(eX, 0.1) * pad;
+			const halfH = Math.max(eY, 0.1) * pad;
 
-			console.log(`[sharedFrustum] scanSize=${scanSize.toFixed(2)} pxBounds=[${minPxX},${minPxY}]-[${maxPxX},${maxPxY}] of ${w}x${h} contentWorld=[${contentLeft.toFixed(2)},${contentBottom.toFixed(2)}]-[${contentRight.toFixed(2)},${contentTop.toFixed(2)}] halfExtent=${halfExtent.toFixed(3)}`);
+			console.log(`[sharedFrustum] scanSize=${scanSize.toFixed(2)} pxBounds=[${minPxX},${minPxY}]-[${maxPxX},${maxPxY}] of ${w}x${h} contentWorld=[${contentLeft.toFixed(2)},${contentBottom.toFixed(2)}]-[${contentRight.toFixed(2)},${contentTop.toFixed(2)}] halfW=${halfW.toFixed(3)} halfH=${halfH.toFixed(3)}`);
 
 			this._sharedFrustum = {
-				left: cX - halfExtent,
-				right: cX + halfExtent,
-				bottom: cY - halfExtent,
-				top: cY + halfExtent,
+				left: cX - halfW,
+				right: cX + halfW,
+				bottom: cY - halfH,
+				top: cY + halfH,
 			};
 		} else {
 			console.warn(`[sharedFrustum] NO content found! pixel bounds were minPx=[${minPxX},${minPxY}] maxPx=[${maxPxX},${maxPxY}]`);
