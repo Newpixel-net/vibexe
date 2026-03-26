@@ -384,19 +384,25 @@ export class SpritesheetCapture {
 		// Create mixer on the freshly loaded model
 		const mixer = new THREE.AnimationMixer(captureModel);
 		const action = mixer.clipAction(freshClip);
+		action.clampWhenFinished = true;
 		action.play();
 
-		// Advance to first animation pose for camera fitting
-		mixer.update(0.016);
+		// Brief update to exit bind pose, then fit camera
+		mixer.update(0.001);
 		captureModel.updateMatrixWorld(true);
 		this.fitCameraToModel(captureModel, 1.15);
 
 		const result: CapturedFrame[] = [];
-		const timeStep = clip.duration / frames;
+		const clipDuration = freshClip.duration;
+		// Sample evenly across the FULL clip duration
+		// Frame 0 = start, frame N-1 = near end
+		let currentTime = 0.001; // Already advanced by 0.001 above
 
 		for (let i = 0; i < frames; i++) {
-			// Advance animation by timeStep using incremental update
-			mixer.update(i === 0 ? 0.001 : timeStep);
+			const targetTime = (clipDuration * i) / frames;
+			const delta = Math.max(targetTime - currentTime, 0);
+			mixer.update(delta);
+			currentTime = targetTime;
 			captureModel.updateMatrixWorld(true);
 
 			// Yield to browser via requestAnimationFrame before each render.
