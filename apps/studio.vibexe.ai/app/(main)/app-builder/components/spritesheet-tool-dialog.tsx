@@ -800,7 +800,7 @@ export function SpritesheetToolDialog({ appId, open, onOpenChange, onGenerated }
 							<div>
 								<label className="text-[10px] uppercase tracking-wider text-white/30 block mb-1">Frame Size</label>
 								<div className="grid grid-cols-4 gap-1">
-									{[64, 128, 256, 512].map((s) => (
+									{[128, 256, 512, 1024].map((s) => (
 										<button
 											key={s}
 											onClick={() => setFrameSize(s)}
@@ -819,8 +819,8 @@ export function SpritesheetToolDialog({ appId, open, onOpenChange, onGenerated }
 							{/* Frame Count */}
 							<div>
 								<label className="text-[10px] uppercase tracking-wider text-white/30 block mb-1">Frames per Animation</label>
-								<div className="flex gap-1">
-									{[4, 8, 12, 16].map((c) => (
+								<div className="flex flex-wrap gap-1">
+									{[4, 8, 12, 16, 24, 32].map((c) => (
 										<button
 											key={c}
 											onClick={() => setFrameCount(c)}
