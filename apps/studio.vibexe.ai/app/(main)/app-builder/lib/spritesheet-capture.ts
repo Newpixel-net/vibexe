@@ -144,10 +144,11 @@ export class SpritesheetCapture {
 				(gltf: any) => {
 					const animations = gltf.animations || [];
 
-					// SkeletonUtils.clone preserves skeleton bindings for animated models
-					const model = animations.length > 0 && this.SkeletonUtils
-						? this.SkeletonUtils.clone(gltf.scene)
-						: gltf.scene.clone();
+					// Use gltf.scene directly — SkeletonUtils.clone breaks skeleton↔bone
+					// binding (SkinnedMesh.skeleton.bones ≠ scene graph bones), making
+					// animations invisible. Capture code uses reloadModelFresh() for its
+					// own copies, so using the original scene here is safe.
+					const model = gltf.scene;
 
 					// Center model at origin and detect height axis
 					this.centerModel(model);
