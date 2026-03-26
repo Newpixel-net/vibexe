@@ -66,6 +66,7 @@ const STOCK_PACKS: StockPack[] = [
 		id: "meshy-characters", label: "Animated Characters",
 		models: [
 			{ name: "Warrior (Animated)", path: "meshy-characters/Warrior_figure_Animations.glb" },
+			{ name: "Meshy Merged (Animated)", path: "meshy-characters/Meshy_AI_Meshy_Merged_Animations.glb" },
 		],
 	},
 	{
