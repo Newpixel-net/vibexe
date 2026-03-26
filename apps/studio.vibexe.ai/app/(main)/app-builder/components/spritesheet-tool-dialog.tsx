@@ -311,11 +311,13 @@ export function SpritesheetToolDialog({ appId, open, onOpenChange, onGenerated }
 		const bsize = bbox.getSize(new THREE.Vector3());
 		const bcenter = bbox.getCenter(new THREE.Vector3());
 		const isZUp = bsize.z > bsize.y;
-		const modelHeight = isZUp ? bsize.z : bsize.y;
+		// Use the LARGEST visible dimension (height or width) to ensure full model fits
+		const maxVisibleDim = Math.max(bsize.x, isZUp ? bsize.z : bsize.y);
 
-		// Distance to fit full model: d = (halfHeight / tan(halfFOV)) * padding
+		// Distance to fit full model: d = (halfSize / tan(halfFOV)) * padding
+		// Use larger padding (1.8x) to guarantee head/feet visible in any aspect ratio
 		const fovRad = 35 * Math.PI / 180;
-		const camDist = Math.max((modelHeight / 2) / Math.tan(fovRad / 2) * 1.3, 2);
+		const camDist = Math.max((maxVisibleDim / 2) / Math.tan(fovRad / 2) * 1.8, 2);
 
 		// Camera — use detected front direction, or fall back to axis default
 		const camera = new THREE.PerspectiveCamera(35, w / h, 0.1, 100);
