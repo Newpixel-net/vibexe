@@ -321,8 +321,8 @@ export function SpritesheetToolDialog({ appId, open, onOpenChange, onGenerated }
 		const modelHeight = isZUp ? bsize.z : bsize.y;
 		const halfVFov = fovRad / 2;
 		const distForHeight = (modelHeight / 2) / Math.tan(halfVFov);
-		// 1.6x padding = model fills ~63% of frame height (comfortable head-to-toe with margin)
-		const camDist = Math.max(distForHeight * 1.6, 2);
+		// 2.0x padding = model fills ~50% of frame height (guarantees head-to-toe visible)
+		const camDist = Math.max(distForHeight * 2.0, 2);
 
 		// Camera — use detected front direction, or fall back to axis default
 		const camera = new THREE.PerspectiveCamera(fovDeg, aspect, 0.1, 100);
@@ -332,7 +332,7 @@ export function SpritesheetToolDialog({ appId, open, onOpenChange, onGenerated }
 
 		// Shift orbit target slightly above bbox center so model appears
 		// centered visually (head/shoulders have more visual weight than feet).
-		const heightOffset = modelHeight * 0.08; // push target up → model shifts down in frame
+		const heightOffset = modelHeight * 0.15; // push target up → model shifts down in frame
 		const target = bcenter.clone();
 		if (isZUp) target.z += heightOffset; else target.y += heightOffset;
 
