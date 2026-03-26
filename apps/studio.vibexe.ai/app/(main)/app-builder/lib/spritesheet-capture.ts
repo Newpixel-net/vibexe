@@ -593,9 +593,11 @@ export class SpritesheetCapture {
 	 *  directions and comparing silhouette widths.
 	 *  Returns the camera direction vector for the "front" view (from model to camera). */
 	async detectModelFront(loaded: LoadedModel): Promise<{ x: number; y: number; z: number }> {
-		await this.init(this.frameWidth, this.frameHeight);
+		// Use higher resolution (256px) so facial features (eyes, nose, mouth) are
+		// actually resolvable. At 128px the face is a uniform blob and back armor wins.
+		const detectSize = 256;
+		await this.init(detectSize, detectSize);
 		const THREE = this.THREE;
-		const heightAxis = this._heightAxis;
 
 		// 4 candidate camera directions perpendicular to height axis
 		const dirs = heightAxis === "z"
@@ -661,12 +663,21 @@ export class SpritesheetCapture {
 
 		this.scene.remove(model);
 
+		// Restore original frame size for subsequent captures
+		await this.init(this.frameWidth !== detectSize ? this.frameWidth : 128,
+			this.frameHeight !== detectSize ? this.frameHeight : 128);
+
 		// Widest silhouette pair = front/back (shoulder width > body depth)
 		measured.sort((a, b) => b.width - a.width);
 		const top2 = measured.slice(0, 2);
 
+		// Debug: log measurements so we can see what's happening
+		console.log("[detectModelFront]", top2.map(m =>
+			`dir=[${m.dir}] width=${m.width} colors=${m.uniqueColors}`).join(" | "));
+
 		// Among the front/back pair, more unique colors in the head = front (face detail)
 		const front = top2[0].uniqueColors >= top2[1].uniqueColors ? top2[0] : top2[1];
+		console.log("[detectModelFront] picked dir=[" + front.dir + "] colors=" + front.uniqueColors);
 		return { x: front.dir[0], y: front.dir[1], z: front.dir[2] };
 	}
 
