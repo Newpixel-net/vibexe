@@ -330,19 +330,25 @@ export function SpritesheetToolDialog({ appId, open, onOpenChange, onGenerated }
 		const defaultDir = isZUp ? new THREE.Vector3(0, -1, 0) : new THREE.Vector3(0, 0, -1);
 		const camDir = frontDir ? new THREE.Vector3(frontDir.x, frontDir.y, frontDir.z) : defaultDir;
 
+		// Shift orbit target slightly above bbox center so model appears
+		// centered visually (head/shoulders have more visual weight than feet).
+		const heightOffset = modelHeight * 0.08; // push target up → model shifts down in frame
+		const target = bcenter.clone();
+		if (isZUp) target.z += heightOffset; else target.y += heightOffset;
+
 		camera.position.set(
-			bcenter.x + camDir.x * camDist,
-			bcenter.y + camDir.y * camDist,
-			bcenter.z + camDir.z * camDist,
+			target.x + camDir.x * camDist,
+			target.y + camDir.y * camDist,
+			target.z + camDir.z * camDist,
 		);
 		camera.up.copy(upVec);
-		camera.lookAt(bcenter.x, bcenter.y, bcenter.z);
+		camera.lookAt(target.x, target.y, target.z);
 
 		// OrbitControls — user can drag to rotate, scroll to zoom
 		const controls = new OrbitControls(camera, renderer.domElement);
 		controls.enableDamping = true;
 		controls.dampingFactor = 0.08;
-		controls.target.copy(bcenter);
+		controls.target.copy(target);
 		controls.update();
 
 		// Clone model into preview scene — use SkeletonUtils for animated models
