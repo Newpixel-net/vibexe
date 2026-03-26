@@ -536,12 +536,16 @@ export function SpritesheetToolDialog({ appId, open, onOpenChange, onGenerated }
 					.normalize();
 				capture.setCameraDirection({ x: dir.x, y: dir.y, z: dir.z });
 
-				// Sync frustum from preview perspective camera — capture will
-				// produce the exact same framing the user sees in the 3D preview
+				// Compute the model's true bbox center (no vertical offset)
+				// The preview target has a 15% upward offset for visual comfort,
+				// but capture should center on the actual model to avoid clipping.
+				const bbox = new THREE.Box3().setFromObject(loadedModel.model);
+				const modelCenter = bbox.getCenter(new THREE.Vector3());
+
 				capture.setFrustumFromPreview(
 					cam.fov,
 					{ x: cam.position.x, y: cam.position.y, z: cam.position.z },
-					{ x: ctrl.target.x, y: ctrl.target.y, z: ctrl.target.z },
+					{ x: modelCenter.x, y: modelCenter.y, z: modelCenter.z },
 					1, // square aspect for capture frames
 				);
 			}

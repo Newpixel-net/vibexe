@@ -890,8 +890,8 @@ export class SpritesheetCapture {
 		const halfH = dist * Math.tan((fovDeg * Math.PI / 180) / 2);
 		const halfW = halfH * aspect;
 		// The preview has generous padding for orbit comfort (2x).
-		// Scale down for tight capture framing — character fills ~90% of frame.
-		const tighten = 0.55;
+		// Scale down for tight capture framing — character fills ~85% of frame.
+		const tighten = 0.6;
 		const tH = halfH * tighten;
 		const tW = halfW * tighten;
 		this._sharedFrustum = {
