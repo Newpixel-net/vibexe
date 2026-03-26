@@ -172,6 +172,14 @@ export class SpritesheetCapture {
 		model.updateMatrixWorld(true);
 		const box = new THREE.Box3().setFromObject(model);
 		const center = box.getCenter(new THREE.Vector3());
+		const size = box.getSize(new THREE.Vector3());
+		// Debug: expose bounding box info
+		(globalThis as any).__modelBBox = {
+			min: { x: box.min.x.toFixed(3), y: box.min.y.toFixed(3), z: box.min.z.toFixed(3) },
+			max: { x: box.max.x.toFixed(3), y: box.max.y.toFixed(3), z: box.max.z.toFixed(3) },
+			size: { x: size.x.toFixed(3), y: size.y.toFixed(3), z: size.z.toFixed(3) },
+			center: { x: center.x.toFixed(3), y: center.y.toFixed(3), z: center.z.toFixed(3) },
+		};
 		model.position.sub(center);
 	}
 
