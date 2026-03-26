@@ -160,9 +160,12 @@ $$function create(config) {
   var playerBody = null;
   var playerSprite = null;
   var controller = null;
+  var _lastAnim = '';
+  var _isAnimated = false;
 
   return {
     id: 'player-platformer',
+    playerGfx: null,
     init: function(engine) {
       var PAL = PALETTES[theme] || PALETTES.forest;
 
@@ -173,11 +176,24 @@ $$function create(config) {
       var groundBody = createStaticBody(worldW / 2, groundY + 30, worldW, 60);
       physics.addBody(groundBody);
 
-      // Player sprite
-      playerSprite = drawPlayerCharacter(48, PAL.player, PAL.playerLight);
+      // Player sprite — use custom spritesheet if available, otherwise draw helper
+      var heroSheet = _sheetCache && _sheetCache['hero'];
+      if (heroSheet && heroSheet.animations && heroSheet.animations['idle']) {
+        playerSprite = new PIXI.AnimatedSprite(heroSheet.animations['idle']);
+        playerSprite.anchor.set(0.5, 1);
+        playerSprite.animationSpeed = 0.08;
+        playerSprite.play();
+        playerSprite.width = 48; playerSprite.height = 64;
+        _isAnimated = true;
+        _lastAnim = 'idle';
+        console.log('[player-platformer] Using custom hero spritesheet');
+      } else {
+        playerSprite = drawPlayerCharacter(48, PAL.player, PAL.playerLight);
+      }
       playerSprite.x = startX;
       playerSprite.y = groundY - 48;
       engine.world.addChild(playerSprite);
+      this.playerGfx = playerSprite;
 
       // Player physics body
       playerBody = createBody(startX, groundY - 48, 36, 48, { tag: 'player' });
@@ -208,6 +224,22 @@ $$function create(config) {
         if (playerSprite.scale) {
           var absX = Math.abs(playerSprite.scale.x) || 1;
           playerSprite.scale.x = controller.facingRight ? absX : -absX;
+        }
+      }
+
+      // Animation switching for custom spritesheet
+      if (_isAnimated && playerSprite.textures && playerSprite.play) {
+        var heroSheet = _sheetCache && _sheetCache['hero'];
+        if (heroSheet && heroSheet.animations) {
+          var _anim = 'idle';
+          if (!playerBody.onGround) { _anim = 'jump'; }
+          else if (engine.input.left || engine.input.right) { _anim = 'walk'; }
+          if (_lastAnim !== _anim && heroSheet.animations[_anim]) {
+            playerSprite.textures = heroSheet.animations[_anim];
+            playerSprite.animationSpeed = _anim === 'walk' ? 0.12 : 0.08;
+            playerSprite.play();
+            _lastAnim = _anim;
+          }
         }
       }
 
