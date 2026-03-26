@@ -381,33 +381,44 @@ export class SpritesheetCapture {
 		const freshClip = captureLoaded.animations.find((c: any) => c.name === clipName)
 			|| captureLoaded.animations[0];
 
-		// Create mixer on the freshly loaded model
-		const mixer = new THREE.AnimationMixer(captureModel);
-		const action = mixer.clipAction(freshClip);
-		action.clampWhenFinished = true;
-		action.play();
-
-		// Brief update to exit bind pose, then fit camera
-		mixer.update(0.001);
-		captureModel.updateMatrixWorld(true);
-		this.fitCameraToModel(captureModel, 1.15);
-
+		// For each frame, create a FRESH mixer and advance to the target time
+		// using many small 16ms steps (same as preview's requestAnimationFrame).
+		// This is the ONLY approach that reliably updates bone transforms.
 		const result: CapturedFrame[] = [];
 		const clipDuration = freshClip.duration;
-		// Sample evenly across the FULL clip duration
-		// Frame 0 = start, frame N-1 = near end
-		let currentTime = 0.001; // Already advanced by 0.001 above
+
+		// Fit camera from first pose
+		{
+			const tempMixer = new THREE.AnimationMixer(captureModel);
+			const tempAction = tempMixer.clipAction(freshClip);
+			tempAction.play();
+			tempMixer.update(clipDuration * 0.1); // 10% into animation
+			captureModel.updateMatrixWorld(true);
+			this.fitCameraToModel(captureModel, 1.15);
+			tempAction.stop();
+		}
 
 		for (let i = 0; i < frames; i++) {
+			// Fresh mixer for each frame — guarantees clean state
+			const frameMixer = new THREE.AnimationMixer(captureModel);
+			const frameAction = frameMixer.clipAction(freshClip);
+			frameAction.play();
+
+			// Target time for this frame
 			const targetTime = (clipDuration * i) / frames;
-			const delta = Math.max(targetTime - currentTime, 0);
-			mixer.update(delta);
-			currentTime = targetTime;
+
+			// Advance in small 16ms steps (same as preview's rAF loop)
+			let elapsed = 0;
+			const step = 1 / 60; // 16.67ms per step
+			while (elapsed < targetTime) {
+				const dt = Math.min(step, targetTime - elapsed);
+				frameMixer.update(dt);
+				elapsed += dt;
+			}
+			if (targetTime === 0) frameMixer.update(0.001); // Tiny nudge for frame 0
+
 			captureModel.updateMatrixWorld(true);
 
-			// Yield to browser via requestAnimationFrame before each render.
-			// This ensures the GPU flushes and bone transforms are fully propagated —
-			// the same timing pattern as the preview's animation loop.
 			await new Promise<void>(resolve => requestAnimationFrame(() => resolve()));
 
 			const blob = this.captureFrameSync();
@@ -418,12 +429,14 @@ export class SpritesheetCapture {
 				height: this.frameHeight,
 			});
 
+			// Clean up per-frame mixer
+			frameAction.stop();
+			frameMixer.stopAllAction();
+
 			if (onProgress) onProgress((i + 1) / frames);
 		}
 
 		// Cleanup
-		action.stop();
-		mixer.stopAllAction();
 		this.scene.remove(captureModel);
 		return result;
 	}
