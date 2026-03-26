@@ -1374,16 +1374,15 @@ export class AssetsSystem {
           console.log('[Assets] setPlayerSprites: mapped', key, '←', sheetName, '(' + animKeys[0] + ',', mergedAnimations[key].length, 'frames)');
         }
       }
-      // Ensure all three keys exist (feature expects idle, walk, jump)
       if (!mergedAnimations['idle']) { console.warn('[Assets] setPlayerSprites: no idle animation mapped'); return; }
       if (!mergedAnimations['walk']) mergedAnimations['walk'] = mergedAnimations['idle'];
       if (!mergedAnimations['jump']) mergedAnimations['jump'] = mergedAnimations['idle'];
 
-      // Store in _sheetCache so player-platformer feature auto-switches animations
-      _sheetCache['hero'] = { animations: mergedAnimations };
+      // Use _setHeroSheet helper (module-level access to _sheetCache)
+      _setHeroSheet(mergedAnimations);
       console.log('[Assets] setPlayerSprites: _sheetCache.hero set with', Object.keys(mergedAnimations).join(', '));
 
-      // Find and replace the player sprite with an AnimatedSprite
+      // Replace the player visual with an AnimatedSprite showing idle
       var playerFeature = this.engine.features.get('player-platformer');
       if (playerFeature && playerFeature.playerGfx) {
         var idleTextures = mergedAnimations['idle'];
@@ -1391,11 +1390,9 @@ export class AssetsSystem {
         newSprite.anchor.set(0.5, 1);
         newSprite.animationSpeed = 0.08;
         newSprite.play();
-        // Copy position and scale from old sprite
         var old = playerFeature.playerGfx;
         newSprite.x = old.x; newSprite.y = old.y;
         newSprite.width = old.width; newSprite.height = old.height;
-        // Swap in parent container
         if (old.parent) {
           var idx = old.parent.getChildIndex(old);
           old.parent.addChildAt(newSprite, idx);
@@ -1403,11 +1400,18 @@ export class AssetsSystem {
         }
         playerFeature.playerGfx = newSprite;
         console.log('[Assets] setPlayerSprites: player visual replaced with AnimatedSprite');
+      } else {
+        console.log('[Assets] setPlayerSprites: _sheetCache mapped (player visual swap deferred to feature update)');
       }
     } catch(e) {
       console.warn('[Assets] setPlayerSprites failed:', e);
     }
   }
+}
+
+/** Module-level helper — safe access to _sheetCache from class methods */
+function _setHeroSheet(animations: Record<string, any[]>) {
+  _sheetCache['hero'] = { animations: animations };
 }
 
 // ---------------------------------------------------------------------------
