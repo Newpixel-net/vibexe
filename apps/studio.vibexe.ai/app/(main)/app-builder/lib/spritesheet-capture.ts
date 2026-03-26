@@ -212,7 +212,8 @@ export class SpritesheetCapture {
 	}
 
 	/** Fit the orthographic camera to show the model filling the frame.
-	 *  Uses _cameraDirection if set (from preview sync), otherwise defaults to front view. */
+	 *  Detects which axis is the model's "height" (tallest dimension) and
+	 *  orients the camera to produce a proper 2D game sprite view. */
 	private fitCameraToModel(model: any, padding = 1.15): void {
 		const THREE = this.THREE;
 		model.updateMatrixWorld(true);
@@ -220,14 +221,12 @@ export class SpritesheetCapture {
 		const size = box.getSize(new THREE.Vector3());
 		const center = box.getCenter(new THREE.Vector3());
 
-		// Viewing direction: custom (from preview) or default front (-Z)
-		const dir = this._cameraDirection || { x: 0, y: 0, z: -1 };
+		// Detect which axis is "height" (tallest) — models may have Z-up or Y-up
+		const heightAxis = size.z > size.y ? "z" : "y";
 
-		// Frustum sizing: for default front view use height (characters fill vertically).
-		// For custom directions, use the max dimension since we don't know which faces camera.
-		const halfExtent = this._cameraDirection
-			? (Math.max(size.x, size.y, size.z) * padding) / 2
-			: (size.y * padding) / 2;
+		// Determine the model's visual height (tallest axis)
+		const modelHeight = heightAxis === "z" ? size.z : size.y;
+		const halfExtent = (modelHeight * padding) / 2;
 
 		this.camera.left = -halfExtent;
 		this.camera.right = halfExtent;
@@ -235,14 +234,32 @@ export class SpritesheetCapture {
 		this.camera.bottom = -halfExtent;
 		this.camera.updateProjectionMatrix();
 
-		// Position camera along the viewing direction, at distance 5 from center
+		// Camera direction: use preview direction if set, otherwise auto-detect front
 		const distance = 5;
-		this.camera.position.set(
-			center.x + dir.x * distance,
-			center.y + dir.y * distance,
-			center.z + dir.z * distance,
-		);
-		this.camera.lookAt(center.x, center.y, center.z);
+		if (this._cameraDirection) {
+			// Custom direction from preview camera sync
+			const dir = this._cameraDirection;
+			this.camera.position.set(
+				center.x + dir.x * distance,
+				center.y + dir.y * distance,
+				center.z + dir.z * distance,
+			);
+			// Set up vector based on height axis
+			this.camera.up.set(0, heightAxis === "z" ? 0 : 1, heightAxis === "z" ? 1 : 0);
+			this.camera.lookAt(center.x, center.y, center.z);
+		} else {
+			// Default front view: camera along the DEPTH axis (shortest non-height dimension)
+			// For Z-up models: camera at -Y looking toward +Y, up = +Z
+			// For Y-up models: camera at -Z looking toward +Z, up = +Y
+			if (heightAxis === "z") {
+				this.camera.position.set(center.x, center.y - distance, center.z);
+				this.camera.up.set(0, 0, 1);
+			} else {
+				this.camera.position.set(center.x, center.y, center.z - distance);
+				this.camera.up.set(0, 1, 0);
+			}
+			this.camera.lookAt(center.x, center.y, center.z);
+		}
 	}
 
 	/** Capture a single frame — SYNCHRONOUS using toDataURL */

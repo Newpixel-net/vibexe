@@ -110,6 +110,7 @@ export function SpritesheetToolDialog({ appId, open, onOpenChange, onGenerated }
 
 	// View controls
 	const [activeView, setActiveView] = useState<string>("front");
+	const [modelZUp, setModelZUp] = useState(false);
 
 	// Refs — interactive 3D preview
 	const previewContainerRef = useRef<HTMLDivElement>(null);
@@ -153,13 +154,22 @@ export function SpritesheetToolDialog({ appId, open, onOpenChange, onGenerated }
 	// View presets — snap camera to axis-aligned positions
 	// ---------------------------------------------------------------------------
 
-	const VIEW_PRESETS = [
+	// View presets adapt to model's up axis (Z-up vs Y-up)
+	const VIEW_PRESETS = modelZUp ? [
+		// Z-up model: height along Z, camera along Y for front view
+		{ id: "front", label: "Front", dir: [0, -1, 0] },
+		{ id: "back", label: "Back", dir: [0, 1, 0] },
+		{ id: "right", label: "Right", dir: [1, 0, 0] },
+		{ id: "left", label: "Left", dir: [-1, 0, 0] },
+		{ id: "top", label: "Top", dir: [0, 0, 1] },
+	] : [
+		// Y-up model: standard orientation
 		{ id: "front", label: "Front", dir: [0, 0, -1] },
 		{ id: "back", label: "Back", dir: [0, 0, 1] },
 		{ id: "right", label: "Right", dir: [1, 0, 0] },
 		{ id: "left", label: "Left", dir: [-1, 0, 0] },
 		{ id: "top", label: "Top", dir: [0, 1, 0] },
-	] as const;
+	];
 
 	const snapToView = useCallback((presetId: string) => {
 		const camera = previewCameraRef.current;
@@ -284,9 +294,20 @@ export function SpritesheetToolDialog({ appId, open, onOpenChange, onGenerated }
 		fill.position.set(-1, 1, 2);
 		scene.add(fill);
 
-		// Camera — front view (model faces -Z)
+		// Detect model orientation — check which axis is "height" (tallest)
+		const bbox = new THREE.Box3().setFromObject(loaded.model);
+		const bsize = bbox.getSize(new THREE.Vector3());
+		const isZUp = bsize.z > bsize.y;
+
+		// Camera — front view adapted to model's up axis
 		const camera = new THREE.PerspectiveCamera(35, w / h, 0.1, 100);
-		camera.position.set(0, 0, -4);
+		if (isZUp) {
+			camera.position.set(0, -4, 0); // Look along Y toward model, Z is up
+			camera.up.set(0, 0, 1);
+		} else {
+			camera.position.set(0, 0, -4); // Standard Y-up model
+			camera.up.set(0, 1, 0);
+		}
 		camera.lookAt(0, 0, 0);
 
 		// OrbitControls — user can drag to rotate, scroll to zoom
@@ -359,6 +380,12 @@ export function SpritesheetToolDialog({ appId, open, onOpenChange, onGenerated }
 			await capture.init(frameSize, frameSize);
 			const loaded = await capture.loadModel(url);
 			setLoadedModel(loaded);
+
+			// Detect model up-axis for view presets
+			const THREE = capture.getThree();
+			const mbox = new THREE.Box3().setFromObject(loaded.model);
+			const msz = mbox.getSize(new THREE.Vector3());
+			setModelZUp(msz.z > msz.y);
 
 			const names = capture.getAnimationNames(loaded);
 			setAnimNames(names);
