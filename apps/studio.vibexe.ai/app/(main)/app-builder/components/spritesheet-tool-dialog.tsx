@@ -108,12 +108,16 @@ export function SpritesheetToolDialog({ appId, open, onOpenChange, onGenerated }
 	const [animNames, setAnimNames] = useState<string[]>([]);
 	const [results, setResults] = useState<StoredSpritesheet[]>([]);
 
+	// View controls
+	const [activeView, setActiveView] = useState<string>("front");
+
 	// Refs — interactive 3D preview
 	const previewContainerRef = useRef<HTMLDivElement>(null);
 	const previewRendererRef = useRef<any>(null);
 	const orbitControlsRef = useRef<any>(null);
 	const previewAnimFrameRef = useRef<number>(0);
 	const previewCameraRef = useRef<any>(null);
+	const gizmoCanvasRef = useRef<HTMLCanvasElement>(null);
 	const abortRef = useRef(false);
 
 	// ---------------------------------------------------------------------------
@@ -144,6 +148,99 @@ export function SpritesheetToolDialog({ appId, open, onOpenChange, onGenerated }
 		if (!open) cleanupPreview();
 		return () => cleanupPreview();
 	}, [open, cleanupPreview]);
+
+	// ---------------------------------------------------------------------------
+	// View presets — snap camera to axis-aligned positions
+	// ---------------------------------------------------------------------------
+
+	const VIEW_PRESETS = [
+		{ id: "front", label: "Front", dir: [0, 0, -1] },
+		{ id: "back", label: "Back", dir: [0, 0, 1] },
+		{ id: "right", label: "Right", dir: [1, 0, 0] },
+		{ id: "left", label: "Left", dir: [-1, 0, 0] },
+		{ id: "top", label: "Top", dir: [0, 1, 0] },
+	] as const;
+
+	const snapToView = useCallback((presetId: string) => {
+		const camera = previewCameraRef.current;
+		const controls = orbitControlsRef.current;
+		if (!camera || !controls) return;
+
+		const preset = VIEW_PRESETS.find(p => p.id === presetId);
+		if (!preset) return;
+
+		const radius = camera.position.distanceTo(controls.target);
+		const target = controls.target.clone();
+		const endPos = target.clone().add(
+			new camera.position.constructor(preset.dir[0], preset.dir[1], preset.dir[2]).multiplyScalar(radius)
+		);
+
+		// Animate camera to new position over 300ms
+		const startPos = camera.position.clone();
+		const startTime = performance.now();
+		const duration = 300;
+
+		controls.enabled = false;
+		function animateSnap() {
+			const elapsed = performance.now() - startTime;
+			const t = Math.min(elapsed / duration, 1);
+			const ease = t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2; // easeInOutQuad
+
+			camera.position.lerpVectors(startPos, endPos, ease);
+			camera.lookAt(controls.target);
+			controls.update();
+
+			if (t < 1) {
+				requestAnimationFrame(animateSnap);
+			} else {
+				controls.enabled = true;
+			}
+		}
+		requestAnimationFrame(animateSnap);
+		setActiveView(presetId);
+	}, []);
+
+	// Draw axis gizmo on a small overlay canvas
+	const updateGizmo = useCallback((camera: any) => {
+		const canvas = gizmoCanvasRef.current;
+		if (!canvas || !camera) return;
+		const ctx = canvas.getContext("2d");
+		if (!ctx) return;
+
+		const s = 48;
+		ctx.clearRect(0, 0, s, s);
+		const cx = s / 2, cy = s / 2, len = 16;
+
+		// Get camera's view rotation
+		const m = camera.matrixWorldInverse.elements;
+
+		// Project each axis through the view rotation (only rotation, ignore translation)
+		const axes = [
+			{ x: m[0], y: m[4], color: "#ef4444", label: "X" }, // red
+			{ x: m[1], y: m[5], color: "#22c55e", label: "Y" }, // green
+			{ x: m[2], y: m[6], color: "#3b82f6", label: "Z" }, // blue
+		];
+
+		// Sort by depth (draw farthest first)
+		const sortedAxes = axes.map((a, i) => ({ ...a, depth: [m[8], m[9], m[10]][i] }))
+			.sort((a, b) => a.depth - b.depth);
+
+		for (const axis of sortedAxes) {
+			const ex = cx + axis.x * len;
+			const ey = cy - axis.y * len; // flip Y for canvas
+			ctx.beginPath();
+			ctx.moveTo(cx, cy);
+			ctx.lineTo(ex, ey);
+			ctx.strokeStyle = axis.color;
+			ctx.lineWidth = 2;
+			ctx.stroke();
+			// Label
+			ctx.fillStyle = axis.color;
+			ctx.font = "bold 9px sans-serif";
+			ctx.textAlign = "center";
+			ctx.fillText(axis.label, ex + (axis.x > 0 ? 6 : -6), ey + (axis.y > 0 ? -4 : 10));
+		}
+	}, []);
 
 	// ---------------------------------------------------------------------------
 	// Initialize live 3D preview with OrbitControls
@@ -219,6 +316,13 @@ export function SpritesheetToolDialog({ appId, open, onOpenChange, onGenerated }
 			action.play();
 		}
 
+		// Track manual orbit to deselect view preset
+		let manualOrbitTimer: any = null;
+		controls.addEventListener("start", () => {
+			clearTimeout(manualOrbitTimer);
+			manualOrbitTimer = setTimeout(() => setActiveView(""), 100);
+		});
+
 		// Store refs
 		previewRendererRef.current = renderer;
 		orbitControlsRef.current = controls;
@@ -226,15 +330,17 @@ export function SpritesheetToolDialog({ appId, open, onOpenChange, onGenerated }
 
 		// Render loop
 		const clock = new THREE.Clock();
+		const gizmoUpdate = updateGizmo;
 		function animate() {
 			previewAnimFrameRef.current = requestAnimationFrame(animate);
 			const delta = clock.getDelta();
 			if (mixer) mixer.update(delta);
 			controls.update();
 			renderer.render(scene, camera);
+			gizmoUpdate(camera);
 		}
 		animate();
-	}, [cleanupPreview]);
+	}, [cleanupPreview, updateGizmo]);
 
 	// ---------------------------------------------------------------------------
 	// Model loading
@@ -319,7 +425,15 @@ export function SpritesheetToolDialog({ appId, open, onOpenChange, onGenerated }
 		try {
 			const capture = getCaptureInstance();
 			await capture.init(frameSize, frameSize);
-			// Camera is auto-fitted to model bounds by captureAnimation/captureRotation
+
+			// Sync preview camera direction to capture engine
+			if (previewCameraRef.current && orbitControlsRef.current) {
+				const THREE = capture.getThree();
+				const dir = new THREE.Vector3()
+					.subVectors(previewCameraRef.current.position, orbitControlsRef.current.target)
+					.normalize();
+				capture.setCameraDirection({ x: dir.x, y: dir.y, z: dir.z });
+			}
 
 			const newResults: StoredSpritesheet[] = [];
 
@@ -419,14 +533,45 @@ export function SpritesheetToolDialog({ appId, open, onOpenChange, onGenerated }
 							</div>
 						) : (
 							<div className="flex-1 flex flex-col">
-								{/* Live 3D preview — OrbitControls enabled */}
-								<div
-									ref={previewContainerRef}
-									className="flex-1 min-h-[280px] bg-[#080812] rounded-lg m-2"
-								/>
+								{/* Live 3D preview with camera controls */}
+								<div className="relative flex-1 min-h-[280px] m-2">
+									<div
+										ref={previewContainerRef}
+										className="absolute inset-0 bg-[#080812] rounded-lg"
+									/>
+
+									{/* View preset buttons — top-right overlay */}
+									{loadedModel && (
+										<div className="absolute top-2 right-2 flex flex-col gap-1 z-10">
+											{VIEW_PRESETS.map((p) => (
+												<button
+													key={p.id}
+													onClick={() => snapToView(p.id)}
+													className={`px-2 py-0.5 rounded text-[10px] font-medium transition-colors ${
+														activeView === p.id
+															? "bg-blue-500/30 text-blue-400 border border-blue-500/40"
+															: "bg-black/40 text-white/40 border border-white/[0.06] hover:text-white/70"
+													}`}
+												>
+													{p.label}
+												</button>
+											))}
+										</div>
+									)}
+
+									{/* Axis gizmo — bottom-left overlay */}
+									{loadedModel && (
+										<canvas
+											ref={gizmoCanvasRef}
+											width={48}
+											height={48}
+											className="absolute bottom-2 left-2 z-10 pointer-events-none"
+										/>
+									)}
+								</div>
 								{loadedModel && (
 									<div className="px-3 pb-2 text-center text-[10px] text-white/20">
-										Drag to rotate · Scroll to zoom
+										Drag to rotate · Scroll to zoom · Use presets for axis views
 									</div>
 								)}
 							</div>

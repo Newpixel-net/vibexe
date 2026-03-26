@@ -65,6 +65,7 @@ export class SpritesheetCapture {
 	private initPromise: Promise<void> | null = null;
 	private frameWidth = 128;
 	private frameHeight = 128;
+	private _cameraDirection: { x: number; y: number; z: number } | null = null;
 
 	async init(width = 128, height = 128): Promise<void> {
 		this.frameWidth = width;
@@ -203,7 +204,7 @@ export class SpritesheetCapture {
 	}
 
 	/** Fit the orthographic camera to show the model filling the frame.
-	 *  Call this AFTER setting the model in the scene and optionally posing it. */
+	 *  Uses _cameraDirection if set (from preview sync), otherwise defaults to front view. */
 	private fitCameraToModel(model: any, padding = 1.15): void {
 		const THREE = this.THREE;
 		model.updateMatrixWorld(true);
@@ -211,10 +212,14 @@ export class SpritesheetCapture {
 		const size = box.getSize(new THREE.Vector3());
 		const center = box.getCenter(new THREE.Vector3());
 
-		// Use model HEIGHT to fill the frame vertically.
-		// For characters in T-pose, width >> height, but during animation
-		// arms are close to body. Use height with generous padding.
-		const halfExtent = (size.y * padding) / 2;
+		// Viewing direction: custom (from preview) or default front (-Z)
+		const dir = this._cameraDirection || { x: 0, y: 0, z: -1 };
+
+		// Frustum sizing: for default front view use height (characters fill vertically).
+		// For custom directions, use the max dimension since we don't know which faces camera.
+		const halfExtent = this._cameraDirection
+			? (Math.max(size.x, size.y, size.z) * padding) / 2
+			: (size.y * padding) / 2;
 
 		this.camera.left = -halfExtent;
 		this.camera.right = halfExtent;
@@ -222,8 +227,13 @@ export class SpritesheetCapture {
 		this.camera.bottom = -halfExtent;
 		this.camera.updateProjectionMatrix();
 
-		// Position camera in front of model (model faces -Z), at model center height
-		this.camera.position.set(0, center.y, -5);
+		// Position camera along the viewing direction, at distance 5 from center
+		const distance = 5;
+		this.camera.position.set(
+			center.x + dir.x * distance,
+			center.y + dir.y * distance,
+			center.z + dir.z * distance,
+		);
 		this.camera.lookAt(center.x, center.y, center.z);
 	}
 
@@ -451,6 +461,12 @@ export class SpritesheetCapture {
 
 	getCanvas(): HTMLCanvasElement | null {
 		return this.renderer?.domElement || null;
+	}
+
+	/** Set viewing direction for capture (unit vector from target to camera).
+	 *  Called from dialog to sync preview camera angle to capture. */
+	setCameraDirection(dir: { x: number; y: number; z: number }): void {
+		this._cameraDirection = dir;
 	}
 
 	setCameraPosition(x: number, y: number, z: number): void {
