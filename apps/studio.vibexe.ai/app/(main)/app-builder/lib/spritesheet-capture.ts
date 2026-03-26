@@ -371,53 +371,97 @@ export class SpritesheetCapture {
 		const prefix = config.prefix || clip.name || "anim";
 		const clipName = config.clipName || clip.name;
 
-		// RELOAD the model from scratch — SkeletonUtils.clone has proven unreliable
-		// for preserving animation bindings across multiple clones.
+		// RELOAD the model from scratch for pristine skeleton bindings
 		const captureLoaded = await this.reloadModelFresh(loaded);
 		const captureModel = captureLoaded.model;
 		this.setModel(captureModel);
 
-		// Find the clip in the freshly loaded animations
 		const freshClip = captureLoaded.animations.find((c: any) => c.name === clipName)
 			|| captureLoaded.animations[0];
 
-		// For each frame, create a FRESH mixer and advance to the target time
-		// using many small 16ms steps (same as preview's requestAnimationFrame).
-		// This is the ONLY approach that reliably updates bone transforms.
-		const result: CapturedFrame[] = [];
 		const clipDuration = freshClip.duration;
+		const step = 1 / 60;
 
-		// Fit camera from first pose
-		{
-			const tempMixer = new THREE.AnimationMixer(captureModel);
-			const tempAction = tempMixer.clipAction(freshClip);
-			tempAction.play();
-			tempMixer.update(clipDuration * 0.1); // 10% into animation
-			captureModel.updateMatrixWorld(true);
-			this.fitCameraToModel(captureModel, 1.15);
-			tempAction.stop();
-		}
+		// Helper: advance a fresh mixer to a target time using small steps
+		const advanceToTime = (model: any, animClip: any, targetTime: number) => {
+			const m = new THREE.AnimationMixer(model);
+			const a = m.clipAction(animClip);
+			a.play();
+			let t = 0;
+			while (t < targetTime) {
+				const dt = Math.min(step, targetTime - t);
+				m.update(dt);
+				t += dt;
+			}
+			if (targetTime === 0) m.update(0.001);
+			model.updateMatrixWorld(true);
+			return { mixer: m, action: a };
+		};
+
+		// =====================================================================
+		// PASS 1: Pre-scan ALL frames to find the MAXIMUM bounding box.
+		// This is the professional "Fit All Frames" approach — ensures no frame
+		// clips the character, even with root motion (kicks, falls, etc.).
+		// =====================================================================
+		const maxBox = new THREE.Box3(
+			new THREE.Vector3(Infinity, Infinity, Infinity),
+			new THREE.Vector3(-Infinity, -Infinity, -Infinity),
+		);
 
 		for (let i = 0; i < frames; i++) {
-			// Fresh mixer for each frame — guarantees clean state
-			const frameMixer = new THREE.AnimationMixer(captureModel);
-			const frameAction = frameMixer.clipAction(freshClip);
-			frameAction.play();
-
-			// Target time for this frame
 			const targetTime = (clipDuration * i) / frames;
+			const { mixer, action } = advanceToTime(captureModel, freshClip, targetTime);
+			const frameBox = new THREE.Box3().setFromObject(captureModel);
+			maxBox.union(frameBox);
+			action.stop();
+			mixer.stopAllAction();
+		}
 
-			// Advance in small 16ms steps (same as preview's rAF loop)
-			let elapsed = 0;
-			const step = 1 / 60; // 16.67ms per step
-			while (elapsed < targetTime) {
-				const dt = Math.min(step, targetTime - elapsed);
-				frameMixer.update(dt);
-				elapsed += dt;
+		// Fit camera to the MAX bounding box (not a single frame's box)
+		const maxSize = maxBox.getSize(new THREE.Vector3());
+		const maxCenter = maxBox.getCenter(new THREE.Vector3());
+		const heightAxis = this._heightAxis;
+		const modelHeight = heightAxis === "z" ? maxSize.z : maxSize.y;
+		const halfExtent = Math.max((modelHeight * 1.1) / 2, 0.5);
+
+		this.camera.left = -halfExtent;
+		this.camera.right = halfExtent;
+		this.camera.top = halfExtent;
+		this.camera.bottom = -halfExtent;
+		this.camera.updateProjectionMatrix();
+
+		// Lock camera direction (reuses locked state if already set)
+		if (!this._lockedCameraState) {
+			const distance = 5;
+			const upVec = new THREE.Vector3(0, heightAxis === "z" ? 0 : 1, heightAxis === "z" ? 1 : 0);
+			let camPos: any;
+			if (this._cameraDirection) {
+				const dir = this._cameraDirection;
+				camPos = new THREE.Vector3(
+					maxCenter.x + dir.x * distance,
+					maxCenter.y + dir.y * distance,
+					maxCenter.z + dir.z * distance,
+				);
+			} else if (heightAxis === "z") {
+				camPos = new THREE.Vector3(maxCenter.x, maxCenter.y - distance, maxCenter.z);
+			} else {
+				camPos = new THREE.Vector3(maxCenter.x, maxCenter.y, maxCenter.z - distance);
 			}
-			if (targetTime === 0) frameMixer.update(0.001); // Tiny nudge for frame 0
+			this._lockedCameraState = { pos: camPos.clone(), up: upVec.clone(), target: maxCenter.clone() };
+		}
 
-			captureModel.updateMatrixWorld(true);
+		this.camera.position.copy(this._lockedCameraState.pos);
+		this.camera.up.copy(this._lockedCameraState.up);
+		this.camera.lookAt(this._lockedCameraState.target);
+
+		// =====================================================================
+		// PASS 2: Render each frame at the locked camera position
+		// =====================================================================
+		const result: CapturedFrame[] = [];
+
+		for (let i = 0; i < frames; i++) {
+			const targetTime = (clipDuration * i) / frames;
+			const { mixer, action } = advanceToTime(captureModel, freshClip, targetTime);
 
 			await new Promise<void>(resolve => requestAnimationFrame(() => resolve()));
 
@@ -429,14 +473,11 @@ export class SpritesheetCapture {
 				height: this.frameHeight,
 			});
 
-			// Clean up per-frame mixer
-			frameAction.stop();
-			frameMixer.stopAllAction();
-
+			action.stop();
+			mixer.stopAllAction();
 			if (onProgress) onProgress((i + 1) / frames);
 		}
 
-		// Cleanup
 		this.scene.remove(captureModel);
 		return result;
 	}
