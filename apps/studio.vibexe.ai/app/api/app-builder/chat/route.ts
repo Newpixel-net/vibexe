@@ -1027,15 +1027,20 @@ const supabase = createClient("${supabaseConfig.url}", "${supabaseConfig.anonKey
 							if (!byModel.has(model)) byModel.set(model, []);
 							byModel.get(model)!.push(entry);
 						}
-						// Pick model with MOST animations that has idle (user's primary character)
+						// Pick best model for player — prefer model with most key animations (idle+walk/run+jump)
 						let playerModel: string | null = null;
 						let playerSheets: typeof completeSheets = [];
-						let bestCount = 0;
+						let bestScore = 0;
 						for (const [model, sheets] of byModel) {
-							if (sheets.some(([, v]) => /idle/i.test(v.animName)) && sheets.length > bestCount) {
+							let score = 0;
+							if (sheets.some(([, v]) => /idle/i.test(v.animName))) score += 10;
+							if (sheets.some(([, v]) => /run|walk/i.test(v.animName))) score += 10;
+							if (sheets.some(([, v]) => /jump/i.test(v.animName))) score += 10;
+							score += sheets.length; // tiebreak by total count
+							if (score > bestScore) {
 								playerModel = model;
 								playerSheets = sheets;
-								bestCount = sheets.length;
+								bestScore = score;
 							}
 						}
 						if (playerModel && playerSheets.length > 0) {
@@ -1438,10 +1443,15 @@ These sprites have white backgrounds — set blendMode or use alpha masking if n
 					let promptLines = "";
 					let firstModelName = "";
 					const firstModelAnims: Array<{ name: string; animName: string; atlasUrl: string; metadataUrl: string }> = [];
-					// Pick model with most animations as primary player character
-					let bestModelCount = 0;
+					// Pick best model for player — prefer model with key animations (idle+walk/run+jump)
+					let bestModelScore = 0;
 					for (const [model, anims] of byModel) {
-						if (anims.length > bestModelCount) { firstModelName = model; firstModelAnims.length = 0; firstModelAnims.push(...anims); bestModelCount = anims.length; }
+						let s = 0;
+						if (anims.some(a => /idle/i.test(a.animName))) s += 10;
+						if (anims.some(a => /run|walk/i.test(a.animName))) s += 10;
+						if (anims.some(a => /jump/i.test(a.animName))) s += 10;
+						s += anims.length;
+						if (s > bestModelScore) { firstModelName = model; firstModelAnims.length = 0; firstModelAnims.push(...anims); bestModelScore = s; }
 						const animList = anims.map(a => a.animName).join(", ");
 						promptLines += `\n### ${model} (${anims.length} animation${anims.length > 1 ? "s" : ""}): ${animList}\n`;
 						for (const a of anims) {
