@@ -672,18 +672,13 @@ export class SpritesheetCapture {
 		measured.sort((a, b) => b.width - a.width);
 		const top2 = measured.slice(0, 2);
 
-		// If convention direction (-Z for Y-up) is in the front/back pair, prefer it
-		// unless the other direction has significantly more edge detail (>1.5x)
+		// If convention direction is in the front/back pair, always use it.
+		// Heuristics (edge density, color variance) are unreliable for armored/detailed models.
 		const matchConv = (d: number[]) =>
 			d[0] === conventionDir[0] && d[1] === conventionDir[1] && d[2] === conventionDir[2];
 		const convCandidate = top2.find(m => matchConv(m.dir));
 
 		if (convCandidate) {
-			const other = top2.find(m => m !== convCandidate)!;
-			// Only override convention if other direction has clearly more face detail
-			if (other.edgeDensity > convCandidate.edgeDensity * 1.5) {
-				return { x: other.dir[0], y: other.dir[1], z: other.dir[2] };
-			}
 			return { x: convCandidate.dir[0], y: convCandidate.dir[1], z: convCandidate.dir[2] };
 		}
 

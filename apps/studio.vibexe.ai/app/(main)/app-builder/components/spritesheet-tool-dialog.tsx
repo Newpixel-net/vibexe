@@ -316,15 +316,13 @@ export function SpritesheetToolDialog({ appId, open, onOpenChange, onGenerated }
 		const fovRad = fovDeg * Math.PI / 180;
 		const aspect = w / h;
 
-		// Compute distance that guarantees the full model fits both vertically AND horizontally
+		// Fit the model's HEIGHT in the frame — characters are tall and the panel is portrait.
+		// Width overflow is fine (arms may extend past edges); user can orbit/zoom to adjust.
 		const modelHeight = isZUp ? bsize.z : bsize.y;
-		const modelWidth = Math.max(bsize.x, isZUp ? bsize.y : bsize.z);
 		const halfVFov = fovRad / 2;
-		const halfHFov = Math.atan(Math.tan(halfVFov) * aspect);
 		const distForHeight = (modelHeight / 2) / Math.tan(halfVFov);
-		const distForWidth = (modelWidth / 2) / Math.tan(halfHFov);
-		// 2.0x padding ensures comfortable breathing room around the model
-		const camDist = Math.max(distForHeight, distForWidth, 2) * 2.0;
+		// 1.3x padding = model fills ~77% of frame height (head-to-toe with breathing room)
+		const camDist = Math.max(distForHeight * 1.3, 2);
 
 		// Camera — use detected front direction, or fall back to axis default
 		const camera = new THREE.PerspectiveCamera(fovDeg, aspect, 0.1, 100);
