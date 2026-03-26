@@ -231,13 +231,9 @@ export function SpritesheetToolDialog({ appId, open, onOpenChange, onGenerated }
 
 	// Play a specific animation in the 3D preview
 	const playPreviewAnim = useCallback((clipName: string) => {
-		const oldMixer = previewMixerRef.current;
+		const mixer = previewMixerRef.current;
 		const anims = previewAnimsRef.current;
-		const model = previewModelRef.current;
-		if (!model || !anims.length) {
-			console.warn("[SpritesheetTool] playPreviewAnim: no model or anims");
-			return;
-		}
+		if (!mixer || !anims.length) return;
 
 		// Find by name, fall back to index match
 		let clip = anims.find((c: any) => c.name === clipName);
@@ -245,33 +241,10 @@ export function SpritesheetToolDialog({ appId, open, onOpenChange, onGenerated }
 			const idx = animNamesRef.current.indexOf(clipName);
 			if (idx >= 0 && idx < anims.length) clip = anims[idx];
 		}
-		if (!clip) {
-			console.warn("[SpritesheetTool] playPreviewAnim: clip not found:", clipName);
-			return;
-		}
+		if (!clip) return;
 
-		// Stop old mixer completely and create fresh one for this clip.
-		// Re-creating avoids Three.js action-cache / binding stale-ref issues.
-		if (oldMixer) oldMixer.stopAllAction();
-		const THREE = getCaptureInstance().getThree();
-		if (!THREE) return;
-		const newMixer = new THREE.AnimationMixer(model);
-		const action = newMixer.clipAction(clip);
-		action.reset().play();
-		previewMixerRef.current = newMixer;
-
-		// Debug: expose on window for troubleshooting
-		(globalThis as any).__dbgAnim = {
-			clipName,
-			trackCount: clip.tracks?.length,
-			firstTrackName: clip.tracks?.[0]?.name,
-			modelName: model.name,
-			modelChildren: model.children?.map((c: any) => c.name).slice(0, 5),
-			actionEnabled: action.enabled,
-			actionIsRunning: action.isRunning(),
-		};
-		console.log("[playPreviewAnim]", (globalThis as any).__dbgAnim);
-
+		mixer.stopAllAction();
+		mixer.clipAction(clip).reset().play();
 		setPreviewingAnim(clipName);
 	}, []);
 
@@ -404,16 +377,9 @@ export function SpritesheetToolDialog({ appId, open, onOpenChange, onGenerated }
 		controls.target.copy(target);
 		controls.update();
 
-		// Clone model into preview scene — use SkeletonUtils for animated models
-		let SkeletonUtils: any = null;
-		try {
-			// @ts-ignore
-			const mod = await import("three/examples/jsm/utils/SkeletonUtils.js");
-			SkeletonUtils = mod.SkeletonUtils;
-		} catch { /* fallback to simple clone */ }
-		const previewModel = (loaded.animations.length > 0 && SkeletonUtils)
-			? SkeletonUtils.clone(loaded.model)
-			: loaded.model.clone();
+		// Use loaded.model directly — it's already a SkeletonUtils.clone from loadModel.
+		// Double-cloning breaks skeleton↔bone binding (skeleton refs ≠ scene graph bones).
+		const previewModel = loaded.model;
 		scene.add(previewModel);
 		previewModelRef.current = previewModel;
 
