@@ -963,15 +963,22 @@ const supabase = createClient("${supabaseConfig.url}", "${supabaseConfig.anonKey
 			const existingPaths = new Set(existingFiles.map((f) => f.path));
 			// Use 3D templates for 3D games, 2D templates for 2D games
 			const templateFiles = isGame2d ? GAME_2D_TEMPLATE_FILES : GAME_3D_TEMPLATE_FILES;
+			// Engine infrastructure files — always refresh to latest version
+			// (protected from AI modification via protectedPaths, safe to overwrite)
+			const alwaysRefreshPaths = new Set(["src/engine/core.ts", "src/engine/input.ts", "src/engine/physics.ts", "src/engine/effects.ts", "src/config/assets.ts", "src/utils/media-stock.ts"]);
 			for (const tpl of templateFiles) {
-				if (existingPaths.has(tpl.path)) {
+				if (existingPaths.has(tpl.path) && !alwaysRefreshPaths.has(tpl.path)) {
 					console.log(`[Chat API] Template skip (exists): ${tpl.path}`);
 					continue;
 				}
 				try {
 					await saveFile(appId, tpl.path, tpl.content, tpl.language);
-					injectedFiles.push(tpl.path);
-					console.log(`[Chat API] Template injection: ${tpl.path}`);
+					if (existingPaths.has(tpl.path)) {
+						console.log(`[Chat API] Engine refresh: ${tpl.path}`);
+					} else {
+						injectedFiles.push(tpl.path);
+						console.log(`[Chat API] Template injection: ${tpl.path}`);
+					}
 				} catch (e) {
 					console.error(`[Chat API] Template injection failed for ${tpl.path}:`, e);
 				}
