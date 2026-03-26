@@ -11,6 +11,10 @@ export interface StoredSpritesheet {
 	name: string;
 	atlasUrl: string;
 	metadataUrl: string;
+	/** Model name extracted from storage path (e.g. "warrior") */
+	modelName?: string;
+	/** Animation name extracted from storage path (e.g. "idle") */
+	animName?: string;
 }
 
 /**
@@ -93,7 +97,7 @@ export async function listSpritesheets(
 	// Group by model+anim name
 	const sheets = new Map<
 		string,
-		{ atlasUrl?: string; metadataUrl?: string }
+		{ atlasUrl?: string; metadataUrl?: string; modelName?: string; animName?: string }
 	>();
 
 	for (const file of files) {
@@ -104,7 +108,7 @@ export async function listSpritesheets(
 		if (match) {
 			const name = `${match[1]}_${match[2]}`;
 			const type = match[3];
-			if (!sheets.has(name)) sheets.set(name, {});
+			if (!sheets.has(name)) sheets.set(name, { modelName: match[1], animName: match[2] });
 			const entry = sheets.get(name)!;
 			if (type === "sheet.png") entry.atlasUrl = file.url;
 			if (type === "sheet.json") entry.metadataUrl = file.url;
@@ -117,7 +121,7 @@ export async function listSpritesheets(
 		if (oldMatch) {
 			const name = oldMatch[1];
 			const type = oldMatch[2];
-			if (!sheets.has(name)) sheets.set(name, {});
+			if (!sheets.has(name)) sheets.set(name, { modelName: name, animName: "" });
 			const entry = sheets.get(name)!;
 			if (type === "sheet.png") entry.atlasUrl = file.url;
 			if (type === "sheet.json") entry.metadataUrl = file.url;
@@ -131,9 +135,32 @@ export async function listSpritesheets(
 				name,
 				atlasUrl: entry.atlasUrl,
 				metadataUrl: entry.metadataUrl,
+				modelName: entry.modelName,
+				animName: entry.animName,
 			});
 		}
 	});
 
 	return result;
+}
+
+/**
+ * Delete a spritesheet (atlas PNG + metadata JSON) from app storage.
+ * Uses the model/anim path structure: spritesheets/{model}/{anim}/
+ */
+export async function deleteSpritesheet(
+	appId: string,
+	modelName: string,
+	animName: string,
+): Promise<boolean> {
+	const basePath = animName
+		? `spritesheets/${modelName}/${animName}`
+		: `spritesheets/${modelName}`;
+
+	const [pngRes, jsonRes] = await Promise.all([
+		fetch(`/api/apps/${appId}/storage/${basePath}/sheet.png`, { method: "DELETE" }),
+		fetch(`/api/apps/${appId}/storage/${basePath}/sheet.json`, { method: "DELETE" }),
+	]);
+
+	return pngRes.ok && jsonRes.ok;
 }

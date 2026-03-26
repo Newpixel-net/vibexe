@@ -19,12 +19,14 @@ import {
 	Box,
 	Camera,
 	Check,
+	FolderOpen,
 	Grid3X3,
 	Link2,
 	Loader2,
 	Pencil,
 	Play,
 	Square,
+	Trash2,
 	Upload,
 } from "lucide-react";
 import {
@@ -33,13 +35,19 @@ import {
 	type LoadedModel,
 } from "../lib/spritesheet-capture";
 import { packFrames } from "../lib/spritesheet-packer";
-import { uploadSpritesheet, type StoredSpritesheet } from "../lib/spritesheet-storage";
+import {
+	uploadSpritesheet,
+	listSpritesheets,
+	deleteSpritesheet,
+	type StoredSpritesheet,
+} from "../lib/spritesheet-storage";
 
 // ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
 
 type ModelSourceTab = "url" | "upload" | "stock";
+type DialogTab = "generate" | "library";
 type Phase = "idle" | "loading" | "capturing" | "packing" | "uploading" | "done" | "error";
 
 interface Props {
@@ -123,6 +131,14 @@ export function SpritesheetToolDialog({ appId, open, onOpenChange, onGenerated }
 	const [generationId, setGenerationId] = useState(0);
 	// Capture zoom: 1.0 = auto fit, <1 = zoom in (larger character)
 	const [captureZoom, setCaptureZoom] = useState(0.85);
+
+	// Dialog tab: generate vs library
+	const [dialogTab, setDialogTab] = useState<DialogTab>("generate");
+	// Library state
+	const [librarySheets, setLibrarySheets] = useState<StoredSpritesheet[]>([]);
+	const [libraryLoading, setLibraryLoading] = useState(false);
+	const [deletingSheets, setDeletingSheets] = useState<Set<string>>(new Set());
+	const [expandedModels, setExpandedModels] = useState<Set<string>>(new Set());
 
 	// Refs — interactive 3D preview
 	const previewContainerRef = useRef<HTMLDivElement>(null);
@@ -611,6 +627,82 @@ export function SpritesheetToolDialog({ appId, open, onOpenChange, onGenerated }
 	}, [loadedModel, frameSize, frameCount, rotationAxis, selectedAnims, animRenames, animNames, appId, spriteName, onGenerated, captureZoom]);
 
 	// ---------------------------------------------------------------------------
+	// Library
+	// ---------------------------------------------------------------------------
+
+	const loadLibrary = useCallback(async () => {
+		setLibraryLoading(true);
+		try {
+			const sheets = await listSpritesheets(appId);
+			setLibrarySheets(sheets);
+			// Auto-expand all model groups
+			const models = new Set(sheets.map((s) => s.modelName || s.name.split("_")[0]));
+			setExpandedModels(models);
+		} catch {
+			setLibrarySheets([]);
+		} finally {
+			setLibraryLoading(false);
+		}
+	}, [appId]);
+
+	// Load library when tab switches to it
+	useEffect(() => {
+		if (dialogTab === "library" && open) loadLibrary();
+	}, [dialogTab, open, loadLibrary]);
+
+	const handleDeleteSheet = useCallback(async (sheet: StoredSpritesheet) => {
+		const model = sheet.modelName || sheet.name.split("_")[0];
+		const anim = sheet.animName || sheet.name.split("_").slice(1).join("_");
+		setDeletingSheets((prev) => new Set(prev).add(sheet.name));
+		try {
+			await deleteSpritesheet(appId, model, anim);
+			setLibrarySheets((prev) => prev.filter((s) => s.name !== sheet.name));
+		} finally {
+			setDeletingSheets((prev) => {
+				const next = new Set(prev);
+				next.delete(sheet.name);
+				return next;
+			});
+		}
+	}, [appId]);
+
+	const handleDeleteModel = useCallback(async (modelName: string, sheets: StoredSpritesheet[]) => {
+		// Mark all sheets in this group as deleting
+		const names = sheets.map((s) => s.name);
+		setDeletingSheets((prev) => {
+			const next = new Set(prev);
+			names.forEach((n) => next.add(n));
+			return next;
+		});
+		try {
+			await Promise.all(
+				sheets.map((s) => {
+					const anim = s.animName || s.name.split("_").slice(1).join("_");
+					return deleteSpritesheet(appId, modelName, anim);
+				}),
+			);
+			setLibrarySheets((prev) => prev.filter((s) => !names.includes(s.name)));
+		} finally {
+			setDeletingSheets((prev) => {
+				const next = new Set(prev);
+				names.forEach((n) => next.delete(n));
+				return next;
+			});
+		}
+	}, [appId]);
+
+	// Group library sheets by model name
+	const libraryGroups = (() => {
+		const groups = new Map<string, StoredSpritesheet[]>();
+		for (const sheet of librarySheets) {
+			const model = sheet.modelName || sheet.name.split("_")[0];
+			if (!groups.has(model)) groups.set(model, []);
+			groups.get(model)!.push(sheet);
+		}
+		return groups;
+	})();
+
+	// ---------------------------------------------------------------------------
 	// Render
 	// ---------------------------------------------------------------------------
 
@@ -623,15 +715,149 @@ export function SpritesheetToolDialog({ appId, open, onOpenChange, onGenerated }
 				<div className="absolute inset-0 bg-[#0d0d1a] rounded-[12px] z-[1]" />
 				<div className="relative z-[2] flex flex-col h-full">
 				<DialogHeader className="px-5 py-3 border-b border-white/[0.06]">
-					<DialogTitle className="flex items-center gap-2 text-base font-medium text-white/90">
-						<Grid3X3 className="size-4 text-blue-400" />
-						3D → 2D Spritesheet Generator
-					</DialogTitle>
+					<div className="flex items-center justify-between">
+						<DialogTitle className="flex items-center gap-2 text-base font-medium text-white/90">
+							<Grid3X3 className="size-4 text-blue-400" />
+							3D → 2D Spritesheet Generator
+						</DialogTitle>
+						<div className="flex gap-1 bg-white/[0.04] rounded-lg p-0.5">
+							<button
+								onClick={() => setDialogTab("generate")}
+								className={`px-3 py-1 rounded-md text-xs font-medium transition-colors ${
+									dialogTab === "generate"
+										? "bg-blue-500/20 text-blue-400"
+										: "text-white/40 hover:text-white/60"
+								}`}
+							>
+								<Camera className="size-3 inline mr-1" />
+								Generate
+							</button>
+							<button
+								onClick={() => setDialogTab("library")}
+								className={`px-3 py-1 rounded-md text-xs font-medium transition-colors ${
+									dialogTab === "library"
+										? "bg-blue-500/20 text-blue-400"
+										: "text-white/40 hover:text-white/60"
+								}`}
+							>
+								<FolderOpen className="size-3 inline mr-1" />
+								Library
+								{librarySheets.length > 0 && (
+									<span className="ml-1 text-[10px] opacity-60">({librarySheets.length})</span>
+								)}
+							</button>
+						</div>
+					</div>
 					<DialogDescription className="sr-only">
 						Load a 3D model, orbit to choose your camera angle, and generate per-animation spritesheets.
 					</DialogDescription>
 				</DialogHeader>
 
+				{dialogTab === "library" ? (
+					/* ============================================================
+					   LIBRARY TAB — browse & manage stored spritesheets
+					   ============================================================ */
+					<div className="flex-1 overflow-y-auto p-4" style={{ maxHeight: "calc(92vh - 56px)" }}>
+						{libraryLoading ? (
+							<div className="flex items-center justify-center h-48 text-white/30">
+								<Loader2 className="size-5 animate-spin mr-2" />
+								Loading library...
+							</div>
+						) : librarySheets.length === 0 ? (
+							<div className="flex flex-col items-center justify-center h-48 text-white/30 gap-2">
+								<FolderOpen className="size-8 opacity-30" />
+								<span className="text-sm">No spritesheets yet</span>
+								<span className="text-xs text-white/20">Generate some sprites to see them here</span>
+							</div>
+						) : (
+							<div className="space-y-3">
+								{/* Summary bar */}
+								<div className="flex items-center justify-between text-xs text-white/30 pb-2 border-b border-white/[0.06]">
+									<span>{librarySheets.length} spritesheet{librarySheets.length > 1 ? "s" : ""} across {libraryGroups.size} model{libraryGroups.size > 1 ? "s" : ""}</span>
+									<button
+										onClick={loadLibrary}
+										className="text-[10px] text-white/30 hover:text-white/60 transition-colors"
+									>
+										Refresh
+									</button>
+								</div>
+
+								{/* Model groups */}
+								{[...libraryGroups.entries()].map(([modelName, sheets]) => (
+									<div key={modelName} className="rounded-lg border border-white/[0.06] overflow-hidden">
+										{/* Group header */}
+										<button
+											onClick={() => setExpandedModels((prev) => {
+												const next = new Set(prev);
+												if (next.has(modelName)) next.delete(modelName);
+												else next.add(modelName);
+												return next;
+											})}
+											className="w-full flex items-center justify-between px-3 py-2 bg-white/[0.03] hover:bg-white/[0.05] transition-colors"
+										>
+											<div className="flex items-center gap-2">
+												<span className={`text-[10px] text-white/30 transition-transform ${expandedModels.has(modelName) ? "rotate-90" : ""}`}>▶</span>
+												<span className="text-sm font-medium text-white/70">{modelName}</span>
+												<span className="text-[10px] text-white/30 bg-white/[0.06] px-1.5 py-0.5 rounded">
+													{sheets.length} sprite{sheets.length > 1 ? "s" : ""}
+												</span>
+											</div>
+											<button
+												onClick={(e) => {
+													e.stopPropagation();
+													handleDeleteModel(modelName, sheets);
+												}}
+												className="text-[10px] text-red-400/50 hover:text-red-400 hover:bg-red-500/10 px-2 py-0.5 rounded transition-colors"
+												title={`Delete all ${modelName} spritesheets`}
+											>
+												<Trash2 className="size-3 inline mr-0.5" />
+												Delete All
+											</button>
+										</button>
+
+										{/* Expanded: sprite cards grid */}
+										{expandedModels.has(modelName) && (
+											<div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2 p-2">
+												{sheets.map((sheet) => {
+													const isDeleting = deletingSheets.has(sheet.name);
+													const displayAnim = sheet.animName || sheet.name.split("_").slice(1).join("_") || "default";
+													return (
+														<div
+															key={sheet.name}
+															className={`group relative flex flex-col rounded-lg border border-white/[0.06] bg-white/[0.02] overflow-hidden transition-opacity ${isDeleting ? "opacity-40 pointer-events-none" : ""}`}
+														>
+															{/* Atlas thumbnail */}
+															<div className="relative aspect-[2/1] bg-[#080812] flex items-center justify-center overflow-hidden">
+																<img
+																	src={sheet.atlasUrl}
+																	alt={sheet.name}
+																	className="max-w-full max-h-full object-contain"
+																	style={{ imageRendering: "pixelated" }}
+																/>
+																{/* Delete button overlay */}
+																<button
+																	onClick={() => handleDeleteSheet(sheet)}
+																	className="absolute top-1 right-1 p-1 rounded bg-black/60 text-red-400/60 hover:text-red-400 hover:bg-red-500/20 opacity-0 group-hover:opacity-100 transition-all"
+																	title="Delete this spritesheet"
+																>
+																	<Trash2 className="size-3" />
+																</button>
+															</div>
+															{/* Label */}
+															<div className="px-2 py-1.5">
+																<div className="text-[11px] text-white/60 font-medium truncate">{displayAnim}</div>
+															</div>
+														</div>
+													);
+												})}
+											</div>
+										)}
+									</div>
+								))}
+							</div>
+						)}
+					</div>
+				) : (
 				<div className="flex flex-col md:flex-row overflow-x-hidden overflow-y-auto" style={{ maxHeight: "calc(92vh - 56px)" }}>
 					{/* Left column: Interactive 3D Preview / Results */}
 					<div className="hidden md:flex md:w-[380px] flex-shrink-0 border-r border-white/[0.06] flex-col">
@@ -1051,6 +1277,7 @@ export function SpritesheetToolDialog({ appId, open, onOpenChange, onGenerated }
 						</div>
 					</div>
 				</div>
+				)}
 				</div>
 			</DialogContent>
 		</Dialog>
