@@ -1357,61 +1357,32 @@ export class AssetsSystem {
     return Object.keys(sheet.animations);
   }
 
-  /** Replace the player character with custom spritesheet animations.
-   *  Maps loaded spritesheets to _sheetCache['hero'] and swaps the player visual.
+  /** Build merged animation textures from loaded spritesheets.
+   *  Returns a Record mapping feature keys (idle/walk/jump) to texture arrays.
    *  @param mapping - { idle: "sheet_name", walk: "sheet_name", jump: "sheet_name" }
-   *  At minimum 'idle' is required. 'walk' defaults to idle, 'jump' defaults to idle. */
-  setPlayerSprites(mapping: Record<string, string>): void {
+   *  At minimum 'idle' is required. Missing walk/jump default to idle textures. */
+  buildPlayerAnimations(mapping: Record<string, string>): Record<string, any[]> | null {
     try {
       var mergedAnimations: Record<string, any[]> = {};
       for (var key of Object.keys(mapping)) {
         var sheetName = mapping[key];
         var sheet = this._cache.get(sheetName);
-        if (!sheet || !sheet.animations) { console.warn('[Assets] setPlayerSprites: sheet not loaded:', sheetName); continue; }
+        if (!sheet || !sheet.animations) { console.warn('[Assets] buildPlayerAnimations: sheet not loaded:', sheetName); continue; }
         var animKeys = Object.keys(sheet.animations);
         if (animKeys.length > 0) {
           mergedAnimations[key] = sheet.animations[animKeys[0]];
-          console.log('[Assets] setPlayerSprites: mapped', key, '←', sheetName, '(' + animKeys[0] + ',', mergedAnimations[key].length, 'frames)');
+          console.log('[Assets] buildPlayerAnimations: mapped', key, '←', sheetName, '(' + animKeys[0] + ',', mergedAnimations[key].length, 'frames)');
         }
       }
-      if (!mergedAnimations['idle']) { console.warn('[Assets] setPlayerSprites: no idle animation mapped'); return; }
+      if (!mergedAnimations['idle']) { console.warn('[Assets] buildPlayerAnimations: no idle animation'); return null; }
       if (!mergedAnimations['walk']) mergedAnimations['walk'] = mergedAnimations['idle'];
       if (!mergedAnimations['jump']) mergedAnimations['jump'] = mergedAnimations['idle'];
-
-      // Use _setHeroSheet helper (module-level access to _sheetCache)
-      _setHeroSheet(mergedAnimations);
-      console.log('[Assets] setPlayerSprites: _sheetCache.hero set with', Object.keys(mergedAnimations).join(', '));
-
-      // Replace the player visual with an AnimatedSprite showing idle
-      var playerFeature = this.engine.features.get('player-platformer');
-      if (playerFeature && playerFeature.playerGfx) {
-        var idleTextures = mergedAnimations['idle'];
-        var newSprite = new PIXI.AnimatedSprite(idleTextures);
-        newSprite.anchor.set(0.5, 1);
-        newSprite.animationSpeed = 0.08;
-        newSprite.play();
-        var old = playerFeature.playerGfx;
-        newSprite.x = old.x; newSprite.y = old.y;
-        newSprite.width = old.width; newSprite.height = old.height;
-        if (old.parent) {
-          var idx = old.parent.getChildIndex(old);
-          old.parent.addChildAt(newSprite, idx);
-          old.parent.removeChild(old);
-        }
-        playerFeature.playerGfx = newSprite;
-        console.log('[Assets] setPlayerSprites: player visual replaced with AnimatedSprite');
-      } else {
-        console.log('[Assets] setPlayerSprites: _sheetCache mapped (player visual swap deferred to feature update)');
-      }
+      return mergedAnimations;
     } catch(e) {
-      console.warn('[Assets] setPlayerSprites failed:', e);
+      console.warn('[Assets] buildPlayerAnimations failed:', e);
+      return null;
     }
   }
-}
-
-/** Module-level helper — safe access to _sheetCache from class methods */
-function _setHeroSheet(animations: Record<string, any[]>) {
-  _sheetCache['hero'] = { animations: animations };
 }
 
 // ---------------------------------------------------------------------------
