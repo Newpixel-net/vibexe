@@ -1002,6 +1002,41 @@ const supabase = createClient("${supabaseConfig.url}", "${supabaseConfig.anonKey
 				}
 			}
 
+			// Pre-scan spritesheets for 2D template injection (before template build)
+			let spritesheetInjectCode = "";
+			if (isGame2d) {
+				try {
+					const earlySheetResult = await listFiles(appId, "spritesheets/", 100);
+					const earlySheetFiles = earlySheetResult.files || [];
+					const earlySheets = new Map<string, { atlasUrl?: string; metadataUrl?: string; modelName: string; animName: string }>();
+					for (const f of earlySheetFiles) {
+						const m = f.path.match(/^spritesheets\/([^/]+)\/([^/]+)\/(sheet\.png|sheet\.json)$/);
+						if (!m) continue;
+						const name = `${m[1]}_${m[2]}`;
+						if (!earlySheets.has(name)) earlySheets.set(name, { modelName: m[1], animName: m[2] });
+						const entry = earlySheets.get(name)!;
+						if (m[3] === "sheet.png") entry.atlasUrl = f.url;
+						if (m[3] === "sheet.json") entry.metadataUrl = f.url;
+					}
+					const completeSheets = Array.from(earlySheets.entries()).filter(([, v]) => v.atlasUrl && v.metadataUrl);
+					if (completeSheets.length > 0) {
+						// Find idle/walk/jump animations for setPlayerSprites
+						const idleSheet = completeSheets.find(([, v]) => /idle/i.test(v.animName));
+						const walkSheet = completeSheets.find(([, v]) => /run|walk/i.test(v.animName));
+						const jumpSheet = completeSheets.find(([, v]) => /jump/i.test(v.animName));
+						if (idleSheet) {
+							const loads = completeSheets.map(([name, v]) =>
+								`    await engine.assets.loadSpritesheet("${name}", "${v.atlasUrl}", "${v.metadataUrl}").catch(() => null);`
+							).join("\n");
+							spritesheetInjectCode = `\n    // Load custom character spritesheets (auto-injected)\n${loads}\n    engine.assets.setPlayerSprites({ idle: "${idleSheet[0]}", walk: "${walkSheet?.[0] || idleSheet[0]}", jump: "${jumpSheet?.[0] || idleSheet[0]}" });\n`;
+							console.log(`[Chat API] Injected ${completeSheets.length} spritesheet loads into scene template`);
+						}
+					}
+				} catch (e) {
+					console.warn("[Chat API] Early spritesheet scan failed:", e);
+				}
+			}
+
 			// 2D games: auto-compose Feature Bank scaffold so preview works during plan phase
 			// AND so the build phase starts with working gameplay features already in place
 			if (isGame2d && !existingPaths.has("src/scenes/GameScene2D.ts")) {
@@ -1045,7 +1080,7 @@ export default class GameScene2D implements GameScene {
 
   async enter(engine: Engine2D) {
     await _loadSpriteLib("${theme}");
-
+${spritesheetInjectCode}
     // Register and initialize Feature Bank features
 ${featureRegistrations}
     engine.features.initAll();
