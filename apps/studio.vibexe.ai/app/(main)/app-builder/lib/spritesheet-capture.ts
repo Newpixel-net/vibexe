@@ -889,13 +889,16 @@ export class SpritesheetCapture {
 			.distanceTo(new THREE.Vector3(target.x, target.y, target.z));
 		const halfH = dist * Math.tan((fovDeg * Math.PI / 180) / 2);
 		const halfW = halfH * aspect;
-		// The orthographic frustum is centered on the target, camera looks at target
-		// We shift the frustum so the capture center = target projected onto the ortho plane
+		// The preview has generous padding for orbit comfort (2x).
+		// Scale down for tight capture framing — character fills ~90% of frame.
+		const tighten = 0.55;
+		const tH = halfH * tighten;
+		const tW = halfW * tighten;
 		this._sharedFrustum = {
-			left: -halfW,
-			right: halfW,
-			bottom: -halfH,
-			top: halfH,
+			left: -tW,
+			right: tW,
+			bottom: -tH,
+			top: tH,
 		};
 		// Also store the target offset so captureAnimation centers on it
 		this._previewTarget = { x: target.x, y: target.y, z: target.z };
