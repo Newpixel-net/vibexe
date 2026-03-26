@@ -1353,31 +1353,57 @@ These sprites have white backgrounds — set blendMode or use alpha masking if n
 				const sheetResult = await listFiles(appId, "spritesheets/", 100);
 				const sheetFiles = sheetResult.files || [];
 				// Group by spritesheet name
-				const sheets = new Map<string, { atlasUrl?: string; metadataUrl?: string }>();
+				const sheets = new Map<string, { atlasUrl?: string; metadataUrl?: string; modelName: string; animName: string }>();
 				for (const f of sheetFiles) {
-					const m = f.path.match(/^spritesheets\/([^/]+)\/(sheet\.png|sheet\.json)$/);
+					// Match nested format: spritesheets/{model}/{anim}/sheet.png|json
+					const m = f.path.match(/^spritesheets\/([^/]+)\/([^/]+)\/(sheet\.png|sheet\.json)$/);
 					if (!m) continue;
-					if (!sheets.has(m[1])) sheets.set(m[1], {});
-					const entry = sheets.get(m[1])!;
-					if (m[2] === "sheet.png") entry.atlasUrl = f.url;
-					if (m[2] === "sheet.json") entry.metadataUrl = f.url;
+					const name = `${m[1]}_${m[2]}`;
+					if (!sheets.has(name)) sheets.set(name, { modelName: m[1], animName: m[2] });
+					const entry = sheets.get(name)!;
+					if (m[3] === "sheet.png") entry.atlasUrl = f.url;
+					if (m[3] === "sheet.json") entry.metadataUrl = f.url;
 				}
 				const complete = Array.from(sheets.entries()).filter(([, v]) => v.atlasUrl && v.metadataUrl);
 				if (complete.length > 0) {
-					const lines = complete.map(([name, v]) =>
-						`- **${name}**: \`await engine.assets.loadSpritesheet("${name}", "${v.atlasUrl}", "${v.metadataUrl}")\``
-					).join("\n");
-					runtimeAddenda.push(`## Custom Spritesheets (3D→2D Generated)
+					// Group by model name so AI understands which character has which animations
+					const byModel = new Map<string, Array<{ name: string; animName: string; atlasUrl: string; metadataUrl: string }>>();
+					for (const [name, v] of complete) {
+						if (!byModel.has(v.modelName)) byModel.set(v.modelName, []);
+						byModel.get(v.modelName)!.push({ name, animName: v.animName, atlasUrl: v.atlasUrl!, metadataUrl: v.metadataUrl! });
+					}
 
-${lines}
+					let promptLines = "";
+					const firstModelAnims: Array<{ name: string; atlasUrl: string; metadataUrl: string }> = [];
+					for (const [model, anims] of byModel) {
+						if (firstModelAnims.length === 0) firstModelAnims.push(...anims);
+						const animList = anims.map(a => a.animName).join(", ");
+						promptLines += `\n### ${model} (${anims.length} animation${anims.length > 1 ? "s" : ""}): ${animList}\n`;
+						for (const a of anims) {
+							promptLines += `- \`await engine.assets.loadSpritesheet("${a.name}", "${a.atlasUrl}", "${a.metadataUrl}")\`\n`;
+						}
+					}
 
-**Usage**: Load in enter(), then create AnimatedSprites:
+					runtimeAddenda.push(`## Custom Spritesheets (User-Generated from 3D Models)
+
+**IMPORTANT**: The user has created custom character spritesheets. You MUST use these instead of drawPlayerCharacter/drawEnemySlime drawing helpers when the character matches.
+${promptLines}
+**Usage in custom-visuals.ts setup():**
 \`\`\`typescript
-await engine.assets.loadSpritesheet("${complete[0][0]}", "${complete[0][1].atlasUrl}", "${complete[0][1].metadataUrl}");
-var animNames = engine.assets.animationNames("${complete[0][0]}");
-var sprite = engine.assets.animation("${complete[0][0]}", animNames[0]);
-\`\`\``);
-					console.log(`[Chat API] Injected ${complete.length} custom spritesheet(s) into prompt`);
+// Load all animations for a character
+${firstModelAnims.map(a => `await engine.assets.loadSpritesheet("${a.name}", "${a.atlasUrl}", "${a.metadataUrl}").catch(() => null);`).join("\n")}
+
+// Create animated sprite from loaded sheet
+var animNames = engine.assets.animationNames("${firstModelAnims[0]?.name}");
+var sprite = engine.assets.animation("${firstModelAnims[0]?.name}", animNames[0]);
+sprite.anchor.set(0.5, 1);
+sprite.animationSpeed = 0.15;
+sprite.play();
+\`\`\`
+
+**Fallback**: Use \`.catch(() => null)\` on loadSpritesheet. If it returns null, fall back to drawing helpers.
+**These sprites have white backgrounds** — use blendMode or alpha masking if needed.`);
+					console.log(`[Chat API] Injected ${complete.length} custom spritesheet(s) for ${byModel.size} model(s) into prompt`);
 				}
 			} catch (e) {
 				console.warn("[Chat API] Failed to fetch spritesheet catalog:", e);
