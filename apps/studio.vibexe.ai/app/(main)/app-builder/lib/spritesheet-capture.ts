@@ -621,6 +621,12 @@ export class SpritesheetCapture {
 		const up = new THREE.Vector3(0, heightAxis === "z" ? 0 : 1, heightAxis === "z" ? 1 : 0);
 		this.setModel(model);
 
+		// Add a temporary detection light that follows the camera so every view
+		// is equally lit. Without this, the fixed key light at (1,2,-3) makes the
+		// -Z face brighter, biasing unique color counts toward the back.
+		const detectionLight = new THREE.DirectionalLight(0xffffff, 1.0);
+		this.scene.add(detectionLight);
+
 		const w = this.frameWidth, h = this.frameHeight;
 		const gl = this.renderer.getContext();
 		const px = new Uint8Array(w * h * 4);
@@ -630,6 +636,8 @@ export class SpritesheetCapture {
 			this.camera.position.set(center.x + dir[0] * 5, center.y + dir[1] * 5, center.z + dir[2] * 5);
 			this.camera.up.copy(up);
 			this.camera.lookAt(center.x, center.y, center.z);
+			// Move detection light to match camera — ensures equal lighting from every angle
+			detectionLight.position.set(dir[0] * 5, dir[1] * 5 + 2, dir[2] * 5);
 			this.renderer.render(this.scene, this.camera);
 			gl.readPixels(0, 0, w, h, gl.RGBA, gl.UNSIGNED_BYTE, px);
 
@@ -671,6 +679,7 @@ export class SpritesheetCapture {
 		}
 
 		this.scene.remove(model);
+		this.scene.remove(detectionLight);
 
 		// Restore original frame size for subsequent captures
 		await this.init(this.frameWidth !== detectSize ? this.frameWidth : 128,
