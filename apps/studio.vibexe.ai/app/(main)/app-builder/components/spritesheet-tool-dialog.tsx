@@ -526,8 +526,7 @@ export function SpritesheetToolDialog({ appId, open, onOpenChange, onGenerated }
 			const capture = getCaptureInstance();
 			await capture.init(frameSize, frameSize);
 
-			// Sync preview camera DIRECTION only — frustum is computed per-animation
-			// via pixel scanning to fit the actual content tightly.
+			// Sync preview camera direction — shared frustum handles sizing.
 			if (previewCameraRef.current && orbitControlsRef.current) {
 				const THREE = capture.getThree();
 				const dir = new THREE.Vector3()
@@ -540,16 +539,20 @@ export function SpritesheetToolDialog({ appId, open, onOpenChange, onGenerated }
 
 			if (animNames.length > 0 && selectedAnims.size > 0) {
 				const anims = [...selectedAnims];
-				// No shared frustum — each animation gets its own tight fit via pixel scan.
-				// This prevents standing poses from being tiny when a fall animation is included.
-				capture.clearSharedFrustum();
+
+				// Pre-scan ALL selected animations to compute a single shared frustum.
+				// This ensures the character is the SAME size in every spritesheet —
+				// critical for game use where sprites must be interchangeable.
+				setPhase("capturing");
+				await capture.precomputeSharedFrustum(loadedModel, anims, frameCount, (pct) => {
+					setProgress(pct * 0.2); // Pre-scan = first 20%
+				});
 
 				for (let i = 0; i < anims.length; i++) {
 					if (abortRef.current) break;
 					const originalName = anims[i];
 					const outputName = animRenames[originalName] || originalName;
 
-					// Capture frames — clipName is the original GLB clip name, prefix uses the (possibly renamed) output name
 					setPhase("capturing");
 					const frames = await capture.captureAnimation(loadedModel, {
 						frames: frameCount,
@@ -558,7 +561,7 @@ export function SpritesheetToolDialog({ appId, open, onOpenChange, onGenerated }
 					}, (pct) => {
 						const base = i / anims.length;
 						const slice = 1 / anims.length;
-						setProgress(0.2 + (base + pct * slice) * 0.4); // 20-60% range
+						setProgress(0.2 + (base + pct * slice) * 0.6); // 20-80% range
 					});
 
 					// Pack into its own atlas

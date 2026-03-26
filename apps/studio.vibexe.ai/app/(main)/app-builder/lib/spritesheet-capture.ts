@@ -184,13 +184,6 @@ export class SpritesheetCapture {
 		const box = new THREE.Box3().setFromObject(model);
 		const center = box.getCenter(new THREE.Vector3());
 		const size = box.getSize(new THREE.Vector3());
-		// Debug: expose bounding box info
-		(globalThis as any).__modelBBox = {
-			min: { x: box.min.x.toFixed(3), y: box.min.y.toFixed(3), z: box.min.z.toFixed(3) },
-			max: { x: box.max.x.toFixed(3), y: box.max.y.toFixed(3), z: box.max.z.toFixed(3) },
-			size: { x: size.x.toFixed(3), y: size.y.toFixed(3), z: size.z.toFixed(3) },
-			center: { x: center.x.toFixed(3), y: center.y.toFixed(3), z: center.z.toFixed(3) },
-		};
 		model.position.sub(center);
 	}
 
@@ -701,10 +694,6 @@ export class SpritesheetCapture {
 		measured.sort((a, b) => b.width - a.width);
 		const top2 = measured.slice(0, 2);
 
-		// Debug: log measurements so we can see what's happening
-		console.log("[detectModelFront]", top2.map(m =>
-			`dir=[${m.dir}] width=${m.width} colors=${m.uniqueColors}`).join(" | "));
-
 		// Among the front/back pair, more unique colors in the head = front (face detail).
 		// But if scores are within 20%, it's ambiguous — use tiebreaker direction.
 		// Tiebreaker: +Z for Y-up, +Y for Z-up (camera sees model's front for most models).
@@ -720,7 +709,6 @@ export class SpritesheetCapture {
 		} else {
 			front = top2[0].uniqueColors >= top2[1].uniqueColors ? top2[0] : top2[1];
 		}
-		console.log("[detectModelFront] picked dir=[" + front.dir + "] colors=" + front.uniqueColors);
 		return { x: front.dir[0], y: front.dir[1], z: front.dir[2] };
 	}
 
@@ -778,7 +766,6 @@ export class SpritesheetCapture {
 			const freshLoaded = await this.reloadModelFresh(loaded);
 			const clip = freshLoaded.animations.find((c: any) => c.name === clipName) || freshLoaded.animations[0];
 			if (!clip) continue;
-			console.log(`[sharedFrustum] scanning clip="${clipName}" matched="${clip.name}" dur=${clip.duration.toFixed(2)} avail=[${freshLoaded.animations.map((a: any) => a.name).join(',')}]`);
 			const clipDuration = clip.duration;
 
 			for (let i = 0; i < framesPerClip; i++) {
@@ -838,8 +825,6 @@ export class SpritesheetCapture {
 			const halfW = Math.max(eX, 0.1) * pad;
 			const halfH = Math.max(eY, 0.1) * pad;
 
-			console.log(`[sharedFrustum] scanSize=${scanSize.toFixed(2)} pxBounds=[${minPxX},${minPxY}]-[${maxPxX},${maxPxY}] of ${w}x${h} contentWorld=[${contentLeft.toFixed(2)},${contentBottom.toFixed(2)}]-[${contentRight.toFixed(2)},${contentTop.toFixed(2)}] halfW=${halfW.toFixed(3)} halfH=${halfH.toFixed(3)}`);
-
 			this._sharedFrustum = {
 				left: cX - halfW,
 				right: cX + halfW,
@@ -869,40 +854,6 @@ export class SpritesheetCapture {
 	 *  Called from dialog to sync preview camera angle to capture. */
 	setCameraDirection(dir: { x: number; y: number; z: number }): void {
 		this._cameraDirection = dir;
-	}
-
-	/** Compute orthographic frustum from the preview's perspective camera.
-	 *  This ensures capture matches exactly what the user sees in preview.
-	 *  @param fovDeg  PerspectiveCamera FOV in degrees
-	 *  @param camPos  Camera world position {x,y,z}
-	 *  @param target  OrbitControls target {x,y,z}
-	 *  @param aspect  Preview canvas aspect ratio (width/height)
-	 */
-	setFrustumFromPreview(
-		fovDeg: number,
-		camPos: { x: number; y: number; z: number },
-		target: { x: number; y: number; z: number },
-		aspect: number,
-	): void {
-		const THREE = this.THREE;
-		const dist = new THREE.Vector3(camPos.x, camPos.y, camPos.z)
-			.distanceTo(new THREE.Vector3(target.x, target.y, target.z));
-		const halfH = dist * Math.tan((fovDeg * Math.PI / 180) / 2);
-		const halfW = halfH * aspect;
-		// The preview has generous padding for orbit comfort (2x).
-		// Scale down for tight capture framing — character fills ~85% of frame.
-		const tighten = 0.6;
-		const tH = halfH * tighten;
-		const tW = halfW * tighten;
-		this._sharedFrustum = {
-			left: -tW,
-			right: tW,
-			bottom: -tH,
-			top: tH,
-		};
-		// Also store the target offset so captureAnimation centers on it
-		this._previewTarget = { x: target.x, y: target.y, z: target.z };
-		console.log(`[setFrustumFromPreview] fov=${fovDeg} dist=${dist.toFixed(2)} halfW=${halfW.toFixed(3)} halfH=${halfH.toFixed(3)} aspect=${aspect.toFixed(2)}`);
 	}
 
 	setCameraPosition(x: number, y: number, z: number): void {
