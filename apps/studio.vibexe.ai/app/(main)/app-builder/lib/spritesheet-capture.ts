@@ -620,7 +620,7 @@ export class SpritesheetCapture {
 		const w = this.frameWidth, h = this.frameHeight;
 		const gl = this.renderer.getContext();
 		const px = new Uint8Array(w * h * 4);
-		const measured: { dir: number[]; width: number; upperRatio: number }[] = [];
+		const measured: { dir: number[]; width: number; headVariance: number }[] = [];
 
 		for (const dir of dirs) {
 			this.camera.position.set(center.x + dir[0] * 5, center.y + dir[1] * 5, center.z + dir[2] * 5);
@@ -629,21 +629,30 @@ export class SpritesheetCapture {
 			this.renderer.render(this.scene, this.camera);
 			gl.readPixels(0, 0, w, h, gl.RGBA, gl.UNSIGNED_BYTE, px);
 
-			let minX = w, maxX = 0, upper = 0, total = 0;
+			let minX = w, maxX = 0;
+			// Measure head-area color variance (top 25% of content).
+			// The face has high variance (eyes, skin tones, shadows) vs back of head (uniform).
+			const topY = Math.floor(h * 3 / 4); // WebGL: higher row = top of image
+			const brightVals: number[] = [];
 			for (let py = 0; py < h; py++) {
 				for (let p = 0; p < w; p++) {
-					if (px[(py * w + p) * 4 + 3] > 10) {
+					const idx = (py * w + p) * 4;
+					if (px[idx + 3] > 10) {
 						if (p < minX) minX = p;
 						if (p > maxX) maxX = p;
-						total++;
-						if (py > h / 2) upper++;
+						if (py >= topY) brightVals.push(px[idx] + px[idx + 1] + px[idx + 2]);
 					}
 				}
+			}
+			let headVariance = 0;
+			if (brightVals.length > 0) {
+				const mean = brightVals.reduce((a, b) => a + b, 0) / brightVals.length;
+				headVariance = brightVals.reduce((a, b) => a + (b - mean) ** 2, 0) / brightVals.length;
 			}
 			measured.push({
 				dir,
 				width: maxX > minX ? maxX - minX + 1 : 0,
-				upperRatio: total > 0 ? upper / total : 0,
+				headVariance,
 			});
 		}
 
@@ -651,8 +660,8 @@ export class SpritesheetCapture {
 
 		// Widest silhouette = front or back (shoulder width > body depth)
 		measured.sort((a, b) => b.width - a.width);
-		// Among the two widest, more upper-half pixels = front (face/head detail)
-		const front = measured[0].upperRatio >= measured[1].upperRatio ? measured[0] : measured[1];
+		// Among the two widest, higher head color variance = front (face detail > back of head)
+		const front = measured[0].headVariance >= measured[1].headVariance ? measured[0] : measured[1];
 		return { x: front.dir[0], y: front.dir[1], z: front.dir[2] };
 	}
 

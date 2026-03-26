@@ -268,7 +268,7 @@ export function SpritesheetToolDialog({ appId, open, onOpenChange, onGenerated }
 	// Initialize live 3D preview with OrbitControls
 	// ---------------------------------------------------------------------------
 
-	const initPreviewRenderer = useCallback(async (loaded: LoadedModel) => {
+	const initPreviewRenderer = useCallback(async (loaded: LoadedModel, frontDir?: { x: number; y: number; z: number }) => {
 		const capture = getCaptureInstance();
 		const THREE = capture.getThree();
 		if (!THREE || !previewContainerRef.current) return;
@@ -310,14 +310,19 @@ export function SpritesheetToolDialog({ appId, open, onOpenChange, onGenerated }
 		const bbox = new THREE.Box3().setFromObject(loaded.model);
 		const bsize = bbox.getSize(new THREE.Vector3());
 		const isZUp = bsize.z > bsize.y;
+		const modelHeight = isZUp ? bsize.z : bsize.y;
+		const camDist = Math.max(modelHeight * 2.5, 4); // Scale camera distance to model size
 
-		// Camera — front view adapted to model's up axis
+		// Camera — use detected front direction, or fall back to axis default
 		const camera = new THREE.PerspectiveCamera(35, w / h, 0.1, 100);
-		if (isZUp) {
-			camera.position.set(0, -4, 0); // Look along Y toward model, Z is up
+		if (frontDir) {
+			camera.position.set(frontDir.x * camDist, frontDir.y * camDist, frontDir.z * camDist);
+			camera.up.set(0, isZUp ? 0 : 1, isZUp ? 1 : 0);
+		} else if (isZUp) {
+			camera.position.set(0, -camDist, 0);
 			camera.up.set(0, 0, 1);
 		} else {
-			camera.position.set(0, 0, -4); // Standard Y-up model
+			camera.position.set(0, 0, -camDist);
 			camera.up.set(0, 1, 0);
 		}
 		camera.lookAt(0, 0, 0);
@@ -420,8 +425,8 @@ export function SpritesheetToolDialog({ appId, open, onOpenChange, onGenerated }
 			const urlName = url.split("/").pop()?.replace(/\.(glb|gltf)$/i, "") || "sprite";
 			setSpriteName(urlName.replace(/[^a-zA-Z0-9_-]/g, "_").toLowerCase());
 
-			// Start interactive preview
-			await initPreviewRenderer(loaded);
+			// Start interactive preview — use detected front for initial camera
+			await initPreviewRenderer(loaded, frontDir);
 
 			setPhase("idle");
 		} catch (err: any) {
