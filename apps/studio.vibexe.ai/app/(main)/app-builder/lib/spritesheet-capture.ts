@@ -597,6 +597,8 @@ export class SpritesheetCapture {
 		// Use higher resolution (256px) so facial features (eyes, nose, mouth) are
 		// actually resolvable. At 128px the face is a uniform blob and back armor wins.
 		const detectSize = 256;
+		const savedW = this.frameWidth;
+		const savedH = this.frameHeight;
 		await this.init(detectSize, detectSize);
 		const THREE = this.THREE;
 		const heightAxis = this._heightAxis;
@@ -683,8 +685,7 @@ export class SpritesheetCapture {
 		this.scene.remove(detectionLight);
 
 		// Restore original frame size for subsequent captures
-		await this.init(this.frameWidth !== detectSize ? this.frameWidth : 128,
-			this.frameHeight !== detectSize ? this.frameHeight : 128);
+		await this.init(savedW, savedH);
 
 		// Widest silhouette pair = front/back (shoulder width > body depth)
 		measured.sort((a, b) => b.width - a.width);
