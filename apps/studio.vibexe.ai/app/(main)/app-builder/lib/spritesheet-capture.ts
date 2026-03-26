@@ -364,8 +364,14 @@ export class SpritesheetCapture {
 		const clipDuration = freshClip.duration;
 		const step = 1 / 60;
 
-		// Helper: advance a fresh mixer to a target time using small steps
+		// Helper: reset skeleton to bind pose, then advance to target time
 		const advanceToTime = (model: any, animClip: any, targetTime: number) => {
+			// Reset all skinned meshes to bind pose before each advance
+			model.traverse((child: any) => {
+				if (child.isSkinnedMesh && child.skeleton) {
+					child.skeleton.pose();
+				}
+			});
 			const m = new THREE.AnimationMixer(model);
 			const a = m.clipAction(animClip);
 			a.play();
@@ -382,8 +388,7 @@ export class SpritesheetCapture {
 
 		// =====================================================================
 		// PASS 1: Pre-scan ALL frames to find the MAXIMUM bounding box.
-		// This is the professional "Fit All Frames" approach — ensures no frame
-		// clips the character, even with root motion (kicks, falls, etc.).
+		// skeleton.pose() resets bones before each advance to prevent accumulation.
 		// =====================================================================
 		const maxBox = new THREE.Box3(
 			new THREE.Vector3(Infinity, Infinity, Infinity),
