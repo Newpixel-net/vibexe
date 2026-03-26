@@ -602,6 +602,10 @@ export class SpritesheetCapture {
 			? [[0, -1, 0], [0, 1, 0], [1, 0, 0], [-1, 0, 0]]
 			: [[0, 0, -1], [0, 0, 1], [1, 0, 0], [-1, 0, 0]];
 
+		// Convention: most 3D characters face -Z (Y-up) or -Y (Z-up).
+		// Camera must be OPPOSITE to facing direction to see the front.
+		const conventionDir = heightAxis === "z" ? [0, 1, 0] : [0, 0, 1];
+
 		const model = loaded.model;
 		model.updateMatrixWorld(true);
 		const box = new THREE.Box3().setFromObject(model);
@@ -621,7 +625,7 @@ export class SpritesheetCapture {
 		const w = this.frameWidth, h = this.frameHeight;
 		const gl = this.renderer.getContext();
 		const px = new Uint8Array(w * h * 4);
-		const measured: { dir: number[]; width: number; headVariance: number }[] = [];
+		const measured: { dir: number[]; width: number; edgeDensity: number }[] = [];
 
 		for (const dir of dirs) {
 			this.camera.position.set(center.x + dir[0] * 5, center.y + dir[1] * 5, center.z + dir[2] * 5);
@@ -631,38 +635,60 @@ export class SpritesheetCapture {
 			gl.readPixels(0, 0, w, h, gl.RGBA, gl.UNSIGNED_BYTE, px);
 
 			let minX = w, maxX = 0;
-			// Measure head-area color variance (top 25% of content).
-			// The face has high variance (eyes, skin tones, shadows) vs back of head (uniform).
-			const topY = Math.floor(h * 3 / 4); // WebGL: higher row = top of image
-			const brightVals: number[] = [];
+			// Measure edge density in head area (top 15% of content).
+			// Faces have many sharp edges (eyes, nose, mouth, jaw) vs backs which are smoother.
+			const topY = Math.floor(h * 0.85); // WebGL: higher row = top of image
+			let edgeCount = 0, headPixels = 0;
 			for (let py = 0; py < h; py++) {
 				for (let p = 0; p < w; p++) {
 					const idx = (py * w + p) * 4;
 					if (px[idx + 3] > 10) {
 						if (p < minX) minX = p;
 						if (p > maxX) maxX = p;
-						if (py >= topY) brightVals.push(px[idx] + px[idx + 1] + px[idx + 2]);
+						// Count sharp color transitions in head region
+						if (py >= topY && p > 0) {
+							headPixels++;
+							const prevIdx = (py * w + p - 1) * 4;
+							if (px[prevIdx + 3] > 10) {
+								const diff = Math.abs(px[idx] - px[prevIdx])
+									+ Math.abs(px[idx + 1] - px[prevIdx + 1])
+									+ Math.abs(px[idx + 2] - px[prevIdx + 2]);
+								if (diff > 40) edgeCount++;
+							}
+						}
 					}
 				}
-			}
-			let headVariance = 0;
-			if (brightVals.length > 0) {
-				const mean = brightVals.reduce((a, b) => a + b, 0) / brightVals.length;
-				headVariance = brightVals.reduce((a, b) => a + (b - mean) ** 2, 0) / brightVals.length;
 			}
 			measured.push({
 				dir,
 				width: maxX > minX ? maxX - minX + 1 : 0,
-				headVariance,
+				edgeDensity: headPixels > 0 ? edgeCount / headPixels : 0,
 			});
 		}
 
 		this.scene.remove(model);
 
-		// Widest silhouette = front or back (shoulder width > body depth)
+		// Widest silhouette pair = front/back (shoulder width > body depth)
 		measured.sort((a, b) => b.width - a.width);
-		// Among the two widest, higher head color variance = front (face detail > back of head)
-		const front = measured[0].headVariance >= measured[1].headVariance ? measured[0] : measured[1];
+		const top2 = measured.slice(0, 2);
+
+		// If convention direction (-Z for Y-up) is in the front/back pair, prefer it
+		// unless the other direction has significantly more edge detail (>1.5x)
+		const matchConv = (d: number[]) =>
+			d[0] === conventionDir[0] && d[1] === conventionDir[1] && d[2] === conventionDir[2];
+		const convCandidate = top2.find(m => matchConv(m.dir));
+
+		if (convCandidate) {
+			const other = top2.find(m => m !== convCandidate)!;
+			// Only override convention if other direction has clearly more face detail
+			if (other.edgeDensity > convCandidate.edgeDensity * 1.5) {
+				return { x: other.dir[0], y: other.dir[1], z: other.dir[2] };
+			}
+			return { x: convCandidate.dir[0], y: convCandidate.dir[1], z: convCandidate.dir[2] };
+		}
+
+		// Convention not in front/back pair — use edge density to pick
+		const front = top2[0].edgeDensity >= top2[1].edgeDensity ? top2[0] : top2[1];
 		return { x: front.dir[0], y: front.dir[1], z: front.dir[2] };
 	}
 

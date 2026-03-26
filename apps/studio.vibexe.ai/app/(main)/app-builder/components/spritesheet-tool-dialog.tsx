@@ -311,16 +311,23 @@ export function SpritesheetToolDialog({ appId, open, onOpenChange, onGenerated }
 		const bsize = bbox.getSize(new THREE.Vector3());
 		const bcenter = bbox.getCenter(new THREE.Vector3());
 		const isZUp = bsize.z > bsize.y;
-		// Use the LARGEST visible dimension (height or width) to ensure full model fits
-		const maxVisibleDim = Math.max(bsize.x, isZUp ? bsize.z : bsize.y);
 
-		// Distance to fit full model: d = (halfSize / tan(halfFOV)) * padding
-		// Use larger padding (1.8x) to guarantee head/feet visible in any aspect ratio
-		const fovRad = 35 * Math.PI / 180;
-		const camDist = Math.max((maxVisibleDim / 2) / Math.tan(fovRad / 2) * 1.8, 2);
+		const fovDeg = 35;
+		const fovRad = fovDeg * Math.PI / 180;
+		const aspect = w / h;
+
+		// Compute distance that guarantees the full model fits both vertically AND horizontally
+		const modelHeight = isZUp ? bsize.z : bsize.y;
+		const modelWidth = Math.max(bsize.x, isZUp ? bsize.y : bsize.z);
+		const halfVFov = fovRad / 2;
+		const halfHFov = Math.atan(Math.tan(halfVFov) * aspect);
+		const distForHeight = (modelHeight / 2) / Math.tan(halfVFov);
+		const distForWidth = (modelWidth / 2) / Math.tan(halfHFov);
+		// 2.0x padding ensures comfortable breathing room around the model
+		const camDist = Math.max(distForHeight, distForWidth, 2) * 2.0;
 
 		// Camera — use detected front direction, or fall back to axis default
-		const camera = new THREE.PerspectiveCamera(35, w / h, 0.1, 100);
+		const camera = new THREE.PerspectiveCamera(fovDeg, aspect, 0.1, 100);
 		const upVec = new THREE.Vector3(0, isZUp ? 0 : 1, isZUp ? 1 : 0);
 		const defaultDir = isZUp ? new THREE.Vector3(0, -1, 0) : new THREE.Vector3(0, 0, -1);
 		const camDir = frontDir ? new THREE.Vector3(frontDir.x, frontDir.y, frontDir.z) : defaultDir;
