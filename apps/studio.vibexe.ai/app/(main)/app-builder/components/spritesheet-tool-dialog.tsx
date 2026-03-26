@@ -610,7 +610,7 @@ export function SpritesheetToolDialog({ appId, open, onOpenChange, onGenerated }
 
 	return (
 		<Dialog open={open} onOpenChange={onOpenChange}>
-			<DialogContent className="!w-[700px] max-w-[96vw] max-h-[90vh] p-0 gap-0 overflow-hidden bg-[#0d0d1a] border-white/10 [&>button]:hidden">
+			<DialogContent className="!w-[900px] max-w-[96vw] max-h-[92vh] p-0 gap-0 overflow-hidden !bg-[#0d0d1a] border border-white/10 [&>button]:hidden [&>[aria-hidden]]:hidden" style={{ backgroundColor: "#0d0d1a" }}>
 				<DialogHeader className="px-5 py-3 border-b border-white/[0.06]">
 					<DialogTitle className="flex items-center gap-2 text-base font-medium text-white/90">
 						<Grid3X3 className="size-4 text-blue-400" />
@@ -621,9 +621,9 @@ export function SpritesheetToolDialog({ appId, open, onOpenChange, onGenerated }
 					</DialogDescription>
 				</DialogHeader>
 
-				<div className="flex flex-col md:flex-row overflow-x-hidden overflow-y-auto" style={{ maxHeight: "calc(90vh - 56px)" }}>
+				<div className="flex flex-col md:flex-row overflow-x-hidden overflow-y-auto" style={{ maxHeight: "calc(92vh - 56px)" }}>
 					{/* Left column: Interactive 3D Preview / Results */}
-					<div className="hidden md:flex md:w-[300px] flex-shrink-0 border-r border-white/[0.06] flex-col">
+					<div className="hidden md:flex md:w-[380px] flex-shrink-0 border-r border-white/[0.06] flex-col">
 						{phase === "done" && results.length > 0 ? (
 							<div className="flex-1 flex flex-col bg-[#080812] p-3 gap-2 overflow-y-auto">
 								<span className="text-[10px] uppercase tracking-wider text-white/30 text-center">
