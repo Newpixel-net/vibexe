@@ -259,6 +259,19 @@ export function SpritesheetToolDialog({ appId, open, onOpenChange, onGenerated }
 		const action = newMixer.clipAction(clip);
 		action.reset().play();
 		previewMixerRef.current = newMixer;
+
+		// Debug: expose on window for troubleshooting
+		(globalThis as any).__dbgAnim = {
+			clipName,
+			trackCount: clip.tracks?.length,
+			firstTrackName: clip.tracks?.[0]?.name,
+			modelName: model.name,
+			modelChildren: model.children?.map((c: any) => c.name).slice(0, 5),
+			actionEnabled: action.enabled,
+			actionIsRunning: action.isRunning(),
+		};
+		console.log("[playPreviewAnim]", (globalThis as any).__dbgAnim);
+
 		setPreviewingAnim(clipName);
 	}, []);
 
