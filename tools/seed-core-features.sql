@@ -165,7 +165,6 @@ $$function create(config) {
 
   return {
     id: 'player-platformer',
-    playerGfx: null,
     init: function(engine) {
       var PAL = PALETTES[theme] || PALETTES.forest;
 
@@ -193,7 +192,6 @@ $$function create(config) {
       playerSprite.x = startX;
       playerSprite.y = groundY - 48;
       engine.world.addChild(playerSprite);
-      this.playerGfx = playerSprite;
 
       // Player physics body
       playerBody = createBody(startX, groundY - 48, 36, 48, { tag: 'player' });
