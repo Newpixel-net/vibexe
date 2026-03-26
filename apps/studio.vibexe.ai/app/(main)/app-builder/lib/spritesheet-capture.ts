@@ -598,6 +598,7 @@ export class SpritesheetCapture {
 		const detectSize = 256;
 		await this.init(detectSize, detectSize);
 		const THREE = this.THREE;
+		const heightAxis = this._heightAxis;
 
 		// 4 candidate camera directions perpendicular to height axis
 		const dirs = heightAxis === "z"
