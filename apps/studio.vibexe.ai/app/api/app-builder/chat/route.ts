@@ -1027,14 +1027,15 @@ const supabase = createClient("${supabaseConfig.url}", "${supabaseConfig.anonKey
 							if (!byModel.has(model)) byModel.set(model, []);
 							byModel.get(model)!.push(entry);
 						}
-						// Find first model that has an idle animation
+						// Pick model with MOST animations that has idle (user's primary character)
 						let playerModel: string | null = null;
 						let playerSheets: typeof completeSheets = [];
+						let bestCount = 0;
 						for (const [model, sheets] of byModel) {
-							if (sheets.some(([, v]) => /idle/i.test(v.animName))) {
+							if (sheets.some(([, v]) => /idle/i.test(v.animName)) && sheets.length > bestCount) {
 								playerModel = model;
 								playerSheets = sheets;
-								break;
+								bestCount = sheets.length;
 							}
 						}
 						if (playerModel && playerSheets.length > 0) {
@@ -1437,8 +1438,10 @@ These sprites have white backgrounds — set blendMode or use alpha masking if n
 					let promptLines = "";
 					let firstModelName = "";
 					const firstModelAnims: Array<{ name: string; animName: string; atlasUrl: string; metadataUrl: string }> = [];
+					// Pick model with most animations as primary player character
+					let bestModelCount = 0;
 					for (const [model, anims] of byModel) {
-						if (firstModelAnims.length === 0) { firstModelName = model; firstModelAnims.push(...anims); }
+						if (anims.length > bestModelCount) { firstModelName = model; firstModelAnims.length = 0; firstModelAnims.push(...anims); bestModelCount = anims.length; }
 						const animList = anims.map(a => a.animName).join(", ");
 						promptLines += `\n### ${model} (${anims.length} animation${anims.length > 1 ? "s" : ""}): ${animList}\n`;
 						for (const a of anims) {
