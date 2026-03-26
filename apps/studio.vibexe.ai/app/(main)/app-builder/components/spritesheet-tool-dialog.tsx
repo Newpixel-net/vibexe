@@ -844,7 +844,7 @@ export function SpritesheetToolDialog({ appId, open, onOpenChange, onGenerated }
 								<div>
 									<label className="text-[10px] uppercase tracking-wider text-white/30 block mb-1">
 										Animations ({selectedAnims.size}/{animNames.length})
-										<span className="normal-case tracking-normal ml-1 text-white/20">— double-click to rename</span>
+										<span className="normal-case tracking-normal ml-1 text-white/20">— click ✏️ to rename</span>
 									</label>
 									<div className="flex flex-wrap gap-1 max-h-[120px] overflow-y-auto">
 										{animNames.map((name) => {
@@ -928,7 +928,16 @@ export function SpritesheetToolDialog({ appId, open, onOpenChange, onGenerated }
 														{animRenames[name] && (
 															<span className="text-[9px] text-white/15">({name})</span>
 														)}
-														<Pencil className="size-2.5 opacity-0 group-hover:opacity-40 transition-opacity flex-shrink-0" />
+														<span
+															role="button"
+															onClick={(e) => {
+																e.stopPropagation();
+																setEditingAnim(name);
+															}}
+															className="inline-flex cursor-pointer"
+														>
+															<Pencil className="size-2.5 opacity-0 group-hover:opacity-40 hover:!opacity-80 transition-opacity flex-shrink-0" />
+														</span>
 													</button>
 												</div>
 											);
