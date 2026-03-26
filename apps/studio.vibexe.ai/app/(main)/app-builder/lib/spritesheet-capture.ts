@@ -767,6 +767,7 @@ export class SpritesheetCapture {
 			const freshLoaded = await this.reloadModelFresh(loaded);
 			const clip = freshLoaded.animations.find((c: any) => c.name === clipName) || freshLoaded.animations[0];
 			if (!clip) continue;
+			console.log(`[sharedFrustum] scanning clip="${clipName}" matched="${clip.name}" dur=${clip.duration.toFixed(2)} avail=[${freshLoaded.animations.map((a: any) => a.name).join(',')}]`);
 			const clipDuration = clip.duration;
 
 			for (let i = 0; i < framesPerClip; i++) {
@@ -823,12 +824,16 @@ export class SpritesheetCapture {
 			const eY = (contentTop - contentBottom) / 2;
 			const halfExtent = Math.max(eX, eY, 0.5) * 1.15;
 
+			console.log(`[sharedFrustum] scanSize=${scanSize.toFixed(2)} pxBounds=[${minPxX},${minPxY}]-[${maxPxX},${maxPxY}] of ${w}x${h} contentWorld=[${contentLeft.toFixed(2)},${contentBottom.toFixed(2)}]-[${contentRight.toFixed(2)},${contentTop.toFixed(2)}] halfExtent=${halfExtent.toFixed(3)}`);
+
 			this._sharedFrustum = {
 				left: cX - halfExtent,
 				right: cX + halfExtent,
 				bottom: cY - halfExtent,
 				top: cY + halfExtent,
 			};
+		} else {
+			console.warn(`[sharedFrustum] NO content found! pixel bounds were minPx=[${minPxX},${minPxY}] maxPx=[${maxPxX},${maxPxY}]`);
 		}
 	}
 
