@@ -66,6 +66,7 @@ export class SpritesheetCapture {
 	private frameWidth = 128;
 	private frameHeight = 128;
 	private _cameraDirection: { x: number; y: number; z: number } | null = null;
+	private _heightAxis: "y" | "z" = "y"; // Detected once on model load
 
 	async init(width = 128, height = 128): Promise<void> {
 		this.frameWidth = width;
@@ -146,8 +147,14 @@ export class SpritesheetCapture {
 						? this.SkeletonUtils.clone(gltf.scene)
 						: gltf.scene.clone();
 
-					// Center model at origin
+					// Center model at origin and detect height axis
 					this.centerModel(model);
+
+					// Detect height axis ONCE from bind pose (before any animation)
+					model.updateMatrixWorld(true);
+					const loadBox = new THREE.Box3().setFromObject(model);
+					const loadSize = loadBox.getSize(new THREE.Vector3());
+					this._heightAxis = loadSize.z > loadSize.y ? "z" : "y";
 
 					let mixer: any = null;
 					if (animations.length > 0) {
@@ -221,8 +228,8 @@ export class SpritesheetCapture {
 		const size = box.getSize(new THREE.Vector3());
 		const center = box.getCenter(new THREE.Vector3());
 
-		// Detect which axis is "height" (tallest) — models may have Z-up or Y-up
-		const heightAxis = size.z > size.y ? "z" : "y";
+		// Use the height axis detected at model load time (consistent across all animations)
+		const heightAxis = this._heightAxis;
 
 		// Determine the model's visual height (tallest axis)
 		const modelHeight = heightAxis === "z" ? size.z : size.y;
