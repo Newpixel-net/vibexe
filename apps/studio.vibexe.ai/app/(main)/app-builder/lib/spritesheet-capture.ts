@@ -388,7 +388,8 @@ export class SpritesheetCapture {
 
 		// =====================================================================
 		// PASS 1: Pre-scan ALL frames to find the MAXIMUM bounding box.
-		// skeleton.pose() resets bones before each advance to prevent accumulation.
+		// Reload the model fresh for each scan frame to prevent root motion
+		// accumulation (skeleton.pose() doesn't reset root bone translation).
 		// =====================================================================
 		const maxBox = new THREE.Box3(
 			new THREE.Vector3(Infinity, Infinity, Infinity),
@@ -397,8 +398,12 @@ export class SpritesheetCapture {
 
 		for (let i = 0; i < frames; i++) {
 			const targetTime = (clipDuration * i) / frames;
-			const { mixer, action } = advanceToTime(captureModel, freshClip, targetTime);
-			const frameBox = new THREE.Box3().setFromObject(captureModel);
+			// Reload fresh for each scan to prevent root motion accumulation
+			const scanLoaded = await this.reloadModelFresh(loaded);
+			const scanClip = scanLoaded.animations.find((c: any) => c.name === clipName)
+				|| scanLoaded.animations[0];
+			const { mixer, action } = advanceToTime(scanLoaded.model, scanClip, targetTime);
+			const frameBox = new THREE.Box3().setFromObject(scanLoaded.model);
 			maxBox.union(frameBox);
 			action.stop();
 			mixer.stopAllAction();
@@ -441,13 +446,19 @@ export class SpritesheetCapture {
 		this.camera.lookAt(maxCenter.x, maxCenter.y, maxCenter.z);
 
 		// =====================================================================
-		// PASS 2: Render each frame at the locked camera position
+		// PASS 2: Render each frame — reload model fresh per frame to prevent
+		// root motion accumulation (same approach as scan pass).
 		// =====================================================================
 		const result: CapturedFrame[] = [];
 
 		for (let i = 0; i < frames; i++) {
 			const targetTime = (clipDuration * i) / frames;
-			const { mixer, action } = advanceToTime(captureModel, freshClip, targetTime);
+			// Fresh model per frame prevents root motion accumulation
+			const renderLoaded = await this.reloadModelFresh(loaded);
+			const renderClip = renderLoaded.animations.find((c: any) => c.name === clipName)
+				|| renderLoaded.animations[0];
+			this.setModel(renderLoaded.model);
+			const { mixer, action } = advanceToTime(renderLoaded.model, renderClip, targetTime);
 
 			await new Promise<void>(resolve => requestAnimationFrame(() => resolve()));
 
@@ -461,10 +472,10 @@ export class SpritesheetCapture {
 
 			action.stop();
 			mixer.stopAllAction();
+			this.scene.remove(renderLoaded.model);
 			if (onProgress) onProgress((i + 1) / frames);
 		}
 
-		this.scene.remove(captureModel);
 		return result;
 	}
 
