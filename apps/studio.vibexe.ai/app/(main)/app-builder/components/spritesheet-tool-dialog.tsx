@@ -127,6 +127,8 @@ export function SpritesheetToolDialog({ appId, open, onOpenChange, onGenerated }
 	const previewCameraRef = useRef<any>(null);
 	const previewMixerRef = useRef<any>(null);
 	const previewAnimsRef = useRef<any[]>([]);
+	const previewModelRef = useRef<any>(null);
+	const animNamesRef = useRef<string[]>([]);
 	const gizmoCanvasRef = useRef<HTMLCanvasElement>(null);
 	const abortRef = useRef(false);
 
@@ -229,20 +231,35 @@ export function SpritesheetToolDialog({ appId, open, onOpenChange, onGenerated }
 
 	// Play a specific animation in the 3D preview
 	const playPreviewAnim = useCallback((clipName: string) => {
-		const mixer = previewMixerRef.current;
+		const oldMixer = previewMixerRef.current;
 		const anims = previewAnimsRef.current;
-		if (!mixer || !anims.length) return;
-
-		// Stop all current actions
-		mixer.stopAllAction();
-
-		// Find and play the requested clip
-		const clip = anims.find((c: any) => c.name === clipName);
-		if (clip) {
-			const action = mixer.clipAction(clip);
-			action.reset().play();
-			setPreviewingAnim(clipName);
+		const model = previewModelRef.current;
+		if (!model || !anims.length) {
+			console.warn("[SpritesheetTool] playPreviewAnim: no model or anims");
+			return;
 		}
+
+		// Find by name, fall back to index match
+		let clip = anims.find((c: any) => c.name === clipName);
+		if (!clip) {
+			const idx = animNamesRef.current.indexOf(clipName);
+			if (idx >= 0 && idx < anims.length) clip = anims[idx];
+		}
+		if (!clip) {
+			console.warn("[SpritesheetTool] playPreviewAnim: clip not found:", clipName);
+			return;
+		}
+
+		// Stop old mixer completely and create fresh one for this clip.
+		// Re-creating avoids Three.js action-cache / binding stale-ref issues.
+		if (oldMixer) oldMixer.stopAllAction();
+		const THREE = getCaptureInstance().getThree();
+		if (!THREE) return;
+		const newMixer = new THREE.AnimationMixer(model);
+		const action = newMixer.clipAction(clip);
+		action.reset().play();
+		previewMixerRef.current = newMixer;
+		setPreviewingAnim(clipName);
 	}, []);
 
 	// Draw axis gizmo on a small overlay canvas
@@ -385,6 +402,7 @@ export function SpritesheetToolDialog({ appId, open, onOpenChange, onGenerated }
 			? SkeletonUtils.clone(loaded.model)
 			: loaded.model.clone();
 		scene.add(previewModel);
+		previewModelRef.current = previewModel;
 
 		// Play first animation if available
 		let mixer: any = null;
@@ -408,13 +426,14 @@ export function SpritesheetToolDialog({ appId, open, onOpenChange, onGenerated }
 		orbitControlsRef.current = controls;
 		previewCameraRef.current = camera;
 
-		// Render loop
+		// Render loop — read mixer from ref so playPreviewAnim changes are picked up
 		const clock = new THREE.Clock();
 		const gizmoUpdate = updateGizmo;
+		const mixerRef = previewMixerRef;
 		function animate() {
 			previewAnimFrameRef.current = requestAnimationFrame(animate);
 			const delta = clock.getDelta();
-			if (mixer) mixer.update(delta);
+			if (mixerRef.current) mixerRef.current.update(delta);
 			controls.update();
 			renderer.render(scene, camera);
 			gizmoUpdate(camera);
@@ -455,6 +474,7 @@ export function SpritesheetToolDialog({ appId, open, onOpenChange, onGenerated }
 
 			const names = capture.getAnimationNames(loaded);
 			setAnimNames(names);
+			animNamesRef.current = names;
 			// Select common platformer animations by default, or all if few
 			if (names.length <= 5) {
 				setSelectedAnims(new Set(names));
