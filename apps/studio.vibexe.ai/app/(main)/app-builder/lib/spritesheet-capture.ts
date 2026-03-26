@@ -67,7 +67,7 @@ export class SpritesheetCapture {
 	private frameHeight = 128;
 	private _cameraDirection: { x: number; y: number; z: number } | null = null;
 	private _heightAxis: "y" | "z" = "y"; // Detected once on model load
-	private _lockedCameraState: { pos: any; up: any; target: any } | null = null;
+	// _lockedCameraState removed — each animation fits its own camera to its max bounding box
 
 	async init(width = 128, height = 128): Promise<void> {
 		this.frameWidth = width;
@@ -221,6 +221,8 @@ export class SpritesheetCapture {
 
 	/** Fit the orthographic camera to show the model filling the frame.
 	 *  Camera DIRECTION is locked on first call — only frustum size adapts per animation. */
+	/** Fit camera to model — used by rotation capture and preview only.
+	 *  Animation capture uses its own two-pass fitting in captureAnimation(). */
 	private fitCameraToModel(model: any, padding = 1.15): void {
 		const THREE = this.THREE;
 		model.updateMatrixWorld(true);
@@ -228,8 +230,6 @@ export class SpritesheetCapture {
 		const size = box.getSize(new THREE.Vector3());
 		const center = box.getCenter(new THREE.Vector3());
 		const heightAxis = this._heightAxis;
-
-		// Frustum: use the model's height along the detected axis
 		const modelHeight = heightAxis === "z" ? size.z : size.y;
 		const halfExtent = Math.max((modelHeight * padding) / 2, 0.5);
 
@@ -239,38 +239,20 @@ export class SpritesheetCapture {
 		this.camera.bottom = -halfExtent;
 		this.camera.updateProjectionMatrix();
 
-		// Camera position/direction: compute ONCE, then reuse for all animations
-		if (!this._lockedCameraState) {
-			const distance = 5;
-			const upVec = new THREE.Vector3(0, heightAxis === "z" ? 0 : 1, heightAxis === "z" ? 1 : 0);
-			let camPos: any;
-			let camTarget = new THREE.Vector3(center.x, center.y, center.z);
-
-			if (this._cameraDirection) {
-				const dir = this._cameraDirection;
-				camPos = new THREE.Vector3(
-					center.x + dir.x * distance,
-					center.y + dir.y * distance,
-					center.z + dir.z * distance,
-				);
-			} else if (heightAxis === "z") {
-				camPos = new THREE.Vector3(center.x, center.y - distance, center.z);
-			} else {
-				camPos = new THREE.Vector3(center.x, center.y, center.z - distance);
-			}
-
-			this._lockedCameraState = { pos: camPos.clone(), up: upVec.clone(), target: camTarget.clone() };
+		const distance = 5;
+		const upVec = new THREE.Vector3(0, heightAxis === "z" ? 0 : 1, heightAxis === "z" ? 1 : 0);
+		let camPos: any;
+		if (this._cameraDirection) {
+			const dir = this._cameraDirection;
+			camPos = new THREE.Vector3(center.x + dir.x * distance, center.y + dir.y * distance, center.z + dir.z * distance);
+		} else if (heightAxis === "z") {
+			camPos = new THREE.Vector3(center.x, center.y - distance, center.z);
+		} else {
+			camPos = new THREE.Vector3(center.x, center.y, center.z - distance);
 		}
-
-		// Apply the locked camera state
-		this.camera.position.copy(this._lockedCameraState.pos);
-		this.camera.up.copy(this._lockedCameraState.up);
-		this.camera.lookAt(this._lockedCameraState.target);
-	}
-
-	/** Call before a new generation batch to reset locked camera */
-	resetCameraLock(): void {
-		this._lockedCameraState = null;
+		this.camera.position.copy(camPos);
+		this.camera.up.copy(upVec);
+		this.camera.lookAt(center.x, center.y, center.z);
 	}
 
 	/** Capture a single frame — SYNCHRONOUS using toDataURL */
@@ -417,7 +399,7 @@ export class SpritesheetCapture {
 			mixer.stopAllAction();
 		}
 
-		// Fit camera to the MAX bounding box (not a single frame's box)
+		// Fit camera to THIS animation's max bounding box
 		const maxSize = maxBox.getSize(new THREE.Vector3());
 		const maxCenter = maxBox.getCenter(new THREE.Vector3());
 		const heightAxis = this._heightAxis;
@@ -430,29 +412,28 @@ export class SpritesheetCapture {
 		this.camera.bottom = -halfExtent;
 		this.camera.updateProjectionMatrix();
 
-		// Lock camera direction (reuses locked state if already set)
-		if (!this._lockedCameraState) {
-			const distance = 5;
-			const upVec = new THREE.Vector3(0, heightAxis === "z" ? 0 : 1, heightAxis === "z" ? 1 : 0);
-			let camPos: any;
-			if (this._cameraDirection) {
-				const dir = this._cameraDirection;
-				camPos = new THREE.Vector3(
-					maxCenter.x + dir.x * distance,
-					maxCenter.y + dir.y * distance,
-					maxCenter.z + dir.z * distance,
-				);
-			} else if (heightAxis === "z") {
-				camPos = new THREE.Vector3(maxCenter.x, maxCenter.y - distance, maxCenter.z);
-			} else {
-				camPos = new THREE.Vector3(maxCenter.x, maxCenter.y, maxCenter.z - distance);
-			}
-			this._lockedCameraState = { pos: camPos.clone(), up: upVec.clone(), target: maxCenter.clone() };
+		// Camera direction is locked (same viewing angle for all animations).
+		// But position and target are recomputed per-animation based on its max box center.
+		const distance = 5;
+		const upVec = new THREE.Vector3(0, heightAxis === "z" ? 0 : 1, heightAxis === "z" ? 1 : 0);
+		let camPos: any;
+
+		if (this._cameraDirection) {
+			const dir = this._cameraDirection;
+			camPos = new THREE.Vector3(
+				maxCenter.x + dir.x * distance,
+				maxCenter.y + dir.y * distance,
+				maxCenter.z + dir.z * distance,
+			);
+		} else if (heightAxis === "z") {
+			camPos = new THREE.Vector3(maxCenter.x, maxCenter.y - distance, maxCenter.z);
+		} else {
+			camPos = new THREE.Vector3(maxCenter.x, maxCenter.y, maxCenter.z - distance);
 		}
 
-		this.camera.position.copy(this._lockedCameraState.pos);
-		this.camera.up.copy(this._lockedCameraState.up);
-		this.camera.lookAt(this._lockedCameraState.target);
+		this.camera.position.copy(camPos);
+		this.camera.up.copy(upVec);
+		this.camera.lookAt(maxCenter.x, maxCenter.y, maxCenter.z);
 
 		// =====================================================================
 		// PASS 2: Render each frame at the locked camera position
