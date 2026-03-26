@@ -526,34 +526,23 @@ export function SpritesheetToolDialog({ appId, open, onOpenChange, onGenerated }
 			const capture = getCaptureInstance();
 			await capture.init(frameSize, frameSize);
 
-			// Sync preview camera to capture engine — direction + frustum
+			// Sync preview camera DIRECTION only — frustum is computed per-animation
+			// via pixel scanning to fit the actual content tightly.
 			if (previewCameraRef.current && orbitControlsRef.current) {
 				const THREE = capture.getThree();
-				const cam = previewCameraRef.current;
-				const ctrl = orbitControlsRef.current;
 				const dir = new THREE.Vector3()
-					.subVectors(cam.position, ctrl.target)
+					.subVectors(previewCameraRef.current.position, orbitControlsRef.current.target)
 					.normalize();
 				capture.setCameraDirection({ x: dir.x, y: dir.y, z: dir.z });
-
-				// Compute the model's true bbox center (no vertical offset)
-				// The preview target has a 15% upward offset for visual comfort,
-				// but capture should center on the actual model to avoid clipping.
-				const bbox = new THREE.Box3().setFromObject(loadedModel.model);
-				const modelCenter = bbox.getCenter(new THREE.Vector3());
-
-				capture.setFrustumFromPreview(
-					cam.fov,
-					{ x: cam.position.x, y: cam.position.y, z: cam.position.z },
-					{ x: modelCenter.x, y: modelCenter.y, z: modelCenter.z },
-					1, // square aspect for capture frames
-				);
 			}
 
 			const newResults: StoredSpritesheet[] = [];
 
 			if (animNames.length > 0 && selectedAnims.size > 0) {
 				const anims = [...selectedAnims];
+				// No shared frustum — each animation gets its own tight fit via pixel scan.
+				// This prevents standing poses from being tiny when a fall animation is included.
+				capture.clearSharedFrustum();
 
 				for (let i = 0; i < anims.length; i++) {
 					if (abortRef.current) break;
