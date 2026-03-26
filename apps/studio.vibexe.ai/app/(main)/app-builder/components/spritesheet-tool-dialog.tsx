@@ -306,32 +306,36 @@ export function SpritesheetToolDialog({ appId, open, onOpenChange, onGenerated }
 		fill.position.set(-1, 1, 2);
 		scene.add(fill);
 
-		// Detect model orientation — check which axis is "height" (tallest)
+		// Detect model orientation and compute proper camera framing
 		const bbox = new THREE.Box3().setFromObject(loaded.model);
 		const bsize = bbox.getSize(new THREE.Vector3());
+		const bcenter = bbox.getCenter(new THREE.Vector3());
 		const isZUp = bsize.z > bsize.y;
 		const modelHeight = isZUp ? bsize.z : bsize.y;
-		const camDist = Math.max(modelHeight * 2.5, 4); // Scale camera distance to model size
+
+		// Distance to fit full model: d = (halfHeight / tan(halfFOV)) * padding
+		const fovRad = 35 * Math.PI / 180;
+		const camDist = Math.max((modelHeight / 2) / Math.tan(fovRad / 2) * 1.3, 2);
 
 		// Camera — use detected front direction, or fall back to axis default
 		const camera = new THREE.PerspectiveCamera(35, w / h, 0.1, 100);
-		if (frontDir) {
-			camera.position.set(frontDir.x * camDist, frontDir.y * camDist, frontDir.z * camDist);
-			camera.up.set(0, isZUp ? 0 : 1, isZUp ? 1 : 0);
-		} else if (isZUp) {
-			camera.position.set(0, -camDist, 0);
-			camera.up.set(0, 0, 1);
-		} else {
-			camera.position.set(0, 0, -camDist);
-			camera.up.set(0, 1, 0);
-		}
-		camera.lookAt(0, 0, 0);
+		const upVec = new THREE.Vector3(0, isZUp ? 0 : 1, isZUp ? 1 : 0);
+		const defaultDir = isZUp ? new THREE.Vector3(0, -1, 0) : new THREE.Vector3(0, 0, -1);
+		const dir = frontDir ? new THREE.Vector3(frontDir.x, frontDir.y, frontDir.z) : defaultDir;
+
+		camera.position.set(
+			bcenter.x + dir.x * camDist,
+			bcenter.y + dir.y * camDist,
+			bcenter.z + dir.z * camDist,
+		);
+		camera.up.copy(upVec);
+		camera.lookAt(bcenter.x, bcenter.y, bcenter.z);
 
 		// OrbitControls — user can drag to rotate, scroll to zoom
 		const controls = new OrbitControls(camera, renderer.domElement);
 		controls.enableDamping = true;
 		controls.dampingFactor = 0.08;
-		controls.target.set(0, 0, 0);
+		controls.target.copy(bcenter);
 		controls.update();
 
 		// Clone model into preview scene — use SkeletonUtils for animated models
