@@ -1044,15 +1044,28 @@ const supabase = createClient("${supabaseConfig.url}", "${supabaseConfig.anonKey
 							}
 						}
 						if (playerModel && playerSheets.length > 0) {
-							const idleSheet = playerSheets.find(([, v]) => /idle/i.test(v.animName))!;
-							const walkSheet = playerSheets.find(([, v]) => /run|walk/i.test(v.animName));
-							const jumpSheet = playerSheets.find(([, v]) => /jump/i.test(v.animName));
+							// Build dynamic mapping of ALL available animations
+							const animMapping: Record<string, string> = {};
+							for (const [name, v] of playerSheets) {
+								const anim = v.animName.toLowerCase();
+								if (/idle/i.test(anim)) animMapping.idle = name;
+								else if (/run/i.test(anim)) { animMapping.run = name; if (!animMapping.walk) animMapping.walk = name; }
+								else if (/walk/i.test(anim)) { animMapping.walk = name; if (!animMapping.run) animMapping.run = name; }
+								else if (/jump/i.test(anim)) animMapping.jump = name;
+								else if (/fall/i.test(anim)) animMapping.fall = name;
+								else if (/die|death/i.test(anim)) animMapping.die = name;
+								else if (/attack|hit/i.test(anim)) animMapping.attack = name;
+								else animMapping[anim] = name;
+							}
+							if (!animMapping.walk && animMapping.run) animMapping.walk = animMapping.run;
+							if (!animMapping.run && animMapping.walk) animMapping.run = animMapping.walk;
+							if (!animMapping.idle) animMapping.idle = playerSheets[0][0];
 							// Load only this model's sheets
 							const loads = playerSheets.map(([name, v]) =>
 								`    await engine.assets.loadSpritesheet("${name}", "${v.atlasUrl}", "${v.metadataUrl}").catch(() => null);`
 							).join("\n");
-							spritesheetInjectCode = `\n    // Load ${playerModel} spritesheets (auto-injected)\n${loads}\n    engine.assets.setPlayerSprites({ idle: "${idleSheet[0]}", walk: "${walkSheet?.[0] || idleSheet[0]}", jump: "${jumpSheet?.[0] || idleSheet[0]}" });\n`;
-							console.log(`[Chat API] Injected ${playerSheets.length} spritesheet loads for model '${playerModel}' into scene template`);
+							spritesheetInjectCode = `\n    // Load ${playerModel} spritesheets (auto-injected)\n${loads}\n    engine.assets.setPlayerSprites(${JSON.stringify(animMapping)});\n`;
+							console.log(`[Chat API] Injected ${playerSheets.length} spritesheet loads for model '${playerModel}' into scene template, mapping:`, animMapping);
 						}
 					}
 				} catch (e) {

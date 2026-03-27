@@ -177,25 +177,39 @@ $$function create(config) {
 
       // Player sprite — use custom spritesheet if available, otherwise draw helper
       var heroSheet = _sheetCache && _sheetCache['hero'];
+      var _bodyW = 36, _bodyH = 48;
       if (heroSheet && heroSheet.animations && heroSheet.animations['idle']) {
         playerSprite = new PIXI.AnimatedSprite(heroSheet.animations['idle']);
         playerSprite.anchor.set(0.5, 1);
-        playerSprite.animationSpeed = 0.08;
+
+        // Smart sizing: read actual frame dimensions, scale uniformly to target height
+        var firstTex = heroSheet.animations['idle'][0];
+        var frameW = (firstTex && firstTex.width) || (heroSheet.frameWidth || 128);
+        var frameH = (firstTex && firstTex.height) || (heroSheet.frameHeight || 128);
+        var TARGET_H = 192;
+        var scaleFactor = TARGET_H / frameH;
+        playerSprite.scale.set(scaleFactor, scaleFactor);
+        var displayW = frameW * scaleFactor;
+        var displayH = TARGET_H;
+
+        // Physics body proportional to visual size
+        _bodyW = Math.round(displayW * 0.5);
+        _bodyH = Math.round(displayH * 0.85);
+
+        playerSprite.animationSpeed = 0.10;
         playerSprite.play();
-        playerSprite.width = 48; playerSprite.height = 64;
         _isAnimated = true;
         _lastAnim = 'idle';
-        console.log('[player-platformer] Using custom hero spritesheet');
+        console.log('[player-platformer] Custom hero: frame ' + frameW + 'x' + frameH + ' → display ' + Math.round(displayW) + 'x' + displayH + ', body ' + _bodyW + 'x' + _bodyH);
       } else {
         playerSprite = drawPlayerCharacter(48, PAL.player, PAL.playerLight);
       }
       playerSprite.x = startX;
-      playerSprite.y = groundY - 48;
+      playerSprite.y = groundY;
       engine.world.addChild(playerSprite);
 
-      // Player physics body
-      playerBody = createBody(startX, groundY - 48, 36, 48, { tag: 'player' });
-      playerBody.sprite = playerSprite;
+      // Player physics body — center positioned so bottom edge rests on ground
+      playerBody = createBody(startX, groundY - _bodyH / 2, _bodyW, _bodyH, { tag: 'player' });
       physics.addBody(playerBody);
 
       // Character controller
@@ -215,28 +229,42 @@ $$function create(config) {
       // Step physics
       physics.update(dt);
 
-      // Sync sprite to physics body
+      // Sync sprite to physics body — feet at body bottom (ground level)
       if (playerSprite && playerBody) {
         playerSprite.x = playerBody.x;
-        playerSprite.y = playerBody.y;
-        if (playerSprite.scale) {
-          var absX = Math.abs(playerSprite.scale.x) || 1;
-          playerSprite.scale.x = controller.facingRight ? absX : -absX;
-        }
+        playerSprite.y = playerBody.y + playerBody.hh;
+        var sf = Math.abs(playerSprite.scale.x) || 1;
+        playerSprite.scale.x = controller.facingRight ? sf : -sf;
       }
 
-      // Animation switching for custom spritesheet
+      // Velocity-synchronized animation state machine
       if (_isAnimated && playerSprite.textures && playerSprite.play) {
         var heroSheet = _sheetCache && _sheetCache['hero'];
         if (heroSheet && heroSheet.animations) {
           var _anim = 'idle';
-          if (!playerBody.onGround) { _anim = 'jump'; }
-          else if (engine.input.left || engine.input.right) { _anim = 'walk'; }
+          var _speed = 0.10;
+
+          if (!playerBody.onGround && playerBody.vy < 0) {
+            _anim = 'jump';
+            _speed = 0.35;
+          } else if (!playerBody.onGround && playerBody.vy >= 0) {
+            _anim = heroSheet.animations['fall'] ? 'fall' : 'jump';
+            _speed = 0.15;
+          } else if (Math.abs(playerBody.vx) > 15) {
+            _anim = 'walk';
+            var speedRatio = Math.min(1.0, Math.abs(playerBody.vx) / moveSpeed);
+            _speed = 0.40 * Math.max(0.15, speedRatio);
+          }
+
           if (_lastAnim !== _anim && heroSheet.animations[_anim]) {
             playerSprite.textures = heroSheet.animations[_anim];
-            playerSprite.animationSpeed = _anim === 'walk' ? 0.12 : 0.08;
-            playerSprite.play();
+            playerSprite.animationSpeed = _speed;
+            playerSprite.loop = (_anim !== 'jump');
+            playerSprite.gotoAndPlay(0);
             _lastAnim = _anim;
+          } else if (_anim === 'walk') {
+            var speedRatio = Math.min(1.0, Math.abs(playerBody.vx) / moveSpeed);
+            playerSprite.animationSpeed = 0.40 * Math.max(0.15, speedRatio);
           }
         }
       }

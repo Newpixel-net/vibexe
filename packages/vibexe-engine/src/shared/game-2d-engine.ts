@@ -1377,11 +1377,21 @@ export class AssetsSystem {
       if (!mergedAnimations['idle']) { console.warn('[Assets] setPlayerSprites: no idle animation mapped'); return; }
       if (!mergedAnimations['walk']) mergedAnimations['walk'] = mergedAnimations['idle'];
       if (!mergedAnimations['jump']) mergedAnimations['jump'] = mergedAnimations['idle'];
+      if (!mergedAnimations['fall']) mergedAnimations['fall'] = mergedAnimations['jump'];
+      if (!mergedAnimations['run']) mergedAnimations['run'] = mergedAnimations['walk'];
+
+      // Read frame dimensions from first texture for smart sizing
+      var frameW = 128, frameH = 128;
+      var firstAnim = mergedAnimations['idle'] || mergedAnimations['walk'];
+      if (firstAnim && firstAnim[0]) {
+        frameW = firstAnim[0].width || 128;
+        frameH = firstAnim[0].height || 128;
+      }
 
       // Use globally-registered setter (avoids esbuild module scope issue)
       var setter = (window as any).__vibexeSetHeroSheet;
-      if (setter) { setter(mergedAnimations); }
-      console.log('[Assets] setPlayerSprites: _sheetCache.hero set with', Object.keys(mergedAnimations).join(', '));
+      if (setter) { setter(mergedAnimations, frameW, frameH); }
+      console.log('[Assets] setPlayerSprites: _sheetCache.hero set with', Object.keys(mergedAnimations).join(', '), 'frame:', frameW + 'x' + frameH);
 
       // Replace the player visual with an AnimatedSprite showing idle
       var playerFeature = this.engine.features.get('player-platformer');
@@ -2023,7 +2033,7 @@ const _spriteCache: Record<string, any> = {};
 export const _sheetCache: Record<string, any> = {};
 // Expose _sheetCache setter globally so AssetsSystem.setPlayerSprites can access it
 // (esbuild module scope prevents direct access from class methods)
-(window as any).__vibexeSetHeroSheet = function(animations: Record<string, any[]>) { _sheetCache['hero'] = { animations: animations }; };
+(window as any).__vibexeSetHeroSheet = function(animations: Record<string, any[]>, frameW?: number, frameH?: number) { _sheetCache['hero'] = { animations: animations, frameWidth: frameW || 128, frameHeight: frameH || 128 }; };
 
 /** Whether the sprite library has been loaded */
 let _spriteLibLoaded = false;

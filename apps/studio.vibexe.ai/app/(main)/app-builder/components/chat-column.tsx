@@ -897,30 +897,10 @@ export function ChatColumn({
 	}, [isLoading, messages, saveToDb, appName, appId, onAppNameChange]);
 
 	// Convert AI SDK messages to VibeSDK ChatMessage format
-	// During streaming, throttle updates to prevent 7+ useEffects from re-running on every token
-	const [chatMessages, setChatMessages] = useState<ReturnType<typeof toChatMessages>>([]);
-	const chatMessagesRef = useRef(chatMessages);
-	const throttleTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-	useEffect(() => {
-		const converted = toChatMessages(messages);
-		chatMessagesRef.current = converted;
-		if (isLoading) {
-			// During streaming: throttle updates to every 800ms
-			if (!throttleTimer.current) {
-				throttleTimer.current = setTimeout(() => {
-					setChatMessages(chatMessagesRef.current);
-					throttleTimer.current = null;
-				}, 800);
-			}
-		} else {
-			// Not streaming: update immediately
-			if (throttleTimer.current) {
-				clearTimeout(throttleTimer.current);
-				throttleTimer.current = null;
-			}
-			setChatMessages(converted);
-		}
-	}, [messages, isLoading]);
+	// useDeferredValue lets React yield to user interactions during streaming
+	// instead of blocking on every token's re-render cascade (11 effects depend on chatMessages)
+	const deferredMessages = useDeferredValue(messages);
+	const chatMessages = useMemo(() => toChatMessages(deferredMessages), [deferredMessages]);
 
 	// --- Pipeline action detection ---
 	// Detect if last assistant message is a review with issues (Review Feedback Loop)
