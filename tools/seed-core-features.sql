@@ -314,6 +314,7 @@ $$function create(config) {
     getPhysics: function() { return physics; },
     getController: function() { return controller; },
     /** Play a one-shot animation with lock and root motion compensation.
+     *  Uses frame-counting instead of onComplete (which is unreliable in PIXI v8).
      *  Analyzes first/last frames to detect visual drift, then adjusts physics
      *  body position on completion so the character doesn't snap back. */
     playOneShot: function(animName, speed, onDone) {
@@ -326,18 +327,24 @@ $$function create(config) {
       var frames = heroSheet.animations[animName];
       var driftNorm = _analyzeRootMotion(frames);
       var driftPx = driftNorm * _frameW * _scaleFactor;
+      var totalFrames = frames.length;
+      var animSpeed = speed || 0.25;
 
       playerSprite.textures = frames;
       playerSprite.loop = false;
-      playerSprite.animationSpeed = speed || 0.25;
-      playerSprite.onComplete = function() {
-        // Root motion compensation: move physics body to where character visually ended
-        // This prevents the "snap back" when returning to idle
+      playerSprite.animationSpeed = animSpeed;
+      playerSprite.gotoAndPlay(0);
+
+      // Track completion via frame counting (more reliable than onComplete)
+      var _oneShotDone = false;
+      function returnToIdle() {
+        if (_oneShotDone) return;
+        _oneShotDone = true;
+        // Root motion compensation
         if (Math.abs(driftPx) > 2 && playerBody) {
           var facingSign = (playerSprite.scale.x >= 0) ? 1 : -1;
           playerBody.x += driftPx * facingSign;
         }
-
         window.__vibexeAnimLock = false;
         _lastAnim = '';
         var idleFrames = heroSheet.animations['idle'];
@@ -345,12 +352,28 @@ $$function create(config) {
           playerSprite.textures = idleFrames;
           playerSprite.loop = true;
           playerSprite.animationSpeed = 0.10;
-          playerSprite.play();
+          playerSprite.gotoAndPlay(0);
         }
         playerSprite.onComplete = null;
+        playerSprite.onFrameChange = null;
         if (onDone) onDone();
+      }
+
+      // Method 1: onComplete (standard PIXI callback)
+      playerSprite.onComplete = returnToIdle;
+
+      // Method 2: onFrameChange — watch for last frame
+      playerSprite.onFrameChange = function(frameIdx) {
+        if (frameIdx >= totalFrames - 1) {
+          // On last frame — wait one more tick then return to idle
+          setTimeout(returnToIdle, 50);
+        }
       };
-      playerSprite.gotoAndPlay(0);
+
+      // Method 3: Timeout safety net — force return after max duration
+      var maxDurationMs = Math.ceil((totalFrames / (animSpeed * 60)) * 1000) + 500;
+      setTimeout(returnToIdle, maxDurationMs);
+
       return true;
     },
     destroy: function() {

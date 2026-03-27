@@ -53,23 +53,32 @@ $$function create(config) {
     _isActing = true;
     // Lock the engine animation state machine so player-platformer doesn't override us
     window.__vibexeAnimLock = true;
-    sprite.textures = _heroSheet.animations[animName];
+    var animFrames = _heroSheet.animations[animName];
+    var totalF = animFrames.length;
+    sprite.textures = animFrames;
     sprite.loop = false;
     sprite.animationSpeed = 0.25;
-    sprite.onComplete = function() {
+    sprite.gotoAndPlay(0);
+
+    var _done = false;
+    function backToIdle() {
+      if (_done) return;
+      _done = true;
       _isActing = false;
       window.__vibexeAnimLock = false;
-      // Return to idle
       var idleAnim = _heroSheet.animations['idle'];
       if (idleAnim) {
         sprite.textures = idleAnim;
         sprite.loop = true;
         sprite.animationSpeed = 0.10;
-        sprite.play();
+        sprite.gotoAndPlay(0);
       }
       sprite.onComplete = null;
-    };
-    sprite.gotoAndPlay(0);
+      sprite.onFrameChange = null;
+    }
+    sprite.onComplete = backToIdle;
+    sprite.onFrameChange = function(f) { if (f >= totalF - 1) setTimeout(backToIdle, 50); };
+    setTimeout(backToIdle, Math.ceil((totalF / (0.25 * 60)) * 1000) + 500);
 
     // Emit attack event for combat system / boss to listen
     if (_engine) {
