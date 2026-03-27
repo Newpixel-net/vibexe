@@ -157,8 +157,15 @@ engine.input.jump                 // Space/W/ArrowUp (wasPressed)
 ### Sprite Animations (from spritesheets)
 IMPORTANT: Animation names use SHORT names (idle, walk, jump, kick, 360_kick, run, fall, die, attack) — NOT full spritesheet filenames. Never use "warrior_figure_animations_kick" — just "kick".
 IMPORTANT: Access the sheet cache via window.__vibexeSheetCache (NOT _sheetCache which is module-scoped and unavailable in custom-gameplay.ts).
+IMPORTANT: The sheet cache is populated AFTER features init. Do NOT read it in init(). Read it lazily in update() on first frame:
 \`\`\`
-var heroSheet = window.__vibexeSheetCache && window.__vibexeSheetCache['hero'];
+// In your feature factory:
+var heroSheet = null; // set lazily
+// In update():
+if (!heroSheet) {
+  heroSheet = window.__vibexeSheetCache && window.__vibexeSheetCache['hero'];
+  if (!heroSheet) return; // not ready yet, skip this frame
+}
 if (heroSheet && heroSheet.animations) {
   // Animation names: idle, walk, jump, fall, run, die, attack, kick, 360_kick (SHORT names only!)
   if (heroSheet.animations['attack']) {
