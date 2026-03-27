@@ -1379,7 +1379,15 @@ export class AssetsSystem {
    *  At minimum 'idle' is required. 'walk' defaults to idle, 'jump' defaults to idle. */
   setPlayerSprites(mapping: Record<string, string>): void {
     try {
+      // Preserve existing hero sheet animations — merge new on top, skip failures
+      var existingHero = (window as any).__vibexeSheetCache?.['hero'];
       var mergedAnimations: Record<string, any[]> = {};
+      if (existingHero && existingHero.animations) {
+        for (var ek of Object.keys(existingHero.animations)) {
+          mergedAnimations[ek] = existingHero.animations[ek];
+        }
+      }
+      var newMappings = 0;
       for (var key of Object.keys(mapping)) {
         var sheetName = mapping[key];
         var sheet = this._cache.get(sheetName);
@@ -1387,8 +1395,13 @@ export class AssetsSystem {
         var animKeys = Object.keys(sheet.animations);
         if (animKeys.length > 0) {
           mergedAnimations[key] = sheet.animations[animKeys[0]];
+          newMappings++;
           console.log('[Assets] setPlayerSprites: mapped', key, '←', sheetName, '(' + animKeys[0] + ',', mergedAnimations[key].length, 'frames)');
         }
+      }
+      if (newMappings === 0 && Object.keys(mergedAnimations).length > 0) {
+        console.log('[Assets] setPlayerSprites: no new sheets loaded, keeping existing hero animations');
+        return;
       }
       if (!mergedAnimations['idle']) { console.warn('[Assets] setPlayerSprites: no idle animation mapped'); return; }
       if (!mergedAnimations['walk']) mergedAnimations['walk'] = mergedAnimations['idle'];
@@ -2071,6 +2084,7 @@ export const _sheetCache: Record<string, any> = {};
 // Expose _sheetCache setter globally so AssetsSystem.setPlayerSprites can access it
 // (esbuild module scope prevents direct access from class methods)
 (window as any).__vibexeSetHeroSheet = function(animations: Record<string, any[]>, frameW?: number, frameH?: number) { _sheetCache['hero'] = { animations: animations, frameWidth: frameW || 128, frameHeight: frameH || 128 }; };
+(window as any).__vibexeSheetCache = _sheetCache;
 
 /** Whether the sprite library has been loaded */
 let _spriteLibLoaded = false;
