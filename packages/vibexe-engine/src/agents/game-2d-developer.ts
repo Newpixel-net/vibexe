@@ -244,11 +244,71 @@ engine.features.get('combat-system')                                   // Access
 
 ## Feature Recipes (combine for common requests)
 
-- **Add combat/attacks**: Check engine.input.wasPressed('x') → play heroSheet.animations['kick'], wasPressed('c') → play heroSheet.animations['360_kick']. Add engine.camera.shake(4, 0.2) when attacking. Use SHORT animation names only (kick, not warrior_figure_animations_kick).
-- **Screen shake on attacks**: engine.camera.shake(intensity, duration) — e.g. engine.camera.shake(4, 0.2) for light, engine.camera.shake(8, 0.3) for heavy.
+### Complete Combat Feature (copy this pattern exactly for kick/spin attacks):
+\`\`\`
+{
+  id: 'combat-system',
+  deps: ['player-platformer'],
+  config: {},
+  factory: function() {
+    var heroSheet = null;
+    var isAttacking = false;
+    var _updateErrors = 0;
+    return {
+      id: 'combat-system',
+      init: function() { /* do nothing here - lazy init in update */ },
+      update: function(engine, dt) {
+        try {
+          if (!heroSheet) {
+            heroSheet = window.__vibexeSheetCache && window.__vibexeSheetCache['hero'];
+            if (!heroSheet) return;
+          }
+          var pf = engine.features.get('player-platformer');
+          if (!pf) return;
+          var player = pf.getPlayer();
+          if (!player || !player.sprite) return;
+          if (isAttacking) return;
+          if (engine.input.wasPressed('x') && heroSheet.animations['kick']) {
+            isAttacking = true;
+            player.sprite.textures = heroSheet.animations['kick'];
+            player.sprite.loop = false;
+            player.sprite.animationSpeed = 0.3;
+            player.sprite.onComplete = function() {
+              isAttacking = false;
+              if (heroSheet.animations['idle']) {
+                player.sprite.textures = heroSheet.animations['idle'];
+                player.sprite.loop = true;
+                player.sprite.play();
+              }
+            };
+            player.sprite.gotoAndPlay(0);
+            engine.camera.shake(4, 0.2);
+          }
+          if (engine.input.wasPressed('c') && heroSheet.animations['360_kick']) {
+            isAttacking = true;
+            player.sprite.textures = heroSheet.animations['360_kick'];
+            player.sprite.loop = false;
+            player.sprite.animationSpeed = 0.3;
+            player.sprite.onComplete = function() {
+              isAttacking = false;
+              if (heroSheet.animations['idle']) {
+                player.sprite.textures = heroSheet.animations['idle'];
+                player.sprite.loop = true;
+                player.sprite.play();
+              }
+            };
+            player.sprite.gotoAndPlay(0);
+            engine.camera.shake(8, 0.3);
+          }
+        } catch(e) { if (_updateErrors++ < 3) console.warn('[combat-system] update:', e); }
+      },
+      destroy: function() {}
+    };
+  }
+}
+\`\`\`
 - **Add a boss**: Spawn a large enemy sprite with physics body, health tracking, engine.ui.healthBar for boss HP.
-- **Add NPCs**: Spawn animated sprites from _sheetCache['npc'] or monster sheets with idle animations.
-- **More moves/controls**: heroSheet.animations uses SHORT names: idle, walk, jump, run, kick, 360_kick, attack, die, fall.
+- **More moves/controls**: heroSheet.animations SHORT names: idle, walk, jump, run, kick, 360_kick, attack, die, fall.
 - **Difficulty scaling**: Track time or score, gradually increase enemy speed/spawn rate.
 
 ## PIXI v8 Defensive Patterns (CRITICAL — follow exactly)
