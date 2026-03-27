@@ -1046,13 +1046,15 @@ export class EffectsSystem {
       center: [x / (container.width || 800), y / (container.height || 600)],
       speed: 400, amplitude: 20, wavelength: 120, brightness: 1.2, radius: -1,
     });
-    if (!container.filters) container.filters = [];
-    container.filters.push(filter);
+    var existing = container.filters ? Array.from(container.filters) : [];
+    existing.push(filter);
+    container.filters = existing;
     gsap.to(filter, {
       time: 1.5, duration: 0.8, ease: 'power2.out',
       onComplete: function() {
-        var idx = container.filters ? container.filters.indexOf(filter) : -1;
-        if (idx >= 0) container.filters.splice(idx, 1);
+        var cur = container.filters ? Array.from(container.filters) : [];
+        var idx = cur.indexOf(filter);
+        if (idx >= 0) { cur.splice(idx, 1); container.filters = cur; }
       }
     });
   }
@@ -1665,8 +1667,9 @@ export class PixiAdvancedSystem {
   displacement(sprite: any, scaleX?: number, scaleY?: number, container?: any): any {
     var filter = new PIXI.DisplacementFilter({ sprite: sprite, scale: { x: scaleX || 20, y: scaleY || 20 } });
     var target = container || this.engine.world;
-    if (!target.filters) target.filters = [];
-    target.filters.push(filter);
+    var existing = target.filters ? Array.from(target.filters) : [];
+    existing.push(filter);
+    target.filters = existing;
     return { filter: filter, sprite: sprite };
   }
 
@@ -1674,8 +1677,9 @@ export class PixiAdvancedSystem {
   removeDisplacement(result: any, container?: any): void {
     var target = container || this.engine.world;
     if (target.filters) {
-      var idx = target.filters.indexOf(result.filter);
-      if (idx >= 0) target.filters.splice(idx, 1);
+      var cur = Array.from(target.filters);
+      var idx = cur.indexOf(result.filter);
+      if (idx >= 0) { cur.splice(idx, 1); target.filters = cur; }
     }
   }
 

@@ -106,12 +106,16 @@ export var features = [
       return {
         id: 'my-feature',
         init: function(engine) {
-          // Access other features:
-          // var pf = engine.features.get('player-platformer');
-          // var player = pf.getPlayer(); // { sprite, body }
+          try {
+            // Access other features:
+            // var pf = engine.features.get('player-platformer');
+            // var player = pf.getPlayer(); // { sprite, body }
+          } catch(e) { console.warn('[my-feature] init:', e); }
         },
         update: function(engine, dt) {
-          // Per-frame logic — check input, move objects, etc.
+          try {
+            // Per-frame logic — check input, move objects, etc.
+          } catch(e) { /* silent per-frame */ }
         },
         onEvent: function(event, data) {
           // Respond to events from other features
@@ -231,6 +235,26 @@ engine.features.get('combat-system')                                   // Access
 - **More moves/controls**: Check heroSheet.animations for all available animations, map different keys to each one (X=attack, C=kick, V=special).
 - **Difficulty scaling**: Track time or score, gradually increase enemy speed/spawn rate.
 
+## PIXI v8 Defensive Patterns (CRITICAL — follow exactly)
+
+1. **NEVER mutate container.filters** — \`container.filters.push(f)\` CRASHES in PIXI v8 (frozen array).
+   Instead: \`container.filters = (container.filters ? Array.from(container.filters) : []).concat(f);\`
+2. **NEVER access engine.app.screen directly** — it may be null before renderer init.
+   Instead: \`var w = (engine.app && engine.app.screen) ? engine.app.screen.width : 800;\`
+3. **NEVER push to container.children** — use \`container.addChild(sprite)\`
+4. **Guard every feature init/update** — wrap bodies in try/catch so one bug doesn't kill the game:
+   \`\`\`
+   init: function(engine) {
+     try { /* your code */ } catch(e) { console.warn('[my-feature] init:', e); }
+   },
+   update: function(engine, dt) {
+     try { /* your code */ } catch(e) { console.warn('[my-feature] update:', e); }
+   }
+   \`\`\`
+5. **Check sprites/textures exist before use**: \`if (heroSheet && heroSheet.animations && heroSheet.animations['kick']) { ... }\`
+6. **Never use \`new PIXI.Graphics().beginFill()\`** — PIXI v8 uses: \`g.rect(x,y,w,h).fill({ color: 0xFF0000 })\`
+7. **Never use \`new PIXI.Text('hello')\`** — PIXI v8 uses: \`new PIXI.Text({ text: 'hello', style: { fill: 0xffffff } })\`
+
 ## Rules
 
 - Do NOT touch GameScene2D.ts — it is LOCKED
@@ -241,5 +265,6 @@ engine.features.get('combat-system')                                   // Access
 - Use \`var\` not \`const/let\`. Write plain JavaScript, no TypeScript annotations
 - Access player via \`engine.features.get('player-platformer').getPlayer()\`, NOT engine.getPlayer()
 - Keep each file under 200 lines
+- ALWAYS follow the PIXI v8 Defensive Patterns above — violations cause runtime crashes
 `,
 };
