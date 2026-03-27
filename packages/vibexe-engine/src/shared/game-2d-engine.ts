@@ -117,6 +117,22 @@ export class Engine2D {
     this.pixi = new PixiAdvancedSystem(this);
   }
 
+  /**
+   * Convenience helper for Feature Bank features.
+   * Returns the player sprite with .body attached for backward compat.
+   * Features should prefer engine.features.get('player-platformer').getPlayer() for { sprite, body }.
+   */
+  getPlayer(): any {
+    var pf = this.features.get('player-platformer');
+    if (!pf || !pf.getPlayer) return null;
+    var p = pf.getPlayer();
+    if (!p || !p.sprite) return null;
+    // Attach body to sprite so feature code can access player.body, player.x, player.scale etc.
+    var sprite = p.sprite;
+    if (p.body) (sprite as any).body = p.body;
+    return sprite;
+  }
+
   async init(rootEl?: HTMLElement): Promise<void> {
     // Create PIXI Application
     this.app = new PIXI.Application();
@@ -1455,7 +1471,28 @@ export class FeatureManager {
     var runtime = factory(config);
     runtime.id = id;
     this._features.set(id, { runtime: runtime, config: config, dependencies: deps });
-    this._initOrder = [];  // invalidate cached order
+
+    // Late registration: if already initialized, init this feature immediately
+    if (this._initialized) {
+      var depsOk = true;
+      for (var j = 0; j < deps.length; j++) {
+        if (!this._features.has(deps[j])) {
+          console.warn('[FeatureManager] Late register: missing dep', deps[j], 'for', id);
+          depsOk = false;
+        }
+      }
+      if (depsOk && runtime.init) {
+        try {
+          runtime.init(this.engine, config);
+          this._initOrder.push(id);
+          console.log('[FeatureManager] Late-initialized:', id);
+        } catch(e) {
+          console.error('[FeatureManager] Late init error:', id, e);
+        }
+      }
+    } else {
+      this._initOrder = [];  // invalidate cached order
+    }
   }
 
   /**

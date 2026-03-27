@@ -1121,6 +1121,18 @@ export default class GameScene2D implements GameScene {
 ${spritesheetInjectCode}
     // Register and initialize Feature Bank features
 ${featureRegistrations}
+
+    // Load custom gameplay features (AI creates src/game/custom-gameplay.ts)
+    try {
+      var _cg = await import("../game/custom-gameplay");
+      if (_cg.features) {
+        for (var _fi = 0; _fi < _cg.features.length; _fi++) {
+          var _f = _cg.features[_fi];
+          engine.features.register(_f.id, _f.factory, _f.config || {}, _f.deps || []);
+        }
+      }
+    } catch(e) { /* custom gameplay not created yet — game works without it */ }
+
     engine.features.initAll();
 
     // Load custom visuals (AI creates src/game/custom-visuals.ts)
@@ -1388,9 +1400,10 @@ After creating ALL files, end with a short summary. If the app has auth, include
 
 \`src/scenes/GameScene2D.ts\` already has working player, platforms, coins, enemies, camera, HUD, and visuals.
 
-Your job: create \`src/game/custom-visuals.ts\` with custom draw functions. The scaffold auto-imports it.
+For VISUAL changes (decorations, backgrounds, effects): create \`src/game/custom-visuals.ts\` (export setup and update functions).
+For GAMEPLAY changes (combat, boss, NPC, controls, new mechanics): create \`src/game/custom-gameplay.ts\` (export a \`features\` array — each entry has id, deps, config, factory).
 
-Do NOT touch GameScene2D.ts — it is LOCKED. Create ONLY \`src/game/custom-visuals.ts\` (export setup and update functions) and \`docs/README.md\`. Use \`var\` not \`const/let\`. Plain JavaScript only.`);
+Do NOT touch GameScene2D.ts — it is LOCKED. Use \`var\` not \`const/let\`. Plain JavaScript only. Access the player via \`engine.features.get('player-platformer').getPlayer()\`.`);
 		}
 		// 2D game addenda — simplified for Feature Bank auto-compose pipeline
 		// Core gameplay is already handled by the scaffold, AI just adds custom visuals
