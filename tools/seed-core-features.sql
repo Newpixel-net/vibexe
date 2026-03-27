@@ -186,7 +186,7 @@ $$function create(config) {
         var firstTex = heroSheet.animations['idle'][0];
         var frameW = (firstTex && firstTex.width) || (heroSheet.frameWidth || 128);
         var frameH = (firstTex && firstTex.height) || (heroSheet.frameHeight || 128);
-        var TARGET_H = 192;
+        var TARGET_H = 256;
         var scaleFactor = TARGET_H / frameH;
         playerSprite.scale.set(scaleFactor, scaleFactor);
         var displayW = frameW * scaleFactor;
