@@ -55,6 +55,7 @@ export function GameRuntimeIframe({
 	const hasTriggeredCompile = useRef(false);
 	const compileInProgress = useRef(false);
 	const needsRecompile = useRef(false);
+	const lastContentHash = useRef<string>("");
 
 	// Store gameSettings in a ref so compileAndInject doesn't depend on it
 	// (gameSettings creates a new object reference on every update, which would
@@ -80,6 +81,17 @@ export function GameRuntimeIframe({
 	const compileAndInject = useCallback(async () => {
 		const currentFiles = filesRef.current;
 		if (!currentFiles.length) return;
+
+		// Quick content hash to skip redundant compile API calls on page load
+		// (React re-renders change the files array reference without changing content)
+		const contentKey = currentFiles
+			.filter((f) => f.content != null)
+			.map((f) => f.path + ":" + f.content!.length)
+			.join("|");
+		if (contentKey === lastContentHash.current && lastHash.current) {
+			return; // Files unchanged and we already have a bundle — skip
+		}
+		lastContentHash.current = contentKey;
 
 		// Prevent overlapping compiles (Scene→Game toggle fires multiple triggers)
 		if (compileInProgress.current) {
@@ -190,6 +202,7 @@ export function GameRuntimeIframe({
 		if (!refreshRef) return;
 		refreshRef.current = () => {
 			lastHash.current = ""; // Clear hash to force re-injection
+			lastContentHash.current = ""; // Clear content hash to force recompile
 			compileAndInject();
 		};
 		return () => { refreshRef.current = null; };
@@ -272,6 +285,7 @@ export function GameRuntimeIframe({
 		if (prevIsGenerating.current && !isGenerating) {
 			console.log("[GameRuntime] Generation ended, triggering single recompile");
 			lastHash.current = "";
+			lastContentHash.current = "";
 			const timer = setTimeout(() => compileAndInjectRef.current(), 300);
 			return () => clearTimeout(timer);
 		}
@@ -308,6 +322,8 @@ export function GameRuntimeIframe({
 			try {
 				const win = iframeRef.current?.contentWindow;
 				if (!win) return;
+				// Skip forwarding when iframe itself has focus — it gets native events
+				if (document.activeElement === iframeRef.current) return;
 				win.dispatchEvent(new KeyboardEvent(e.type, {
 					key: e.key, code: e.code, keyCode: e.keyCode,
 					shiftKey: e.shiftKey, ctrlKey: e.ctrlKey, altKey: e.altKey,

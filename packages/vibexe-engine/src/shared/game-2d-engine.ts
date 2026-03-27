@@ -178,8 +178,10 @@ export class Engine2D {
       const dt = ticker.deltaMS / 1000; // seconds
       this._elapsed += dt;
 
-      // Update Proton particles
-      this.proton.update();
+      // Update Proton particles (skip when no active emitters to save CPU)
+      if (this.proton.emitters && this.proton.emitters.length > 0) {
+        this.proton.update();
+      }
 
       // Update camera
       this.camera.update(this.world);
@@ -1503,7 +1505,7 @@ export class FeatureManager {
           this._initOrder.push(id);
           console.log('[FeatureManager] Late-initialized:', id);
         } catch(e) {
-          console.error('[FeatureManager] Late init error:', id, e);
+          console.warn('[FeatureManager] Late init error:', id, e);
         }
       }
     } else {
@@ -1524,7 +1526,7 @@ export class FeatureManager {
         try {
           entry.runtime.init(this.engine, entry.config);
         } catch(e) {
-          console.error('[FeatureManager] init failed:', this._initOrder[i], e);
+          console.warn('[FeatureManager] init failed:', this._initOrder[i], e);
           entry.runtime.update = null;  // disable update for features that fail init
         }
       }
@@ -1543,7 +1545,7 @@ export class FeatureManager {
           entry.runtime.update(this.engine, dt);
         } catch(e) {
           // Don't spam — log once then silence
-          console.error('[FeatureManager] update error:', this._initOrder[i], e);
+          console.warn('[FeatureManager] update error:', this._initOrder[i], e);
           entry.runtime.update = null;  // disable broken updater
         }
       }
@@ -1557,7 +1559,7 @@ export class FeatureManager {
         try {
           entry.runtime.onEvent(event, data);
         } catch(e) {
-          console.error('[FeatureManager] event error:', entry.runtime.id, event, e);
+          console.warn('[FeatureManager] event error:', entry.runtime.id, event, e);
         }
       }
     });
@@ -1587,7 +1589,7 @@ export class FeatureManager {
         try {
           entry.runtime.destroy();
         } catch(e) {
-          console.error('[FeatureManager] destroy error:', this._initOrder[i], e);
+          console.warn('[FeatureManager] destroy error:', this._initOrder[i], e);
         }
       }
     }

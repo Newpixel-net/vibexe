@@ -539,8 +539,8 @@ VALUES (
     init: function(engine) {
       if (cfg.scanlines !== false) {
         scanlineGfx = new PIXI.Graphics();
-        var h = engine.app.screen.height;
-        var w = engine.app.screen.width;
+        var h = 600; try { h = engine.app.screen.height; } catch(e) {}
+        var w = 800; try { w = engine.app.screen.width; } catch(e) {}
         for (var y = 0; y < h; y += 4) {
           scanlineGfx.rect(0, y, w, 1).fill({ color: 0x000000, alpha: 0.08 });
         }

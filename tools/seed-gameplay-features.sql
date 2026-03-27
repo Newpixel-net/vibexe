@@ -389,7 +389,7 @@ $$function create(config) {
 
       // Boss health bar at top center of screen
       if (engine.ui && engine.ui.healthBar) {
-        var screenW = (engine.app && engine.app.screen) ? engine.app.screen.width : 800;
+        var screenW = 800; try { screenW = engine.app.screen.width; } catch(e) {}
         bossBar = engine.ui.healthBar(screenW / 2 - 100, 10, {
           maxHealth: maxHP,
           width: 200,
@@ -730,8 +730,8 @@ $$function create(config) {
       overlayText.alpha = 0.6;
 
       // Position in bottom-right corner
-      var screenW = (engine.app && engine.app.screen) ? engine.app.screen.width : 800;
-      var screenH = (engine.app && engine.app.screen) ? engine.app.screen.height : 600;
+      var screenW = 800; try { screenW = engine.app.screen.width; } catch(e) {}
+      var screenH = 600; try { screenH = engine.app.screen.height; } catch(e) {}
       overlayText.x = screenW - overlayText.width - 10;
       overlayText.y = screenH - overlayText.height - 10;
 
@@ -851,8 +851,8 @@ $$function create(config) {
 
     // Semi-transparent overlay
     var overlay = new PIXI.Graphics();
-    var sw = (engine.app && engine.app.screen) ? engine.app.screen.width : 800;
-    var sh = (engine.app && engine.app.screen) ? engine.app.screen.height : 600;
+    var sw = 800; try { sw = engine.app.screen.width; } catch(e) {}
+    var sh = 600; try { sh = engine.app.screen.height; } catch(e) {}
     overlay.beginFill(0x000000, 0.7);
     overlay.drawRect(0, 0, sw, sh);
     overlay.endFill();
@@ -921,7 +921,7 @@ $$function create(config) {
 
       // Score display (top-right area)
       if (engine.ui && engine.ui.score) {
-        var sw = (engine.app && engine.app.screen) ? engine.app.screen.width : 800;
+        var sw = 800; try { sw = engine.app.screen.width; } catch(e) {}
         scoreUI = engine.ui.score(sw - 160, 20, { prefix: 'Score: ', fontSize: 18 });
       }
 

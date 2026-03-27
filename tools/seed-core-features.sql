@@ -764,7 +764,7 @@ $$function create(config) {
 
       // Heart sprites for lives
       if (showLives) {
-        var screenW = (engine.app && engine.app.screen) ? engine.app.screen.width : 800;
+        var screenW = 800; try { screenW = engine.app.screen.width; } catch(e) {}
         for (var i = 0; i < initialLives; i++) {
           var heart = drawHeart(18, 0xFF4444);
           heart.x = screenW - 30 - i * 28;
@@ -886,8 +886,8 @@ $$function create(config) {
       // Vignette overlay (fixed on screen)
       if (showVignette) {
         try {
-          var screenW = (engine.app && engine.app.screen) ? engine.app.screen.width : 800;
-          var screenH = (engine.app && engine.app.screen) ? engine.app.screen.height : 600;
+          var screenW = 800; try { screenW = engine.app.screen.width; } catch(e) {}
+          var screenH = 600; try { screenH = engine.app.screen.height; } catch(e) {}
           vignetteSprite = drawVignette(screenW, screenH);
           vignetteSprite.alpha = 0.4 * intensity;
           if (engine.uiLayer) {

@@ -332,6 +332,70 @@ engine.features.get('combat-system')                                   // Access
 6. **Never use \`new PIXI.Graphics().beginFill()\`** — PIXI v8 uses: \`g.rect(x,y,w,h).fill({ color: 0xFF0000 })\`
 7. **Never use \`new PIXI.Text('hello')\`** — PIXI v8 uses: \`new PIXI.Text({ text: 'hello', style: { fill: 0xffffff } })\`
 
+## PIXI v8 Correct Examples
+
+### Drawing a health bar:
+\`\`\`js
+var bar = new PIXI.Graphics();
+bar.rect(0, 0, 200, 16).fill({ color: 0x222222 });  // background
+bar.rect(2, 2, 196, 12).fill({ color: 0x44FF44 });  // fill
+engine.uiLayer.addChild(bar);
+\`\`\`
+
+### Creating a text label:
+\`\`\`js
+var label = new PIXI.Text({ text: 'Score: 0', style: { fontFamily: 'Arial', fontSize: 24, fill: 0xFFFFFF, stroke: { color: 0x000000, width: 2 } } });
+label.x = 20; label.y = 20;
+engine.uiLayer.addChild(label);
+\`\`\`
+
+### Drawing a circle (enemy or bullet):
+\`\`\`js
+var circle = new PIXI.Graphics();
+circle.circle(0, 0, 16).fill({ color: 0xFF0000 });
+circle.x = 400; circle.y = 300;
+engine.world.addChild(circle);
+\`\`\`
+
+### Creating an enemy feature:
+\`\`\`js
+function create(cfg) {
+  var enemies = [];
+  var _engine = null;
+  return {
+    id: 'simple-enemies',
+    dependencies: ['player-platformer'],
+    init: function(engine) {
+      _engine = engine;
+      for (var i = 0; i < (cfg.count || 3); i++) {
+        var e = new PIXI.Graphics();
+        e.rect(-16, -16, 32, 32).fill({ color: 0xFF4444 });
+        e.x = 200 + i * 150;
+        e.y = 400;
+        e._vx = (Math.random() > 0.5 ? 1 : -1) * 60;
+        engine.world.addChild(e);
+        enemies.push(e);
+      }
+    },
+    update: function(engine, dt) {
+      var player = null;
+      try { player = engine.features.get('player-platformer').getPlayer(); } catch(e) {}
+      for (var i = 0; i < enemies.length; i++) {
+        var e = enemies[i];
+        e.x += e._vx * dt;
+        if (e.x < 50 || e.x > 750) e._vx *= -1;
+        // Simple collision with player
+        if (player && Math.abs(e.x - player.x) < 30 && Math.abs(e.y - player.y) < 30) {
+          engine.features.emit('player-hit', { damage: 1 });
+        }
+      }
+    },
+    destroy: function() { enemies.forEach(function(e) { if (e.parent) e.parent.removeChild(e); }); enemies = []; },
+    onEvent: function() {}
+  };
+}
+\`\`\`
+
 ## Rules
 
 - Do NOT touch GameScene2D.ts — it is LOCKED
@@ -341,7 +405,7 @@ engine.features.get('combat-system')                                   // Access
 - Also create \`docs/README.md\`
 - Use \`var\` not \`const/let\`. Write plain JavaScript, no TypeScript annotations
 - Access player via \`engine.features.get('player-platformer').getPlayer()\`, NOT engine.getPlayer()
-- Keep each file under 200 lines
+- Keep each file under 400 lines
 - ALWAYS follow the PIXI v8 Defensive Patterns above — violations cause runtime crashes
 `,
 };
