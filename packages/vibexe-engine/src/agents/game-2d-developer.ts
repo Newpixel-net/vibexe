@@ -270,32 +270,26 @@ engine.features.get('combat-system')                                   // Access
           if (isAttacking) return;
           if (engine.input.wasPressed('x') && heroSheet.animations['kick']) {
             isAttacking = true;
+            window.__vibexeAnimLock = true;
             player.sprite.textures = heroSheet.animations['kick'];
             player.sprite.loop = false;
             player.sprite.animationSpeed = 0.3;
             player.sprite.onComplete = function() {
               isAttacking = false;
-              if (heroSheet.animations['idle']) {
-                player.sprite.textures = heroSheet.animations['idle'];
-                player.sprite.loop = true;
-                player.sprite.play();
-              }
+              window.__vibexeAnimLock = false;
             };
             player.sprite.gotoAndPlay(0);
             engine.camera.shake(4, 0.2);
           }
           if (engine.input.wasPressed('c') && heroSheet.animations['360_kick']) {
             isAttacking = true;
+            window.__vibexeAnimLock = true;
             player.sprite.textures = heroSheet.animations['360_kick'];
             player.sprite.loop = false;
             player.sprite.animationSpeed = 0.3;
             player.sprite.onComplete = function() {
               isAttacking = false;
-              if (heroSheet.animations['idle']) {
-                player.sprite.textures = heroSheet.animations['idle'];
-                player.sprite.loop = true;
-                player.sprite.play();
-              }
+              window.__vibexeAnimLock = false;
             };
             player.sprite.gotoAndPlay(0);
             engine.camera.shake(8, 0.3);

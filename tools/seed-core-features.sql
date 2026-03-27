@@ -238,7 +238,8 @@ $$function create(config) {
       }
 
       // Velocity-synchronized animation state machine
-      if (_isAnimated && playerSprite.textures && playerSprite.play) {
+      // Skip if animation is locked by combat/other features (window.__vibexeAnimLock)
+      if (_isAnimated && playerSprite.textures && playerSprite.play && !window.__vibexeAnimLock) {
         var heroSheet = _sheetCache && _sheetCache['hero'];
         if (heroSheet && heroSheet.animations) {
           var _anim = 'idle';
