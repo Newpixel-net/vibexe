@@ -103,6 +103,8 @@ export var features = [
     deps: ['player-platformer'],
     config: {},
     factory: function(config) {
+      var _initFailed = false;
+      var _updateErrors = 0;
       return {
         id: 'my-feature',
         init: function(engine) {
@@ -110,12 +112,13 @@ export var features = [
             // Access other features:
             // var pf = engine.features.get('player-platformer');
             // var player = pf.getPlayer(); // { sprite, body }
-          } catch(e) { console.warn('[my-feature] init:', e); }
+          } catch(e) { _initFailed = true; console.warn('[my-feature] init:', e); }
         },
         update: function(engine, dt) {
+          if (_initFailed) return; // skip if init failed
           try {
             // Per-frame logic — check input, move objects, etc.
-          } catch(e) { /* silent per-frame */ }
+          } catch(e) { if (_updateErrors++ < 3) console.warn('[my-feature] update:', e); }
         },
         onEvent: function(event, data) {
           // Respond to events from other features
@@ -242,13 +245,20 @@ engine.features.get('combat-system')                                   // Access
 2. **NEVER access engine.app.screen directly** — it may be null before renderer init.
    Instead: \`var w = (engine.app && engine.app.screen) ? engine.app.screen.width : 800;\`
 3. **NEVER push to container.children** — use \`container.addChild(sprite)\`
-4. **Guard every feature init/update** — wrap bodies in try/catch so one bug doesn't kill the game:
+4. **Guard every feature init/update with bail-out** — if init fails, skip update entirely. Limit update error logs to 3 max (prevents console spam / OOM):
    \`\`\`
-   init: function(engine) {
-     try { /* your code */ } catch(e) { console.warn('[my-feature] init:', e); }
-   },
-   update: function(engine, dt) {
-     try { /* your code */ } catch(e) { console.warn('[my-feature] update:', e); }
+   factory: function(config) {
+     var _initFailed = false;
+     var _updateErrors = 0;
+     return {
+       init: function(engine) {
+         try { /* your code */ } catch(e) { _initFailed = true; console.warn('[my-feature] init:', e); }
+       },
+       update: function(engine, dt) {
+         if (_initFailed) return;
+         try { /* your code */ } catch(e) { if (_updateErrors++ < 3) console.warn('[my-feature] update:', e); }
+       }
+     };
    }
    \`\`\`
 5. **Check sprites/textures exist before use**: \`if (heroSheet && heroSheet.animations && heroSheet.animations['kick']) { ... }\`
