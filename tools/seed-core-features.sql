@@ -162,6 +162,40 @@ $$function create(config) {
   var controller = null;
   var _lastAnim = '';
   var _isAnimated = false;
+  var _frameW = 128;
+  var _scaleFactor = 1;
+
+  /** Analyze root motion drift between first and last frames of an animation.
+   *  Returns drift in normalized units (0 = no drift, 0.15 = 15% of frame width rightward).
+   *  Uses a small offscreen canvas to find center-of-mass of non-transparent pixels. */
+  function _analyzeRootMotion(frames) {
+    if (!frames || frames.length < 2) return 0;
+    try {
+      var canvas = document.createElement('canvas');
+      var ctx = canvas.getContext('2d');
+      var sz = 64; // downsample for speed
+      canvas.width = sz; canvas.height = sz;
+      function getCenterX(tex) {
+        ctx.clearRect(0, 0, sz, sz);
+        var src = tex.source ? tex.source.resource : (tex.baseTexture ? tex.baseTexture.resource.source : null);
+        if (!src) return sz / 2;
+        var fr = tex.frame || tex._frame;
+        if (fr) { ctx.drawImage(src, fr.x, fr.y, fr.width, fr.height, 0, 0, sz, sz); }
+        else { ctx.drawImage(src, 0, 0, sz, sz); }
+        var data = ctx.getImageData(0, 0, sz, sz).data;
+        var totalA = 0, wX = 0;
+        for (var i = 0; i < data.length; i += 4) {
+          var a = data[i + 3];
+          if (a > 20) { var x = (i / 4) % sz; totalA += a; wX += x * a; }
+        }
+        return totalA > 0 ? wX / totalA : sz / 2;
+      }
+      var first = getCenterX(frames[0]);
+      var last = getCenterX(frames[frames.length - 1]);
+      canvas = null;
+      return (last - first) / sz;
+    } catch(e) { return 0; }
+  }
 
   return {
     id: 'player-platformer',
@@ -188,6 +222,7 @@ $$function create(config) {
         var frameH = (firstTex && firstTex.height) || (heroSheet.frameHeight || 128);
         var TARGET_H = 256;
         var scaleFactor = TARGET_H / frameH;
+        _frameW = frameW; _scaleFactor = scaleFactor; // expose for playOneShot root motion
         playerSprite.scale.set(scaleFactor, scaleFactor);
         var displayW = frameW * scaleFactor;
         var displayH = TARGET_H;
@@ -278,16 +313,31 @@ $$function create(config) {
     getPlayer: function() { return { sprite: playerSprite, body: playerBody }; },
     getPhysics: function() { return physics; },
     getController: function() { return controller; },
-    /** Play a one-shot animation with lock. Other features call this for attacks, emotes, etc. */
+    /** Play a one-shot animation with lock and root motion compensation.
+     *  Analyzes first/last frames to detect visual drift, then adjusts physics
+     *  body position on completion so the character doesn't snap back. */
     playOneShot: function(animName, speed, onDone) {
       var heroSheet = _sheetCache && _sheetCache['hero'];
       if (!_isAnimated || !heroSheet || !heroSheet.animations[animName]) return false;
       if (window.__vibexeAnimLock) return false; // already playing a one-shot
       window.__vibexeAnimLock = true;
-      playerSprite.textures = heroSheet.animations[animName];
+
+      // Analyze root motion drift for this animation
+      var frames = heroSheet.animations[animName];
+      var driftNorm = _analyzeRootMotion(frames);
+      var driftPx = driftNorm * _frameW * _scaleFactor;
+
+      playerSprite.textures = frames;
       playerSprite.loop = false;
       playerSprite.animationSpeed = speed || 0.25;
       playerSprite.onComplete = function() {
+        // Root motion compensation: move physics body to where character visually ended
+        // This prevents the "snap back" when returning to idle
+        if (Math.abs(driftPx) > 2 && playerBody) {
+          var facingSign = (playerSprite.scale.x >= 0) ? 1 : -1;
+          playerBody.x += driftPx * facingSign;
+        }
+
         window.__vibexeAnimLock = false;
         _lastAnim = '';
         var idleFrames = heroSheet.animations['idle'];
