@@ -53,11 +53,14 @@ $$function create(config) {
   function playAction(sprite, animName, actionType) {
     if (_isActing || !_heroSheet || !_heroSheet.animations[animName]) return;
     _isActing = true;
+    // Lock the engine animation state machine so player-platformer doesn't override us
+    window.__vibexeAnimLock = true;
     sprite.textures = _heroSheet.animations[animName];
     sprite.loop = false;
     sprite.animationSpeed = 0.25;
     sprite.onComplete = function() {
       _isActing = false;
+      window.__vibexeAnimLock = false;
       // Return to idle
       var idleAnim = _heroSheet.animations['idle'];
       if (idleAnim) {
@@ -119,7 +122,21 @@ $$function create(config) {
         if (engine.input.wasPressed(key)) {
           var animName = findAnim(KEY_MAP[key]);
           if (animName) {
-            playAction(sprite, animName, KEY_MAP[key][0]);
+            // Prefer engine playOneShot API (handles lock + return to idle)
+            if (pf.playOneShot) {
+              var actionType = KEY_MAP[key][0];
+              var played = pf.playOneShot(animName, 0.25, function() { _isActing = false; });
+              if (played) {
+                _isActing = true;
+                // Emit attack event
+                _engine.features.emit('player.attack', {
+                  type: actionType,
+                  x: p.sprite.x, y: p.sprite.y, damage: 1
+                });
+              }
+            } else {
+              playAction(sprite, animName, KEY_MAP[key][0]);
+            }
             return;
           }
         }

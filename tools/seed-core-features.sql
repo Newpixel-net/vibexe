@@ -278,7 +278,33 @@ $$function create(config) {
     getPlayer: function() { return { sprite: playerSprite, body: playerBody }; },
     getPhysics: function() { return physics; },
     getController: function() { return controller; },
+    /** Play a one-shot animation with lock. Other features call this for attacks, emotes, etc. */
+    playOneShot: function(animName, speed, onDone) {
+      var heroSheet = _sheetCache && _sheetCache['hero'];
+      if (!_isAnimated || !heroSheet || !heroSheet.animations[animName]) return false;
+      if (window.__vibexeAnimLock) return false; // already playing a one-shot
+      window.__vibexeAnimLock = true;
+      playerSprite.textures = heroSheet.animations[animName];
+      playerSprite.loop = false;
+      playerSprite.animationSpeed = speed || 0.25;
+      playerSprite.onComplete = function() {
+        window.__vibexeAnimLock = false;
+        _lastAnim = '';
+        var idleFrames = heroSheet.animations['idle'];
+        if (idleFrames) {
+          playerSprite.textures = idleFrames;
+          playerSprite.loop = true;
+          playerSprite.animationSpeed = 0.10;
+          playerSprite.play();
+        }
+        playerSprite.onComplete = null;
+        if (onDone) onDone();
+      };
+      playerSprite.gotoAndPlay(0);
+      return true;
+    },
     destroy: function() {
+      window.__vibexeAnimLock = false;
       if (playerSprite && playerSprite.parent) playerSprite.parent.removeChild(playerSprite);
       physics = null; playerBody = null; playerSprite = null; controller = null;
     }
