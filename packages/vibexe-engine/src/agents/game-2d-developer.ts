@@ -154,6 +154,9 @@ engine.input.jump                 // Space/W/ArrowUp (wasPressed)
 // Keys: 'a','d','w','s','arrowleft','arrowright','arrowup','arrowdown',' ','x','c','v','e','q','shift','z'
 \`\`\`
 
+### Global Engine Access
+The engine is available globally as window.__vibexe_engine__. If the engine parameter in update() is somehow lost, use: var engine = window.__vibexe_engine__;
+
 ### Sprite Animations (from spritesheets)
 IMPORTANT: Animation names use SHORT names (idle, walk, jump, kick, 360_kick, run, fall, die, attack) — NOT full spritesheet filenames. Never use "warrior_figure_animations_kick" — just "kick".
 IMPORTANT: Access the sheet cache via window.__vibexeSheetCache (NOT _sheetCache which is module-scoped and unavailable in custom-gameplay.ts).

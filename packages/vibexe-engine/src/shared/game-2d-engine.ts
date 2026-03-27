@@ -161,9 +161,10 @@ export class Engine2D {
     this.protonRenderer = new Proton.PixiRenderer(this.world);
     this.proton.addRenderer(this.protonRenderer);
 
-    // Store globals for runtime cleanup
+    // Store globals for runtime cleanup and feature access
     (window as any).__vibexe_pixiApp__ = this.app;
     (window as any).__vibexe_proton__ = this.proton;
+    (window as any).__vibexe_engine__ = this;
 
     // Wire camera to world container
     this.camera._worldContainer = this.world;
