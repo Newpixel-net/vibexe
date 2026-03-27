@@ -885,7 +885,17 @@ const supabase = createClient("${supabaseConfig.url}", "${supabaseConfig.anonKey
 					console.log(`[Chat API] 2D puzzle detected (keywords)`);
 				}
 			}
-			// Fallback: if neither 3D nor 2D detected, default to 3D
+			// Fallback: check existing project files FIRST (before defaulting)
+			// This ensures follow-up messages detect the correct engine type
+			if (!isGame3d && !isGame2d && existingFiles.some(f => f.path === "src/components/Game2D.tsx" || f.path === "src/game/custom-gameplay.ts")) {
+				isGame2d = true;
+				console.log(`[Chat API] 2D game detected (existing Game2D.tsx or custom-gameplay.ts in project)`);
+			}
+			if (!isGame3d && !isGame2d && existingFiles.some(f => f.path === "src/components/Game3D.tsx")) {
+				isGame3d = true;
+				console.log(`[Chat API] 3D game detected (existing Game3D.tsx template)`);
+			}
+			// Final fallback: if neither 3D nor 2D detected, default to 3D
 			if (!isGame3d && !isGame2d) {
 				isGame3d = true;
 				console.log(`[Chat API] No engine detected — defaulting to 3D pipeline`);
@@ -909,16 +919,6 @@ const supabase = createClient("${supabaseConfig.url}", "${supabaseConfig.anonKey
 			if (isGame3d && TERRAIN_KEYWORDS.some(kw => searchText.includes(kw))) {
 				needsTerrain = true;
 				console.log(`[Chat API] Terrain-heavy 3D game detected (keywords)`);
-			}
-			// Fallback: if 3D templates already exist in DB (injected on a previous call), force 3D mode
-			if (!isGame3d && !isGame2d && existingFiles.some(f => f.path === "src/components/Game3D.tsx")) {
-				isGame3d = true;
-				console.log(`[Chat API] 3D game detected (existing Game3D.tsx template)`);
-			}
-			// Fallback: if 2D templates already exist in DB, force 2D mode
-			if (!isGame3d && !isGame2d && existingFiles.some(f => f.path === "src/components/Game2D.tsx")) {
-				isGame2d = true;
-				console.log(`[Chat API] 2D game detected (existing Game2D.tsx template)`);
 			}
 		}
 		// Force 2D game developer agent when 2D game is detected
