@@ -21,26 +21,24 @@ VALUES (
   '1.0.0',
   '["animation","attack","kick","combat","sprite","controls","action"]',
   '[
-    {"name":"attackKey","type":"string","default":"x","description":"Key for attack animation"},
-    {"name":"kickKey","type":"string","default":"c","description":"Key for kick animation"},
-    {"name":"spinKey","type":"string","default":"v","description":"Key for spin/360 kick animation"}
+    {"name":"attackKey","type":"string","default":"x","description":"Key for primary attack (kick/punch)"},
+    {"name":"kickKey","type":"string","default":"c","description":"Key for special attack (spin kick/360)"}
   ]',
   '["player-platformer"]',
   '["platformer","fighter","action"]',
 $$function create(config) {
   var attackKey = config.attackKey || 'x';
   var kickKey = config.kickKey || 'c';
-  var spinKey = config.spinKey || 'v';
   var _engine = null;
   var _isActing = false;
   var _heroSheet = null;
   var _availableAnims = {};
 
-  // Map keys to animation names (try multiple naming conventions)
+  // Map keys to animation names — X=primary attack/kick, C=special/spin
+  // Try multiple naming conventions so it works with any sprite set
   var KEY_MAP = {};
-  KEY_MAP[attackKey] = ['attack', 'punch', 'slash', 'hit'];
-  KEY_MAP[kickKey] = ['kick', 'high_kick', 'highkick'];
-  KEY_MAP[spinKey] = ['360_kick', '360kick', 'spin', 'special'];
+  KEY_MAP[attackKey] = ['kick', 'attack', 'punch', 'slash', 'hit', 'high_kick', 'highkick'];
+  KEY_MAP[kickKey] = ['360_kick', '360kick', 'spin', 'special', 'spin_kick', 'roundhouse'];
 
   function findAnim(names) {
     if (!_heroSheet || !_heroSheet.animations) return null;
