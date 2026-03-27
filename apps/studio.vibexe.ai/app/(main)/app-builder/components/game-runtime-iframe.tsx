@@ -301,13 +301,17 @@ export function GameRuntimeIframe({
 	}, [files, compileAndInject]);
 
 	return (
-		<div className="relative w-full h-full">
+		<div className="relative w-full h-full" onClick={() => {
+			// Focus iframe on click so keyboard events reach the game
+			try { iframeRef.current?.contentWindow?.focus(); } catch(e) {}
+		}}>
 			<iframe
 				ref={iframeRef}
 				src={runtimeUrl || "/api/app-builder/game-runtime?bv=191"}
 				className="w-full h-full border-0"
 				style={isGenerating ? { display: "none" } : undefined}
 				title="Game Preview"
+				tabIndex={0}
 				allow="autoplay; fullscreen; webgpu"
 			/>
 
