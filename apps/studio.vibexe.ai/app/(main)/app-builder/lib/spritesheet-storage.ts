@@ -144,6 +144,49 @@ export async function listSpritesheets(
 	return result;
 }
 
+/** Project with spritesheets for cross-project import */
+export interface ProjectWithSheets {
+	appId: string;
+	name: string;
+	sheetCount: number;
+	sheets: StoredSpritesheet[];
+}
+
+/**
+ * List spritesheets from other projects in the same team.
+ * Used for cross-project import functionality.
+ */
+export async function listProjectsWithSheets(
+	targetAppId: string,
+): Promise<ProjectWithSheets[]> {
+	const res = await fetch(
+		`/api/app-builder/sprites/import?targetAppId=${encodeURIComponent(targetAppId)}`,
+	);
+	if (!res.ok) return [];
+	const data = await res.json();
+	return data.projects || [];
+}
+
+/**
+ * Import spritesheets from another project into the current project.
+ * Copies both atlas PNG and metadata JSON files.
+ */
+export async function importSpritesheets(
+	sourceAppId: string,
+	targetAppId: string,
+	sheets: Array<{ modelName: string; animName: string }>,
+): Promise<{ imported: number; errors: string[] }> {
+	const res = await fetch("/api/app-builder/sprites/import", {
+		method: "POST",
+		headers: { "Content-Type": "application/json" },
+		body: JSON.stringify({ sourceAppId, targetAppId, sheets }),
+	});
+	if (!res.ok) {
+		return { imported: 0, errors: [`Import failed: ${res.status}`] };
+	}
+	return await res.json();
+}
+
 /**
  * Delete a spritesheet (atlas PNG + metadata JSON) from app storage.
  * Uses the model/anim path structure: spritesheets/{model}/{anim}/

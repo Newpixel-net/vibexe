@@ -39,7 +39,10 @@ import {
 	uploadSpritesheet,
 	listSpritesheets,
 	deleteSpritesheet,
+	listProjectsWithSheets,
+	importSpritesheets,
 	type StoredSpritesheet,
+	type ProjectWithSheets,
 } from "../lib/spritesheet-storage";
 
 // ---------------------------------------------------------------------------
@@ -140,6 +143,13 @@ export function SpritesheetToolDialog({ appId, open, onOpenChange, onGenerated }
 	const [libraryLoading, setLibraryLoading] = useState(false);
 	const [deletingSheets, setDeletingSheets] = useState<Set<string>>(new Set());
 	const [expandedModels, setExpandedModels] = useState<Set<string>>(new Set());
+	// Import from other projects state
+	const [showImport, setShowImport] = useState(false);
+	const [importProjects, setImportProjects] = useState<ProjectWithSheets[]>([]);
+	const [importLoading, setImportLoading] = useState(false);
+	const [importingSheets, setImportingSheets] = useState<Set<string>>(new Set());
+	const [importSelected, setImportSelected] = useState<Set<string>>(new Set());
+	const [expandedImportProjects, setExpandedImportProjects] = useState<Set<string>>(new Set());
 
 	// Refs — interactive 3D preview
 	const previewContainerRef = useRef<HTMLDivElement>(null);
@@ -692,6 +702,72 @@ export function SpritesheetToolDialog({ appId, open, onOpenChange, onGenerated }
 		}
 	}, [appId]);
 
+	// Import from other projects
+	const loadImportProjects = useCallback(async () => {
+		setImportLoading(true);
+		try {
+			const projects = await listProjectsWithSheets(appId);
+			setImportProjects(projects);
+			// Auto-expand first project
+			if (projects.length > 0) setExpandedImportProjects(new Set([projects[0].appId]));
+		} catch {
+			setImportProjects([]);
+		} finally {
+			setImportLoading(false);
+		}
+	}, [appId]);
+
+	const handleImportSelected = useCallback(async () => {
+		if (importSelected.size === 0) return;
+		// Group by source project
+		const byProject = new Map<string, Array<{ modelName: string; animName: string }>>();
+		for (const key of importSelected) {
+			const [srcAppId, model, anim] = key.split("|");
+			if (!byProject.has(srcAppId)) byProject.set(srcAppId, []);
+			byProject.get(srcAppId)!.push({ modelName: model, animName: anim });
+		}
+		setImportingSheets(new Set(importSelected));
+		var totalImported = 0;
+		for (const [srcAppId, sheets] of byProject) {
+			try {
+				const result = await importSpritesheets(srcAppId, appId, sheets);
+				totalImported += result.imported;
+			} catch { /* ignore */ }
+		}
+		setImportingSheets(new Set());
+		setImportSelected(new Set());
+		if (totalImported > 0) {
+			setShowImport(false);
+			loadLibrary(); // Refresh library to show imported sheets
+		}
+	}, [importSelected, appId, loadLibrary]);
+
+	const toggleImportSheet = useCallback((key: string) => {
+		setImportSelected((prev) => {
+			const next = new Set(prev);
+			if (next.has(key)) next.delete(key);
+			else next.add(key);
+			return next;
+		});
+	}, []);
+
+	const selectAllFromProject = useCallback((project: ProjectWithSheets) => {
+		setImportSelected((prev) => {
+			const next = new Set(prev);
+			var allSelected = true;
+			for (const s of project.sheets) {
+				const key = `${project.appId}|${s.modelName || ""}|${s.animName || ""}`;
+				if (!next.has(key)) allSelected = false;
+			}
+			for (const s of project.sheets) {
+				const key = `${project.appId}|${s.modelName || ""}|${s.animName || ""}`;
+				if (allSelected) next.delete(key);
+				else next.add(key);
+			}
+			return next;
+		});
+	}, []);
+
 	// Group library sheets by model name
 	const libraryGroups = (() => {
 		const groups = new Map<string, StoredSpritesheet[]>();
@@ -759,28 +835,150 @@ export function SpritesheetToolDialog({ appId, open, onOpenChange, onGenerated }
 					   LIBRARY TAB — browse & manage stored spritesheets
 					   ============================================================ */
 					<div className="flex-1 overflow-y-auto p-4" style={{ maxHeight: "calc(92vh - 56px)" }}>
+						{/* Import from Projects panel */}
+						{showImport && (
+							<div className="mb-4 rounded-lg border border-cyan-500/20 bg-cyan-500/[0.04] p-3 space-y-3">
+								<div className="flex items-center justify-between">
+									<span className="text-sm font-medium text-cyan-300">Import from Other Projects</span>
+									<div className="flex items-center gap-2">
+										{importSelected.size > 0 && (
+											<button
+												onClick={handleImportSelected}
+												disabled={importingSheets.size > 0}
+												className="text-[11px] bg-cyan-500/20 text-cyan-300 hover:bg-cyan-500/30 px-3 py-1 rounded transition-colors disabled:opacity-50"
+											>
+												{importingSheets.size > 0 ? (
+													<><Loader2 className="size-3 animate-spin inline mr-1" />Importing...</>
+												) : (
+													<>Import {importSelected.size} selected</>
+												)}
+											</button>
+										)}
+										<button
+											onClick={() => { setShowImport(false); setImportSelected(new Set()); }}
+											className="text-[10px] text-white/30 hover:text-white/60 px-2 py-0.5 rounded transition-colors"
+										>
+											Close
+										</button>
+									</div>
+								</div>
+								{importLoading ? (
+									<div className="flex items-center justify-center h-24 text-white/30">
+										<Loader2 className="size-4 animate-spin mr-2" />
+										Loading projects...
+									</div>
+								) : importProjects.length === 0 ? (
+									<div className="text-center text-white/20 text-xs py-6">
+										No other projects with spritesheets found
+									</div>
+								) : (
+									<div className="space-y-2 max-h-[40vh] overflow-y-auto">
+										{importProjects.map((project) => (
+											<div key={project.appId} className="rounded border border-white/[0.06] overflow-hidden">
+												<button
+													onClick={() => setExpandedImportProjects((prev) => {
+														const next = new Set(prev);
+														if (next.has(project.appId)) next.delete(project.appId);
+														else next.add(project.appId);
+														return next;
+													})}
+													className="w-full flex items-center justify-between px-3 py-2 bg-white/[0.03] hover:bg-white/[0.05] transition-colors"
+												>
+													<div className="flex items-center gap-2 text-left">
+														<span className={`text-[10px] text-white/30 transition-transform ${expandedImportProjects.has(project.appId) ? "rotate-90" : ""}`}>&#9654;</span>
+														<span className="text-xs text-white/70 truncate max-w-[300px]">{project.name}</span>
+														<span className="text-[10px] text-white/30 bg-white/[0.06] px-1.5 py-0.5 rounded shrink-0">
+															{project.sheetCount} sprite{project.sheetCount > 1 ? "s" : ""}
+														</span>
+													</div>
+													<button
+														onClick={(e) => { e.stopPropagation(); selectAllFromProject(project); }}
+														className="text-[10px] text-cyan-400/60 hover:text-cyan-400 px-2 py-0.5 rounded transition-colors"
+													>
+														Select All
+													</button>
+												</button>
+												{expandedImportProjects.has(project.appId) && (
+													<div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 gap-1.5 p-2">
+														{project.sheets.map((sheet) => {
+															const key = `${project.appId}|${sheet.modelName || ""}|${sheet.animName || ""}`;
+															const isSelected = importSelected.has(key);
+															const isImporting = importingSheets.has(key);
+															return (
+																<button
+																	key={key}
+																	onClick={() => toggleImportSheet(key)}
+																	disabled={isImporting}
+																	className={`relative flex flex-col rounded border overflow-hidden transition-all ${
+																		isSelected
+																			? "border-cyan-400/60 bg-cyan-500/10"
+																			: "border-white/[0.06] bg-white/[0.02] hover:border-white/[0.12]"
+																	} ${isImporting ? "opacity-40" : ""}`}
+																>
+																	<div className="aspect-[2/1] bg-[#080812] flex items-center justify-center overflow-hidden">
+																		<img
+																			src={sheet.atlasUrl}
+																			alt={sheet.name}
+																			className="max-w-full max-h-full object-contain"
+																			style={{ imageRendering: "pixelated" }}
+																		/>
+																	</div>
+																	<div className="px-1.5 py-1 text-[10px] text-white/50 truncate">
+																		{sheet.animName || sheet.name}
+																	</div>
+																	{isSelected && (
+																		<div className="absolute top-1 right-1 bg-cyan-500 rounded-full p-0.5">
+																			<Check className="size-2.5 text-white" />
+																		</div>
+																	)}
+																</button>
+															);
+														})}
+													</div>
+												)}
+											</div>
+										))}
+									</div>
+								)}
+							</div>
+						)}
+
 						{libraryLoading ? (
 							<div className="flex items-center justify-center h-48 text-white/30">
 								<Loader2 className="size-5 animate-spin mr-2" />
 								Loading library...
 							</div>
-						) : librarySheets.length === 0 ? (
+						) : librarySheets.length === 0 && !showImport ? (
 							<div className="flex flex-col items-center justify-center h-48 text-white/30 gap-2">
 								<FolderOpen className="size-8 opacity-30" />
 								<span className="text-sm">No spritesheets yet</span>
-								<span className="text-xs text-white/20">Generate some sprites to see them here</span>
+								<span className="text-xs text-white/20">Generate some sprites or import from other projects</span>
+								<button
+									onClick={() => { setShowImport(true); loadImportProjects(); }}
+									className="mt-2 text-xs text-cyan-400/70 hover:text-cyan-400 bg-cyan-500/10 hover:bg-cyan-500/15 px-3 py-1.5 rounded transition-colors"
+								>
+									Import from Other Projects
+								</button>
 							</div>
 						) : (
 							<div className="space-y-3">
 								{/* Summary bar */}
 								<div className="flex items-center justify-between text-xs text-white/30 pb-2 border-b border-white/[0.06]">
 									<span>{librarySheets.length} spritesheet{librarySheets.length > 1 ? "s" : ""} across {libraryGroups.size} model{libraryGroups.size > 1 ? "s" : ""}</span>
-									<button
-										onClick={loadLibrary}
-										className="text-[10px] text-white/30 hover:text-white/60 transition-colors"
-									>
-										Refresh
-									</button>
+									<div className="flex items-center gap-3">
+										<button
+											onClick={() => { setShowImport(!showImport); if (!showImport) loadImportProjects(); }}
+											className="text-[10px] text-cyan-400/60 hover:text-cyan-400 transition-colors"
+										>
+											{showImport ? "Hide Import" : "Import from Projects"}
+										</button>
+										<button
+											onClick={loadLibrary}
+											className="text-[10px] text-white/30 hover:text-white/60 transition-colors"
+										>
+											Refresh
+										</button>
+									</div>
 								</div>
 
 								{/* Model groups */}
