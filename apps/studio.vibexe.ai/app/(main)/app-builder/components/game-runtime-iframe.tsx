@@ -314,14 +314,17 @@ export function GameRuntimeIframe({
 		};
 	}, [files, compileAndInject]);
 
-	// Forward keyboard events to game iframe when preview is focused
-	const [gameActive, setGameActive] = useState(false);
+	// Forward keyboard events to game iframe — always active unless user is typing in a text field.
+	// Previous approach (gameActive state + click detection) failed because clicks inside
+	// the iframe never bubble to the parent wrapper div, so forwarding never activated.
 	useEffect(() => {
-		if (!gameActive) return;
 		const forward = (e: KeyboardEvent) => {
 			try {
 				const win = iframeRef.current?.contentWindow;
 				if (!win) return;
+				// Don't forward when user is typing in chat, search, or any text input
+				const el = document.activeElement;
+				if (el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || (el as HTMLElement).isContentEditable)) return;
 				win.dispatchEvent(new KeyboardEvent(e.type, {
 					key: e.key, code: e.code, keyCode: e.keyCode,
 					shiftKey: e.shiftKey, ctrlKey: e.ctrlKey, altKey: e.altKey,
@@ -337,10 +340,10 @@ export function GameRuntimeIframe({
 			window.removeEventListener('keydown', forward);
 			window.removeEventListener('keyup', forward);
 		};
-	}, [gameActive, iframeRef]);
+	}, [iframeRef]);
 
 	return (
-		<div className="relative w-full h-full" onClick={() => setGameActive(true)} onMouseDown={() => setGameActive(true)} onFocus={() => setGameActive(true)} onBlur={() => setGameActive(false)} tabIndex={-1}>
+		<div className="relative w-full h-full">
 			<iframe
 				ref={iframeRef}
 				src={runtimeUrl || "/api/app-builder/game-runtime?bv=191"}
