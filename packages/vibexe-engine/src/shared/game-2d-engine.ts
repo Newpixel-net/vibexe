@@ -371,8 +371,21 @@ export class InputManager {
       const k = e.key.toLowerCase();
       if (!this.keys.has(k)) this.justPressed.add(k);
       this.keys.add(k);
-      // Prevent scroll on arrow/space
-      if (['arrowup','arrowdown','arrowleft','arrowright',' '].includes(e.key)) {
+      // Language-independent: map physical key codes to ASCII equivalents
+      // so WASD/XC work regardless of active keyboard layout (Hebrew, Russian, Arabic, etc.)
+      const code = e.code;
+      if (code && code.startsWith('Key')) {
+        const ascii = code.charAt(3).toLowerCase(); // 'KeyA' → 'a', 'KeyX' → 'x'
+        if (!this.keys.has(ascii)) this.justPressed.add(ascii);
+        this.keys.add(ascii);
+      }
+      if (code === 'Space' && !this.keys.has(' ')) {
+        this.justPressed.add(' ');
+        this.keys.add(' ');
+      }
+      // Prevent scroll/browser shortcuts on game keys
+      if (['arrowup','arrowdown','arrowleft','arrowright',' '].includes(e.key) ||
+          ['KeyW','KeyA','KeyS','KeyD','KeyX','KeyC','Space'].includes(code)) {
         e.preventDefault();
       }
     };
@@ -380,6 +393,17 @@ export class InputManager {
       const k = e.key.toLowerCase();
       this.keys.delete(k);
       this.justReleased.add(k);
+      // Also release physical key code mapping
+      const code = e.code;
+      if (code && code.startsWith('Key')) {
+        const ascii = code.charAt(3).toLowerCase();
+        this.keys.delete(ascii);
+        this.justReleased.add(ascii);
+      }
+      if (code === 'Space') {
+        this.keys.delete(' ');
+        this.justReleased.add(' ');
+      }
     };
     this._pointermoveFn = (e: PointerEvent) => {
       const rect = canvas.getBoundingClientRect();

@@ -330,8 +330,11 @@ export function GameRuntimeIframe({
 					shiftKey: e.shiftKey, ctrlKey: e.ctrlKey, altKey: e.altKey,
 					bubbles: true, cancelable: true,
 				}));
-				// Prevent parent page scrolling on game keys
-				if (['ArrowUp','ArrowDown','ArrowLeft','ArrowRight',' '].includes(e.key)) e.preventDefault();
+				// Prevent parent page scrolling and browser shortcuts on game keys
+				const gameKeyCodes = ['ArrowUp','ArrowDown','ArrowLeft','ArrowRight','Space','KeyW','KeyA','KeyS','KeyD','KeyX','KeyC'];
+				if (gameKeyCodes.includes(e.code) || ['ArrowUp','ArrowDown','ArrowLeft','ArrowRight',' '].includes(e.key)) {
+					e.preventDefault();
+				}
 			} catch(err) {}
 		};
 		window.addEventListener('keydown', forward);
