@@ -300,18 +300,39 @@ export function GameRuntimeIframe({
 		};
 	}, [files, compileAndInject]);
 
+	// Forward keyboard events to game iframe when preview is focused
+	const [gameActive, setGameActive] = useState(false);
+	useEffect(() => {
+		if (!gameActive) return;
+		const forward = (e: KeyboardEvent) => {
+			try {
+				const win = iframeRef.current?.contentWindow;
+				if (!win) return;
+				win.dispatchEvent(new KeyboardEvent(e.type, {
+					key: e.key, code: e.code, keyCode: e.keyCode,
+					shiftKey: e.shiftKey, ctrlKey: e.ctrlKey, altKey: e.altKey,
+					bubbles: true, cancelable: true,
+				}));
+				// Prevent parent page scrolling on game keys
+				if (['ArrowUp','ArrowDown','ArrowLeft','ArrowRight',' '].includes(e.key)) e.preventDefault();
+			} catch(err) {}
+		};
+		window.addEventListener('keydown', forward);
+		window.addEventListener('keyup', forward);
+		return () => {
+			window.removeEventListener('keydown', forward);
+			window.removeEventListener('keyup', forward);
+		};
+	}, [gameActive, iframeRef]);
+
 	return (
-		<div className="relative w-full h-full" onClick={() => {
-			// Focus iframe on click so keyboard events reach the game
-			try { iframeRef.current?.contentWindow?.focus(); } catch(e) {}
-		}}>
+		<div className="relative w-full h-full" onClick={() => setGameActive(true)} onBlur={() => setGameActive(false)} tabIndex={-1}>
 			<iframe
 				ref={iframeRef}
 				src={runtimeUrl || "/api/app-builder/game-runtime?bv=191"}
 				className="w-full h-full border-0"
 				style={isGenerating ? { display: "none" } : undefined}
 				title="Game Preview"
-				tabIndex={0}
 				allow="autoplay; fullscreen; webgpu"
 			/>
 
