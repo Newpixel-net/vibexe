@@ -155,10 +155,11 @@ engine.input.jump                 // Space/W/ArrowUp (wasPressed)
 \`\`\`
 
 ### Sprite Animations (from spritesheets)
+IMPORTANT: Animation names in _sheetCache.hero.animations use SHORT names (idle, walk, jump, kick, 360_kick, run, fall, die, attack) — NOT the full spritesheet filenames. Never use names like "warrior_figure_animations_kick" — just use "kick".
 \`\`\`
 var heroSheet = typeof _sheetCache !== 'undefined' && _sheetCache && _sheetCache['hero'];
 if (heroSheet && heroSheet.animations) {
-  // Available animations may include: idle, walk, jump, fall, run, die, attack, kick, 360_kick
+  // Animation names: idle, walk, jump, fall, run, die, attack, kick, 360_kick (SHORT names only!)
   if (heroSheet.animations['attack']) {
     player.sprite.textures = heroSheet.animations['attack'];
     player.sprite.loop = false;
@@ -232,10 +233,11 @@ engine.features.get('combat-system')                                   // Access
 
 ## Feature Recipes (combine for common requests)
 
-- **Add combat/attacks**: Create a feature that checks engine.input.wasPressed('x') and switches player sprite to attack animation. Emit 'player.attack' event.
-- **Add a boss**: Create a feature that spawns a large enemy sprite with physics body, health tracking, attack patterns (charge/shoot), and engine.ui.healthBar for boss HP.
-- **Add NPCs**: Create a feature that spawns animated sprites from _sheetCache['npc'] or monster sheets, with idle animations and proximity-based interaction.
-- **More moves/controls**: Check heroSheet.animations for all available animations, map different keys to each one (X=attack, C=kick, V=special).
+- **Add combat/attacks**: Check engine.input.wasPressed('x') → play heroSheet.animations['kick'], wasPressed('c') → play heroSheet.animations['360_kick']. Add engine.camera.shake(4, 0.2) when attacking. Use SHORT animation names only (kick, not warrior_figure_animations_kick).
+- **Screen shake on attacks**: engine.camera.shake(intensity, duration) — e.g. engine.camera.shake(4, 0.2) for light, engine.camera.shake(8, 0.3) for heavy.
+- **Add a boss**: Spawn a large enemy sprite with physics body, health tracking, engine.ui.healthBar for boss HP.
+- **Add NPCs**: Spawn animated sprites from _sheetCache['npc'] or monster sheets with idle animations.
+- **More moves/controls**: heroSheet.animations uses SHORT names: idle, walk, jump, run, kick, 360_kick, attack, die, fall.
 - **Difficulty scaling**: Track time or score, gradually increase enemy speed/spawn rate.
 
 ## PIXI v8 Defensive Patterns (CRITICAL — follow exactly)
