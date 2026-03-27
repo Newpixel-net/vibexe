@@ -1524,6 +1524,7 @@ export class FeatureManager {
           entry.runtime.init(this.engine, entry.config);
         } catch(e) {
           console.error('[FeatureManager] init failed:', this._initOrder[i], e);
+          entry.runtime.update = null;  // disable update for features that fail init
         }
       }
     }
