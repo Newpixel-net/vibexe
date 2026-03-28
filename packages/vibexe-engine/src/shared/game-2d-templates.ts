@@ -2178,16 +2178,17 @@ export const GAME_2D_TEMPLATE_FILES: TemplateFile[] = [
 	{
 		path: "src/engine/level-painter.ts",
 		language: "typescript",
-		content: `// Level Painter stub — sprite-based drawing functions are now the primary rendering system.
-// This file exists only for backward compatibility with games that import LevelSystem.
-var PIXI = (window as any).PIXI;
+		content: `var PIXI = (window as any).PIXI;
 export class LevelSystem {
   private engine: any;
-  constructor(engine: any) { this.engine = engine; }
+  private _groundY: number;
+  constructor(engine: any) { this.engine = engine; this._groundY = 840; }
   setHelpers(h: any) {}
   update(dt: number) {}
+  getHeightAt(x: number) { return this._groundY; }
+  getCollisionMask() { return null; }
   async generate(config: any) {
-    console.log('[LevelPainter] Deprecated — use drawing functions (drawGroundStrip, drawPlatformBlock, drawTree, etc.) instead');
+    this._groundY = config.groundY || (config.height ? config.height - 60 : 840);
     return { container: new PIXI.Container(), bodies: [], mask: null, width: config.width || 3000, height: config.height || 900 };
   }
 }
