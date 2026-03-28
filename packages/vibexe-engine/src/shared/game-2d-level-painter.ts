@@ -356,22 +356,35 @@ function _loadImage(url: string): Promise<HTMLImageElement> {
   });
 }
 
-// --- Load all 3 terrain textures for a theme ---
+// --- Load terrain textures for a theme (fill+surface required, grass optional) ---
 async function _loadTerrainTextures(theme: string): Promise<any> {
   var paths = TERRAIN_TEXTURE_PATHS[theme] || TERRAIN_TEXTURE_PATHS.forest;
   var origin = (window as any).__VIBEXE_API_ORIGIN__ || '';
   var baseUrl = origin + '/api/app-builder/media-stock/';
+
+  var fillImg: HTMLImageElement | null = null;
+  var surfaceImg: HTMLImageElement | null = null;
+  var grassImg: HTMLImageElement | null = null;
+
+  // Load fill + surface (the CC0 photogrammetry textures)
   try {
     var results = await Promise.all([
       _loadImage(baseUrl + paths.fill),
       _loadImage(baseUrl + paths.surface),
-      _loadImage(baseUrl + paths.grass),
     ]);
-    return { fillImg: results[0], surfaceImg: results[1], grassImg: results[2] };
+    fillImg = results[0];
+    surfaceImg = results[1];
   } catch(e) {
-    console.warn('[LevelPainter] Texture load failed, using fallback:', e);
+    console.warn('[LevelPainter] Fill/surface texture load failed:', e);
     return null;
   }
+
+  // Load grass separately (optional — usually generated procedurally)
+  try {
+    grassImg = await _loadImage(baseUrl + paths.grass);
+  } catch(e) { /* expected — grass is generated */ }
+
+  return { fillImg: fillImg, surfaceImg: surfaceImg, grassImg: grassImg };
 }
 
 // --- Generate a fallback tiling pattern canvas (128x128) ---
@@ -419,51 +432,85 @@ function _createFallbackTexture(colors: any, seed: number): HTMLCanvasElement {
   return c;
 }
 
-// --- Generate a grass strip canvas (256x16) ---
+// --- Generate a blade-shaped grass strip canvas (256x24) ---
 function _generateGrassStrip(theme: string, seed: number): HTMLCanvasElement {
-  var w = 256, h = 16;
+  var w = 256, h = 24;
   var c = document.createElement('canvas');
   c.width = w; c.height = h;
   var gctx = c.getContext('2d')!;
 
   var gc = TERRAIN_GRASS_COLORS[theme] || TERRAIN_GRASS_COLORS.forest;
-
-  // Top 2px: dark blade tips
-  var grad1 = gctx.createLinearGradient(0, 0, 0, 3);
-  grad1.addColorStop(0, gc.tip);
-  grad1.addColorStop(1, gc.dark);
-  gctx.fillStyle = grad1;
-  gctx.fillRect(0, 0, w, 3);
-
-  // Middle 7px: bright grass body
-  gctx.fillStyle = gc.main;
-  gctx.fillRect(0, 3, w, 7);
-
-  // Bottom 6px: gradient to transparent (blends into fill)
-  for (var by = 10; by < h; by++) {
-    var alpha = 1.0 - (by - 10) / (h - 10);
-    gctx.fillStyle = gc.dark;
-    gctx.globalAlpha = alpha * 0.8;
-    gctx.fillRect(0, by, w, 1);
-  }
-  gctx.globalAlpha = 1;
-
-  // Horizontal variation streaks
   SimplexNoise2D.seed(seed + 888);
-  for (var vx = 0; vx < w; vx++) {
-    var n = SimplexNoise2D.noise2D(vx * 0.3, seed * 0.1);
-    if (n > 0.2) {
-      gctx.fillStyle = gc.light;
-      gctx.globalAlpha = 0.15 + n * 0.1;
-      gctx.fillRect(vx, 2, 1, 7);
-    } else if (n < -0.2) {
-      gctx.fillStyle = gc.dark;
-      gctx.globalAlpha = 0.1;
-      gctx.fillRect(vx, 2, 1, 7);
+
+  // Step 1: Compute per-column blade top (irregular silhouette)
+  var bladeTop = new Array(w);
+  for (var bx = 0; bx < w; bx++) {
+    // Multi-frequency noise for natural blade-like irregularity
+    var n1 = SimplexNoise2D.noise2D(bx * 0.12, seed * 0.1);   // broad undulation
+    var n2 = SimplexNoise2D.noise2D(bx * 0.4, seed * 0.3);    // medium variation
+    var n3 = SimplexNoise2D.noise2D(bx * 1.0, seed * 0.7);    // fine blade tips
+    var combined = n1 * 0.25 + n2 * 0.4 + n3 * 0.35;
+    // Map to top pixel offset: 0 = tallest blade, 12 = shortest
+    var topOff = Math.floor(2 + (1.0 - (combined * 0.5 + 0.5)) * 11);
+    bladeTop[bx] = Math.max(0, Math.min(14, topOff));
+  }
+
+  // Step 2: Paint each column from bladeTop[x] down to h
+  var imgData = gctx.createImageData(w, h);
+  var px = imgData.data;
+
+  // Parse hex colors to RGB
+  function hexRgb(hex: string): number[] {
+    var v = parseInt(hex.slice(1), 16);
+    return [(v >> 16) & 255, (v >> 8) & 255, v & 255];
+  }
+  var cTip = hexRgb(gc.tip);
+  var cDark = hexRgb(gc.dark);
+  var cMain = hexRgb(gc.main);
+  var cLight = hexRgb(gc.light);
+
+  for (var x = 0; x < w; x++) {
+    var top = bladeTop[x];
+    var bladeH = h - top;
+    if (bladeH <= 0) continue;
+
+    for (var y = top; y < h; y++) {
+      var t = (y - top) / bladeH; // 0 at tip, 1 at base
+      var idx = (y * w + x) * 4;
+
+      // Pick color band based on position within blade
+      var r: number, g: number, b: number;
+      if (t < 0.12) {
+        r = cTip[0]; g = cTip[1]; b = cTip[2];
+      } else if (t < 0.28) {
+        r = cDark[0]; g = cDark[1]; b = cDark[2];
+      } else if (t < 0.65) {
+        r = cMain[0]; g = cMain[1]; b = cMain[2];
+      } else {
+        r = cLight[0]; g = cLight[1]; b = cLight[2];
+      }
+
+      // Horizontal color jitter for variety
+      var jn = SimplexNoise2D.noise2D(x * 0.35, y * 0.2 + seed);
+      if (jn > 0.3) {
+        r = Math.min(255, r + 15); g = Math.min(255, g + 15); b = Math.min(255, b + 10);
+      } else if (jn < -0.3) {
+        r = Math.max(0, r - 12); g = Math.max(0, g - 12); b = Math.max(0, b - 8);
+      }
+
+      // Alpha: full except tip pixel (soft) and bottom 5px (fade into fill)
+      var a = 255;
+      if (y === top) { a = 140; } // soft tip
+      else if (y === top + 1) { a = 200; }
+      else if (y >= h - 5) {
+        a = Math.round(255 * (1.0 - (y - (h - 5)) / 5));
+      }
+
+      px[idx] = r; px[idx + 1] = g; px[idx + 2] = b; px[idx + 3] = a;
     }
   }
-  gctx.globalAlpha = 1;
 
+  gctx.putImageData(imgData, 0, 0);
   return c;
 }
 
@@ -487,12 +534,16 @@ async function renderTerrainCanvas(
   if (textures) {
     fillPat = ctx.createPattern(textures.fillImg, 'repeat')!;
     surfacePat = ctx.createPattern(textures.surfaceImg, 'repeat')!;
-    // Grass strip from loaded PNG
-    grassCanvas = document.createElement('canvas');
-    grassCanvas.width = textures.grassImg.width;
-    grassCanvas.height = textures.grassImg.height;
-    var grassTmpCtx = grassCanvas.getContext('2d')!;
-    grassTmpCtx.drawImage(textures.grassImg, 0, 0);
+    // Grass: use loaded PNG if available, otherwise generate blade-shaped strip
+    if (textures.grassImg) {
+      grassCanvas = document.createElement('canvas');
+      grassCanvas.width = textures.grassImg.width;
+      grassCanvas.height = textures.grassImg.height;
+      var grassTmpCtx = grassCanvas.getContext('2d')!;
+      grassTmpCtx.drawImage(textures.grassImg, 0, 0);
+    } else {
+      grassCanvas = _generateGrassStrip(theme, seed);
+    }
   } else {
     // Fallback: generate decent pattern textures
     var fb = TERRAIN_FALLBACK_COLORS[theme] || TERRAIN_FALLBACK_COLORS.forest;
@@ -534,18 +585,45 @@ async function renderTerrainCanvas(
   ctx.fillRect(0, 0, width, height);
   ctx.restore();
 
-  // ===== PASS 2: Surface texture on top strip (20px from surface) =====
+  // ===== PASS 2: Surface texture with gradient blend into fill =====
+  // Band 1: Full-opacity surface (top 12px from surface)
   ctx.save();
   ctx.beginPath();
   for (var sx = 0; sx < width; sx++) {
     if (topSurface[sx] >= 0) {
-      ctx.rect(sx, topSurface[sx], 1, Math.min(22, height - topSurface[sx]));
+      ctx.rect(sx, topSurface[sx], 1, Math.min(12, height - topSurface[sx]));
     }
   }
   ctx.clip();
   ctx.fillStyle = surfacePat;
   ctx.fillRect(0, 0, width, height);
   ctx.restore();
+
+  // Band 2: 4-step alpha gradient (12-24px, fading surface over fill)
+  var blendSteps = [
+    { startOff: 12, rows: 3, alpha: 0.85 },
+    { startOff: 15, rows: 3, alpha: 0.60 },
+    { startOff: 18, rows: 3, alpha: 0.35 },
+    { startOff: 21, rows: 3, alpha: 0.12 },
+  ];
+  for (var bi = 0; bi < blendSteps.length; bi++) {
+    var bs = blendSteps[bi];
+    ctx.save();
+    ctx.globalAlpha = bs.alpha;
+    ctx.beginPath();
+    for (var bsx = 0; bsx < width; bsx++) {
+      if (topSurface[bsx] >= 0) {
+        var bsy = topSurface[bsx] + bs.startOff;
+        if (bsy + bs.rows <= height) {
+          ctx.rect(bsx, bsy, 1, bs.rows);
+        }
+      }
+    }
+    ctx.clip();
+    ctx.fillStyle = surfacePat;
+    ctx.fillRect(0, 0, width, height);
+    ctx.restore();
+  }
 
   // ===== PASS 3: Per-column grass strip painting (Worms edge texture) =====
   var grassW = grassCanvas.width;
