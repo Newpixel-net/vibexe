@@ -1086,8 +1086,8 @@ const supabase = createClient("${supabaseConfig.url}", "${supabaseConfig.anonKey
 				const moveSpeed = game2dBrief?.moveSpeed || 280;
 				const jumpForce = game2dBrief?.jumpForce || 520;
 
-				// Fetch 8 core Feature Bank features from DB
-				const coreFeatureIds = ["visual-layers", "player-platformer", "level-platforms", "collectible-coins", "enemy-patrol", "camera-follow", "hud-basic", "ambient-atmosphere"];
+				// Fetch 6 core Feature Bank features from DB
+				const coreFeatureIds = ["player-platformer", "level-platforms", "collectible-coins", "enemy-patrol", "camera-follow", "hud-basic"];
 				let autoComposeScene = "";
 				try {
 					const coreFeatures = await db.select().from(featureBankSnippets).where(inArray(featureBankSnippets.id, coreFeatureIds));
@@ -1108,9 +1108,8 @@ const supabase = createClient("${supabaseConfig.url}", "${supabaseConfig.anonKey
 import { Engine2D, GameScene } from "../engine/core";
 import { PhysicsWorld, createBody, createStaticBody, createOneWayPlatform, CharacterController } from "../engine/physics";
 import { createAmbientEffect, onJumpDust, onLandImpact, onCollectSparkle, onDeathExplosion } from "../engine/effects";
-import { PALETTES, drawSkyGradient, drawStars, drawMountainRange, drawCloud, drawGroundStrip, drawPlatformBlock, drawPlayerCharacter, drawCoinToken, drawEnemySlime, drawHeart, drawLSystemTree, TREE_PRESETS, createWaterSurface, createLavaSurface, createLightingLayer, drawVignette, drawAtmosphericFog, setNoiseSeed } from "../config/assets";
+import { PALETTES, drawPlayerCharacter, drawCoinToken, drawEnemySlime, drawHeart } from "../config/assets";
 import { _loadSpriteLib, _sheetCache } from "../utils/media-stock";
-import { LevelSystem } from "../engine/level-painter";
 ${featureFactories}
 var PIXI = (window as any).PIXI;
 var PAL = PALETTES["${theme}"] || PALETTES.forest;
@@ -1122,13 +1121,18 @@ export default class GameScene2D implements GameScene {
   async enter(engine: Engine2D) {
     await _loadSpriteLib("${theme}");
 
-    // Initialize Level Painter
-    if (!engine.level) engine.level = new LevelSystem(engine);
-    engine.level.setHelpers({
-      createStaticBody, createOneWayPlatform,
-      drawSkyGradient, drawStars, drawMountainRange, drawAtmosphericFog, drawCloud,
-      PAL, PALETTES,
+    // Build world using WorldBuilder (sprite-based with fallback graphics)
+    var worldResult = engine.worldBuilder.build({
+      theme: "${theme}",
+      width: ${wW},
+      height: ${wH},
+      groundY: ${groundY},
+      platformCount: ${game2dBrief?.platformCount || 11},
+      levelShape: "${game2dBrief?.levelShape || 'flat-wide'}",
+      seed: ${game2dBrief?.seed || 'Date.now()'},
     });
+    this.container.addChild(worldResult.container);
+    engine._worldData = worldResult;
 
 ${spritesheetInjectCode}
     // Register and initialize Feature Bank features
@@ -1158,7 +1162,7 @@ ${featureRegistrations}
 
     this._update = function(dt) {
       engine.features.updateAll(dt);
-      if (engine.level) try { engine.level.update(dt); } catch(e) {}
+      if (worldResult.updateParallax) worldResult.updateParallax(engine.camera);
       if (_customUpdate) try { _customUpdate(engine, dt); } catch(e) {}
       engine.input.endFrame();
     };
@@ -1171,7 +1175,7 @@ ${featureRegistrations}
   }
 }
 `;
-					console.log(`[Chat API] Auto-composed Feature Bank scaffold (theme: ${theme}, features: ${coreFeatures.length}/8)`);
+					console.log(`[Chat API] Auto-composed Feature Bank scaffold (theme: ${theme}, features: ${coreFeatures.length}/6)`);
 				} catch (e) {
 					console.error(`[Chat API] Feature Bank auto-compose failed, falling back to placeholder:`, e);
 					// Fallback to simple placeholder

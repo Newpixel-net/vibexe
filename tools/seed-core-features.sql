@@ -432,12 +432,18 @@ $$function create(config) {
   return {
     id: 'level-platforms',
     init: function(engine) {
+      // If WorldBuilder already created platforms, skip — they're already rendered with sprites
+      if (engine._worldData && engine._worldData.platforms && engine._worldData.platforms.length > 0) {
+        console.log('[level-platforms] Using WorldBuilder platforms (' + engine._worldData.platforms.length + ')');
+        return;
+      }
+
       var PAL = PALETTES[theme] || PALETTES.forest;
       var playerFeature = engine.features.get('player-platformer');
       var physics = playerFeature ? playerFeature.getPhysics() : null;
       if (!physics) { console.warn('[level-platforms] No physics world found'); return; }
 
-      // Use explicit platforms or generate random layout
+      // Fallback: generate own platforms if no WorldBuilder data
       var plats = config.platforms || null;
       if (!plats) {
         plats = [];
@@ -454,14 +460,12 @@ $$function create(config) {
         var pw = p.width || 120;
         var ph = p.height || 20;
 
-        // Visual
         var sprite = drawPlatformBlock(pw, ph, PAL.platform, PAL.platformTop, theme);
         sprite.x = p.x;
         sprite.y = p.y;
         engine.world.addChild(sprite);
         sprites.push(sprite);
 
-        // Physics body (center-based positioning)
         var body = p.oneWay
           ? createOneWayPlatform(p.x + pw / 2, p.y + ph / 2, pw, ph)
           : createStaticBody(p.x + pw / 2, p.y + ph / 2, pw, ph, { tag: 'platform' });
@@ -530,13 +534,29 @@ $$function create(config) {
       var PAL = PALETTES[theme] || PALETTES.forest;
       var positions = config.coins || null;
 
+      // Use WorldBuilder platform data for smarter placement
+      var wdPlats = (engine._worldData && engine._worldData.platforms) ? engine._worldData.platforms : null;
+      var wdGroundY = (engine._worldData && engine._worldData.groundY) ? engine._worldData.groundY : groundY;
+
       if (!positions) {
         positions = [];
-        for (var i = 0; i < coinCount; i++) {
-          positions.push({
-            x: 200 + (worldW - 400) * (i / coinCount) + (Math.random() - 0.5) * 60,
-            y: groundY - 40 - Math.random() * 280
-          });
+        if (wdPlats && wdPlats.length > 0) {
+          // Place 60% on platforms, 40% on ground
+          var onPlat = Math.floor(coinCount * 0.6);
+          for (var i = 0; i < onPlat; i++) {
+            var p = wdPlats[i % wdPlats.length];
+            positions.push({ x: p.x + (Math.random() - 0.5) * p.w * 0.6, y: p.y - 30 - Math.random() * 15 });
+          }
+          for (var j = 0; j < coinCount - onPlat; j++) {
+            positions.push({ x: 200 + (worldW - 400) * (j / Math.max(coinCount - onPlat, 1)), y: wdGroundY - 40 });
+          }
+        } else {
+          for (var i = 0; i < coinCount; i++) {
+            positions.push({
+              x: 200 + (worldW - 400) * (i / coinCount) + (Math.random() - 0.5) * 60,
+              y: wdGroundY - 40 - Math.random() * 280
+            });
+          }
         }
       }
 
@@ -642,13 +662,16 @@ $$function create(config) {
       var PAL = PALETTES[theme] || PALETTES.forest;
       var defs = config.enemies || null;
 
+      // Use WorldBuilder groundY if available
+      var wdGroundY = (engine._worldData && engine._worldData.groundY) ? engine._worldData.groundY : groundY;
+
       if (!defs) {
         defs = [];
         for (var i = 0; i < enemyCount; i++) {
           var ex = 400 + (worldW - 600) * (i / enemyCount);
           var patrolRange = 60 + Math.random() * 80;
           defs.push({
-            x: ex, y: groundY - 24,
+            x: ex, y: wdGroundY - 24,
             patrolMin: ex - patrolRange, patrolMax: ex + patrolRange,
             speed: 40 + Math.random() * 40
           });

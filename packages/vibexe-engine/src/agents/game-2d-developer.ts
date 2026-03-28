@@ -92,26 +92,52 @@ export function update(engine, dt) {
 }
 \`\`\`
 
-## World Building — Sprite-Based Drawing Functions
+## WorldBuilder — Pre-Built Game Worlds (IMPORTANT)
 
-The engine provides sprite-based drawing functions that automatically load professional tileset sprites. Use them in custom-visuals.ts to build your world:
+The engine automatically builds a complete themed world BEFORE your code runs via \`engine.worldBuilder.build()\`. This means:
+- Sky, ground, platforms, trees, mountains, clouds, and parallax layers are ALREADY created
+- You do NOT need to draw sky, ground, platforms, or scenery — it is done for you
+- Feature Bank features (level-platforms, collectible-coins, enemy-patrol) use the world data for positioning
 
-### Available Drawing Functions (use freely):
-- \`drawSkyGradient(worldW, worldH, topColor, bottomColor)\` — sky background
-- \`drawStars(worldW, skyH, count)\` — star field
-- \`drawMountainRange(worldW, baseY, color, alpha, minH, maxH, spacing, theme, layer)\` — parallax mountain layer
-- \`drawCloud(w, h)\` — puffy cloud sprite
-- \`drawGroundStrip(worldW, groundY, floorH, color, topColor, theme)\` — tiled ground with grass surface
-- \`drawPlatformBlock(w, h, mainColor, topColor, theme)\` — tiled platform with edge caps
-- \`drawTree(trunkH, leafR, trunkColor, leafColor)\` — tree sprite
+### engine._worldData (WorldBuilder result)
+After world generation, \`engine._worldData\` contains:
+\`\`\`
+{
+  container,           // PIXI.Container with all world visuals
+  groundY,             // Y position of the ground surface
+  platforms: [],       // Array of { x, y, w, h } platform rects
+  bodies: [],          // Physics bodies for ground + platforms
+  getHeightAt(x),      // Returns ground height at world X position
+  updateParallax(cam)  // Call with camera to scroll parallax layers
+}
+\`\`\`
+
+### What YOU should focus on:
+- Gameplay mechanics (combat, scoring, AI, progression)
+- Custom visuals and special effects (particles, HUD, unique sprites)
+- Unique enemies and bosses
+- Player abilities and controls
+
+### What is ALREADY handled (do NOT recreate):
+- Sky backgrounds and gradients
+- Ground/floor strips
+- Platforms and terrain
+- Trees, mountains, clouds
+- Parallax scrolling layers
+
+## Drawing Functions — For Custom Decorations and Effects ONLY
+
+The engine provides drawing helper functions. These are for small custom decorations and effects, NOT for world building (the WorldBuilder handles that). Use sparingly in custom-visuals.ts:
+
+### Available Drawing Functions (decorations/effects only):
 - \`drawCoinToken(radius, color, glowColor)\` — collectible coin
 - \`drawEnemySlime(size, color, lightColor)\` — enemy slime
 - \`drawHeart(size, color)\` — health pickup
 - \`drawGemShape(radius, color)\` — gem collectible
 - \`drawVignette(w, h)\` — screen edge darkening
-- \`drawLSystemTree(x, y, preset, theme, seed)\` — fractal tree
+- \`drawCloud(w, h)\` — decorative cloud
 
-These functions auto-load sprites from the tileset library. If sprites are unavailable, they fall back to high-quality procedural graphics. Use the PALETTES colors for theme consistency.
+Do NOT use drawSkyGradient, drawGroundStrip, drawPlatformBlock, drawMountainRange, or drawTree for world building — the WorldBuilder already creates these.
 
 ## Template for custom-gameplay.ts
 

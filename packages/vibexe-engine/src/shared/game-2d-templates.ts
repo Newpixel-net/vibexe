@@ -2381,7 +2381,7 @@ export default function Game2D({ onReady }: { onReady?: (engine: any) => void })
 export const GAME_2D_SCENE_STARTER = `import { Engine2D, GameScene, createGame2D, loadAssets, JuiceSystem } from "../engine/core";
 import { createBody, createStaticBody, createOneWayPlatform, PhysicsWorld, CharacterController } from "../engine/physics";
 import { createAmbientEffect, createSnowEffect, createRainEffect, getThemeEffects, onJumpDust, onLandImpact, onCollectSparkle, onDeathExplosion } from "../engine/effects";
-import { PALETTES, lerpColor, setNoiseSeed, drawSkyGradient, drawStars, drawMountainRange, drawCloud, drawTree, drawGroundStrip, drawPlatformBlock, drawPlayerCharacter, drawCoinToken, drawEnemySlime, drawHeart, applyBiomePostProcessing, drawVignette, drawAtmosphericFog, drawLSystemTree, TREE_PRESETS, drawPointLight, createLightingLayer, createWaterSurface, createLavaSurface } from "../config/assets";
+import { PALETTES, lerpColor, drawPlayerCharacter, drawCoinToken, drawEnemySlime, drawHeart } from "../config/assets";
 import { _loadSpriteLib, _sheetCache } from "../utils/media-stock";
 
 const PIXI = (window as any).PIXI;
@@ -2418,36 +2418,7 @@ var CONFIG = {
   wallSlide: false,
 };
 
-// ======================== LEVEL GENERATORS ========================
-function _generatePlatformY(index: number, total: number): number {
-  var t = index / Math.max(total - 1, 1); // 0..1
-  var minY = CONFIG.groundY - 360;
-  var maxY = CONFIG.groundY - 80;
-  switch (CONFIG.levelShape) {
-    case 'staircase-ascending':
-      return maxY - t * (maxY - minY) + _rngRange(-20, 20);
-    case 'valley-bowl':
-      var bowl = Math.abs(t - 0.5) * 2; // 0 at center, 1 at edges
-      return minY + bowl * (maxY - minY) * 0.6 + _rngRange(-15, 15);
-    case 'hilly-undulating':
-      return minY + (maxY - minY) * (0.5 + 0.4 * Math.sin(t * Math.PI * 3)) + _rngRange(-20, 20);
-    default: // flat-wide
-      return _rngRange(minY, maxY);
-  }
-}
-
-function _generatePlatforms() {
-  var plats = [];
-  var spacing = (CONFIG.worldWidth - 600) / CONFIG.platformCount;
-  for (var i = 0; i < CONFIG.platformCount; i++) {
-    plats.push({
-      x: 350 + i * spacing + _rngRange(-spacing * 0.2, spacing * 0.2),
-      y: _generatePlatformY(i, CONFIG.platformCount),
-      w: _rngInt(120, 200),
-    });
-  }
-  return plats;
-}
+// ======================== PLACEMENT GENERATORS ========================
 
 function _generateCoins(platforms: { x: number; y: number; w: number }[]) {
   var coins: { x: number; y: number }[] = [];
@@ -2477,262 +2448,6 @@ function _generateEnemies() {
   return enemies;
 }
 
-function _generateDecorations() {
-  var count = _rngInt(10, 18);
-  var decs: { x: number; type: number; size: number; flip: boolean }[] = [];
-  var spacing = CONFIG.worldWidth / count;
-  for (var i = 0; i < count; i++) {
-    decs.push({
-      x: i * spacing + _rngRange(20, spacing - 20),
-      type: _rngInt(0, 3), // 4 variants per theme
-      size: _rngRange(1.8, 3.2),
-      flip: _rng() > 0.5,
-    });
-  }
-  return decs;
-}
-
-// ======================== THEME-SPECIFIC DRAWING ========================
-function _drawDecoration(type: number, size: number): any {
-  var g = new PIXI.Graphics();
-  var s = size;
-  switch (THEME) {
-    case 'volcanic':
-      if (type === 0) { // Lava pool
-        g.beginFill(0xff3300, 0.8); g.drawEllipse(0, 0, 30 * s, 8 * s); g.endFill();
-        g.beginFill(0xff6600, 0.6); g.drawEllipse(0, -2, 20 * s, 5 * s); g.endFill();
-        g.beginFill(0xffaa00, 0.4); g.drawEllipse(0, -3, 10 * s, 3 * s); g.endFill();
-      } else if (type === 1) { // Smoking vent
-        g.beginFill(0x3a2a1a); g.moveTo(-8 * s, 0); g.lineTo(8 * s, 0); g.lineTo(4 * s, -20 * s); g.lineTo(-4 * s, -20 * s); g.endFill();
-        g.beginFill(0x554433); g.drawCircle(0, -20 * s, 6 * s); g.endFill();
-        g.beginFill(0xff4400, 0.5); g.drawCircle(0, -20 * s, 3 * s); g.endFill();
-      } else if (type === 2) { // Obsidian crystal
-        g.beginFill(0x1a1a2a); g.moveTo(0, -35 * s); g.lineTo(8 * s, 0); g.lineTo(-8 * s, 0); g.endFill();
-        g.beginFill(0x2a2a4a); g.moveTo(6 * s, -25 * s); g.lineTo(12 * s, 0); g.lineTo(2 * s, 0); g.endFill();
-        g.beginFill(0xff4400, 0.3); g.moveTo(0, -30 * s); g.lineTo(3 * s, -10 * s); g.lineTo(-3 * s, -10 * s); g.endFill();
-      } else { // Cracked rock
-        g.beginFill(0x4a3a2a); g.drawRoundedRect(-15 * s, -12 * s, 30 * s, 12 * s, 4); g.endFill();
-        g.beginFill(0x5a4a3a); g.drawRoundedRect(-10 * s, -18 * s, 20 * s, 8 * s, 3); g.endFill();
-        g.lineStyle(1, 0xff4400, 0.6); g.moveTo(-5 * s, -2 * s); g.lineTo(0, -10 * s); g.lineTo(5 * s, -4 * s);
-      }
-      break;
-    case 'arctic':
-      if (type === 0) { // Ice crystal
-        g.beginFill(0x99ddff, 0.8); g.moveTo(0, -40 * s); g.lineTo(6 * s, -10 * s); g.lineTo(0, 0); g.lineTo(-6 * s, -10 * s); g.endFill();
-        g.beginFill(0xbbeeFF, 0.5); g.moveTo(0, -35 * s); g.lineTo(3 * s, -12 * s); g.lineTo(-3 * s, -12 * s); g.endFill();
-        g.beginFill(0xccffff, 0.6); g.moveTo(10 * s, -25 * s); g.lineTo(14 * s, -10 * s); g.lineTo(8 * s, -10 * s); g.endFill();
-      } else if (type === 1) { // Snowdrift
-        g.beginFill(0xddeeff, 0.9); g.drawEllipse(0, 0, 25 * s, 10 * s); g.endFill();
-        g.beginFill(0xeef4ff, 0.7); g.drawEllipse(5 * s, -3 * s, 15 * s, 6 * s); g.endFill();
-      } else if (type === 2) { // Frozen pillar
-        g.beginFill(0x88bbdd); g.drawRoundedRect(-6 * s, -45 * s, 12 * s, 45 * s, 3); g.endFill();
-        g.beginFill(0xaaddee, 0.6); g.drawRoundedRect(-3 * s, -42 * s, 6 * s, 38 * s, 2); g.endFill();
-        g.beginFill(0x99ccee); g.drawCircle(0, -48 * s, 8 * s); g.endFill();
-      } else { // Icicles
-        for (var ic = 0; ic < 3; ic++) {
-          var ix = (ic - 1) * 10 * s;
-          var ih = (20 + ic * 8) * s;
-          g.beginFill(0xaaddff, 0.8); g.moveTo(ix - 3 * s, 0); g.lineTo(ix, -ih); g.lineTo(ix + 3 * s, 0); g.endFill();
-        }
-      }
-      break;
-    case 'candy':
-      if (type === 0) { // Lollipop
-        g.beginFill(0x886644); g.drawRect(-2 * s, -40 * s, 4 * s, 40 * s); g.endFill();
-        g.beginFill(0xff6699); g.drawCircle(0, -48 * s, 12 * s); g.endFill();
-        g.beginFill(0xffaacc, 0.6); g.drawCircle(-3 * s, -50 * s, 5 * s); g.endFill();
-        g.lineStyle(2, 0xffffff, 0.5); g.arc(0, -48 * s, 8 * s, 0, Math.PI); g.lineStyle(0);
-      } else if (type === 1) { // Candy cane
-        g.beginFill(0xff3344); g.drawRoundedRect(-4 * s, -35 * s, 8 * s, 35 * s, 3); g.endFill();
-        for (var st = 0; st < 5; st++) {
-          g.beginFill(0xffffff, 0.8); g.drawRect(-4 * s, -35 * s + st * 14 * s, 8 * s, 4 * s); g.endFill();
-        }
-        g.beginFill(0xff3344); g.drawCircle(6 * s, -35 * s, 5 * s); g.endFill();
-      } else if (type === 2) { // Gummy bear
-        g.beginFill(0x44cc88); g.drawEllipse(0, -12 * s, 10 * s, 14 * s); g.endFill();
-        g.beginFill(0x44cc88); g.drawCircle(-6 * s, -26 * s, 5 * s); g.drawCircle(6 * s, -26 * s, 5 * s); g.endFill();
-        g.beginFill(0xffffff); g.drawCircle(-3 * s, -14 * s, 2 * s); g.drawCircle(3 * s, -14 * s, 2 * s); g.endFill();
-        g.beginFill(0x111111); g.drawCircle(-3 * s, -14 * s, 1); g.drawCircle(3 * s, -14 * s, 1); g.endFill();
-      } else { // Sprinkle pile
-        var sprColors = [0xff6699, 0x66ccff, 0xffcc33, 0x66ff99, 0xff66ff];
-        for (var sp = 0; sp < 8; sp++) {
-          g.beginFill(sprColors[sp % sprColors.length]);
-          g.drawRoundedRect(_rngRange(-15, 15) * s, _rngRange(-8, 0) * s, 6 * s, 2 * s, 1);
-          g.endFill();
-        }
-      }
-      break;
-    case 'space':
-      if (type === 0) { // Floating asteroid
-        g.beginFill(0x555566); g.drawCircle(0, -15 * s, 14 * s); g.endFill();
-        g.beginFill(0x444455); g.drawCircle(-5 * s, -18 * s, 5 * s); g.endFill();
-        g.beginFill(0x333344); g.drawCircle(6 * s, -12 * s, 4 * s); g.endFill();
-      } else if (type === 1) { // Alien plant
-        g.beginFill(0x44ff88, 0.8); g.moveTo(0, 0); g.quadraticCurveTo(15 * s, -20 * s, 5 * s, -35 * s); g.quadraticCurveTo(0, -25 * s, 0, 0); g.endFill();
-        g.beginFill(0x88ffbb, 0.6); g.moveTo(0, 0); g.quadraticCurveTo(-12 * s, -18 * s, -3 * s, -30 * s); g.quadraticCurveTo(0, -20 * s, 0, 0); g.endFill();
-        g.beginFill(0xaaffdd); g.drawCircle(4 * s, -34 * s, 3 * s); g.drawCircle(-2 * s, -29 * s, 2 * s); g.endFill();
-      } else if (type === 2) { // Energy pylon
-        g.beginFill(0x333355); g.drawRect(-4 * s, -40 * s, 8 * s, 40 * s); g.endFill();
-        g.beginFill(0x6666ff, 0.7); g.drawCircle(0, -42 * s, 6 * s); g.endFill();
-        g.beginFill(0x9999ff, 0.4); g.drawCircle(0, -42 * s, 10 * s); g.endFill();
-      } else { // Antenna dish
-        g.beginFill(0x555577); g.drawRect(-2 * s, -30 * s, 4 * s, 30 * s); g.endFill();
-        g.beginFill(0x777799); g.drawEllipse(0, -32 * s, 14 * s, 6 * s); g.endFill();
-        g.beginFill(0x4488ff, 0.5); g.drawCircle(0, -32 * s, 3 * s); g.endFill();
-      }
-      break;
-    case 'dark':
-      if (type === 0) { // Skull on stick
-        g.beginFill(0x333344); g.drawRect(-2 * s, -30 * s, 4 * s, 30 * s); g.endFill();
-        g.beginFill(0xccccbb); g.drawCircle(0, -35 * s, 8 * s); g.endFill();
-        g.beginFill(0x1a1a2a); g.drawEllipse(-3 * s, -36 * s, 2.5 * s, 3 * s); g.drawEllipse(3 * s, -36 * s, 2.5 * s, 3 * s); g.endFill();
-        g.beginFill(0x1a1a2a); g.moveTo(-2 * s, -31 * s); g.lineTo(0, -29 * s); g.lineTo(2 * s, -31 * s); g.endFill();
-      } else if (type === 1) { // Glowing mushroom
-        g.beginFill(0x333344); g.drawRect(-3 * s, -15 * s, 6 * s, 15 * s); g.endFill();
-        g.beginFill(0x6633aa); g.drawEllipse(0, -18 * s, 14 * s, 8 * s); g.endFill();
-        g.beginFill(0xaa55ff, 0.4); g.drawEllipse(0, -18 * s, 18 * s, 10 * s); g.endFill();
-        g.beginFill(0xddaaff, 0.5); g.drawCircle(-4 * s, -20 * s, 2 * s); g.drawCircle(5 * s, -17 * s, 1.5 * s); g.endFill();
-      } else if (type === 2) { // Tombstone
-        g.beginFill(0x444455); g.drawRoundedRect(-10 * s, -30 * s, 20 * s, 30 * s, 5 * s); g.endFill();
-        g.beginFill(0x333344); g.drawRect(-1 * s, -22 * s, 2 * s, 10 * s); g.drawRect(-5 * s, -18 * s, 10 * s, 2 * s); g.endFill();
-      } else { // Broken lantern
-        g.beginFill(0x444455); g.drawRect(-2 * s, -25 * s, 4 * s, 25 * s); g.endFill();
-        g.beginFill(0x555566); g.drawRect(-6 * s, -30 * s, 12 * s, 8 * s); g.endFill();
-        g.beginFill(0x00ff88, 0.4); g.drawCircle(0, -26 * s, 4 * s); g.endFill();
-        g.beginFill(0x00ff88, 0.15); g.drawCircle(0, -26 * s, 10 * s); g.endFill();
-      }
-      break;
-    case 'ocean':
-      if (type === 0) { // Coral
-        g.beginFill(0xff6688); g.moveTo(0, 0); g.quadraticCurveTo(10 * s, -20 * s, 5 * s, -30 * s); g.quadraticCurveTo(2 * s, -20 * s, 0, 0); g.endFill();
-        g.beginFill(0xff88aa); g.moveTo(0, 0); g.quadraticCurveTo(-8 * s, -18 * s, -4 * s, -25 * s); g.quadraticCurveTo(-1 * s, -15 * s, 0, 0); g.endFill();
-        g.beginFill(0xffaacc); g.drawCircle(4 * s, -29 * s, 3 * s); g.drawCircle(-3 * s, -24 * s, 2.5 * s); g.endFill();
-      } else if (type === 1) { // Seaweed
-        g.beginFill(0x228855, 0.8);
-        for (var sw = 0; sw < 3; sw++) {
-          var sx = (sw - 1) * 6 * s;
-          g.moveTo(sx, 0); g.quadraticCurveTo(sx + 8 * s, -15 * s, sx + 2 * s, -30 * s - sw * 5 * s);
-          g.quadraticCurveTo(sx - 2 * s, -15 * s, sx, 0);
-        }
-        g.endFill();
-      } else if (type === 2) { // Shell
-        g.beginFill(0xffcc88); g.drawEllipse(0, -5 * s, 12 * s, 8 * s); g.endFill();
-        g.beginFill(0xffddaa); g.drawEllipse(0, -7 * s, 8 * s, 5 * s); g.endFill();
-        g.lineStyle(1, 0xddaa77); for (var sl = 0; sl < 5; sl++) { g.moveTo(0, -5 * s); g.lineTo((sl * 5 - 10) * s, 3 * s); } g.lineStyle(0);
-      } else { // Anchor
-        g.beginFill(0x556677); g.drawRect(-2 * s, -30 * s, 4 * s, 30 * s); g.endFill();
-        g.beginFill(0x556677); g.drawRect(-12 * s, -8 * s, 24 * s, 4 * s); g.endFill();
-        g.beginFill(0x667788); g.drawCircle(0, -32 * s, 5 * s); g.endFill();
-        g.beginFill(0x445566); g.drawCircle(0, -32 * s, 3 * s); g.endFill();
-      }
-      break;
-    case 'sunset':
-      if (type === 0) { // Sunflower
-        g.beginFill(0x447733); g.drawRect(-2 * s, -35 * s, 4 * s, 35 * s); g.endFill();
-        for (var pet = 0; pet < 8; pet++) {
-          var pa = pet * Math.PI / 4;
-          g.beginFill(0xffcc00); g.drawEllipse(Math.cos(pa) * 8 * s, -40 * s + Math.sin(pa) * 8 * s, 5 * s, 3 * s); g.endFill();
-        }
-        g.beginFill(0x885500); g.drawCircle(0, -40 * s, 5 * s); g.endFill();
-      } else if (type === 1) { // Tall grass
-        g.beginFill(0x558833, 0.7);
-        for (var tg = 0; tg < 5; tg++) {
-          var tx2 = (tg - 2) * 5 * s;
-          g.moveTo(tx2, 0); g.quadraticCurveTo(tx2 + 4 * s, -15 * s, tx2 + 2 * s, -25 * s - _rng() * 10 * s);
-          g.lineTo(tx2 - 1 * s, -25 * s - _rng() * 10 * s); g.quadraticCurveTo(tx2 - 4 * s, -15 * s, tx2, 0);
-        }
-        g.endFill();
-      } else if (type === 2) { // Butterfly bush (flower cluster)
-        g.beginFill(0x447733); g.drawRect(-2 * s, -20 * s, 4 * s, 20 * s); g.endFill();
-        var flColors = [0xff6688, 0xffaa44, 0xff88cc, 0xffcc66];
-        for (var fl = 0; fl < 6; fl++) {
-          g.beginFill(flColors[fl % flColors.length], 0.8);
-          g.drawCircle(_rngRange(-8, 8) * s, (-22 - _rng() * 10) * s, (3 + _rng() * 2) * s);
-          g.endFill();
-        }
-      } else { // Cattail
-        g.beginFill(0x558844); g.drawRect(-1.5 * s, -40 * s, 3 * s, 40 * s); g.endFill();
-        g.beginFill(0x885533); g.drawEllipse(0, -42 * s, 3.5 * s, 8 * s); g.endFill();
-      }
-      break;
-    default: // forest
-      if (type === 0) { // Mushroom
-        g.beginFill(0x886644); g.drawRect(-3 * s, -12 * s, 6 * s, 12 * s); g.endFill();
-        g.beginFill(0xcc3333); g.drawEllipse(0, -15 * s, 12 * s, 8 * s); g.endFill();
-        g.beginFill(0xffffff, 0.7); g.drawCircle(-4 * s, -17 * s, 2 * s); g.drawCircle(3 * s, -14 * s, 1.5 * s); g.drawCircle(6 * s, -16 * s, 1 * s); g.endFill();
-      } else if (type === 1) { // Flower patch
-        g.beginFill(0x447733); g.drawRect(-1 * s, -15 * s, 2 * s, 15 * s); g.endFill();
-        g.beginFill(0xff6688); g.drawCircle(0, -17 * s, 5 * s); g.endFill();
-        g.beginFill(0xffdd44); g.drawCircle(0, -17 * s, 2 * s); g.endFill();
-        g.beginFill(0x447733); g.drawRect(3 * s, -10 * s, 2 * s, 10 * s); g.endFill();
-        g.beginFill(0xffaa44); g.drawCircle(4 * s, -12 * s, 4 * s); g.endFill();
-      } else if (type === 2) { // Fern bush
-        g.beginFill(0x338833, 0.8);
-        for (var fn = 0; fn < 4; fn++) {
-          var fa = (fn - 1.5) * 0.5;
-          g.moveTo(0, 0); g.quadraticCurveTo(Math.sin(fa) * 20 * s, -15 * s, Math.sin(fa) * 15 * s, -25 * s);
-          g.lineTo(Math.sin(fa) * 12 * s, -23 * s); g.quadraticCurveTo(Math.sin(fa) * 15 * s, -12 * s, 0, 0);
-        }
-        g.endFill();
-      } else { // Log
-        g.beginFill(0x5a3a1a); g.drawEllipse(0, -5 * s, 20 * s, 7 * s); g.endFill();
-        g.beginFill(0x7a5a3a); g.drawCircle(-18 * s, -5 * s, 7 * s); g.endFill();
-        g.beginFill(0x4a2a0a); g.drawCircle(-18 * s, -5 * s, 4 * s); g.endFill();
-      }
-      break;
-  }
-  return g;
-}
-
-function _drawGroundDetail(x: number, groundY: number): any {
-  var g = new PIXI.Graphics();
-  g.x = x;
-  g.y = groundY;
-  var ds = 2.5; // ground detail scale
-  switch (THEME) {
-    case 'volcanic':
-      // Lava cracks
-      g.lineStyle(3, 0xff4400, 0.7); g.moveTo(-20 * ds, 4); g.lineTo(0, -6); g.lineTo(20 * ds, 2); g.lineTo(28 * ds, 8);
-      g.lineStyle(2, 0xff6600, 0.4); g.moveTo(-12 * ds, 8); g.lineTo(6 * ds, -2); g.lineTo(22 * ds, 10);
-      g.beginFill(0xff3300, 0.2); g.drawEllipse(0, 2, 16 * ds, 4); g.endFill();
-      break;
-    case 'arctic':
-      // Snow mound
-      g.beginFill(0xddeeff, 0.7); g.drawEllipse(0, 0, 35, 10); g.endFill();
-      g.beginFill(0xeef4ff, 0.5); g.drawEllipse(5, -3, 22, 6); g.endFill();
-      break;
-    case 'candy':
-      // Sprinkles on ground
-      var sc = [0xff6699, 0x66ccff, 0xffcc33, 0x66ff99, 0xff66ff];
-      for (var j = 0; j < 8; j++) { g.beginFill(sc[j % sc.length]); g.drawRoundedRect(_rngRange(-20, 20), _rngRange(-4, 4), 8, 3, 1); g.endFill(); }
-      break;
-    case 'space':
-      // Glowing crack
-      g.lineStyle(2, 0x4488ff, 0.6); g.moveTo(-15, 4); g.lineTo(0, -4); g.lineTo(18, 6);
-      g.beginFill(0x4488ff, 0.2); g.drawCircle(0, 0, 16); g.endFill();
-      g.beginFill(0x88aaff, 0.1); g.drawCircle(0, 0, 25); g.endFill();
-      break;
-    case 'dark':
-      // Purple mist
-      g.beginFill(0x6633aa, 0.15); g.drawEllipse(0, -5, 40, 14); g.endFill();
-      g.beginFill(0x8844cc, 0.08); g.drawEllipse(0, -8, 55, 18); g.endFill();
-      break;
-    case 'ocean':
-      // Bubbles
-      g.beginFill(0x66aadd, 0.35); g.drawCircle(-6, -8, 6); g.drawCircle(8, -14, 4.5); g.drawCircle(0, -22, 3); g.drawCircle(-10, -18, 2.5); g.endFill();
-      break;
-    default:
-      // Grass tufts
-      g.beginFill(0x55aa33, 0.6);
-      g.moveTo(-10, 0); g.lineTo(-6, -16); g.lineTo(-2, 0);
-      g.moveTo(4, 0); g.lineTo(8, -12); g.lineTo(12, 0);
-      g.moveTo(-3, 0); g.lineTo(1, -10); g.lineTo(5, 0);
-      g.endFill();
-      break;
-  }
-  return g;
-}
-
 // ======================== GAME SCENE ========================
 export class GameScene2D implements GameScene {
   name = 'game';
@@ -2747,17 +2462,8 @@ export class GameScene2D implements GameScene {
   private livesContainer: any;
   private coins: { gfx: any; body: any; baseY: number }[] = [];
   private enemies: { gfx: any; body: any; startX: number; range: number; dir: number }[] = [];
-  private clouds: { gfx: any; speed: number }[] = [];
-  private bgLayers: { gfx: any; factor: number }[] = [];
-  private stars: any;
-  private decorTrees: any[] = [];
-  private fogLayers: any[] = [];
-  private treeSway: any[] = [];
-  private waterSurface: any = null;
-  private lavaSurface: any = null;
+  private worldResult: any = null;
   private invincibleTimer = 0;
-  private shakeTimer = 0;
-  private shakeIntensity = 0;
   private lastPlayerFacing = 1;
   private _lastAnim = '';
 
@@ -2771,123 +2477,39 @@ export class GameScene2D implements GameScene {
     this.lives = CONFIG.lives;
     this.coins = [];
     this.enemies = [];
-    this.clouds = [];
-    this.bgLayers = [];
-    this.decorTrees = [];
-    this.fogLayers = [];
-    this.treeSway = [];
     this.invincibleTimer = 0;
-    this.shakeTimer = 0;
 
     await _loadSpriteLib(THEME);
-    setNoiseSeed(_seed); // Sync noise with game seed for reproducible terrain
 
     var W = engine.config.width;
     var H = engine.config.height;
-    var WW = CONFIG.worldWidth;
-    var WH = CONFIG.worldHeight;
 
-    // ---- 1. GRADIENT SKY ----
-    var sky = drawSkyGradient(WW, WH, PAL.skyTop, PAL.skyBottom);
-    this.container.addChild(sky);
+    // ---- 1. BUILD WORLD (sprites + fallback graphics) ----
+    this.worldResult = engine.worldBuilder.build({
+      theme: THEME,
+      width: CONFIG.worldWidth,
+      height: CONFIG.worldHeight,
+      groundY: CONFIG.groundY,
+      platformCount: CONFIG.platformCount,
+      levelShape: CONFIG.levelShape,
+      seed: _seed,
+    });
+    this.container.addChild(this.worldResult.container);
+    engine._worldData = this.worldResult;
 
-    // ---- 2. STARS ----
-    this.stars = drawStars(WW, WH * 0.5, 80);
-    this.container.addChild(this.stars);
-
-    // ---- 3. PARALLAX MOUNTAINS (3 layers) ----
-    for (var mi = 0; mi < 3; mi++) {
-      var mColor = PAL.mountains[mi] || PAL.mountains[0];
-      var mBaseY = CONFIG.groundY - 30 - mi * 60;
-      var mMinH = 60 + mi * 30;
-      var mMaxH = 120 + mi * 50;
-      var mSpacing = 250 - mi * 30;
-      var mAlpha = 0.4 + mi * 0.2;
-      var mGfx = drawMountainRange(WW, mBaseY, mColor, mAlpha, mMinH, mMaxH, mSpacing, THEME, mi);
-      this.container.addChild(mGfx);
-      this.bgLayers.push({ gfx: mGfx, factor: 0.1 + mi * 0.15 });
-    }
-
-    // ---- 3b. ATMOSPHERIC FOG LAYERS ----
-    try {
-      this.fogLayers = drawAtmosphericFog(WW, CONFIG.groundY, THEME);
-      for (var fi2 = 0; fi2 < this.fogLayers.length; fi2++) {
-        this.container.addChild(this.fogLayers[fi2]);
-        this.bgLayers.push({ gfx: this.fogLayers[fi2], factor: 0.05 + fi2 * 0.08 });
+    // Create physics bodies from WorldBuilder result
+    for (var bi = 0; bi < this.worldResult.bodies.length; bi++) {
+      var b = this.worldResult.bodies[bi];
+      var body: any;
+      if (b.oneWay) {
+        body = createOneWayPlatform(b.x, b.y, b.w, b.h);
+      } else {
+        body = createStaticBody(b.x, b.y, b.w, b.h);
       }
-    } catch(e) { /* fog optional */ }
-
-    // ---- 4. CLOUDS / SKY OBJECTS (theme-aware) ----
-    if (THEME !== 'space' && THEME !== 'dark') {
-      var cloudCount = _rngInt(5, 10);
-      for (var ci = 0; ci < cloudCount; ci++) {
-        var cw = _rngRange(80, 200);
-        var ch = _rngRange(25, 45);
-        var cloud = drawCloud(cw, ch);
-        cloud.x = _rngRange(0, WW);
-        cloud.y = _rngRange(50, CONFIG.groundY * 0.4);
-        if (THEME === 'volcanic') { cloud.tint = 0x997766; cloud.alpha = 0.5; } // smoke
-        this.container.addChild(cloud);
-        this.clouds.push({ gfx: cloud, speed: _rngRange(5, 15) });
-      }
+      this.physics.addBody(body);
     }
 
-    // ---- 5. THEME-SPECIFIC DECORATIONS (PRNG) ----
-    var decData = _generateDecorations();
-    for (var di = 0; di < decData.length; di++) {
-      var dd = decData[di];
-      var dec = _drawDecoration(dd.type, dd.size);
-      dec.x = dd.x;
-      dec.y = CONFIG.groundY;
-      if (dd.flip) dec.scale.x = -1;
-      this.container.addChild(dec);
-      this.decorTrees.push(dec);
-    }
-
-    // ---- 6. GROUND (drawn before trees so trees appear in front) ----
-    var floorH = WH - CONFIG.groundY;
-    var ground = drawGroundStrip(WW, CONFIG.groundY, floorH, PAL.ground, PAL.groundTop, THEME);
-    this.container.addChild(ground);
-    var groundBody = createStaticBody(WW / 2, CONFIG.groundY + 4, WW, 8);
-    this.physics.addBody(groundBody);
-
-    // ---- 6b. L-SYSTEM TREES (drawn after ground so they're visible) ----
-    var treePresetList = TREE_PRESETS[THEME] || [];
-    if (treePresetList.length > 0) {
-      var treeCount = _rngInt(4, 8);
-      var treeSpacing = CONFIG.worldWidth / treeCount;
-      for (var ti = 0; ti < treeCount; ti++) {
-        var treePreset = treePresetList[_rngInt(0, treePresetList.length - 1)];
-        var treeX = ti * treeSpacing + _rngRange(50, treeSpacing - 50);
-        var treeSeed = _seed + ti * 137;
-        var tree = drawLSystemTree(treeX, CONFIG.groundY, treePreset, THEME, treeSeed);
-        this.container.addChild(tree);
-        this.treeSway.push(tree);
-      }
-    }
-
-    // ---- 6c. GROUND DETAILS (theme-specific texture) ----
-    var groundDetailCount = _rngInt(12, 24);
-    var gdSpacing = CONFIG.worldWidth / groundDetailCount;
-    for (var gdi = 0; gdi < groundDetailCount; gdi++) {
-      var gdx = gdi * gdSpacing + _rngRange(10, gdSpacing - 10);
-      var gd = _drawGroundDetail(gdx, CONFIG.groundY);
-      this.container.addChild(gd);
-    }
-
-    // ---- 7. PLATFORMS (PRNG layout based on levelShape) ----
-    var platforms = _generatePlatforms();
-    for (var pi = 0; pi < platforms.length; pi++) {
-      var p = platforms[pi];
-      var platGfx = drawPlatformBlock(p.w, 24, PAL.platform, PAL.platformTop, THEME);
-      platGfx.x = p.x;
-      platGfx.y = p.y;
-      this.container.addChild(platGfx);
-      var platBody = createOneWayPlatform(p.x, p.y, p.w, 24);
-      this.physics.addBody(platBody);
-    }
-
-    // ---- 8. PLAYER ----
+    // ---- 2. PLAYER ----
     this.playerGfx = drawPlayerCharacter(CONFIG.playerSize, PAL.player, PAL.playerLight);
     this.playerGfx.x = CONFIG.playerStartX;
     this.playerGfx.y = CONFIG.groundY - 30;
@@ -2904,8 +2526,8 @@ export class GameScene2D implements GameScene {
       wallSlide: CONFIG.wallSlide,
     });
 
-    // ---- 9. COINS (PRNG placement: 60% on platforms, 40% ground) ----
-    var coinData = _generateCoins(platforms);
+    // ---- 3. COINS ----
+    var coinData = _generateCoins(this.worldResult.platforms);
     for (var coi = 0; coi < coinData.length; coi++) {
       var cp = coinData[coi];
       var coinGfx = drawCoinToken(CONFIG.coinRadius, PAL.coin, PAL.coinGlow);
@@ -2918,7 +2540,7 @@ export class GameScene2D implements GameScene {
       this.coins.push({ gfx: coinGfx, body: coinBody, baseY: cp.y });
     }
 
-    // ---- 10. ENEMIES (PRNG positions + patrol ranges) ----
+    // ---- 4. ENEMIES ----
     var enemyData = _generateEnemies();
     for (var ei = 0; ei < enemyData.length; ei++) {
       var ed = enemyData[ei];
@@ -2932,7 +2554,7 @@ export class GameScene2D implements GameScene {
       this.enemies.push({ gfx: enemyGfx, body: enemyBody, startX: ed.x, range: ed.range, dir: 1 });
     }
 
-    // ---- 11. COLLISION HANDLER ----
+    // ---- 5. COLLISION HANDLER ----
     var self = this;
     this.physics.onSensorOverlap(function(a: any, b: any) {
       var coin = a.tag === 'coin' ? a : b.tag === 'coin' ? b : null;
@@ -2963,23 +2585,11 @@ export class GameScene2D implements GameScene {
       }
     });
 
-    // ---- 12. AMBIENT PARTICLES (enhanced) ----
+    // ---- 6. AMBIENT PARTICLES ----
     try {
       if (PAL.weather === 'snow') {
         var snowFx = createSnowEffect(W, H, 0.5);
         if (snowFx && snowFx.emitter) engine.addEmitter(snowFx.emitter);
-        // Snow accumulation dots on platforms
-        for (var spi = 0; spi < platforms.length; spi++) {
-          var sp2 = platforms[spi];
-          for (var sd = 0; sd < sp2.w / 8; sd++) {
-            var snowDot = new PIXI.Graphics();
-            snowDot.circle(0, 0, 1 + Math.random() * 1.5);
-            snowDot.fill({ color: 0xeef4ff, alpha: 0.6 + Math.random() * 0.3 });
-            snowDot.x = sp2.x - sp2.w / 2 + sd * 8 + Math.random() * 6;
-            snowDot.y = sp2.y - 2 - Math.random() * 3;
-            this.container.addChild(snowDot);
-          }
-        }
       } else if (PAL.weather === 'rain') {
         var rainFx = createRainEffect(W, H, 0.5);
         if (rainFx && rainFx.emitter) engine.addEmitter(rainFx.emitter);
@@ -2988,26 +2598,9 @@ export class GameScene2D implements GameScene {
         var ambientFx = createAmbientEffect(PAL.ambient as any, W, H);
         if (ambientFx && ambientFx.emitter) engine.addEmitter(ambientFx.emitter);
       }
-      // Extra firefly glow for forest/dark
-      if (THEME === 'forest' || THEME === 'dark') {
-        var fireflyCount = _rngInt(6, 14);
-        for (var ffi = 0; ffi < fireflyCount; ffi++) {
-          var ffGlow = new PIXI.Graphics();
-          var ffColor = THEME === 'forest' ? 0xddff44 : 0xaa55ff;
-          ffGlow.circle(0, 0, 3);
-          ffGlow.fill({ color: ffColor, alpha: 0.6 });
-          ffGlow.circle(0, 0, 8);
-          ffGlow.fill({ color: ffColor, alpha: 0.15 });
-          ffGlow.x = _rngRange(100, WW - 100);
-          ffGlow.y = _rngRange(CONFIG.groundY * 0.3, CONFIG.groundY - 50);
-          ffGlow.blendMode = 'add';
-          this.container.addChild(ffGlow);
-          this.decorTrees.push(ffGlow); // reuse sway for gentle float
-        }
-      }
     } catch(e) { /* particle effects optional */ }
 
-    // ---- 13. UI LAYER ----
+    // ---- 7. UI LAYER ----
     var scoreLbl = engine.createText('SCORE', { fontSize: 12, fill: 0x888888 });
     scoreLbl.x = 20;
     scoreLbl.y = 12;
@@ -3033,19 +2626,18 @@ export class GameScene2D implements GameScene {
     hint.y = H - 8;
     engine.ui.addChild(hint);
 
-    // ---- 14. CAMERA ----
+    // ---- 8. CAMERA ----
     engine.camera.follow(this.playerBody);
     engine.camera.worldWidth = CONFIG.worldWidth;
     engine.camera.worldHeight = CONFIG.worldHeight;
     engine.camera.smoothing = 0.08;
 
-    // ---- 15. JUICE EFFECTS ----
+    // ---- 9. JUICE EFFECTS ----
     for (var ji = 0; ji < this.coins.length; ji++) {
       engine.juice.float(this.coins[ji].gfx, 5, 2 + _rng() * 0.5);
     }
     engine.juice.breathe(this.playerGfx, 1.03, 1.2);
 
-    // Per-object filters: only player shadow (coins use built-in glow circle, no filter)
     var _PIXI = (window as any).PIXI;
     if (_PIXI.filters && _PIXI.filters.DropShadowFilter && !this.playerGfx.filters) {
       this.playerGfx.filters = [new _PIXI.filters.DropShadowFilter({
@@ -3053,52 +2645,12 @@ export class GameScene2D implements GameScene {
       })];
     }
 
-    // ---- 15b. DYNAMIC WATER/LAVA SURFACE (above ground so visible) ----
-    try {
-      if (THEME === 'ocean') {
-        var waterY2 = CONFIG.groundY - 15;
-        var waterH2 = CONFIG.worldHeight - waterY2;
-        this.waterSurface = createWaterSurface(WW, waterY2, waterH2, 0x1a5276);
-        this.container.addChild(this.waterSurface.container);
-      } else if (THEME === 'forest') {
-        var pondX = _rngRange(WW * 0.3, WW * 0.6);
-        var pondW = _rngRange(300, 600);
-        var pondY = CONFIG.groundY - 5;
-        var pondH = CONFIG.worldHeight - pondY;
-        this.waterSurface = createWaterSurface(pondW, pondY, pondH, 0x2d6a4f);
-        this.waterSurface.container.x = pondX;
-        this.container.addChild(this.waterSurface.container);
-      } else if (THEME === 'volcanic') {
-        var lavaY2 = CONFIG.groundY - 10;
-        var lavaH2 = CONFIG.worldHeight - lavaY2;
-        this.lavaSurface = createLavaSurface(WW, lavaY2, lavaH2);
-        this.container.addChild(this.lavaSurface.container);
-      }
-    } catch(e) { /* water/lava optional */ }
-
-    // ---- 16. LIGHTING LAYER (additive blend) ----
-    try {
-      var decorPositions = decData.map(function(d: any) { return { x: d.x, y: CONFIG.groundY }; });
-      var lightLayer = createLightingLayer(THEME, WW, CONFIG.groundY, decorPositions);
-      this.container.addChild(lightLayer);
-    } catch(e) { /* lighting optional */ }
-
-    // ---- 17. POST-PROCESSING (biome color grading on world) ----
-    try { applyBiomePostProcessing(THEME, this.container); } catch(e) {}
-
-    // ---- 18. VIGNETTE (on UI layer, fixed position) ----
-    try {
-      var vig = drawVignette(W, H);
-      engine.ui.addChild(vig);
-    } catch(e) {}
-
     // === AI ENHANCEMENT ZONE ===
     // This game is fully playable. ENHANCE it based on the Creative Brief:
-    // - Add themed decorations (torches, mushrooms, crystals, coral, etc.)
-    // - Implement specialMechanic if not already active (dash, gravity-flip, etc.)
+    // - Add themed decorations via custom-visuals.ts
+    // - Implement specialMechanic (dash, gravity-flip, etc.)
     // - Add unique enemy types or a boss fight
     // - Add moving/breakable/disappearing platforms
-    // - Add themed particle effects beyond ambient
     // - DO NOT delete or rewrite existing code — ADD to it
   }
 
@@ -3114,6 +2666,11 @@ export class GameScene2D implements GameScene {
 
   update(engine: Engine2D, dt: number): void {
     this.physics.update(dt);
+
+    // ---- Parallax scrolling ----
+    if (this.worldResult && this.worldResult.updateParallax) {
+      this.worldResult.updateParallax(engine.camera);
+    }
 
     // ---- Player movement ----
     if (this.playerCtrl) {
@@ -3150,11 +2707,8 @@ export class GameScene2D implements GameScene {
       // Squash & stretch
       if (!this.playerCtrl.body.onGround) {
         var vy = this.playerCtrl.body.vy;
-        if (vy < -100) {
-          this.playerGfx.scale.y = 1.15;
-        } else if (vy > 100) {
-          this.playerGfx.scale.y = 0.9;
-        }
+        if (vy < -100) this.playerGfx.scale.y = 1.15;
+        else if (vy > 100) this.playerGfx.scale.y = 0.9;
       } else {
         this.playerGfx.scale.y += (1 - this.playerGfx.scale.y) * 0.2;
       }
@@ -3205,50 +2759,10 @@ export class GameScene2D implements GameScene {
       en.gfx.scale.y = 1 + Math.sin(engine.elapsed * 5 + e) * 0.08;
     }
 
-    // ---- Star twinkle ----
-    if (this.stars) {
-      this.stars.alpha = 0.6 + 0.4 * Math.sin(engine.elapsed * 0.5);
-    }
-
     // ---- Fall death ----
     if (this.playerCtrl && this.playerCtrl.body.y > CONFIG.worldHeight + 100) {
       engine.scene.switch('gameover', { score: this.score });
     }
-
-    // ---- Fog drift ----
-    for (var fg = 0; fg < this.fogLayers.length; fg++) {
-      this.fogLayers[fg].x += (0.3 + fg * 0.2) * dt;
-      if (this.fogLayers[fg].x > CONFIG.worldWidth * 0.1) this.fogLayers[fg].x = 0;
-    }
-
-    // ---- Wind system ----
-    var _windStr = 0.5 + 0.5 * Math.sin(engine.elapsed * 0.15);
-    var _windDir = Math.sin(engine.elapsed * 0.07) > 0 ? 1 : -1;
-
-    // ---- Vegetation sway (wind-driven) ----
-    for (var sw = 0; sw < this.treeSway.length; sw++) {
-      var treeObj = this.treeSway[sw];
-      var swayA = Math.sin(engine.elapsed * 1.2 + treeObj.x * 0.008) * 0.018 * (0.5 + _windStr);
-      var swayB = Math.sin(engine.elapsed * 2.1 + treeObj.x * 0.015) * 0.008;
-      treeObj.skew.x = (swayA + swayB) * _windDir;
-    }
-    for (var dw = 0; dw < this.decorTrees.length; dw++) {
-      var decObj = this.decorTrees[dw];
-      decObj.skew.x = Math.sin(engine.elapsed * 1.5 + decObj.x * 0.01) * 0.012 * (0.5 + _windStr) * _windDir;
-    }
-
-    // ---- Animate clouds (wind-affected) ----
-    for (var cl = 0; cl < this.clouds.length; cl++) {
-      var cloud2 = this.clouds[cl];
-      cloud2.gfx.x += (cloud2.speed * (0.6 + _windStr * 0.8)) * dt;
-      if (cloud2.gfx.x > CONFIG.worldWidth + 150) {
-        cloud2.gfx.x = -150;
-      }
-    }
-
-    // ---- Animate water/lava surfaces ----
-    if (this.waterSurface) { try { this.waterSurface.update(engine.elapsed); } catch(e) {} }
-    if (this.lavaSurface) { try { this.lavaSurface.update(engine.elapsed); } catch(e) {} }
 
     engine.input.endFrame();
   }

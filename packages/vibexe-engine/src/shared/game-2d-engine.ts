@@ -49,6 +49,429 @@ export interface Engine2DConfig {
 }
 
 // ---------------------------------------------------------------------------
+// WorldBuilderSystem — Dynamic sprite-based world generation
+// ---------------------------------------------------------------------------
+
+interface WorldBuilderConfig {
+  theme: string;
+  width: number;
+  height: number;
+  groundY: number;
+  platformCount: number;
+  levelShape: 'flat-wide' | 'staircase-ascending' | 'valley-bowl' | 'hilly-undulating';
+  decorationDensity: number;
+  cloudCount: number;
+  seed: number;
+}
+
+interface WorldBuilderResult {
+  container: any;
+  groundY: number;
+  platforms: { x: number; y: number; w: number; body: any }[];
+  bodies: any[];
+  getHeightAt(x: number): number;
+  updateParallax(camera: any): void;
+}
+
+class WorldBuilderSystem {
+  private engine: Engine2D;
+
+  constructor(engine: Engine2D) {
+    this.engine = engine;
+  }
+
+  build(config: Partial<WorldBuilderConfig> = {}): WorldBuilderResult {
+    var PIXI = (window as any).PIXI;
+    var cfg: WorldBuilderConfig = {
+      theme: config.theme || 'forest',
+      width: config.width || 4000,
+      height: config.height || 900,
+      groundY: config.groundY || 680,
+      platformCount: config.platformCount || 11,
+      levelShape: config.levelShape || 'flat-wide',
+      decorationDensity: config.decorationDensity ?? 1.0,
+      cloudCount: config.cloudCount ?? 7,
+      seed: config.seed || Date.now(),
+    };
+
+    // Seeded PRNG (Mulberry32)
+    var _s = cfg.seed | 0;
+    function rng() { _s = _s + 0x6D2B79F5 | 0; var t = Math.imul(_s ^ _s >>> 15, 1 | _s); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }
+    function rngRange(min: number, max: number) { return min + rng() * (max - min); }
+    function rngInt(min: number, max: number) { return Math.floor(rngRange(min, max + 1)); }
+
+    var container = new PIXI.Container();
+    var bodies: any[] = [];
+    var platforms: { x: number; y: number; w: number; body: any }[] = [];
+    var parallaxLayers: { gfx: any; factor: number }[] = [];
+    var clouds: { gfx: any; speed: number }[] = [];
+
+    var W = cfg.width;
+    var H = cfg.height;
+    var GY = cfg.groundY;
+    var theme = cfg.theme;
+
+    // Theme palettes (inline for independence from template imports)
+    var palettes: Record<string, any> = {
+      forest:   { skyTop: 0x0a0a2e, skyBottom: 0x1a4a3a, mountains: [0x0d1a0d, 0x1a2d1a, 0x2a3d2a], ground: 0x2d5a27, groundTop: 0x4a8a3a, platform: 0x5a3a1a, platformTop: 0x7a5a3a, foliage: 0x339933 },
+      sunset:   { skyTop: 0x1a0533, skyBottom: 0xff6633, mountains: [0x1a1133, 0x2d1a44, 0x442d55], ground: 0x3a5a2a, groundTop: 0x5a8a3a, platform: 0x6a4a2a, platformTop: 0x8a6a4a, foliage: 0x447733 },
+      space:    { skyTop: 0x000011, skyBottom: 0x0a0a33, mountains: [0x111133, 0x1a1a44, 0x222255], ground: 0x333355, groundTop: 0x444477, platform: 0x555577, platformTop: 0x6666aa, foliage: 0x4466aa },
+      volcanic: { skyTop: 0x1a0000, skyBottom: 0x4a1500, mountains: [0x1a0505, 0x2d0a0a, 0x3d1515], ground: 0x2a1a0a, groundTop: 0x4a2a1a, platform: 0x3a2a1a, platformTop: 0x5a3a2a, foliage: 0x553322 },
+      candy:    { skyTop: 0xffaacc, skyBottom: 0xaaccff, mountains: [0xddaacc, 0xccbbdd, 0xbbccee], ground: 0x88cc77, groundTop: 0xaaee99, platform: 0xcc88aa, platformTop: 0xeeaacc, foliage: 0x77cc55 },
+      arctic:   { skyTop: 0x1a2a4a, skyBottom: 0x7799bb, mountains: [0x334455, 0x445566, 0x556677], ground: 0x889999, groundTop: 0xaabbcc, platform: 0x778899, platformTop: 0x99aabb, foliage: 0x446666 },
+      dark:     { skyTop: 0x050510, skyBottom: 0x0a0a20, mountains: [0x0a0a15, 0x10101d, 0x151525], ground: 0x1a1a2a, groundTop: 0x2a2a3a, platform: 0x222233, platformTop: 0x333344, foliage: 0x1a2a1a },
+      ocean:    { skyTop: 0x001133, skyBottom: 0x0055aa, mountains: [0x002244, 0x003355, 0x004466], ground: 0x224455, groundTop: 0x336677, platform: 0x335566, platformTop: 0x447788, foliage: 0x228855 },
+    };
+    var pal = palettes[theme] || palettes.forest;
+
+    // Theme -> sprite name mappings
+    var groundMap: Record<string, string> = { forest: 'grass', sunset: 'grass', candy: 'grass', volcanic: 'stone', dark: 'stone', space: 'stone', arctic: 'ice', ocean: 'sand' };
+    var platMap: Record<string, string> = { forest: 'grass_block', sunset: 'grass_block', candy: 'grass_block', volcanic: 'stone_block', dark: 'dark_block', space: 'dark_block', arctic: 'ice_block', ocean: 'sand_block' };
+    var treeMap: Record<string, string[]> = {
+      forest: ['round_tree', 'pine_tree'], sunset: ['round_tree', 'palm_tree'], candy: ['round_tree'],
+      volcanic: ['dead_tree'], dark: ['dead_tree', 'pine_tree'], space: [],
+      arctic: ['pine_tree'], ocean: ['palm_tree'],
+    };
+
+    // Helper: hex number to CSS
+    function hexCss(c: number): string { return '#' + ('000000' + c.toString(16)).slice(-6); }
+
+    // =======================================================================
+    // 1. SKY GRADIENT
+    // =======================================================================
+    try {
+      if (PIXI.FillGradient) {
+        var skyGrad = new PIXI.FillGradient({ type: 'linear', colorStops: [
+          { offset: 0, color: hexCss(pal.skyTop) },
+          { offset: 1, color: hexCss(pal.skyBottom) },
+        ], x0: 0, y0: 0, x1: 0, y1: H });
+        var skyRect = new PIXI.Graphics();
+        skyRect.rect(0, 0, W, H);
+        skyRect.fill(skyGrad);
+        container.addChild(skyRect);
+      } else {
+        var skyG = new PIXI.Graphics();
+        skyG.rect(0, 0, W, H);
+        skyG.fill({ color: pal.skyBottom });
+        container.addChild(skyG);
+      }
+    } catch(e) {
+      var skyFb = new PIXI.Graphics();
+      skyFb.rect(0, 0, W, H);
+      skyFb.fill({ color: pal.skyBottom });
+      container.addChild(skyFb);
+    }
+
+    // =======================================================================
+    // 2. STARS (for space/dark themes)
+    // =======================================================================
+    if (theme === 'space' || theme === 'dark') {
+      var starG = new PIXI.Graphics();
+      var starCount = rngInt(60, 120);
+      for (var si = 0; si < starCount; si++) {
+        var sx = rngRange(0, W);
+        var sy = rngRange(0, GY * 0.5);
+        var sr = rngRange(0.5, 2);
+        starG.circle(sx, sy, sr);
+        starG.fill({ color: 0xffffff, alpha: rngRange(0.3, 0.9) });
+      }
+      container.addChild(starG);
+    }
+
+    // =======================================================================
+    // 3. PARALLAX MOUNTAIN LAYERS (3 layers, back to front)
+    // =======================================================================
+    for (var mi = 0; mi < 3; mi++) {
+      var hillSprite = (typeof _getSprite === 'function') ? _getSprite('backgrounds', mi === 2 ? 'mountain_rock' : mi === 1 ? 'hill_snow' : 'hill_green') : null;
+      var mLayer: any;
+      if (hillSprite) {
+        // Tile the hill sprite across world width
+        var hillContainer = new PIXI.Container();
+        var hillW = hillSprite.width || 256;
+        var hillScale = 1.5 + mi * 0.5;
+        var mBaseY = GY - 20 - mi * 70;
+        for (var hx = 0; hx < W + hillW * hillScale; hx += hillW * hillScale * 0.7) {
+          var hSpr = (typeof _getSprite === 'function') ? _getSprite('backgrounds', mi === 2 ? 'mountain_rock' : mi === 1 ? 'hill_snow' : 'hill_green') : null;
+          if (hSpr) {
+            hSpr.anchor.set(0.5, 1);
+            hSpr.x = hx;
+            hSpr.y = mBaseY;
+            hSpr.scale.set(hillScale + rngRange(-0.2, 0.2), hillScale + rngRange(-0.1, 0.3));
+            hSpr.alpha = 0.4 + mi * 0.2;
+            hillContainer.addChild(hSpr);
+          }
+        }
+        mLayer = hillContainer;
+      } else {
+        // Fallback: simple colored mountain range using Graphics
+        var mG = new PIXI.Graphics();
+        var mColor = pal.mountains[mi] || pal.mountains[0];
+        var mBaseY2 = GY - 20 - mi * 70;
+        var mAlpha2 = 0.4 + mi * 0.2;
+        mG.moveTo(0, mBaseY2);
+        for (var mx = 0; mx < W; mx += rngInt(80, 160)) {
+          var peakH = rngRange(40 + mi * 20, 100 + mi * 40);
+          mG.lineTo(mx + rngRange(30, 60), mBaseY2 - peakH);
+          mG.lineTo(mx + rngRange(80, 140), mBaseY2);
+        }
+        mG.lineTo(W, mBaseY2);
+        mG.lineTo(W, H);
+        mG.lineTo(0, H);
+        mG.closePath();
+        mG.fill({ color: mColor, alpha: mAlpha2 });
+        mLayer = mG;
+      }
+      container.addChild(mLayer);
+      parallaxLayers.push({ gfx: mLayer, factor: 0.1 + mi * 0.15 });
+    }
+
+    // =======================================================================
+    // 4. CLOUDS (skip for space/dark)
+    // =======================================================================
+    if (theme !== 'space' && theme !== 'dark') {
+      var cCount = cfg.cloudCount;
+      for (var ci = 0; ci < cCount; ci++) {
+        var cloudSpr = (typeof _getSprite === 'function') ? _getSprite('clouds', rng() > 0.5 ? 'cloud_puffy' : 'cloud_small') : null;
+        if (cloudSpr) {
+          cloudSpr.anchor.set(0.5, 0.5);
+          cloudSpr.x = rngRange(0, W);
+          cloudSpr.y = rngRange(40, GY * 0.35);
+          cloudSpr.scale.set(rngRange(0.8, 2.0));
+          cloudSpr.alpha = rngRange(0.4, 0.8);
+          if (theme === 'volcanic') { cloudSpr.tint = 0x997766; cloudSpr.alpha = 0.5; }
+          container.addChild(cloudSpr);
+          clouds.push({ gfx: cloudSpr, speed: rngRange(5, 15) });
+        } else {
+          // Fallback: ellipse cloud
+          var cG = new PIXI.Graphics();
+          var cw2 = rngRange(80, 180);
+          var ch2 = rngRange(20, 40);
+          cG.ellipse(0, 0, cw2 / 2, ch2 / 2);
+          cG.fill({ color: 0xffffff, alpha: rngRange(0.3, 0.6) });
+          cG.x = rngRange(0, W);
+          cG.y = rngRange(40, GY * 0.35);
+          container.addChild(cG);
+          clouds.push({ gfx: cG, speed: rngRange(5, 15) });
+        }
+      }
+    }
+
+    // =======================================================================
+    // 5. GROUND (tiled sprite or filled rect)
+    // =======================================================================
+    var floorH = H - GY + 60; // extend below screen
+    var groundPrefix = groundMap[theme] || 'grass';
+    var groundTopSpr = (typeof _getTilingSprite === 'function') ? _getTilingSprite('ground', groundPrefix + '_top', W, 32) : null;
+    var groundFillSpr = (typeof _getTilingSprite === 'function') ? _getTilingSprite('ground', 'dirt_fill', W, floorH - 32) : null;
+
+    if (groundTopSpr) {
+      groundTopSpr.x = 0;
+      groundTopSpr.y = GY - 16;
+      container.addChild(groundTopSpr);
+      if (groundFillSpr) {
+        groundFillSpr.x = 0;
+        groundFillSpr.y = GY + 16;
+        container.addChild(groundFillSpr);
+      } else {
+        var fillG = new PIXI.Graphics();
+        fillG.rect(0, GY + 16, W, floorH - 32);
+        fillG.fill({ color: pal.ground });
+        container.addChild(fillG);
+      }
+    } else {
+      // Fallback: solid ground with gradient-ish top
+      var gG = new PIXI.Graphics();
+      gG.rect(0, GY, W, floorH);
+      gG.fill({ color: pal.ground });
+      var gTopG = new PIXI.Graphics();
+      gTopG.rect(0, GY, W, 8);
+      gTopG.fill({ color: pal.groundTop });
+      container.addChild(gG);
+      container.addChild(gTopG);
+    }
+
+    // Ground physics body
+    var gBody = { x: W / 2, y: GY + 4, w: W, h: 8, isStatic: true, tag: 'ground' };
+    bodies.push(gBody);
+
+    // =======================================================================
+    // 6. PLATFORMS (positioned by levelShape algorithm)
+    // =======================================================================
+    var spacing = (W - 600) / Math.max(cfg.platformCount, 1);
+    var platSpriteName = platMap[theme] || 'grass_block';
+
+    for (var pi = 0; pi < cfg.platformCount; pi++) {
+      var px = 350 + pi * spacing + rngRange(-spacing * 0.2, spacing * 0.2);
+      var pw = rngInt(120, 200);
+
+      // Y from levelShape algorithm
+      var t = pi / Math.max(cfg.platformCount - 1, 1);
+      var minPY = GY - 360;
+      var maxPY = GY - 80;
+      var py: number;
+      switch (cfg.levelShape) {
+        case 'staircase-ascending':
+          py = maxPY - t * (maxPY - minPY) + rngRange(-20, 20); break;
+        case 'valley-bowl':
+          var bowl = Math.abs(t - 0.5) * 2;
+          py = minPY + bowl * (maxPY - minPY) * 0.6 + rngRange(-15, 15); break;
+        case 'hilly-undulating':
+          py = minPY + (maxPY - minPY) * (0.5 + 0.4 * Math.sin(t * Math.PI * 3)) + rngRange(-20, 20); break;
+        default: // flat-wide
+          py = rngRange(minPY, maxPY);
+      }
+
+      // Ensure min 80px vertical gap between adjacent platforms
+      if (pi > 0 && platforms.length > 0) {
+        var lastP = platforms[platforms.length - 1];
+        if (Math.abs(py - lastP.y) < 80) {
+          py = lastP.y + (py > lastP.y ? 80 : -80);
+        }
+      }
+
+      var platSpr = (typeof _getSprite === 'function') ? _getSprite('platforms', platSpriteName) : null;
+      if (platSpr) {
+        platSpr.anchor.set(0.5, 0.5);
+        platSpr.x = px;
+        platSpr.y = py;
+        platSpr.scale.x = pw / (platSpr.width || 64);
+        platSpr.scale.y = 24 / (platSpr.height || 32);
+        container.addChild(platSpr);
+      } else {
+        // Fallback: colored rectangle
+        var pG = new PIXI.Graphics();
+        pG.roundRect(-pw / 2, -12, pw, 24, 4);
+        pG.fill({ color: pal.platform });
+        pG.rect(-pw / 2, -12, pw, 4);
+        pG.fill({ color: pal.platformTop });
+        pG.x = px;
+        pG.y = py;
+        container.addChild(pG);
+      }
+
+      var pBody = { x: px, y: py, w: pw, h: 24, isStatic: true, oneWay: true, tag: 'platform' };
+      bodies.push(pBody);
+      platforms.push({ x: px, y: py, w: pw, body: pBody });
+    }
+
+    // =======================================================================
+    // 7. TREES/BUSHES on ground surface
+    // =======================================================================
+    var themeTreeNames = treeMap[theme] || ['round_tree'];
+    if (themeTreeNames.length > 0) {
+      var treeCount = Math.round(rngInt(4, 8) * cfg.decorationDensity);
+      var treeSpacing = W / Math.max(treeCount, 1);
+      for (var ti = 0; ti < treeCount; ti++) {
+        var treeName = themeTreeNames[rngInt(0, themeTreeNames.length - 1)];
+        var treeSpr = (typeof _getSprite === 'function') ? _getSprite('trees', treeName) : null;
+        if (treeSpr) {
+          treeSpr.anchor.set(0.5, 1); // bottom-center anchor
+          treeSpr.x = ti * treeSpacing + rngRange(40, treeSpacing - 40);
+          treeSpr.y = GY; // anchored at ground level
+          treeSpr.scale.set(rngRange(1.5, 3.0));
+          container.addChild(treeSpr);
+        }
+      }
+    }
+
+    // Bushes between trees
+    var bushCount = Math.round(rngInt(3, 6) * cfg.decorationDensity);
+    for (var bi = 0; bi < bushCount; bi++) {
+      var bushName = rng() > 0.5 ? 'bush_green' : 'bush_flower';
+      var bushSpr = (typeof _getSprite === 'function') ? _getSprite('bushes', bushName) : null;
+      if (bushSpr) {
+        bushSpr.anchor.set(0.5, 1);
+        bushSpr.x = rngRange(100, W - 100);
+        bushSpr.y = GY;
+        bushSpr.scale.set(rngRange(1.0, 2.0));
+        container.addChild(bushSpr);
+      }
+    }
+
+    // =======================================================================
+    // 8. PROPS (crates, barrels, rocks scattered on ground)
+    // =======================================================================
+    var propCount = Math.round(rngInt(3, 7) * cfg.decorationDensity);
+    var propNames = ['crate', 'barrel', 'rock', 'fence', 'sign_post'];
+    for (var pri = 0; pri < propCount; pri++) {
+      var propName = propNames[rngInt(0, propNames.length - 1)];
+      var propSpr = (typeof _getSprite === 'function') ? _getSprite('props', propName) : null;
+      if (propSpr) {
+        propSpr.anchor.set(0.5, 1);
+        propSpr.x = rngRange(200, W - 200);
+        propSpr.y = GY;
+        propSpr.scale.set(rngRange(1.0, 1.8));
+        if (rng() > 0.5) propSpr.scale.x *= -1; // random flip
+        container.addChild(propSpr);
+      }
+    }
+
+    // =======================================================================
+    // 9. VIGNETTE + FOG overlay
+    // =======================================================================
+    try {
+      // Atmospheric fog (semi-transparent strip at ground level)
+      var fogG = new PIXI.Graphics();
+      fogG.rect(0, GY - 60, W, 80);
+      fogG.fill({ color: pal.skyBottom, alpha: 0.08 });
+      container.addChild(fogG);
+
+      // Screen vignette
+      var vigG = new PIXI.Graphics();
+      vigG.rect(0, 0, W, H);
+      vigG.fill({ color: 0x000000, alpha: 0 });
+      // Top/bottom darkening strips
+      var vigTop = new PIXI.Graphics();
+      vigTop.rect(0, 0, W, 80);
+      vigTop.fill({ color: 0x000000, alpha: 0.25 });
+      var vigBot = new PIXI.Graphics();
+      vigBot.rect(0, H - 40, W, 40);
+      vigBot.fill({ color: 0x000000, alpha: 0.15 });
+      container.addChild(vigTop);
+      container.addChild(vigBot);
+    } catch(e) { /* vignette optional */ }
+
+    console.log('[WorldBuilder] Built ' + theme + ' world (' + W + 'x' + H + ', ' + platforms.length + ' platforms, seed=' + cfg.seed + ')');
+
+    // Build result
+    var result: WorldBuilderResult = {
+      container: container,
+      groundY: GY,
+      platforms: platforms,
+      bodies: bodies,
+      getHeightAt: function(x: number): number {
+        // Check if x is over a platform, otherwise return groundY
+        for (var i = 0; i < platforms.length; i++) {
+          var p = platforms[i];
+          if (x >= p.x - p.w / 2 && x <= p.x + p.w / 2) {
+            return p.y;
+          }
+        }
+        return GY;
+      },
+      updateParallax: function(camera: any): void {
+        if (!camera) return;
+        var cx = camera.x || 0;
+        for (var i = 0; i < parallaxLayers.length; i++) {
+          var layer = parallaxLayers[i];
+          if (layer.gfx) {
+            layer.gfx.x = -cx * layer.factor;
+          }
+        }
+        // Drift clouds
+        for (var j = 0; j < clouds.length; j++) {
+          var cl = clouds[j];
+          cl.gfx.x += cl.speed * 0.016; // ~60fps
+          if (cl.gfx.x > W + 200) cl.gfx.x = -200;
+        }
+      },
+    };
+
+    return result;
+  }
+}
+
+// ---------------------------------------------------------------------------
 // Engine2D — main orchestrator
 // ---------------------------------------------------------------------------
 
@@ -73,6 +496,8 @@ export class Engine2D {
   features: FeatureManager;
   pixi: PixiAdvancedSystem;
   level: any;  // LevelSystem (set by GameScene2D via level-painter.ts)
+  worldBuilder: WorldBuilderSystem;
+  _worldData: any;  // WorldBuilder result — used by Feature Bank features
 
   // Simple event bus — AI uses engine.events.emit(name, data)
   events = {
@@ -116,6 +541,7 @@ export class Engine2D {
     this.assets = new AssetsSystem(this);
     this.features = new FeatureManager(this);
     this.pixi = new PixiAdvancedSystem(this);
+    this.worldBuilder = new WorldBuilderSystem(this);
   }
 
   /**
