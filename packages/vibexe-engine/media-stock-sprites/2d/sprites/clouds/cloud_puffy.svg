@@ -1,8 +1,32 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="256" height="128" viewBox="0 0 256 128">
-  <ellipse cx="128" cy="80" rx="110" ry="40" fill="#ECEFF1" opacity="0.8"/>
-  <ellipse cx="90" cy="70" rx="65" ry="50" fill="#FFFFFF" opacity="0.9"/>
-  <ellipse cx="170" cy="68" rx="70" ry="52" fill="#FFFFFF" opacity="0.9"/>
-  <ellipse cx="128" cy="55" rx="55" ry="42" fill="#FFFFFF"/>
-  <ellipse cx="80" cy="60" rx="40" ry="30" fill="#F5F5F5" opacity="0.5"/>
-  <ellipse cx="175" cy="58" rx="35" ry="28" fill="#F5F5F5" opacity="0.5"/>
+  <defs>
+    <radialGradient id="cp1" cx="50%" cy="60%" r="50%">
+      <stop offset="0%" stop-color="#FFFFFF"/>
+      <stop offset="100%" stop-color="#E0E4E8"/>
+    </radialGradient>
+    <radialGradient id="cp2" cx="40%" cy="40%" r="55%">
+      <stop offset="0%" stop-color="#FFFFFF"/>
+      <stop offset="100%" stop-color="#EAEEF2"/>
+    </radialGradient>
+  </defs>
+  <!-- Soft shadow underneath -->
+  <ellipse cx="130" cy="85" rx="95" ry="28" fill="#B0B8C0" opacity="0.12"/>
+  <!-- Main cloud body - layered puffs for volume -->
+  <ellipse cx="128" cy="72" rx="85" ry="34" fill="url(#cp1)"/>
+  <ellipse cx="75" cy="75" rx="58" ry="30" fill="#F5F7FA" opacity="0.9"/>
+  <ellipse cx="180" cy="70" rx="62" ry="32" fill="#F3F5F8" opacity="0.9"/>
+  <!-- Upper puffs for rounded top -->
+  <ellipse cx="128" cy="52" rx="62" ry="30" fill="url(#cp2)"/>
+  <ellipse cx="95" cy="58" rx="48" ry="26" fill="#FAFBFC" opacity="0.85"/>
+  <ellipse cx="162" cy="55" rx="50" ry="27" fill="#F8FAFC" opacity="0.85"/>
+  <!-- Top highlight puffs -->
+  <ellipse cx="112" cy="42" rx="32" ry="20" fill="#FFFFFF" opacity="0.9"/>
+  <ellipse cx="148" cy="45" rx="28" ry="18" fill="#FFFFFF" opacity="0.85"/>
+  <!-- Bright highlight spots -->
+  <g fill="#FFFFFF" opacity="0.6">
+    <ellipse cx="100" cy="48" rx="15" ry="8"/>
+    <ellipse cx="155" cy="52" rx="12" ry="7"/>
+  </g>
+  <!-- Bottom edge shadow definition -->
+  <path d="M42,88 Q75,98 128,92 Q180,98 215,88" stroke="#C8D0D8" stroke-width="1" fill="none" opacity="0.3"/>
 </svg>

@@ -1,5 +1,35 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="512" height="256" viewBox="0 0 512 256">
-  <path d="M0,256 L0,180 Q64,120 128,160 Q192,100 256,140 Q320,80 384,130 Q448,90 512,150 L512,256 Z" fill="#B0BEC5" opacity="0.6"/>
-  <path d="M0,256 L0,200 Q80,150 160,180 Q240,130 320,170 Q400,120 480,160 L512,140 L512,256 Z" fill="#CFD8DC" opacity="0.4"/>
-  <path d="M0,180 Q64,120 128,160 Q192,100 256,140 Q320,80 384,130 Q448,90 512,150" fill="none" stroke="#ECEFF1" stroke-width="6" opacity="0.7"/>
+  <defs>
+    <linearGradient id="hs1" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#B0C4DE"/>
+      <stop offset="100%" stop-color="#708090"/>
+    </linearGradient>
+    <linearGradient id="hs2" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#94A8BE"/>
+      <stop offset="100%" stop-color="#4A5A6A"/>
+    </linearGradient>
+    <linearGradient id="hs3" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#7A8EA0"/>
+      <stop offset="100%" stop-color="#3A4A58"/>
+    </linearGradient>
+  </defs>
+  <!-- Far back hills -->
+  <path d="M-20,256 L-20,178 Q50,110 140,148 Q220,80 310,125 Q390,70 470,112 L532,90 L532,256 Z" fill="url(#hs3)" opacity="0.5"/>
+  <!-- Mid hill layer -->
+  <path d="M-20,256 L-20,165 Q70,80 160,130 Q240,55 330,110 Q400,50 480,100 L532,75 L532,256 Z" fill="url(#hs2)" opacity="0.7"/>
+  <!-- Front hill layer -->
+  <path d="M-20,256 L-20,185 Q90,115 180,155 Q260,95 350,140 Q420,85 500,125 L532,105 L532,256 Z" fill="url(#hs1)" opacity="0.85"/>
+  <!-- Snow caps on ridgeline -->
+  <g fill="#ECF0F1" opacity="0.85">
+    <path d="M135,142 Q155,115 175,138 Q155,128 135,142Z"/>
+    <path d="M245,112 Q265,82 285,108 Q265,98 245,112Z"/>
+    <path d="M310,118 Q330,90 350,115 Q330,105 310,118Z"/>
+    <path d="M470,108 Q488,82 505,105 Q488,95 470,108Z"/>
+  </g>
+  <!-- Soft snow dust highlights -->
+  <g fill="#FFFFFF" opacity="0.2">
+    <ellipse cx="160" cy="150" rx="22" ry="5"/>
+    <ellipse cx="350" cy="136" rx="20" ry="4"/>
+    <ellipse cx="490" cy="120" rx="18" ry="4"/>
+  </g>
 </svg>

@@ -1,11 +1,62 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="128" height="192" viewBox="0 0 128 192">
-  <path d="M58,188 Q54,140 60,100 Q66,60 70,40" fill="none" stroke="#8D6E63" stroke-width="14" stroke-linecap="round"/>
-  <path d="M60,186 Q56,140 62,100 Q68,60 72,40" fill="none" stroke="#A1887F" stroke-width="6" stroke-linecap="round" opacity="0.4"/>
-  <path d="M70,40 Q30,20 5,50" fill="none" stroke="#2E7D32" stroke-width="8" stroke-linecap="round"/>
-  <path d="M70,40 Q95,10 120,35" fill="none" stroke="#2E7D32" stroke-width="8" stroke-linecap="round"/>
-  <path d="M70,40 Q40,5 20,30" fill="none" stroke="#388E3C" stroke-width="6" stroke-linecap="round"/>
-  <path d="M70,40 Q100,25 115,55" fill="none" stroke="#388E3C" stroke-width="6" stroke-linecap="round"/>
-  <path d="M70,40 Q60,15 45,15" fill="none" stroke="#43A047" stroke-width="5" stroke-linecap="round"/>
-  <ellipse cx="72" cy="60" rx="8" ry="6" fill="#795548"/>
-  <ellipse cx="62" cy="55" rx="6" ry="5" fill="#795548"/>
+<svg xmlns="http://www.w3.org/2000/svg" width="128" height="256" viewBox="0 0 128 256">
+  <defs>
+    <linearGradient id="ptk1" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#A0822A"/>
+      <stop offset="100%" stop-color="#6B5010"/>
+    </linearGradient>
+  </defs>
+  <!-- Ground shadow -->
+  <ellipse cx="62" cy="254" rx="30" ry="4" fill="#3A2A0A" opacity="0.15"/>
+  <!-- Curved trunk -->
+  <path d="M60,256 Q55,220 58,180 Q62,140 68,100" stroke="#8B6914" stroke-width="14" fill="none" stroke-linecap="round"/>
+  <!-- Trunk highlight -->
+  <path d="M60,256 Q55,220 58,180 Q62,140 68,100" stroke="#A0822A" stroke-width="8" fill="none" stroke-linecap="round" opacity="0.4"/>
+  <!-- Trunk rings for bark texture -->
+  <g stroke="#6B5010" stroke-width="1.5" opacity="0.35" fill="none">
+    <path d="M53,245 Q59,242 66,245"/>
+    <path d="M53,230 Q59,227 66,230"/>
+    <path d="M54,215 Q60,212 66,215"/>
+    <path d="M55,200 Q61,197 67,200"/>
+    <path d="M56,185 Q62,182 68,185"/>
+    <path d="M57,170 Q63,167 69,170"/>
+    <path d="M58,155 Q64,152 69,155"/>
+    <path d="M59,140 Q65,137 70,140"/>
+    <path d="M60,125 Q66,122 70,125"/>
+    <path d="M62,110 Q67,107 71,110"/>
+  </g>
+  <!-- Palm fronds - back layer (darker) -->
+  <g fill="#1E6E1E">
+    <path d="M68,100 Q95,75 125,80 Q100,85 78,100Z" opacity="0.7"/>
+    <path d="M68,100 Q35,72 2,78 Q32,82 60,98Z" opacity="0.65"/>
+  </g>
+  <!-- Palm fronds - main layer -->
+  <g fill="#2D8A2D">
+    <path d="M68,100 Q90,60 120,40 Q100,70 80,95Z" opacity="0.9"/>
+    <path d="M68,100 Q40,55 8,45 Q35,65 58,92Z" opacity="0.85"/>
+    <path d="M68,100 Q80,65 100,30 Q85,60 72,92Z" opacity="0.9"/>
+    <path d="M68,100 Q50,60 30,25 Q48,58 64,92Z" opacity="0.85"/>
+    <path d="M68,100 Q95,80 125,85 Q98,90 75,100Z" opacity="0.8"/>
+    <path d="M68,100 Q38,78 5,82 Q35,85 62,98Z" opacity="0.75"/>
+  </g>
+  <!-- Lighter frond highlights -->
+  <g fill="#4CAF50" opacity="0.35">
+    <path d="M68,100 Q88,65 115,48 Q95,72 78,96Z"/>
+    <path d="M68,100 Q45,62 15,52 Q40,68 60,94Z"/>
+    <path d="M68,100 Q78,68 95,38 Q83,62 72,93Z"/>
+    <path d="M68,100 Q52,65 35,32 Q50,60 64,93Z"/>
+  </g>
+  <!-- Frond vein lines -->
+  <g stroke="#1A5C1A" stroke-width="0.8" opacity="0.3" fill="none">
+    <path d="M68,100 Q88,68 116,45"/>
+    <path d="M68,100 Q42,60 12,50"/>
+    <path d="M68,100 Q82,67 102,34"/>
+    <path d="M68,100 Q52,62 32,28"/>
+  </g>
+  <!-- Coconuts -->
+  <circle cx="65" cy="102" r="5.5" fill="#8B6914"/>
+  <circle cx="72" cy="106" r="5" fill="#7A5A10"/>
+  <circle cx="60" cy="108" r="4.5" fill="#8B6914"/>
+  <!-- Coconut highlights -->
+  <circle cx="63" cy="100" r="2" fill="#A08030" opacity="0.5"/>
+  <circle cx="70" cy="104" r="1.8" fill="#A08030" opacity="0.4"/>
 </svg>

@@ -1,8 +1,31 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64">
-  <defs><radialGradient id="coinG" cx="40%" cy="35%"><stop offset="0%" stop-color="#FFEE58"/><stop offset="60%" stop-color="#FFC107"/><stop offset="100%" stop-color="#FF8F00"/></radialGradient></defs>
-  <circle cx="32" cy="32" r="26" fill="url(#coinG)"/>
-  <circle cx="32" cy="32" r="20" fill="none" stroke="#FFB300" stroke-width="2" opacity="0.5"/>
-  <text x="32" y="40" text-anchor="middle" font-family="Arial,sans-serif" font-size="24" font-weight="bold" fill="#FF8F00" opacity="0.6">$</text>
-  <ellipse cx="26" cy="22" rx="8" ry="5" fill="#FFFFFF" opacity="0.3" transform="rotate(-20 26 22)"/>
-  <circle cx="32" cy="32" r="26" fill="none" stroke="#E65100" stroke-width="3"/>
+<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32">
+  <defs>
+    <radialGradient id="cg1" cx="38%" cy="35%" r="55%">
+      <stop offset="0%" stop-color="#FFE082"/>
+      <stop offset="50%" stop-color="#FFC107"/>
+      <stop offset="100%" stop-color="#E68A00"/>
+    </radialGradient>
+    <radialGradient id="cg2" cx="35%" cy="30%" r="40%">
+      <stop offset="0%" stop-color="#FFFFFF"/>
+      <stop offset="100%" stop-color="#FFE082"/>
+    </radialGradient>
+  </defs>
+  <!-- Outer ring -->
+  <circle cx="16" cy="16" r="14" fill="url(#cg1)"/>
+  <!-- Edge bevel highlight -->
+  <circle cx="16" cy="16" r="14" fill="none" stroke="#B8860B" stroke-width="1.5"/>
+  <!-- Inner ring -->
+  <circle cx="16" cy="16" r="10.5" fill="none" stroke="#E6A200" stroke-width="1" opacity="0.5"/>
+  <!-- Dollar symbol embossed -->
+  <text x="16" y="21" text-anchor="middle" font-family="Arial,sans-serif" font-size="13" font-weight="bold" fill="#B8860B" opacity="0.5">$</text>
+  <!-- Specular highlight -->
+  <ellipse cx="12" cy="11" rx="5" ry="3.5" fill="url(#cg2)" opacity="0.5" transform="rotate(-20 12 11)"/>
+  <!-- Small sparkle -->
+  <g fill="#FFFFFF" opacity="0.6">
+    <circle cx="10" cy="9" r="1"/>
+    <rect x="9.5" y="7" width="1" height="4" rx="0.5"/>
+    <rect x="8" y="8.5" width="4" height="1" rx="0.5"/>
+  </g>
+  <!-- Bottom edge shadow -->
+  <path d="M6,24 Q16,28 26,24" stroke="#8B6914" stroke-width="1" fill="none" opacity="0.3"/>
 </svg>

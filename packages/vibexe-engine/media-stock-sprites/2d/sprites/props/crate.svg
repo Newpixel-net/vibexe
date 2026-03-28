@@ -1,8 +1,44 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64">
-  <rect x="4" y="4" width="56" height="56" rx="3" fill="#A1887F"/>
-  <rect x="4" y="4" width="56" height="12" rx="3" fill="#BCAAA4" opacity="0.5"/>
-  <line x1="4" y1="32" x2="60" y2="32" stroke="#795548" stroke-width="2" opacity="0.4"/>
-  <line x1="32" y1="4" x2="32" y2="60" stroke="#795548" stroke-width="2" opacity="0.4"/>
-  <rect x="26" y="26" width="12" height="12" rx="2" fill="#8D6E63"/>
-  <rect x="2" y="2" width="60" height="60" rx="5" fill="none" stroke="#4E342E" stroke-width="4"/>
+  <defs>
+    <linearGradient id="cr1" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#A08050"/>
+      <stop offset="100%" stop-color="#6A4A20"/>
+    </linearGradient>
+    <linearGradient id="cr2" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stop-color="#8A6A30"/>
+      <stop offset="50%" stop-color="#A08050"/>
+      <stop offset="100%" stop-color="#8A6A30"/>
+    </linearGradient>
+  </defs>
+  <!-- Main crate body -->
+  <rect x="4" y="4" width="56" height="56" rx="2" fill="url(#cr1)"/>
+  <!-- Wood plank lines (horizontal) -->
+  <g stroke="#5A3A10" stroke-width="1.2" opacity="0.3">
+    <line x1="4" y1="18" x2="60" y2="18"/>
+    <line x1="4" y1="32" x2="60" y2="32"/>
+    <line x1="4" y1="46" x2="60" y2="46"/>
+  </g>
+  <!-- Wood grain texture -->
+  <g stroke="#7A5A28" stroke-width="0.6" opacity="0.2" fill="none">
+    <path d="M10,8 Q15,14 10,20"/>
+    <path d="M30,22 Q35,28 30,34"/>
+    <path d="M50,36 Q55,42 50,48"/>
+    <path d="M20,40 Q25,46 20,52"/>
+    <path d="M42,6 Q47,12 42,18"/>
+  </g>
+  <!-- Cross brace -->
+  <line x1="4" y1="4" x2="60" y2="60" stroke="url(#cr2)" stroke-width="4" opacity="0.5"/>
+  <line x1="60" y1="4" x2="4" y2="60" stroke="url(#cr2)" stroke-width="4" opacity="0.5"/>
+  <!-- Center plate -->
+  <rect x="26" y="26" width="12" height="12" rx="1" fill="#7A5A28" opacity="0.6"/>
+  <!-- Nail heads -->
+  <g fill="#4A3A1A" opacity="0.5">
+    <circle cx="8" cy="8" r="1.8"/><circle cx="56" cy="8" r="1.8"/>
+    <circle cx="8" cy="56" r="1.8"/><circle cx="56" cy="56" r="1.8"/>
+    <circle cx="32" cy="32" r="2"/>
+  </g>
+  <!-- Edge border -->
+  <rect x="3" y="3" width="58" height="58" rx="3" fill="none" stroke="#3A2A0A" stroke-width="2"/>
+  <!-- Top highlight -->
+  <rect x="6" y="5" width="30" height="3" rx="1.5" fill="#C0A060" opacity="0.3"/>
 </svg>

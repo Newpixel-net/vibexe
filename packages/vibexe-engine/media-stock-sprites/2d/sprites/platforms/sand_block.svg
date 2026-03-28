@@ -1,10 +1,42 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="128" height="128" viewBox="0 0 128 128">
-  <rect x="4" y="4" width="120" height="120" rx="4" fill="#E8C86A"/>
-  <rect x="4" y="4" width="120" height="24" rx="4" fill="#F0D68A"/>
-  <rect x="10" y="8" width="35" height="8" rx="4" fill="#F5E0A0" opacity="0.6"/>
-  <circle cx="25" cy="60" r="2" fill="#D4B55A" opacity="0.4"/>
-  <circle cx="70" cy="50" r="1.5" fill="#D4B55A" opacity="0.3"/>
-  <circle cx="100" cy="80" r="2.5" fill="#D4B55A" opacity="0.35"/>
-  <circle cx="40" cy="100" r="2" fill="#D4B55A" opacity="0.3"/>
-  <rect x="2" y="2" width="124" height="124" rx="6" fill="none" stroke="#8B7535" stroke-width="4"/>
+<svg xmlns="http://www.w3.org/2000/svg" width="256" height="64" viewBox="0 0 256 64">
+  <defs>
+    <linearGradient id="snb1" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#F0D68A"/>
+      <stop offset="100%" stop-color="#C8A84A"/>
+    </linearGradient>
+    <linearGradient id="snb2" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#F5E0A0"/>
+      <stop offset="100%" stop-color="#E8C86A"/>
+    </linearGradient>
+  </defs>
+  <!-- Main sand body -->
+  <rect x="2" y="2" width="252" height="58" rx="4" fill="url(#snb1)"/>
+  <!-- Lighter top with slight curve -->
+  <path d="M4,16 Q64,10 128,14 Q192,10 252,16 L252,4 Q252,2 250,2 L6,2 Q4,2 4,4 Z" fill="url(#snb2)" opacity="0.7"/>
+  <!-- Sand grain dots -->
+  <g fill="#B8942A" opacity="0.2">
+    <circle cx="18" cy="22" r="1.5"/><circle cx="42" cy="38" r="1.2"/>
+    <circle cx="68" cy="15" r="1"/><circle cx="85" cy="48" r="1.5"/>
+    <circle cx="110" cy="28" r="1.2"/><circle cx="135" cy="42" r="1"/>
+    <circle cx="155" cy="18" r="1.5"/><circle cx="178" cy="50" r="1.2"/>
+    <circle cx="195" cy="32" r="1"/><circle cx="215" cy="22" r="1.5"/>
+    <circle cx="235" cy="45" r="1.2"/><circle cx="248" cy="28" r="1"/>
+    <circle cx="30" cy="52" r="1"/><circle cx="100" cy="50" r="1.3"/>
+    <circle cx="160" cy="35" r="1"/><circle cx="200" cy="14" r="1.2"/>
+  </g>
+  <!-- Small pebble inclusions -->
+  <g fill="#A08030" opacity="0.2">
+    <ellipse cx="55" cy="35" rx="5" ry="3"/>
+    <ellipse cx="140" cy="48" rx="4" ry="2.5"/>
+    <ellipse cx="220" cy="30" rx="5" ry="3"/>
+  </g>
+  <!-- Shell-like detail -->
+  <g fill="#D4B55A" opacity="0.15">
+    <ellipse cx="90" cy="25" rx="8" ry="5"/>
+    <ellipse cx="185" cy="40" rx="7" ry="4"/>
+  </g>
+  <!-- Bottom shadow -->
+  <rect x="2" y="54" width="252" height="6" rx="3" fill="#8B7535" opacity="0.3"/>
+  <!-- Top highlight -->
+  <rect x="15" y="4" width="90" height="2" rx="1" fill="#F8E8B0" opacity="0.4"/>
 </svg>

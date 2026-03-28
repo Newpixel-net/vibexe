@@ -1,14 +1,53 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="96" height="64" viewBox="0 0 96 64">
-  <ellipse cx="48" cy="42" rx="44" ry="20" fill="#388E3C"/>
-  <ellipse cx="32" cy="36" rx="22" ry="20" fill="#43A047"/>
-  <ellipse cx="64" cy="37" rx="24" ry="22" fill="#4CAF50"/>
-  <ellipse cx="48" cy="42" rx="44" ry="20" fill="none" stroke="#1B5E20" stroke-width="2.5"/>
-  <circle cx="25" cy="30" r="5" fill="#E91E63"/>
-  <circle cx="25" cy="30" r="2" fill="#F8BBD0"/>
-  <circle cx="55" cy="25" r="4" fill="#FF9800"/>
-  <circle cx="55" cy="25" r="1.5" fill="#FFE0B2"/>
-  <circle cx="72" cy="33" r="5" fill="#E91E63"/>
-  <circle cx="72" cy="33" r="2" fill="#F8BBD0"/>
-  <circle cx="40" cy="22" r="3.5" fill="#9C27B0"/>
-  <circle cx="40" cy="22" r="1.5" fill="#E1BEE7"/>
+  <defs>
+    <radialGradient id="bf1" cx="50%" cy="50%" r="55%">
+      <stop offset="0%" stop-color="#5CB85C"/>
+      <stop offset="100%" stop-color="#2D6B2D"/>
+    </radialGradient>
+  </defs>
+  <!-- Ground shadow -->
+  <ellipse cx="48" cy="60" rx="40" ry="4" fill="#1A3A14" opacity="0.2"/>
+  <!-- Back leaf cluster -->
+  <ellipse cx="48" cy="42" rx="44" ry="22" fill="url(#bf1)"/>
+  <!-- Left lobe -->
+  <ellipse cx="30" cy="38" rx="26" ry="19" fill="#4A9A4A" opacity="0.8"/>
+  <!-- Right lobe -->
+  <ellipse cx="66" cy="39" rx="28" ry="20" fill="#3D8A3D" opacity="0.75"/>
+  <!-- Top cluster -->
+  <ellipse cx="48" cy="30" rx="30" ry="17" fill="#52B252" opacity="0.7"/>
+  <!-- Leaf highlights -->
+  <g fill="#7FD17F" opacity="0.35">
+    <ellipse cx="35" cy="34" rx="7" ry="4"/>
+    <ellipse cx="62" cy="36" rx="6" ry="3.5"/>
+    <ellipse cx="48" cy="26" rx="5" ry="3"/>
+  </g>
+  <!-- Flowers - pink -->
+  <g>
+    <circle cx="22" cy="28" r="5.5" fill="#E91E63" opacity="0.9"/>
+    <circle cx="22" cy="28" r="2.5" fill="#F48FB1" opacity="0.7"/>
+    <circle cx="22" cy="28" r="1" fill="#FCE4EC"/>
+  </g>
+  <!-- Flower - orange -->
+  <g>
+    <circle cx="52" cy="22" r="4.5" fill="#FF9800" opacity="0.9"/>
+    <circle cx="52" cy="22" r="2" fill="#FFE0B2" opacity="0.7"/>
+    <circle cx="52" cy="22" r="0.8" fill="#FFF8E1"/>
+  </g>
+  <!-- Flower - pink 2 -->
+  <g>
+    <circle cx="74" cy="30" r="5" fill="#E91E63" opacity="0.85"/>
+    <circle cx="74" cy="30" r="2.2" fill="#F48FB1" opacity="0.7"/>
+    <circle cx="74" cy="30" r="0.9" fill="#FCE4EC"/>
+  </g>
+  <!-- Flower - purple -->
+  <g>
+    <circle cx="38" cy="20" r="4" fill="#9C27B0" opacity="0.85"/>
+    <circle cx="38" cy="20" r="1.8" fill="#CE93D8" opacity="0.7"/>
+    <circle cx="38" cy="20" r="0.7" fill="#F3E5F5"/>
+  </g>
+  <!-- Tiny flower buds -->
+  <circle cx="60" cy="26" r="2.5" fill="#FF5722" opacity="0.6"/>
+  <circle cx="30" cy="36" r="2" fill="#AB47BC" opacity="0.5"/>
+  <!-- Shadow at base -->
+  <path d="M10,52 Q48,58 86,52 Q48,64 10,52Z" fill="#1A4A14" opacity="0.12"/>
 </svg>

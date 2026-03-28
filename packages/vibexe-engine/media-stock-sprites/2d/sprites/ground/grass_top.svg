@@ -1,6 +1,38 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="128" height="64" viewBox="0 0 128 64">
-  <rect x="0" y="16" width="128" height="48" fill="#8B5E3C"/>
-  <rect x="0" y="0" width="128" height="24" fill="#4CAF50"/>
-  <path d="M0,20 Q8,8 16,18 Q24,6 32,16 Q40,4 48,18 Q56,10 64,16 Q72,6 80,18 Q88,8 96,16 Q104,4 112,18 Q120,8 128,16 L128,24 L0,24 Z" fill="#66BB6A" opacity="0.5"/>
-  <rect x="0" y="24" width="128" height="4" fill="#7A5232" opacity="0.4"/>
+<svg xmlns="http://www.w3.org/2000/svg" width="256" height="64" viewBox="0 0 256 64">
+  <defs>
+    <linearGradient id="gt1" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#4CAF50"/>
+      <stop offset="40%" stop-color="#388E3C"/>
+      <stop offset="100%" stop-color="#2E7D32"/>
+    </linearGradient>
+  </defs>
+  <!-- Main grass body -->
+  <rect width="256" height="64" fill="url(#gt1)"/>
+  <!-- Grass blades along top edge -->
+  <g fill="#66BB6A">
+    <path d="M3,0 L6,-8 L9,0Z"/><path d="M15,0 L19,-11 L23,0Z"/>
+    <path d="M32,0 L35,-7 L38,0Z"/><path d="M46,0 L50,-10 L54,0Z"/>
+    <path d="M62,0 L65,-8 L68,0Z"/><path d="M78,0 L82,-12 L86,0Z"/>
+    <path d="M95,0 L98,-7 L101,0Z"/><path d="M110,0 L114,-10 L118,0Z"/>
+    <path d="M128,0 L131,-8 L134,0Z"/><path d="M145,0 L149,-11 L153,0Z"/>
+    <path d="M162,0 L165,-7 L168,0Z"/><path d="M178,0 L182,-9 L186,0Z"/>
+    <path d="M195,0 L198,-8 L201,0Z"/><path d="M212,0 L216,-11 L220,0Z"/>
+    <path d="M232,0 L235,-7 L238,0Z"/><path d="M248,0 L251,-10 L254,0Z"/>
+  </g>
+  <!-- Shorter secondary grass blades -->
+  <g fill="#81C784" opacity="0.5">
+    <path d="M10,0 L12,-5 L14,0Z"/><path d="M40,0 L42,-6 L44,0Z"/>
+    <path d="M70,0 L72,-5 L74,0Z"/><path d="M105,0 L107,-6 L109,0Z"/>
+    <path d="M138,0 L140,-5 L142,0Z"/><path d="M170,0 L172,-6 L174,0Z"/>
+    <path d="M205,0 L207,-5 L209,0Z"/><path d="M240,0 L242,-6 L244,0Z"/>
+  </g>
+  <!-- Subtle root/texture lines -->
+  <g fill="#2E7D32" opacity="0.3">
+    <circle cx="30" cy="30" r="2"/><circle cx="80" cy="45" r="1.5"/>
+    <circle cx="140" cy="25" r="2"/><circle cx="200" cy="40" r="1.5"/>
+    <circle cx="240" cy="20" r="2"/><circle cx="60" cy="52" r="1.5"/>
+    <circle cx="170" cy="55" r="2"/><circle cx="110" cy="38" r="1.5"/>
+  </g>
+  <!-- Dark base shadow -->
+  <rect y="58" width="256" height="6" fill="#1B5E20" opacity="0.2"/>
 </svg>

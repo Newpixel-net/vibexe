@@ -1,7 +1,61 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="96" height="192" viewBox="0 0 96 192">
-  <path d="M48,188 Q46,140 48,80 Q50,50 48,20" fill="none" stroke="#5D4037" stroke-width="12" stroke-linecap="round"/>
-  <path d="M48,60 Q20,40 10,50" fill="none" stroke="#5D4037" stroke-width="6" stroke-linecap="round"/>
-  <path d="M48,40 Q75,20 85,30" fill="none" stroke="#5D4037" stroke-width="5" stroke-linecap="round"/>
-  <path d="M48,80 Q25,70 15,80" fill="none" stroke="#5D4037" stroke-width="4" stroke-linecap="round"/>
-  <path d="M48,50 Q70,45 78,55" fill="none" stroke="#4E342E" stroke-width="3" stroke-linecap="round"/>
+<svg xmlns="http://www.w3.org/2000/svg" width="128" height="256" viewBox="0 0 128 256">
+  <defs>
+    <linearGradient id="dt1" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stop-color="#3A2A1A"/>
+      <stop offset="50%" stop-color="#5A4A3A"/>
+      <stop offset="100%" stop-color="#3A2A1A"/>
+    </linearGradient>
+    <linearGradient id="dt2" x1="0" y1="1" x2="0" y2="0">
+      <stop offset="0%" stop-color="#4A3A2A"/>
+      <stop offset="100%" stop-color="#3A2A1A"/>
+    </linearGradient>
+  </defs>
+  <!-- Ground shadow -->
+  <ellipse cx="64" cy="254" rx="35" ry="4" fill="#1A0A00" opacity="0.15"/>
+  <!-- Main trunk -->
+  <path d="M58,256 L54,180 Q52,140 56,100 Q58,70 62,50 L66,50 Q70,70 72,100 Q76,140 74,180 L70,256Z" fill="url(#dt1)"/>
+  <!-- Trunk bark highlight -->
+  <path d="M61,252 L58,180 Q57,140 60,100 Q61,75 63,55 L64,55 Q65,75 66,100 Q68,140 67,180 L65,252Z" fill="#5A4A3A" opacity="0.3"/>
+  <!-- Root spread -->
+  <path d="M54,250 Q40,248 28,256 L58,256Z" fill="url(#dt2)" opacity="0.8"/>
+  <path d="M70,250 Q84,248 100,256 L70,256Z" fill="url(#dt2)" opacity="0.8"/>
+  <path d="M62,253 Q50,250 42,256 L62,256Z" fill="#3A2A1A" opacity="0.5"/>
+  <!-- Main branches (gnarled, reaching) -->
+  <g stroke="#4A3A2A" stroke-width="5" fill="none" stroke-linecap="round">
+    <path d="M58,120 Q30,100 15,70"/>
+    <path d="M70,110 Q95,85 110,55"/>
+    <path d="M56,90 Q40,60 25,35"/>
+    <path d="M72,80 Q90,50 105,25"/>
+    <path d="M60,70 Q55,45 48,20"/>
+  </g>
+  <!-- Thinner branch tips -->
+  <g stroke="#5A4A3A" stroke-width="2.5" fill="none" stroke-linecap="round">
+    <path d="M15,70 Q8,55 5,40"/>
+    <path d="M15,70 Q22,58 18,45"/>
+    <path d="M110,55 Q118,40 122,25"/>
+    <path d="M110,55 Q115,48 108,35"/>
+    <path d="M25,35 Q18,20 22,8"/>
+    <path d="M105,25 Q112,12 118,5"/>
+    <path d="M48,20 Q42,8 38,0"/>
+    <path d="M48,20 Q55,10 52,0"/>
+  </g>
+  <!-- Twig details -->
+  <g stroke="#6A5A4A" stroke-width="1.2" fill="none" stroke-linecap="round">
+    <path d="M5,40 Q0,32 2,22"/>
+    <path d="M122,25 Q126,18 124,10"/>
+    <path d="M22,8 Q16,2 18,-2"/>
+    <path d="M118,5 Q122,0 120,-5"/>
+  </g>
+  <!-- Bark texture lines -->
+  <g stroke="#2A1A0A" stroke-width="1" opacity="0.3" fill="none">
+    <path d="M58,220 Q63,218 70,220"/>
+    <path d="M57,200 Q63,197 71,200"/>
+    <path d="M56,180 Q63,177 72,180"/>
+    <path d="M56,160 Q63,157 72,160"/>
+    <path d="M56,140 Q63,137 72,140"/>
+    <path d="M57,120 Q63,117 71,120"/>
+  </g>
+  <!-- Knot holes -->
+  <ellipse cx="62" cy="150" rx="4" ry="5" fill="#2A1A0A" opacity="0.4"/>
+  <ellipse cx="66" cy="200" rx="3" ry="4" fill="#2A1A0A" opacity="0.3"/>
 </svg>

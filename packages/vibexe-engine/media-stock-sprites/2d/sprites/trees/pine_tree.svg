@@ -1,9 +1,43 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="96" height="192" viewBox="0 0 96 192">
-  <rect x="38" y="140" width="20" height="48" rx="3" fill="#5D4037"/>
-  <polygon points="48,10 8,100 88,100" fill="#2E7D32"/>
-  <polygon points="48,40 16,120 80,120" fill="#388E3C"/>
-  <polygon points="48,70 20,150 76,150" fill="#43A047"/>
-  <polygon points="48,10 8,100 88,100" fill="none" stroke="#1B5E20" stroke-width="2.5"/>
-  <polygon points="48,40 16,120 80,120" fill="none" stroke="#1B5E20" stroke-width="2.5"/>
-  <polygon points="48,70 20,150 76,150" fill="none" stroke="#1B5E20" stroke-width="2.5"/>
+<svg xmlns="http://www.w3.org/2000/svg" width="128" height="256" viewBox="0 0 128 256">
+  <defs>
+    <linearGradient id="pt1" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stop-color="#1A5C1A"/>
+      <stop offset="50%" stop-color="#2D7A2D"/>
+      <stop offset="100%" stop-color="#1A5C1A"/>
+    </linearGradient>
+    <linearGradient id="pt2" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#2D8A2D"/>
+      <stop offset="100%" stop-color="#1A5C1A"/>
+    </linearGradient>
+    <linearGradient id="ptk" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stop-color="#4A2A0A"/>
+      <stop offset="50%" stop-color="#6A4A2A"/>
+      <stop offset="100%" stop-color="#4A2A0A"/>
+    </linearGradient>
+  </defs>
+  <!-- Trunk -->
+  <rect x="56" y="200" width="16" height="56" rx="2" fill="url(#ptk)"/>
+  <rect x="61" y="202" width="4" height="52" fill="#7A5A3A" opacity="0.3"/>
+  <!-- Main tree silhouette - layered triangles -->
+  <path d="M64,28 L108,120 L95,115 L118,170 L100,162 L125,220 L3,220 L28,162 L10,170 L33,115 L20,120 Z" fill="url(#pt1)"/>
+  <!-- Lighter inner layer for depth -->
+  <path d="M64,42 L98,115 L88,112 L108,158 L94,154 L110,208 L18,208 L34,154 L20,158 L40,112 L30,115 Z" fill="url(#pt2)" opacity="0.6"/>
+  <!-- Branch shadow lines for texture -->
+  <g stroke="#0D3D0D" stroke-width="1" opacity="0.2" fill="none">
+    <path d="M40,115 Q64,105 88,115"/>
+    <path d="M28,160 Q64,145 100,160"/>
+    <path d="M18,200 Q64,185 110,200"/>
+  </g>
+  <!-- Snow/light tips on branch edges -->
+  <g fill="#4CAF50" opacity="0.5">
+    <circle cx="64" cy="38" r="4"/>
+    <circle cx="42" cy="100" r="3"/>
+    <circle cx="86" cy="100" r="3"/>
+    <circle cx="30" cy="148" r="3"/>
+    <circle cx="98" cy="148" r="3"/>
+    <circle cx="20" cy="195" r="3"/>
+    <circle cx="108" cy="195" r="3"/>
+  </g>
+  <!-- Ground shadow -->
+  <ellipse cx="64" cy="254" rx="35" ry="4" fill="#0D3D0D" opacity="0.15"/>
 </svg>

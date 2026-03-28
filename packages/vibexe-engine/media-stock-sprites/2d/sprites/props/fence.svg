@@ -1,10 +1,44 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="96" height="64" viewBox="0 0 96 64">
-  <rect x="8" y="4" width="10" height="56" rx="2" fill="#A1887F"/>
-  <polygon points="8,4 13,0 18,4" fill="#BCAAA4"/>
-  <rect x="42" y="4" width="10" height="56" rx="2" fill="#A1887F"/>
-  <polygon points="42,4 47,0 52,4" fill="#BCAAA4"/>
-  <rect x="76" y="4" width="10" height="56" rx="2" fill="#A1887F"/>
-  <polygon points="76,4 81,0 86,4" fill="#BCAAA4"/>
-  <rect x="8" y="16" width="78" height="6" rx="2" fill="#8D6E63"/>
-  <rect x="8" y="40" width="78" height="6" rx="2" fill="#8D6E63"/>
+  <defs>
+    <linearGradient id="fn1" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stop-color="#7A5A3A"/>
+      <stop offset="50%" stop-color="#9A7A5A"/>
+      <stop offset="100%" stop-color="#7A5A3A"/>
+    </linearGradient>
+    <linearGradient id="fn2" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#A08060"/>
+      <stop offset="100%" stop-color="#6A4A2A"/>
+    </linearGradient>
+  </defs>
+  <!-- Ground shadow -->
+  <ellipse cx="48" cy="62" rx="42" ry="3" fill="#3A2A0A" opacity="0.12"/>
+  <!-- Horizontal rails -->
+  <rect x="6" y="16" width="84" height="6" rx="2" fill="url(#fn1)"/>
+  <rect x="6" y="17" width="84" height="2" rx="1" fill="#B0905A" opacity="0.25"/>
+  <rect x="6" y="40" width="84" height="6" rx="2" fill="url(#fn1)"/>
+  <rect x="6" y="41" width="84" height="2" rx="1" fill="#B0905A" opacity="0.25"/>
+  <!-- Left post -->
+  <rect x="8" y="2" width="10" height="58" rx="2" fill="url(#fn2)"/>
+  <rect x="10" y="3" width="3" height="56" rx="1" fill="#B0905A" opacity="0.2"/>
+  <polygon points="8,2 13,0 18,2" fill="#B0905A" opacity="0.6"/>
+  <!-- Center post -->
+  <rect x="43" y="2" width="10" height="58" rx="2" fill="url(#fn2)"/>
+  <rect x="45" y="3" width="3" height="56" rx="1" fill="#B0905A" opacity="0.2"/>
+  <polygon points="43,2 48,0 53,2" fill="#B0905A" opacity="0.6"/>
+  <!-- Right post -->
+  <rect x="78" y="2" width="10" height="58" rx="2" fill="url(#fn2)"/>
+  <rect x="80" y="3" width="3" height="56" rx="1" fill="#B0905A" opacity="0.2"/>
+  <polygon points="78,2 83,0 88,2" fill="#B0905A" opacity="0.6"/>
+  <!-- Nail details -->
+  <g fill="#4A3A1A" opacity="0.45">
+    <circle cx="13" cy="19" r="1.2"/><circle cx="13" cy="43" r="1.2"/>
+    <circle cx="48" cy="19" r="1.2"/><circle cx="48" cy="43" r="1.2"/>
+    <circle cx="83" cy="19" r="1.2"/><circle cx="83" cy="43" r="1.2"/>
+  </g>
+  <!-- Wood grain on posts -->
+  <g stroke="#5A3A1A" stroke-width="0.5" opacity="0.15" fill="none">
+    <path d="M11,10 Q13,20 11,30"/>
+    <path d="M46,12 Q48,22 46,32"/>
+    <path d="M81,15 Q83,25 81,35"/>
+  </g>
 </svg>

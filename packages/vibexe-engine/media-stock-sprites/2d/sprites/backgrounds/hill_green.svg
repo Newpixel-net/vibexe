@@ -1,4 +1,40 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="512" height="256" viewBox="0 0 512 256">
-  <path d="M0,256 L0,180 Q64,120 128,160 Q192,100 256,140 Q320,80 384,130 Q448,90 512,150 L512,256 Z" fill="#4CAF50" opacity="0.6"/>
-  <path d="M0,256 L0,200 Q80,150 160,180 Q240,130 320,170 Q400,120 480,160 L512,140 L512,256 Z" fill="#388E3C" opacity="0.4"/>
+  <defs>
+    <linearGradient id="hg1" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#5CB85C"/>
+      <stop offset="100%" stop-color="#2D5A27"/>
+    </linearGradient>
+    <linearGradient id="hg2" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#4A8A3A"/>
+      <stop offset="100%" stop-color="#1A3A14"/>
+    </linearGradient>
+    <linearGradient id="hg3" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#3D7A2D"/>
+      <stop offset="100%" stop-color="#142E10"/>
+    </linearGradient>
+  </defs>
+  <!-- Far back hill layer -->
+  <path d="M-20,256 L-20,185 Q40,130 120,160 Q200,110 290,145 Q370,100 440,130 Q490,105 532,140 L532,256 Z" fill="url(#hg3)" opacity="0.5"/>
+  <!-- Mid hill layer -->
+  <path d="M-20,256 L-20,170 Q60,90 150,140 Q220,70 310,120 Q380,60 460,110 Q500,80 532,120 L532,256 Z" fill="url(#hg2)" opacity="0.7"/>
+  <!-- Front hill layer -->
+  <path d="M-20,256 L-20,190 Q80,120 170,160 Q250,100 340,145 Q410,90 490,135 L532,110 L532,256 Z" fill="url(#hg1)" opacity="0.85"/>
+  <!-- Grass tuft details along front ridge -->
+  <g fill="#6FCF6F" opacity="0.6">
+    <ellipse cx="90" cy="148" rx="7" ry="3"/>
+    <ellipse cx="120" cy="155" rx="8" ry="4"/>
+    <ellipse cx="180" cy="148" rx="6" ry="3"/>
+    <ellipse cx="230" cy="125" rx="9" ry="4"/>
+    <ellipse cx="270" cy="130" rx="7" ry="3"/>
+    <ellipse cx="350" cy="140" rx="8" ry="4"/>
+    <ellipse cx="410" cy="118" rx="6" ry="3"/>
+    <ellipse cx="440" cy="120" rx="8" ry="4"/>
+    <ellipse cx="500" cy="130" rx="7" ry="3"/>
+  </g>
+  <!-- Subtle highlight on front hill tops -->
+  <g fill="#8FE08F" opacity="0.25">
+    <ellipse cx="170" cy="158" rx="20" ry="5"/>
+    <ellipse cx="340" cy="143" rx="18" ry="4"/>
+    <ellipse cx="490" cy="133" rx="16" ry="4"/>
+  </g>
 </svg>

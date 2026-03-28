@@ -1,6 +1,39 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64">
-  <polygon points="32,6 56,24 48,56 16,56 8,24" fill="#1E88E5"/>
-  <polygon points="32,6 42,24 32,36 22,24" fill="#42A5F5" opacity="0.7"/>
-  <polygon points="32,6 42,24 32,18" fill="#BBDEFB" opacity="0.5"/>
-  <polygon points="32,6 56,24 48,56 16,56 8,24" fill="none" stroke="#0D47A1" stroke-width="3"/>
+<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32">
+  <defs>
+    <linearGradient id="gb1" x1="0" y1="0" x2="0.5" y2="1">
+      <stop offset="0%" stop-color="#42A5F5"/>
+      <stop offset="50%" stop-color="#1E88E5"/>
+      <stop offset="100%" stop-color="#0D47A1"/>
+    </linearGradient>
+  </defs>
+  <!-- Main gem body -->
+  <polygon points="16,3 28,12 24,28 8,28 4,12" fill="url(#gb1)"/>
+  <!-- Top facet (brightest) -->
+  <polygon points="16,3 22,12 16,16 10,12" fill="#42A5F5" opacity="0.6"/>
+  <!-- Light refraction highlight -->
+  <polygon points="16,3 20,10 16,8" fill="#BBDEFB" opacity="0.55"/>
+  <!-- Left facet shadow -->
+  <polygon points="4,12 10,12 8,28" fill="#0D47A1" opacity="0.3"/>
+  <!-- Right facet -->
+  <polygon points="28,12 22,12 24,28" fill="#1565C0" opacity="0.2"/>
+  <!-- Center facet -->
+  <polygon points="10,12 22,12 16,16" fill="#1E88E5" opacity="0.3"/>
+  <!-- Sparkle highlight -->
+  <g fill="#FFFFFF" opacity="0.6">
+    <circle cx="13" cy="9" r="1.2"/>
+    <rect x="12.5" y="7" width="1" height="4" rx="0.5"/>
+    <rect x="11" y="8.5" width="4" height="1" rx="0.5"/>
+  </g>
+  <!-- Second sparkle -->
+  <g fill="#FFFFFF" opacity="0.3">
+    <circle cx="22" cy="18" r="0.8"/>
+  </g>
+  <!-- Edge outline -->
+  <polygon points="16,3 28,12 24,28 8,28 4,12" fill="none" stroke="#052C6E" stroke-width="1"/>
+  <!-- Inner facet lines -->
+  <g stroke="#0D47A1" stroke-width="0.6" opacity="0.3" fill="none">
+    <line x1="16" y1="3" x2="16" y2="16"/>
+    <line x1="4" y1="12" x2="16" y2="16"/>
+    <line x1="28" y1="12" x2="16" y2="16"/>
+  </g>
 </svg>
