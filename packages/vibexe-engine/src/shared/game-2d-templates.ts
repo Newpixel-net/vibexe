@@ -2174,7 +2174,27 @@ export const GAME_2D_TEMPLATE_FILES: TemplateFile[] = [
 		content: VISUAL_HELPERS_CONTENT,
 	},
 
-	// ---------- Template 7: GameOver Scene ----------
+	// ---------- Template 7: Level Painter STUB (backward compatibility for existing games) ----------
+	{
+		path: "src/engine/level-painter.ts",
+		language: "typescript",
+		content: `// Level Painter stub — sprite-based drawing functions are now the primary rendering system.
+// This file exists only for backward compatibility with games that import LevelSystem.
+var PIXI = (window as any).PIXI;
+export class LevelSystem {
+  private engine: any;
+  constructor(engine: any) { this.engine = engine; }
+  setHelpers(h: any) {}
+  update(dt: number) {}
+  async generate(config: any) {
+    console.log('[LevelPainter] Deprecated — use drawing functions (drawGroundStrip, drawPlatformBlock, drawTree, etc.) instead');
+    return { container: new PIXI.Container(), bodies: [], mask: null, width: config.width || 3000, height: config.height || 900 };
+  }
+}
+`,
+	},
+
+	// ---------- Template 8: GameOver Scene ----------
 	{
 		path: "src/scenes/GameOverScene.ts",
 		language: "typescript",
