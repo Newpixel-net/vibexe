@@ -965,7 +965,7 @@ const supabase = createClient("${supabaseConfig.url}", "${supabaseConfig.anonKey
 			const templateFiles = isGame2d ? GAME_2D_TEMPLATE_FILES : GAME_3D_TEMPLATE_FILES;
 			// Engine infrastructure files — always refresh to latest version
 			// (protected from AI modification via protectedPaths, safe to overwrite)
-			const alwaysRefreshPaths = new Set(["src/engine/core.ts", "src/engine/input.ts", "src/engine/physics.ts", "src/engine/effects.ts", "src/config/assets.ts", "src/utils/media-stock.ts"]);
+			const alwaysRefreshPaths = new Set(["src/engine/core.ts", "src/engine/input.ts", "src/engine/physics.ts", "src/engine/effects.ts", "src/config/assets.ts", "src/utils/media-stock.ts", "src/engine/level-painter.ts"]);
 			for (const tpl of templateFiles) {
 				if (existingPaths.has(tpl.path) && !alwaysRefreshPaths.has(tpl.path)) {
 					console.log(`[Chat API] Template skip (exists): ${tpl.path}`);
