@@ -2158,15 +2158,29 @@ export async function _loadSpriteLib(style?: string): Promise<void> {
     for (const p of catalog[cat]) allPaths.push(p);
   }
 
-  // Load environment sprites (silently skip failures)
+  // Load environment sprites via Image element (reliable for both SVG and PNG)
   var loaded = 0;
+  var loadPromises: Promise<void>[] = [];
   for (var i = 0; i < allPaths.length; i++) {
-    try {
-      var url = spriteUrl(allPaths[i]);
-      var tex = await PIXI.Assets.load(url);
-      if (tex) { _spriteCache[allPaths[i]] = tex; loaded++; }
-    } catch (e) { /* sprite not available yet — fallback chain handles it */ }
+    (function(path) {
+      var url = spriteUrl(path);
+      loadPromises.push(new Promise(function(resolve) {
+        var img = new Image();
+        img.crossOrigin = 'anonymous';
+        img.onload = function() {
+          try {
+            var tex = PIXI.Texture.from(img);
+            if (tex) { _spriteCache[path] = tex; loaded++; }
+          } catch(e) { /* texture creation failed */ }
+          resolve();
+        };
+        img.onerror = function() { resolve(); };
+        img.src = url;
+      }));
+    })(allPaths[i]);
   }
+  await Promise.all(loadPromises);
+  if (loaded > 0) console.log('[sprite-lib] Loaded ' + loaded + ' environment sprites');
 
   // Load character sprite sheets — manually parse for reliable AnimatedSprite support
   for (var charName of Object.keys(CHARACTER_SHEETS)) {

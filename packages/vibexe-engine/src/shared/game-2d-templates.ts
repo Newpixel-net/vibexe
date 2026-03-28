@@ -12,7 +12,7 @@ import { ENGINE_CORE_CONTENT } from "./game-2d-engine";
 import { ENGINE_INPUT_CONTENT, MEDIA_STOCK_2D_CONTENT } from "./game-2d-engine";
 import { ENGINE_PHYSICS_CONTENT } from "./game-2d-physics";
 import { ENGINE_EFFECTS_CONTENT } from "./game-2d-effects";
-import { LEVEL_PAINTER_CONTENT } from "./game-2d-level-painter";
+// Level Painter removed — sprite-based drawing functions are the primary rendering system
 
 export { type TemplateFile };
 
@@ -2174,14 +2174,7 @@ export const GAME_2D_TEMPLATE_FILES: TemplateFile[] = [
 		content: VISUAL_HELPERS_CONTENT,
 	},
 
-	// ---------- Template 7: Level Painter (Procedural Terrain) ----------
-	{
-		path: "src/engine/level-painter.ts",
-		language: "typescript",
-		content: LEVEL_PAINTER_CONTENT,
-	},
-
-	// ---------- Template 8: GameOver Scene ----------
+	// ---------- Template 7: GameOver Scene ----------
 	{
 		path: "src/scenes/GameOverScene.ts",
 		language: "typescript",
@@ -2366,7 +2359,6 @@ export default function Game2D({ onReady }: { onReady?: (engine: any) => void })
 /** Hybrid platformer starter — fully playable, seed-driven dynamic game. AI ENHANCES it. */
 export const GAME_2D_SCENE_STARTER = `import { Engine2D, GameScene, createGame2D, loadAssets, JuiceSystem } from "../engine/core";
 import { createBody, createStaticBody, createOneWayPlatform, PhysicsWorld, CharacterController } from "../engine/physics";
-import { LevelSystem } from "../engine/level-painter";
 import { createAmbientEffect, createSnowEffect, createRainEffect, getThemeEffects, onJumpDust, onLandImpact, onCollectSparkle, onDeathExplosion } from "../engine/effects";
 import { PALETTES, lerpColor, setNoiseSeed, drawSkyGradient, drawStars, drawMountainRange, drawCloud, drawTree, drawGroundStrip, drawPlatformBlock, drawPlayerCharacter, drawCoinToken, drawEnemySlime, drawHeart, applyBiomePostProcessing, drawVignette, drawAtmosphericFog, drawLSystemTree, TREE_PRESETS, drawPointLight, createLightingLayer, createWaterSurface, createLavaSurface } from "../config/assets";
 import { _loadSpriteLib, _sheetCache } from "../utils/media-stock";
@@ -2769,22 +2761,6 @@ export class GameScene2D implements GameScene {
     await _loadSpriteLib(THEME);
     setNoiseSeed(_seed); // Sync noise with game seed for reproducible terrain
 
-    // Initialize Level Painter system
-    if (!engine.level) {
-      engine.level = new LevelSystem(engine);
-    }
-    engine.level.setHelpers({
-      createStaticBody: createStaticBody,
-      createOneWayPlatform: createOneWayPlatform,
-      drawSkyGradient: drawSkyGradient,
-      drawStars: drawStars,
-      drawMountainRange: drawMountainRange,
-      drawAtmosphericFog: drawAtmosphericFog,
-      drawCloud: drawCloud,
-      PAL: PAL,
-      PALETTES: PALETTES,
-    });
-
     var W = engine.config.width;
     var H = engine.config.height;
     var WW = CONFIG.worldWidth;
@@ -3117,9 +3093,6 @@ export class GameScene2D implements GameScene {
 
   update(engine: Engine2D, dt: number): void {
     this.physics.update(dt);
-
-    // ---- Level Painter parallax update ----
-    if (engine.level) { try { engine.level.update(dt); } catch(e) {} }
 
     // ---- Player movement ----
     if (this.playerCtrl) {
