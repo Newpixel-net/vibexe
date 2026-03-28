@@ -528,16 +528,22 @@ function renderTerrainCanvas(
   ctx.fillRect(0, 0, width, height);
   ctx.restore();
 
-  // ===== PASS 3: Paint deep material for deep interior =====
+  // ===== PASS 3: Deep material — column-based (efficient) =====
+  // For each column, find where depth > 50 and draw a single rect per column
   ctx.save();
   ctx.beginPath();
   for (var dpx = 0; dpx < width; dpx++) {
+    var deepStart = -1;
     for (var dpy = 0; dpy < height; dpy++) {
       var dpIdx = dpy * width + dpx;
       if (mask[dpIdx] === 1 && depthFromTop[dpIdx] > 50) {
-        ctx.rect(dpx, dpy, 1, 1);
+        if (deepStart < 0) deepStart = dpy;
+      } else if (deepStart >= 0) {
+        ctx.rect(dpx, deepStart, 1, dpy - deepStart);
+        deepStart = -1;
       }
     }
+    if (deepStart >= 0) ctx.rect(dpx, deepStart, 1, height - deepStart);
   }
   ctx.clip();
   ctx.fillStyle = deepPat;
@@ -559,47 +565,41 @@ function renderTerrainCanvas(
   ctx.stroke();
   ctx.globalAlpha = 1;
 
-  // ===== PASS 5: Shadow on undersides (darken bottom edges) =====
-  for (var shx = 0; shx < width; shx++) {
-    for (var shy = height - 2; shy > 0; shy--) {
+  // ===== PASS 5: Shadow on undersides — column scan (efficient) =====
+  // Find bottom edges (solid above air) and draw shadow rects
+  ctx.fillStyle = 'rgba(0,0,0,0.1)';
+  for (var shx = 0; shx < width; shx += 2) {
+    for (var shy = 0; shy < height - 1; shy++) {
       var shIdx = shy * width + shx;
-      if (mask[shIdx] === 1 && shy + 1 < height && mask[shIdx + width] === 0) {
-        // Bottom edge: darken upward
-        for (var sd = 0; sd < 8; sd++) {
-          var sdY = shy - sd;
-          if (sdY < 0) break;
-          var sdIdx = sdY * width + shx;
-          if (mask[sdIdx] === 0) break;
-          ctx.fillStyle = 'rgba(0,0,0,' + (0.15 - sd * 0.018) + ')';
-          ctx.fillRect(shx, sdY, 1, 1);
-        }
-        break;
+      if (mask[shIdx] === 1 && mask[shIdx + width] === 0) {
+        // Bottom edge found: draw shadow rect upward
+        var shadowH = Math.min(6, shy);
+        ctx.fillRect(shx, shy - shadowH, 2, shadowH);
+        break; // only first bottom edge per column
       }
     }
   }
 
-  // ===== PASS 6: Smooth alpha edges (anti-aliasing) =====
+  // ===== PASS 6: Clear air pixels via ImageData =====
+  // Only iterate edge band, not all pixels
   var edgeData = ctx.getImageData(0, 0, width, height);
   var ed = edgeData.data;
-  for (var ey = 1; ey < height - 1; ey++) {
-    for (var ex = 1; ex < width - 1; ex++) {
+  // Clear all air pixels and soften edges
+  for (var ey = 0; ey < height; ey++) {
+    for (var ex = 0; ex < width; ex++) {
       var eIdx = ey * width + ex;
-      if (mask[eIdx] === 1) {
+      if (mask[eIdx] === 0) {
+        ed[eIdx*4+3] = 0; // fully transparent air
+      } else if (ey > 0 && ey < height-1 && ex > 0 && ex < width-1) {
+        // Soften edges: check 4 cardinal neighbors
         var air = 0;
         if (mask[eIdx-1] === 0) air++;
         if (mask[eIdx+1] === 0) air++;
         if (mask[eIdx-width] === 0) air++;
         if (mask[eIdx+width] === 0) air++;
-        if (mask[eIdx-width-1] === 0) air++;
-        if (mask[eIdx-width+1] === 0) air++;
-        if (mask[eIdx+width-1] === 0) air++;
-        if (mask[eIdx+width+1] === 0) air++;
         if (air > 0) {
-          ed[eIdx*4+3] = Math.max(60, 255 - air * 28);
+          ed[eIdx*4+3] = Math.max(80, 255 - air * 40);
         }
-      } else {
-        // Ensure air pixels are fully transparent
-        ed[eIdx*4+3] = 0;
       }
     }
   }
