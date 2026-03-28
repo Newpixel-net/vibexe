@@ -92,6 +92,40 @@ export function update(engine, dt) {
 }
 \`\`\`
 
+## Level Painter — Procedural Terrain Generation
+
+For PLATFORMER, ADVENTURE, and EXPLORATION games, use engine.level.generate() to create beautiful procedural terrain with caves, overhangs, and decorations. This replaces manual drawGroundStrip/drawPlatformBlock calls.
+
+### Usage in custom-visuals.ts:
+\`\`\`
+export function setup(engine, container) {
+  var result = engine.level.generate({
+    theme: 'forest',     // matches PALETTES: forest, sunset, space, volcanic, candy, arctic, dark, ocean
+    seed: 42,            // deterministic generation
+    complexity: 0.6,     // 0 = flat plains, 1 = extreme caves/overhangs
+    width: 3000,         // level width in pixels (default 3000)
+    height: 900,         // level height in pixels (default 900)
+    caves: true,         // enable cave carving (default true)
+    floatingIslands: false, // floating terrain chunks (default false)
+    population: true,    // scatter decorations (default true)
+    parallax: true,      // background layers (default true)
+  });
+  container.addChild(result.container);
+
+  // result.bodies are already created — add them to your physics world:
+  // var physics = engine.features.get('player-platformer').getPhysics();
+  // result.bodies.forEach(function(b) { physics.addBody(b); });
+
+  // Use spawn points for player/enemy/coin placement:
+  // var start = engine.level.getSpawnPoint('player-start');  // { x, y, tag }
+  // engine.level.getHeightAt(500)  // terrain Y at x=500
+}
+\`\`\`
+
+### When to use Level Painter vs manual drawing:
+- USE engine.level.generate() for: platformers, exploration, adventure, any game with natural terrain
+- USE manual drawGroundStrip() for: simple flat games, puzzle games, specific custom layouts
+
 ## Template for custom-gameplay.ts
 
 \`\`\`

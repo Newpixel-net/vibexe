@@ -72,6 +72,7 @@ export class Engine2D {
   assets: AssetsSystem;
   features: FeatureManager;
   pixi: PixiAdvancedSystem;
+  level: any;  // LevelSystem (set by GameScene2D via level-painter.ts)
 
   // Simple event bus — AI uses engine.events.emit(name, data)
   events = {
