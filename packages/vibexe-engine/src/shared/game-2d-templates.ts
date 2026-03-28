@@ -53,7 +53,7 @@ function hasCanvas(): boolean {
 // SPRITE LIBRARY IMPORTS (from media-stock.ts)
 // ============================================================================
 
-import { _getSprite, _getAnimatedSprite, _loadSpriteLib, _sheetCache } from '../utils/media-stock';
+import { _getSprite, _getAnimatedSprite, _getTilingSprite, _loadSpriteLib, _sheetCache, _themeGroundMap, _themePlatformMap } from '../utils/media-stock';
 import { createAmbientEffect, createSnowEffect, createRainEffect, onJumpDust, onLandImpact, onCollectSparkle, onDeathExplosion } from '../engine/effects';
 import { PhysicsWorld, createBody, createStaticBody, createOneWayPlatform, CharacterController } from '../engine/physics';
 
@@ -862,9 +862,32 @@ export function drawTree(trunkH: number, leafR: number, trunkColor: number, leaf
 export function drawGroundStrip(
   worldW: number, groundY: number, floorH: number, color: number, topColor: number, theme?: string
 ): any {
+  var th = theme || 'forest';
+
+  // Tier 1: Sprite-based tiled ground
+  if (_hasSpriteLib()) {
+    var groundPrefix = _themeGroundMap[th] || 'grass';
+    var topTile = _getTilingSprite('ground', groundPrefix + '_top', worldW, 64);
+    var fillTile = _getTilingSprite('ground', 'dirt_fill', worldW, Math.max(floorH - 64, 0));
+    if (topTile && fillTile) {
+      var sprContainer = new PIXI.Container();
+      topTile.x = 0;
+      topTile.y = groundY - 8;
+      sprContainer.addChild(topTile);
+      fillTile.x = 0;
+      fillTile.y = groundY + 56;
+      sprContainer.addChild(fillTile);
+      // Dark bottom gradient overlay
+      var darkOverlay = new PIXI.Graphics();
+      darkOverlay.rect(0, groundY + floorH * 0.6, worldW, floorH * 0.4);
+      darkOverlay.fill({ color: 0x000000, alpha: 0.15 });
+      sprContainer.addChild(darkOverlay);
+      return sprContainer;
+    }
+  }
+
   var container = new PIXI.Container();
   var g = new PIXI.Graphics();
-  var th = theme || 'forest';
   var step = 6;
   // Generate wavy top edge with noise
   var edgeFreq = th === 'candy' ? 0.003 : th === 'arctic' ? 0.004 : th === 'volcanic' ? 0.012 : 0.008;
@@ -1011,9 +1034,11 @@ export function drawGroundStrip(
 /** Theme-dispatched platform shapes — each theme gets a unique visual style.
  *  Fallback chain: sprite → theme-specific PIXI.Graphics */
 export function drawPlatformBlock(w: number, h: number, mainColor: number, topColor: number, theme?: string): any {
-  // Tier 1: Pre-made sprite (only for standard sizes ~120x30)
-  if (_hasSpriteLib() && w >= 80 && w <= 200 && h >= 20 && h <= 60) {
-    var spr = _getSprite('platforms', 'grass_block');
+  // Tier 1: Theme-aware sprite platform
+  if (_hasSpriteLib()) {
+    var th = theme || 'forest';
+    var platName = _themePlatformMap[th] || 'grass_block';
+    var spr = _getSprite('platforms', platName);
     if (spr) { spr.width = w; spr.height = h; spr.anchor.set(0.5); return spr; }
   }
   var container = new PIXI.Container();
@@ -2097,7 +2122,7 @@ export function applyGodrayFilter(container: any, theme: string): any {
 }
 
 // Re-export so AI can import from config/assets regardless of actual source file
-export { _loadSpriteLib, _sheetCache };
+export { _loadSpriteLib, _sheetCache, _getTilingSprite, _themeGroundMap, _themePlatformMap };
 export { createAmbientEffect, createSnowEffect, createRainEffect, onJumpDust, onLandImpact, onCollectSparkle, onDeathExplosion };
 export { PhysicsWorld, createBody, createStaticBody, createOneWayPlatform, CharacterController };
 `;

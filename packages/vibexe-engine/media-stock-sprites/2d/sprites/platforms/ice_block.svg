@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="128" height="128" viewBox="0 0 128 128">
+  <defs><linearGradient id="iceG" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#E3F2FD"/><stop offset="100%" stop-color="#90CAF9"/></linearGradient></defs>
+  <rect x="4" y="4" width="120" height="120" rx="6" fill="url(#iceG)"/>
+  <rect x="4" y="4" width="120" height="16" rx="6" fill="#FFFFFF" opacity="0.6"/>
+  <rect x="20" y="30" width="35" height="3" rx="1" fill="#FFFFFF" opacity="0.4" transform="rotate(-10 37 31)"/>
+  <rect x="60" y="60" width="40" height="2" rx="1" fill="#FFFFFF" opacity="0.35" transform="rotate(5 80 61)"/>
+  <rect x="15" y="80" width="25" height="2" rx="1" fill="#FFFFFF" opacity="0.3" transform="rotate(-5 27 81)"/>
+  <rect x="2" y="2" width="124" height="124" rx="8" fill="none" stroke="#5C9DC5" stroke-width="4"/>
+</svg>

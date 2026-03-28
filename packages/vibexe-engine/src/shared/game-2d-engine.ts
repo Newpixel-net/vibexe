@@ -2125,13 +2125,14 @@ let _spriteLibLoaded = false;
 /** Sprite catalog — maps style to available sprite paths */
 const SPRITE_CATALOG: Record<string, Record<string, string[]>> = {
   default: {
-    platforms: ['2d/sprites/platforms/grass_block.png', '2d/sprites/platforms/stone_block.png', '2d/sprites/platforms/ice_block.png', '2d/sprites/platforms/sand_block.png', '2d/sprites/platforms/dark_block.png'],
-    trees: ['2d/sprites/trees/round_tree.png', '2d/sprites/trees/pine_tree.png', '2d/sprites/trees/palm_tree.png', '2d/sprites/trees/dead_tree.png'],
-    bushes: ['2d/sprites/bushes/bush_green.png', '2d/sprites/bushes/bush_flower.png'],
-    clouds: ['2d/sprites/clouds/cloud_puffy.png', '2d/sprites/clouds/cloud_small.png'],
-    collectibles: ['2d/sprites/collectibles/coin_gold.png', '2d/sprites/collectibles/gem_red.png', '2d/sprites/collectibles/gem_blue.png', '2d/sprites/collectibles/star.png', '2d/sprites/collectibles/heart.png'],
-    props: ['2d/sprites/props/crate.png', '2d/sprites/props/barrel.png', '2d/sprites/props/rock.png', '2d/sprites/props/fence.png', '2d/sprites/props/sign_post.png'],
-    backgrounds: ['2d/sprites/backgrounds/hill_green.png', '2d/sprites/backgrounds/hill_snow.png', '2d/sprites/backgrounds/mountain_rock.png'],
+    platforms: ['2d/sprites/platforms/grass_block.svg', '2d/sprites/platforms/stone_block.svg', '2d/sprites/platforms/ice_block.svg', '2d/sprites/platforms/sand_block.svg', '2d/sprites/platforms/dark_block.svg'],
+    ground: ['2d/sprites/ground/grass_top.svg', '2d/sprites/ground/dirt_fill.svg', '2d/sprites/ground/stone_top.svg', '2d/sprites/ground/ice_top.svg', '2d/sprites/ground/sand_top.svg'],
+    trees: ['2d/sprites/trees/round_tree.svg', '2d/sprites/trees/pine_tree.svg', '2d/sprites/trees/palm_tree.svg', '2d/sprites/trees/dead_tree.svg'],
+    bushes: ['2d/sprites/bushes/bush_green.svg', '2d/sprites/bushes/bush_flower.svg'],
+    clouds: ['2d/sprites/clouds/cloud_puffy.svg', '2d/sprites/clouds/cloud_small.svg'],
+    collectibles: ['2d/sprites/collectibles/coin_gold.svg', '2d/sprites/collectibles/gem_red.svg', '2d/sprites/collectibles/gem_blue.svg', '2d/sprites/collectibles/star.svg', '2d/sprites/collectibles/heart.svg'],
+    props: ['2d/sprites/props/crate.svg', '2d/sprites/props/barrel.svg', '2d/sprites/props/rock.svg', '2d/sprites/props/fence.svg', '2d/sprites/props/sign_post.svg'],
+    backgrounds: ['2d/sprites/backgrounds/hill_green.svg', '2d/sprites/backgrounds/hill_snow.svg', '2d/sprites/backgrounds/mountain_rock.svg'],
   },
 };
 
@@ -2202,11 +2203,47 @@ export async function _loadSpriteLib(style?: string): Promise<void> {
  */
 export function _getSprite(category: string, name: string): any {
   var PIXI = (window as any).PIXI;
-  var key = '2d/sprites/' + category + '/' + name + '.png';
+  // Try .svg first (new tileset), then .png (legacy)
+  var key = '2d/sprites/' + category + '/' + name + '.svg';
   var tex = _spriteCache[key];
+  if (!tex) {
+    key = '2d/sprites/' + category + '/' + name + '.png';
+    tex = _spriteCache[key];
+  }
   if (!tex) return null;
   return new PIXI.Sprite(tex);
 }
+
+/**
+ * Get a TilingSprite from a cached texture, or null.
+ * Usage: var ts = _getTilingSprite('ground', 'grass_top', 800, 64);
+ */
+export function _getTilingSprite(category: string, name: string, width: number, height: number): any {
+  var PIXI = (window as any).PIXI;
+  var key = '2d/sprites/' + category + '/' + name + '.svg';
+  var tex = _spriteCache[key];
+  if (!tex) {
+    key = '2d/sprites/' + category + '/' + name + '.png';
+    tex = _spriteCache[key];
+  }
+  if (!tex || !PIXI.TilingSprite) return null;
+  var ts = new PIXI.TilingSprite({ texture: tex, width: width, height: height });
+  return ts;
+}
+
+/** Map game theme to ground sprite name prefix */
+var _themeGroundMap: Record<string, string> = {
+  forest: 'grass', sunset: 'grass', candy: 'grass',
+  volcanic: 'stone', dark: 'stone', space: 'stone',
+  arctic: 'ice', ocean: 'sand',
+};
+
+/** Map game theme to platform sprite name */
+var _themePlatformMap: Record<string, string> = {
+  forest: 'grass_block', sunset: 'grass_block', candy: 'grass_block',
+  volcanic: 'stone_block', dark: 'dark_block', space: 'dark_block',
+  arctic: 'ice_block', ocean: 'sand_block',
+};
 
 /**
  * Get an AnimatedSprite from a loaded character sheet, or null.

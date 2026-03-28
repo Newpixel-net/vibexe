@@ -92,41 +92,26 @@ export function update(engine, dt) {
 }
 \`\`\`
 
-## Level Painter — Procedural Terrain Generation (REQUIRED for all terrain games)
+## World Building — Sprite-Based Drawing Functions
 
-For PLATFORMER, ADVENTURE, and EXPLORATION games, use engine.level.generate(). It renders the COMPLETE world — terrain with real textures, parallax backgrounds, sky, mountains, water, and decorations.
+The engine provides sprite-based drawing functions that automatically load professional tileset sprites. Use them in custom-visuals.ts to build your world:
 
-**CRITICAL: When using Level Painter, do NOT use ANY of these old drawing functions:**
-- NO drawGroundStrip() — Level Painter renders all terrain
-- NO drawPlatformBlock() — Level Painter generates platforms from terrain
-- NO drawTree() / drawLSystemTree() — Level Painter populates decorations
-- NO drawSkyGradient() — Level Painter creates parallax sky
-- NO drawMountainRange() — Level Painter creates parallax mountains
-- NO drawCloud() — Level Painter adds clouds
-The Level Painter is a COMPLETE self-contained visual system. Adding old primitive shapes alongside it creates visual chaos. Your custom-visuals.ts should ONLY call engine.level.generate() and nothing else for terrain/world visuals.
+### Available Drawing Functions (use freely):
+- \`drawSkyGradient(worldW, worldH, topColor, bottomColor)\` — sky background
+- \`drawStars(worldW, skyH, count)\` — star field
+- \`drawMountainRange(worldW, baseY, color, alpha, minH, maxH, spacing, theme, layer)\` — parallax mountain layer
+- \`drawCloud(w, h)\` — puffy cloud sprite
+- \`drawGroundStrip(worldW, groundY, floorH, color, topColor, theme)\` — tiled ground with grass surface
+- \`drawPlatformBlock(w, h, mainColor, topColor, theme)\` — tiled platform with edge caps
+- \`drawTree(trunkH, leafR, trunkColor, leafColor)\` — tree sprite
+- \`drawCoinToken(radius, color, glowColor)\` — collectible coin
+- \`drawEnemySlime(size, color, lightColor)\` — enemy slime
+- \`drawHeart(size, color)\` — health pickup
+- \`drawGemShape(radius, color)\` — gem collectible
+- \`drawVignette(w, h)\` — screen edge darkening
+- \`drawLSystemTree(x, y, preset, theme, seed)\` — fractal tree
 
-### Usage in custom-visuals.ts:
-\`\`\`
-export async function setup(engine, container) {
-  var result = await engine.level.generate({
-    theme: 'forest',     // matches PALETTES: forest, sunset, space, volcanic, candy, arctic, dark, ocean
-    seed: 42,            // deterministic generation
-    complexity: 0.6,     // 0 = flat plains, 1 = extreme caves/overhangs
-    width: 3000,         // level width in pixels (default 3000)
-    height: 900,         // level height in pixels (default 900)
-    caves: true,         // enable cave carving (default true)
-    floatingIslands: false, // floating terrain chunks (default false)
-    population: true,    // scatter decorations (default true)
-    parallax: true,      // background layers (default true)
-  });
-  container.addChild(result.container);
-  // That's it! Do NOT add ground strips, platforms, trees, sky, or mountains manually.
-}
-\`\`\`
-
-### When to use Level Painter vs manual drawing:
-- USE engine.level.generate() for: platformers, exploration, adventure — ANY game with terrain
-- USE manual drawGroundStrip() ONLY for: puzzle games, simple flat single-screen games
+These functions auto-load sprites from the tileset library. If sprites are unavailable, they fall back to high-quality procedural graphics. Use the PALETTES colors for theme consistency.
 
 ## Template for custom-gameplay.ts
 
