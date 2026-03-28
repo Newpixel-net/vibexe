@@ -92,9 +92,18 @@ export function update(engine, dt) {
 }
 \`\`\`
 
-## Level Painter — Procedural Terrain Generation
+## Level Painter — Procedural Terrain Generation (REQUIRED for all terrain games)
 
-For PLATFORMER, ADVENTURE, and EXPLORATION games, use engine.level.generate() to create beautiful procedural terrain with caves, overhangs, and decorations. This replaces manual drawGroundStrip/drawPlatformBlock calls.
+For PLATFORMER, ADVENTURE, and EXPLORATION games, use engine.level.generate(). It renders the COMPLETE world — terrain with real textures, parallax backgrounds, sky, mountains, water, and decorations.
+
+**CRITICAL: When using Level Painter, do NOT use ANY of these old drawing functions:**
+- NO drawGroundStrip() — Level Painter renders all terrain
+- NO drawPlatformBlock() — Level Painter generates platforms from terrain
+- NO drawTree() / drawLSystemTree() — Level Painter populates decorations
+- NO drawSkyGradient() — Level Painter creates parallax sky
+- NO drawMountainRange() — Level Painter creates parallax mountains
+- NO drawCloud() — Level Painter adds clouds
+The Level Painter is a COMPLETE self-contained visual system. Adding old primitive shapes alongside it creates visual chaos. Your custom-visuals.ts should ONLY call engine.level.generate() and nothing else for terrain/world visuals.
 
 ### Usage in custom-visuals.ts:
 \`\`\`
@@ -111,20 +120,13 @@ export async function setup(engine, container) {
     parallax: true,      // background layers (default true)
   });
   container.addChild(result.container);
-
-  // result.bodies are already created — add them to your physics world:
-  // var physics = engine.features.get('player-platformer').getPhysics();
-  // result.bodies.forEach(function(b) { physics.addBody(b); });
-
-  // Use spawn points for player/enemy/coin placement:
-  // var start = engine.level.getSpawnPoint('player-start');  // { x, y, tag }
-  // engine.level.getHeightAt(500)  // terrain Y at x=500
+  // That's it! Do NOT add ground strips, platforms, trees, sky, or mountains manually.
 }
 \`\`\`
 
 ### When to use Level Painter vs manual drawing:
-- USE engine.level.generate() for: platformers, exploration, adventure, any game with natural terrain
-- USE manual drawGroundStrip() for: simple flat games, puzzle games, specific custom layouts
+- USE engine.level.generate() for: platformers, exploration, adventure — ANY game with terrain
+- USE manual drawGroundStrip() ONLY for: puzzle games, simple flat single-screen games
 
 ## Template for custom-gameplay.ts
 
