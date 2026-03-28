@@ -124,60 +124,60 @@ SimplexNoise2D.smoothstep = function(edge0: number, edge1: number, x: number): n
 
 var TERRAIN_PROFILES: Record<string, any> = {
   forest: {
-    baseFreq: 0.003, caveFreq: 0.006, detailFreq: 0.02,
-    groundLevel: 0.65, caveThreshold: 0.35, overhangStrength: 0.3,
-    warpStrength: 40, ridgeSharpness: 1.2, ridgeMix: 0.15,
-    octaves: 5, lacunarity: 2.0, gain: 0.48,
-    minGround: 0.4, smoothPasses: 2
+    baseFreq: 0.0018, caveFreq: 0.004, detailFreq: 0.012,
+    groundLevel: 0.62, caveThreshold: 0.28, overhangStrength: 0.2,
+    warpStrength: 50, ridgeSharpness: 1.0, ridgeMix: 0.08,
+    octaves: 4, lacunarity: 2.0, gain: 0.42,
+    minGround: 0.45, smoothPasses: 4
   },
   sunset: {
-    baseFreq: 0.0025, caveFreq: 0.005, detailFreq: 0.018,
-    groundLevel: 0.7, caveThreshold: 0.3, overhangStrength: 0.25,
-    warpStrength: 35, ridgeSharpness: 1.0, ridgeMix: 0.1,
-    octaves: 4, lacunarity: 2.1, gain: 0.45,
-    minGround: 0.45, smoothPasses: 2
+    baseFreq: 0.0015, caveFreq: 0.003, detailFreq: 0.01,
+    groundLevel: 0.65, caveThreshold: 0.22, overhangStrength: 0.15,
+    warpStrength: 40, ridgeSharpness: 0.8, ridgeMix: 0.05,
+    octaves: 3, lacunarity: 2.0, gain: 0.4,
+    minGround: 0.5, smoothPasses: 5
   },
   space: {
-    baseFreq: 0.004, caveFreq: 0.008, detailFreq: 0.025,
-    groundLevel: 0.55, caveThreshold: 0.42, overhangStrength: 0.5,
-    warpStrength: 60, ridgeSharpness: 1.8, ridgeMix: 0.3,
-    octaves: 5, lacunarity: 2.2, gain: 0.5,
-    minGround: 0.25, smoothPasses: 1
+    baseFreq: 0.003, caveFreq: 0.006, detailFreq: 0.018,
+    groundLevel: 0.55, caveThreshold: 0.35, overhangStrength: 0.4,
+    warpStrength: 60, ridgeSharpness: 1.5, ridgeMix: 0.2,
+    octaves: 4, lacunarity: 2.2, gain: 0.45,
+    minGround: 0.3, smoothPasses: 3
   },
   volcanic: {
-    baseFreq: 0.0035, caveFreq: 0.007, detailFreq: 0.022,
-    groundLevel: 0.6, caveThreshold: 0.38, overhangStrength: 0.45,
-    warpStrength: 55, ridgeSharpness: 2.0, ridgeMix: 0.35,
-    octaves: 5, lacunarity: 2.0, gain: 0.52,
-    minGround: 0.35, smoothPasses: 1
+    baseFreq: 0.002, caveFreq: 0.005, detailFreq: 0.015,
+    groundLevel: 0.58, caveThreshold: 0.3, overhangStrength: 0.35,
+    warpStrength: 55, ridgeSharpness: 1.5, ridgeMix: 0.2,
+    octaves: 4, lacunarity: 2.0, gain: 0.45,
+    minGround: 0.38, smoothPasses: 3
   },
   candy: {
-    baseFreq: 0.002, caveFreq: 0.004, detailFreq: 0.015,
-    groundLevel: 0.7, caveThreshold: 0.25, overhangStrength: 0.2,
-    warpStrength: 50, ridgeSharpness: 0.8, ridgeMix: 0.05,
-    octaves: 4, lacunarity: 1.8, gain: 0.4,
-    minGround: 0.5, smoothPasses: 3
+    baseFreq: 0.0012, caveFreq: 0.003, detailFreq: 0.008,
+    groundLevel: 0.68, caveThreshold: 0.18, overhangStrength: 0.1,
+    warpStrength: 55, ridgeSharpness: 0.6, ridgeMix: 0.03,
+    octaves: 3, lacunarity: 1.8, gain: 0.35,
+    minGround: 0.55, smoothPasses: 6
   },
   arctic: {
-    baseFreq: 0.0022, caveFreq: 0.005, detailFreq: 0.016,
-    groundLevel: 0.68, caveThreshold: 0.32, overhangStrength: 0.2,
-    warpStrength: 30, ridgeSharpness: 1.0, ridgeMix: 0.1,
-    octaves: 4, lacunarity: 2.0, gain: 0.42,
-    minGround: 0.5, smoothPasses: 3
+    baseFreq: 0.0015, caveFreq: 0.004, detailFreq: 0.01,
+    groundLevel: 0.65, caveThreshold: 0.25, overhangStrength: 0.15,
+    warpStrength: 35, ridgeSharpness: 0.8, ridgeMix: 0.06,
+    octaves: 3, lacunarity: 2.0, gain: 0.38,
+    minGround: 0.5, smoothPasses: 5
   },
   dark: {
-    baseFreq: 0.004, caveFreq: 0.009, detailFreq: 0.024,
-    groundLevel: 0.55, caveThreshold: 0.4, overhangStrength: 0.5,
-    warpStrength: 50, ridgeSharpness: 1.6, ridgeMix: 0.3,
-    octaves: 5, lacunarity: 2.1, gain: 0.5,
-    minGround: 0.3, smoothPasses: 1
+    baseFreq: 0.0025, caveFreq: 0.006, detailFreq: 0.016,
+    groundLevel: 0.55, caveThreshold: 0.32, overhangStrength: 0.4,
+    warpStrength: 50, ridgeSharpness: 1.3, ridgeMix: 0.18,
+    octaves: 4, lacunarity: 2.0, gain: 0.45,
+    minGround: 0.32, smoothPasses: 3
   },
   ocean: {
-    baseFreq: 0.003, caveFreq: 0.006, detailFreq: 0.02,
-    groundLevel: 0.6, caveThreshold: 0.36, overhangStrength: 0.35,
-    warpStrength: 45, ridgeSharpness: 1.3, ridgeMix: 0.2,
-    octaves: 5, lacunarity: 2.0, gain: 0.46,
-    minGround: 0.35, smoothPasses: 2
+    baseFreq: 0.0018, caveFreq: 0.004, detailFreq: 0.012,
+    groundLevel: 0.58, caveThreshold: 0.28, overhangStrength: 0.25,
+    warpStrength: 45, ridgeSharpness: 1.0, ridgeMix: 0.1,
+    octaves: 4, lacunarity: 2.0, gain: 0.4,
+    minGround: 0.4, smoothPasses: 4
   }
 };
 
@@ -299,388 +299,538 @@ function generateTerrainMask(width: number, height: number, config: any): Uint8A
 
 
 // ============================================================
-// Phase 2: Procedural Texture Engine
+// Phase 2: Procedural Texture Engine (Pattern-Based)
 // ============================================================
 
-// --- Surface normal detection via Sobel filter ---
-function computeSurfaceNormals(mask: Uint8Array, width: number, height: number): Float32Array {
-  var normals = new Float32Array(width * height * 2);
-  for (var y = 1; y < height - 1; y++) {
-    for (var x = 1; x < width - 1; x++) {
-      var idx = y * width + x;
-      if (mask[idx] === 0) continue;
-      // Sobel X
-      var gx = -mask[(y-1)*width+(x-1)] - 2*mask[y*width+(x-1)] - mask[(y+1)*width+(x-1)]
-              + mask[(y-1)*width+(x+1)] + 2*mask[y*width+(x+1)] + mask[(y+1)*width+(x+1)];
-      // Sobel Y
-      var gy = -mask[(y-1)*width+(x-1)] - 2*mask[(y-1)*width+x] - mask[(y-1)*width+(x+1)]
-              + mask[(y+1)*width+(x-1)] + 2*mask[(y+1)*width+x] + mask[(y+1)*width+(x+1)];
-      var len = Math.sqrt(gx*gx + gy*gy) || 1;
-      normals[idx*2] = gx / len;
-      normals[idx*2+1] = gy / len;
-    }
-  }
-  return normals;
-}
-
-// --- Surface classification ---
-function classifySurface(mask: Uint8Array, normals: Float32Array, x: number, y: number, width: number, height: number): string {
-  var idx = y * width + x;
-  if (mask[idx] === 0) return 'air';
-  // Check if it's an edge pixel (has at least one air neighbor)
-  var isEdge = false;
-  if (x > 0 && mask[idx-1] === 0) isEdge = true;
-  if (x < width-1 && mask[idx+1] === 0) isEdge = true;
-  if (y > 0 && mask[idx-width] === 0) isEdge = true;
-  if (y < height-1 && mask[idx+width] === 0) isEdge = true;
-
-  if (!isEdge) {
-    // Interior: determine depth from surface
-    return 'interior';
-  }
-
-  var ny = normals[idx*2+1];
-  var nx = normals[idx*2];
-  if (ny < -0.5) return 'top';         // Normal pointing up = top surface
-  if (ny > 0.5) return 'bottom';       // Normal pointing down = overhang/ceiling
-  if (nx < -0.3) return 'side-left';
-  if (nx > 0.3) return 'side-right';
-  return 'top'; // default edge to top
-}
-
-// --- Compute distance from nearest air pixel (for material depth transitions) ---
-function computeDepthMap(mask: Uint8Array, width: number, height: number, maxDist: number): Uint8Array {
-  var depth = new Uint8Array(width * height);
-  // Simple approximation: scan rows then columns
-  for (var y = 0; y < height; y++) {
-    // Left-to-right pass
-    var d = maxDist;
-    for (var x = 0; x < width; x++) {
-      var idx = y * width + x;
-      if (mask[idx] === 0) { d = 0; }
-      else { d = Math.min(d + 1, maxDist); }
-      depth[idx] = d;
-    }
-    // Right-to-left pass
-    d = maxDist;
-    for (var x2 = width - 1; x2 >= 0; x2--) {
-      var idx2 = y * width + x2;
-      if (mask[idx2] === 0) { d = 0; }
-      else { d = Math.min(d + 1, maxDist); depth[idx2] = Math.min(depth[idx2], d); }
-    }
-  }
-  // Top-to-bottom and bottom-to-top
-  for (var x3 = 0; x3 < width; x3++) {
-    var d2 = maxDist;
-    for (var y2 = 0; y2 < height; y2++) {
-      var idx3 = y2 * width + x3;
-      if (mask[idx3] === 0) { d2 = 0; }
-      else { d2 = Math.min(d2 + 1, maxDist); depth[idx3] = Math.min(depth[idx3], d2); }
-    }
-    d2 = maxDist;
-    for (var y3 = height - 1; y3 >= 0; y3--) {
-      var idx4 = y3 * width + x3;
-      if (mask[idx4] === 0) { d2 = 0; }
-      else { d2 = Math.min(d2 + 1, maxDist); depth[idx4] = Math.min(depth[idx4], d2); }
-    }
-  }
-  return depth;
-}
-
-
-// --- Material color palettes ---
-var MATERIAL_COLORS: Record<string, any> = {
-  grass:     { base: [72, 140, 50],  light: [95, 170, 65],  dark: [45, 95, 30],   grain: 0.12 },
-  dirt:      { base: [120, 85, 55],  light: [145, 105, 70], dark: [80, 55, 35],   grain: 0.15 },
-  rock:      { base: [110, 105, 95], light: [140, 135, 125],dark: [70, 65, 60],   grain: 0.18 },
-  sand:      { base: [195, 175, 130],light: [220, 200, 155],dark: [155, 135, 95], grain: 0.08 },
-  ice:       { base: [180, 210, 230],light: [210, 235, 250],dark: [120, 160, 190],grain: 0.06 },
-  lava:      { base: [180, 50, 20],  light: [240, 120, 30], dark: [100, 20, 10],  grain: 0.2  },
-  crystal:   { base: [100, 60, 160], light: [150, 100, 220],dark: [55, 30, 100],  grain: 0.1  },
-  darkstone: { base: [55, 50, 50],   light: [80, 75, 70],   dark: [30, 28, 28],   grain: 0.2  },
-  coral:     { base: [200, 120, 100],light: [230, 155, 130],dark: [140, 75, 60],  grain: 0.12 },
-  candy:     { base: [220, 130, 180],light: [245, 170, 210],dark: [170, 85, 130], grain: 0.06 },
-  'candy-deep': { base: [180, 100, 150], light: [210, 130, 175], dark: [130, 65, 105], grain: 0.08 },
-  moss:      { base: [60, 110, 50],  light: [80, 135, 65],  dark: [35, 75, 30],   grain: 0.14 },
-};
-
-// --- Theme material mapping ---
-var THEME_MATERIALS: Record<string, any> = {
-  forest:   { top: 'grass',     side: 'rock',      interior: 'dirt',      deep: 'rock',      ceiling: 'moss' },
-  sunset:   { top: 'grass',     side: 'rock',      interior: 'dirt',      deep: 'rock',      ceiling: 'dirt' },
-  space:    { top: 'crystal',   side: 'darkstone', interior: 'darkstone', deep: 'crystal',   ceiling: 'darkstone' },
-  volcanic: { top: 'darkstone', side: 'rock',      interior: 'rock',      deep: 'lava',      ceiling: 'darkstone' },
-  candy:    { top: 'candy',     side: 'candy-deep', interior: 'candy-deep', deep: 'rock',    ceiling: 'candy' },
-  arctic:   { top: 'ice',       side: 'rock',      interior: 'rock',      deep: 'darkstone', ceiling: 'ice' },
-  dark:     { top: 'darkstone', side: 'rock',      interior: 'rock',      deep: 'crystal',   ceiling: 'darkstone' },
-  ocean:    { top: 'coral',     side: 'rock',      interior: 'sand',      deep: 'rock',      ceiling: 'moss' },
+// --- Theme material configs: colors for tiling textures ---
+var THEME_TEXTURES: Record<string, any> = {
+  forest: {
+    surface:  { base: '#4a8c2a', light: '#6ab845', dark: '#2d6618', stripe: '#3a7a22' },
+    interior: { base: '#8b6340', light: '#a07850', dark: '#5c3d20', stripe: '#6b4e30' },
+    deep:     { base: '#6b6060', light: '#858080', dark: '#454040', stripe: '#555050' },
+    edge:     { grass: '#3da025', grassLight: '#60c840', grassDark: '#2a7518' },
+    sky:      { water: '#2288bb' },
+  },
+  sunset: {
+    surface:  { base: '#5a9030', light: '#78b848', dark: '#3a6a18', stripe: '#4a8025' },
+    interior: { base: '#907050', light: '#a88565', dark: '#604530', stripe: '#785a40' },
+    deep:     { base: '#706058', light: '#8a7a70', dark: '#4a3a35', stripe: '#5a4a45' },
+    edge:     { grass: '#4aaa30', grassLight: '#6ad050', grassDark: '#308020' },
+    sky:      { water: '#cc6644' },
+  },
+  volcanic: {
+    surface:  { base: '#4a3a35', light: '#605048', dark: '#2a1a15', stripe: '#3a2a25' },
+    interior: { base: '#5a4540', light: '#705a50', dark: '#3a2520', stripe: '#4a3530' },
+    deep:     { base: '#cc4411', light: '#ff6622', dark: '#882200', stripe: '#ee5518' },
+    edge:     { grass: '#553322', grassLight: '#774433', grassDark: '#332211' },
+    sky:      { water: '#cc3300' },
+  },
+  arctic: {
+    surface:  { base: '#c8dde8', light: '#e0eef5', dark: '#90b0c8', stripe: '#b0cce0' },
+    interior: { base: '#8899a5', light: '#a0b0bb', dark: '#607080', stripe: '#758595' },
+    deep:     { base: '#556068', light: '#6a7880', dark: '#3a4550', stripe: '#485560' },
+    edge:     { grass: '#d0e8f0', grassLight: '#e8f5ff', grassDark: '#a0c8e0' },
+    sky:      { water: '#5588aa' },
+  },
+  candy: {
+    surface:  { base: '#e87aaf', light: '#ff99cc', dark: '#c05588', stripe: '#dd6699' },
+    interior: { base: '#cc88bb', light: '#dda0cc', dark: '#aa6699', stripe: '#bb77aa' },
+    deep:     { base: '#9966aa', light: '#bb88cc', dark: '#774488', stripe: '#aa7799' },
+    edge:     { grass: '#ff88bb', grassLight: '#ffaadd', grassDark: '#dd6699' },
+    sky:      { water: '#ff66aa' },
+  },
+  space: {
+    surface:  { base: '#5533aa', light: '#7755cc', dark: '#331188', stripe: '#4422aa' },
+    interior: { base: '#2a2040', light: '#3a3055', dark: '#1a1028', stripe: '#252035' },
+    deep:     { base: '#6644dd', light: '#8866ff', dark: '#4422aa', stripe: '#5533cc' },
+    edge:     { grass: '#7755dd', grassLight: '#9977ff', grassDark: '#5533bb' },
+    sky:      { water: '#2200aa' },
+  },
+  dark: {
+    surface:  { base: '#3a3535', light: '#504a4a', dark: '#1a1818', stripe: '#2a2525' },
+    interior: { base: '#454040', light: '#5a5555', dark: '#252020', stripe: '#353030' },
+    deep:     { base: '#6633aa', light: '#8855cc', dark: '#441188', stripe: '#5522aa' },
+    edge:     { grass: '#4a4040', grassLight: '#5a5050', grassDark: '#2a2020' },
+    sky:      { water: '#332255' },
+  },
+  ocean: {
+    surface:  { base: '#cc7755', light: '#ee9977', dark: '#994433', stripe: '#bb6644' },
+    interior: { base: '#c8b080', light: '#ddc898', dark: '#a08858', stripe: '#b09870' },
+    deep:     { base: '#6a6560', light: '#807a75', dark: '#454040', stripe: '#555050' },
+    edge:     { grass: '#55aa55', grassLight: '#77cc77', grassDark: '#338833' },
+    sky:      { water: '#2277aa' },
+  },
 };
 
 
-// --- Generate procedural material texture (64x64 tileable) ---
-function generateMaterialCanvas(type: string, seed: number): HTMLCanvasElement {
-  var size = 64;
+// --- Generate high-quality tileable material texture (128x128) ---
+function _generateTileTexture(colors: any, style: string, seed: number): HTMLCanvasElement {
+  var size = 128;
   var canvas = document.createElement('canvas');
-  canvas.width = size;
-  canvas.height = size;
+  canvas.width = size; canvas.height = size;
   var ctx = canvas.getContext('2d')!;
-  var mat = MATERIAL_COLORS[type] || MATERIAL_COLORS.rock;
-  var imgData = ctx.createImageData(size, size);
-  var data = imgData.data;
 
-  SimplexNoise2D.seed(seed + type.charCodeAt(0) * 137);
+  SimplexNoise2D.seed(seed);
 
-  for (var y = 0; y < size; y++) {
-    for (var x = 0; x < size; x++) {
-      var idx = (y * size + x) * 4;
-      // Multi-octave noise for rich texture
-      var n1 = SimplexNoise2D.fbm(x * 0.08, y * 0.08, 3, 2.0, 0.5) * 0.5 + 0.5;
-      var n2 = SimplexNoise2D.noise2D(x * 0.2, y * 0.2) * 0.3;
-      var n3 = SimplexNoise2D.noise2D(x * 0.5 + 50, y * 0.5 + 50) * 0.15;
-      var blend = n1 + n2 * mat.grain + n3 * mat.grain * 0.5;
-      blend = Math.max(0, Math.min(1, blend));
+  // Base fill
+  ctx.fillStyle = colors.base;
+  ctx.fillRect(0, 0, size, size);
 
-      for (var c = 0; c < 3; c++) {
-        var val = mat.base[c] + (mat.light[c] - mat.base[c]) * blend * 0.6 + (mat.dark[c] - mat.base[c]) * (1 - blend) * 0.3;
-        // Add fine grain
-        val += (SimplexNoise2D.noise2D(x * 1.2 + c * 30, y * 1.2 + c * 30) * mat.grain * 20);
-        data[idx + c] = Math.max(0, Math.min(255, Math.round(val)));
+  // Layer 1: Large-scale color variation (blotchy)
+  for (var i = 0; i < 12; i++) {
+    var bx = SimplexNoise2D.noise2D(i * 3.7, seed * 0.1) * 0.5 + 0.5;
+    var by = SimplexNoise2D.noise2D(seed * 0.1, i * 3.7) * 0.5 + 0.5;
+    var br = 15 + bx * 30;
+    ctx.fillStyle = i % 2 === 0 ? colors.light : colors.dark;
+    ctx.globalAlpha = 0.15 + bx * 0.1;
+    ctx.beginPath();
+    ctx.ellipse(bx * size, by * size, br, br * 0.7, i * 0.5, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  ctx.globalAlpha = 1;
+
+  // Layer 2: Medium detail (stripes/cracks depending on style)
+  if (style === 'earth' || style === 'rock') {
+    // Horizontal earth strata lines
+    for (var sy = 0; sy < size; sy += 4 + Math.floor(SimplexNoise2D.noise2D(sy * 0.3, seed) * 3)) {
+      var stripeAlpha = 0.06 + Math.abs(SimplexNoise2D.noise2D(sy * 0.2, seed * 0.5)) * 0.08;
+      ctx.strokeStyle = colors.stripe;
+      ctx.globalAlpha = stripeAlpha;
+      ctx.lineWidth = 1 + Math.abs(SimplexNoise2D.noise2D(sy * 0.1, 0)) * 1.5;
+      ctx.beginPath();
+      ctx.moveTo(0, sy);
+      for (var sx = 0; sx < size; sx += 8) {
+        ctx.lineTo(sx, sy + SimplexNoise2D.noise2D(sx * 0.05, sy * 0.05) * 3);
       }
-      data[idx + 3] = 255;
+      ctx.stroke();
+    }
+    ctx.globalAlpha = 1;
+  }
+
+  if (style === 'rock') {
+    // Crack lines
+    for (var ci = 0; ci < 5; ci++) {
+      var cx = SimplexNoise2D.noise2D(ci * 7, seed) * 0.5 + 0.5;
+      var cy = SimplexNoise2D.noise2D(seed, ci * 7) * 0.5 + 0.5;
+      ctx.strokeStyle = colors.dark;
+      ctx.globalAlpha = 0.2;
+      ctx.lineWidth = 0.5 + Math.random() * 0.5;
+      ctx.beginPath();
+      ctx.moveTo(cx * size, cy * size);
+      for (var cs = 0; cs < 4; cs++) {
+        cx += (SimplexNoise2D.noise2D(ci + cs, seed + cs) * 0.15);
+        cy += (SimplexNoise2D.noise2D(seed + cs, ci + cs) * 0.15);
+        ctx.lineTo(cx * size, cy * size);
+      }
+      ctx.stroke();
+    }
+    ctx.globalAlpha = 1;
+  }
+
+  // Layer 3: Fine grain (small noise dots for texture)
+  var imgData = ctx.getImageData(0, 0, size, size);
+  var data = imgData.data;
+  for (var py = 0; py < size; py++) {
+    for (var px = 0; px < size; px++) {
+      var pidx = (py * size + px) * 4;
+      var grain = SimplexNoise2D.noise2D(px * 0.4 + seed * 10, py * 0.4) * 8;
+      data[pidx] = Math.max(0, Math.min(255, data[pidx] + grain));
+      data[pidx+1] = Math.max(0, Math.min(255, data[pidx+1] + grain));
+      data[pidx+2] = Math.max(0, Math.min(255, data[pidx+2] + grain));
     }
   }
   ctx.putImageData(imgData, 0, 0);
+
   return canvas;
 }
 
 
-// --- Main terrain rendering function ---
+// --- Main terrain rendering: pattern-based multi-pass ---
 function renderTerrainCanvas(
   mask: Uint8Array, width: number, height: number,
   theme: string, seed: number
 ): HTMLCanvasElement {
   var canvas = document.createElement('canvas');
-  canvas.width = width;
-  canvas.height = height;
+  canvas.width = width; canvas.height = height;
   var ctx = canvas.getContext('2d')!;
 
-  var mats = THEME_MATERIALS[theme] || THEME_MATERIALS.forest;
-  var normals = computeSurfaceNormals(mask, width, height);
-  var depthMap = computeDepthMap(mask, width, height, 40);
+  var tex = THEME_TEXTURES[theme] || THEME_TEXTURES.forest;
 
-  // Pre-generate material textures
-  var matCanvases: Record<string, HTMLCanvasElement> = {};
-  var matPatterns: Record<string, CanvasPattern> = {};
-  var usedMats = [mats.top, mats.side, mats.interior, mats.deep, mats.ceiling];
-  for (var mi = 0; mi < usedMats.length; mi++) {
-    var mName = usedMats[mi];
-    if (!matCanvases[mName]) {
-      matCanvases[mName] = generateMaterialCanvas(mName, seed);
-      matPatterns[mName] = ctx.createPattern(matCanvases[mName], 'repeat')!;
+  // Generate tiling textures
+  var surfaceTex = _generateTileTexture(tex.surface, 'earth', seed);
+  var interiorTex = _generateTileTexture(tex.interior, 'earth', seed + 100);
+  var deepTex = _generateTileTexture(tex.deep, 'rock', seed + 200);
+
+  var surfacePat = ctx.createPattern(surfaceTex, 'repeat')!;
+  var interiorPat = ctx.createPattern(interiorTex, 'repeat')!;
+  var deepPat = ctx.createPattern(deepTex, 'repeat')!;
+
+  // --- Compute top-surface heightmap for edge detection ---
+  var topSurface = new Int16Array(width);
+  for (var tx = 0; tx < width; tx++) {
+    topSurface[tx] = -1;
+    for (var ty = 0; ty < height; ty++) {
+      if (mask[ty * width + tx] === 1) { topSurface[tx] = ty; break; }
     }
   }
 
-  // Create ImageData for pixel-level control
-  var imgData = ctx.createImageData(width, height);
-  var pixels = imgData.data;
+  // --- Compute depth from surface for each solid pixel ---
+  var depthFromTop = new Uint8Array(width * height);
+  for (var dx = 0; dx < width; dx++) {
+    var dCount = 0;
+    for (var dy = 0; dy < height; dy++) {
+      var dIdx = dy * width + dx;
+      if (mask[dIdx] === 0) { dCount = 0; }
+      else { dCount++; depthFromTop[dIdx] = Math.min(255, dCount); }
+    }
+  }
 
-  for (var y = 0; y < height; y++) {
-    for (var x = 0; x < width; x++) {
-      var idx = y * width + x;
-      if (mask[idx] === 0) continue; // air = transparent (alpha stays 0)
+  // ===== PASS 1: Fill terrain with interior pattern =====
+  // Use clipping mask approach: draw mask path, then fill with pattern
+  ctx.save();
+  // Build terrain outline path from mask columns
+  ctx.beginPath();
+  var inSolid = false;
+  // Scan each column, find top pixel
+  for (var px = 0; px < width; px++) {
+    if (topSurface[px] >= 0) {
+      if (!inSolid) { ctx.moveTo(px, topSurface[px]); inSolid = true; }
+      else { ctx.lineTo(px, topSurface[px]); }
+    } else if (inSolid) {
+      // Gap: close down to bottom and back
+      ctx.lineTo(px, height);
+      inSolid = false;
+    }
+  }
+  // Close path along bottom
+  if (inSolid) ctx.lineTo(width, height);
+  ctx.lineTo(width, height);
+  ctx.lineTo(0, height);
+  ctx.closePath();
+  ctx.clip();
 
-      var pIdx = idx * 4;
-      var d = depthMap[idx];
-      var surface = classifySurface(mask, normals, x, y, width, height);
+  // Fill entire clipped region with interior texture
+  ctx.fillStyle = interiorPat;
+  ctx.fillRect(0, 0, width, height);
+  ctx.restore();
 
-      // Choose material based on surface type and depth
-      var matKey: string;
-      if (surface === 'top') matKey = mats.top;
-      else if (surface === 'bottom') matKey = mats.ceiling;
-      else if (surface === 'side-left' || surface === 'side-right') matKey = mats.side;
-      else if (d < 8) matKey = mats.interior;
-      else if (d < 25) matKey = mats.interior;
-      else matKey = mats.deep;
+  // ===== PASS 2: Paint surface material on top layer (top 25px) =====
+  ctx.save();
+  ctx.beginPath();
+  for (var sx = 0; sx < width; sx++) {
+    if (topSurface[sx] >= 0) {
+      // Top surface strip
+      ctx.rect(sx, topSurface[sx], 1, Math.min(25, height - topSurface[sx]));
+    }
+  }
+  ctx.clip();
+  ctx.fillStyle = surfacePat;
+  ctx.fillRect(0, 0, width, height);
+  ctx.restore();
 
-      // Blend between interior and deep based on depth
-      var mat1 = MATERIAL_COLORS[matKey] || MATERIAL_COLORS.rock;
-      var deepMat = MATERIAL_COLORS[mats.deep] || MATERIAL_COLORS.rock;
-      var depthBlend = d > 15 ? Math.min(1, (d - 15) / 25) : 0;
-
-      // Sample noise for texture variation
-      var texNoise = SimplexNoise2D.noise2D(x * 0.06 + seed * 0.01, y * 0.06) * 0.5 + 0.5;
-      var fineNoise = SimplexNoise2D.noise2D(x * 0.25 + 77, y * 0.25 + 77) * 0.15;
-
-      for (var c = 0; c < 3; c++) {
-        var baseVal = mat1.base[c] + (mat1.light[c] - mat1.base[c]) * texNoise * 0.5;
-        var deepVal = deepMat.base[c] + (deepMat.light[c] - deepMat.base[c]) * texNoise * 0.3;
-        var val = baseVal * (1 - depthBlend) + deepVal * depthBlend;
-
-        // Add fine noise grain
-        val += fineNoise * 15;
-
-        // Edge highlight: brighten top surfaces
-        if (surface === 'top' && d < 3) {
-          val += (mat1.light[c] - mat1.base[c]) * 0.5 * (1 - d / 3);
-        }
-
-        // Shadow: darken bottom surfaces and deep interior
-        if (surface === 'bottom') {
-          val *= 0.7;
-        }
-
-        // Ambient occlusion simulation: darken near concavities
-        if (d < 4 && d > 0 && surface === 'interior') {
-          val *= 0.8 + d * 0.05;
-        }
-
-        pixels[pIdx + c] = Math.max(0, Math.min(255, Math.round(val)));
+  // ===== PASS 3: Paint deep material for deep interior =====
+  ctx.save();
+  ctx.beginPath();
+  for (var dpx = 0; dpx < width; dpx++) {
+    for (var dpy = 0; dpy < height; dpy++) {
+      var dpIdx = dpy * width + dpx;
+      if (mask[dpIdx] === 1 && depthFromTop[dpIdx] > 50) {
+        ctx.rect(dpx, dpy, 1, 1);
       }
-      pixels[pIdx + 3] = 255; // fully opaque for solid terrain
+    }
+  }
+  ctx.clip();
+  ctx.fillStyle = deepPat;
+  ctx.fillRect(0, 0, width, height);
+  ctx.restore();
+
+  // ===== PASS 4: Edge highlight along top surface =====
+  ctx.strokeStyle = tex.surface.light;
+  ctx.lineWidth = 2;
+  ctx.globalAlpha = 0.6;
+  ctx.beginPath();
+  var started = false;
+  for (var hx = 0; hx < width; hx++) {
+    if (topSurface[hx] >= 0) {
+      if (!started) { ctx.moveTo(hx, topSurface[hx]); started = true; }
+      else ctx.lineTo(hx, topSurface[hx]);
+    } else { started = false; }
+  }
+  ctx.stroke();
+  ctx.globalAlpha = 1;
+
+  // ===== PASS 5: Shadow on undersides (darken bottom edges) =====
+  for (var shx = 0; shx < width; shx++) {
+    for (var shy = height - 2; shy > 0; shy--) {
+      var shIdx = shy * width + shx;
+      if (mask[shIdx] === 1 && shy + 1 < height && mask[shIdx + width] === 0) {
+        // Bottom edge: darken upward
+        for (var sd = 0; sd < 8; sd++) {
+          var sdY = shy - sd;
+          if (sdY < 0) break;
+          var sdIdx = sdY * width + shx;
+          if (mask[sdIdx] === 0) break;
+          ctx.fillStyle = 'rgba(0,0,0,' + (0.15 - sd * 0.018) + ')';
+          ctx.fillRect(shx, sdY, 1, 1);
+        }
+        break;
+      }
     }
   }
 
-  // Anti-alias edges: partially transparent border pixels
+  // ===== PASS 6: Smooth alpha edges (anti-aliasing) =====
+  var edgeData = ctx.getImageData(0, 0, width, height);
+  var ed = edgeData.data;
   for (var ey = 1; ey < height - 1; ey++) {
     for (var ex = 1; ex < width - 1; ex++) {
       var eIdx = ey * width + ex;
-      if (mask[eIdx] === 0) continue;
-      // Count air neighbors for edge softening
-      var airCount = 0;
-      if (mask[eIdx - 1] === 0) airCount++;
-      if (mask[eIdx + 1] === 0) airCount++;
-      if (mask[eIdx - width] === 0) airCount++;
-      if (mask[eIdx + width] === 0) airCount++;
-      if (airCount > 0 && airCount < 4) {
-        var alpha = 255 - airCount * 35;
-        pixels[eIdx * 4 + 3] = alpha;
+      if (mask[eIdx] === 1) {
+        var air = 0;
+        if (mask[eIdx-1] === 0) air++;
+        if (mask[eIdx+1] === 0) air++;
+        if (mask[eIdx-width] === 0) air++;
+        if (mask[eIdx+width] === 0) air++;
+        if (mask[eIdx-width-1] === 0) air++;
+        if (mask[eIdx-width+1] === 0) air++;
+        if (mask[eIdx+width-1] === 0) air++;
+        if (mask[eIdx+width+1] === 0) air++;
+        if (air > 0) {
+          ed[eIdx*4+3] = Math.max(60, 255 - air * 28);
+        }
+      } else {
+        // Ensure air pixels are fully transparent
+        ed[eIdx*4+3] = 0;
       }
     }
   }
+  ctx.putImageData(edgeData, 0, 0);
 
-  ctx.putImageData(imgData, 0, 0);
+  // ===== PASS 7: Edge decorations (grass, icicles, etc.) =====
+  _drawEdgeDecorations(ctx, mask, topSurface, width, height, theme, seed, tex);
 
-  // --- Pass: Edge decorations (grass blades, icicles, etc.) ---
-  _drawEdgeDecorations(ctx, mask, normals, width, height, theme, seed);
+  // ===== PASS 8: Water layer at bottom =====
+  _drawWaterLayer(ctx, width, height, tex.sky.water, seed);
 
   return canvas;
 }
 
 
-// --- Edge decorations per theme ---
+// --- Lush edge decorations ---
 function _drawEdgeDecorations(
-  ctx: CanvasRenderingContext2D, mask: Uint8Array, normals: Float32Array,
-  width: number, height: number, theme: string, seed: number
+  ctx: CanvasRenderingContext2D, mask: Uint8Array, topSurface: Int16Array,
+  width: number, height: number, theme: string, seed: number, tex: any
 ) {
   SimplexNoise2D.seed(seed + 999);
-  var matColors = THEME_MATERIALS[theme] || THEME_MATERIALS.forest;
-  var topMat = MATERIAL_COLORS[matColors.top] || MATERIAL_COLORS.grass;
+  var edge = tex.edge;
 
-  for (var x = 2; x < width - 2; x += 2) {
-    // Find top surface
-    for (var y = 0; y < height - 1; y++) {
-      var idx = y * width + x;
-      if (mask[idx] === 1 && (y === 0 || mask[idx - width] === 0)) {
-        // This is a top-surface pixel
-        var rng = SimplexNoise2D.noise2D(x * 0.3 + seed, y * 0.1) * 0.5 + 0.5;
+  // --- Top surface: grass strip + blades ---
+  for (var x = 0; x < width; x++) {
+    var topY = topSurface[x];
+    if (topY < 0 || topY > height - 5) continue;
 
-        if (theme === 'forest' || theme === 'sunset') {
-          // Grass blades
-          if (rng > 0.3) {
-            var bladeH = 3 + rng * 8;
-            var lean = SimplexNoise2D.noise2D(x * 0.05, seed * 0.1) * 3;
-            var r = topMat.base[0] + (rng - 0.5) * 30;
-            var g = topMat.base[1] + (rng - 0.5) * 40;
-            var b = topMat.base[2] + (rng - 0.5) * 15;
-            ctx.strokeStyle = 'rgb(' + Math.round(r) + ',' + Math.round(g) + ',' + Math.round(b) + ')';
-            ctx.lineWidth = 1;
-            ctx.beginPath();
-            ctx.moveTo(x, y);
-            ctx.quadraticCurveTo(x + lean, y - bladeH * 0.6, x + lean * 1.5, y - bladeH);
-            ctx.stroke();
-          }
-        } else if (theme === 'arctic') {
-          // Snow sparkle dots
-          if (rng > 0.7) {
-            ctx.fillStyle = 'rgba(230,240,255,' + (0.4 + rng * 0.4) + ')';
-            ctx.fillRect(x, y - 1, 2, 1);
-          }
-        } else if (theme === 'volcanic') {
-          // Ember glow dots
-          if (rng > 0.8) {
-            ctx.fillStyle = 'rgba(255,' + Math.round(80 + rng * 100) + ',20,0.6)';
-            ctx.fillRect(x, y - 1, 1, 1);
-          }
-        } else if (theme === 'candy') {
-          // Sprinkle dots
-          if (rng > 0.6) {
-            var colors = ['#ff6b9d','#ffd93d','#6bcb77','#4d96ff','#ff6b6b'];
-            ctx.fillStyle = colors[Math.floor(rng * colors.length * 5) % colors.length];
-            ctx.fillRect(x, y - 1 - Math.floor(rng * 2), 2, 2);
-          }
-        } else if (theme === 'dark') {
-          // Glowing veins
-          if (rng > 0.85) {
-            ctx.fillStyle = 'rgba(150,80,220,0.5)';
-            ctx.fillRect(x, y, 1, 2);
-          }
-        } else if (theme === 'space') {
-          // Crystal shimmer
-          if (rng > 0.75) {
-            ctx.fillStyle = 'rgba(180,140,255,' + (0.3 + rng * 0.4) + ')';
-            ctx.fillRect(x, y - 1, 1, 1);
-          }
-        } else if (theme === 'ocean') {
-          // Seaweed wisps
-          if (rng > 0.5) {
-            var wispH = 2 + rng * 5;
-            ctx.strokeStyle = 'rgba(40,120,60,0.5)';
-            ctx.lineWidth = 1;
-            ctx.beginPath();
-            ctx.moveTo(x, y);
-            var wLean = Math.sin(x * 0.1) * 3;
-            ctx.quadraticCurveTo(x + wLean, y - wispH * 0.6, x + wLean * 0.8, y - wispH);
-            ctx.stroke();
-          }
-        }
-        break; // found top for this column
-      }
+    var rng = SimplexNoise2D.noise2D(x * 0.15 + seed, topY * 0.05) * 0.5 + 0.5;
+
+    // Grass/edge strip (3-5px thick colored band along surface)
+    if (theme !== 'space' && theme !== 'dark') {
+      var stripH = 3 + Math.floor(rng * 3);
+      ctx.fillStyle = edge.grass;
+      ctx.globalAlpha = 0.7;
+      ctx.fillRect(x, topY, 1, stripH);
+      ctx.globalAlpha = 1;
     }
 
-    // Bottom-surface decorations (cave ceilings)
-    for (var by = height - 1; by > 0; by--) {
-      var bIdx = by * width + x;
-      if (mask[bIdx] === 1 && mask[bIdx + width] === 0 && by < height - 5) {
-        var brng = SimplexNoise2D.noise2D(x * 0.2 + 50, by * 0.2) * 0.5 + 0.5;
-        if (theme === 'arctic' && brng > 0.6) {
-          // Icicles
-          var icicleH = 4 + brng * 12;
-          ctx.fillStyle = 'rgba(180,210,240,0.7)';
+    // Grass blades (every 1-3 pixels for dense look)
+    if (theme === 'forest' || theme === 'sunset' || theme === 'ocean') {
+      if (rng > 0.15) {
+        var bladeCount = 1 + Math.floor(rng * 2);
+        for (var bi = 0; bi < bladeCount; bi++) {
+          var bladeH = 5 + rng * 14 + bi * 3;
+          var lean = SimplexNoise2D.noise2D(x * 0.08 + bi, seed) * 5;
+          var shade = bi === 0 ? edge.grassLight : (rng > 0.5 ? edge.grass : edge.grassDark);
+          ctx.strokeStyle = shade;
+          ctx.lineWidth = 1.2 + bi * 0.3;
           ctx.beginPath();
-          ctx.moveTo(x - 1, by + 1);
-          ctx.lineTo(x + 1, by + 1);
-          ctx.lineTo(x, by + 1 + icicleH);
-          ctx.fill();
-        } else if ((theme === 'forest' || theme === 'ocean') && brng > 0.5) {
-          // Hanging moss/vine
-          var vineH = 3 + brng * 8;
-          ctx.strokeStyle = 'rgba(50,100,40,0.4)';
-          ctx.lineWidth = 1;
-          ctx.beginPath();
-          ctx.moveTo(x, by + 1);
-          ctx.lineTo(x + Math.sin(x) * 2, by + 1 + vineH);
+          ctx.moveTo(x + bi * 0.5, topY);
+          ctx.quadraticCurveTo(x + lean * 0.6 + bi, topY - bladeH * 0.5, x + lean + bi * 0.3, topY - bladeH);
           ctx.stroke();
-        } else if (theme === 'volcanic' && brng > 0.7) {
-          // Lava drips
-          ctx.fillStyle = 'rgba(240,100,20,0.6)';
+        }
+      }
+    } else if (theme === 'arctic') {
+      // Snow mound bumps
+      if (rng > 0.4 && x % 3 === 0) {
+        ctx.fillStyle = 'rgba(220,235,250,0.8)';
+        ctx.beginPath();
+        ctx.ellipse(x, topY, 3 + rng * 4, 2 + rng * 2, 0, Math.PI, 0);
+        ctx.fill();
+      }
+    } else if (theme === 'volcanic') {
+      // Ember particles above surface
+      if (rng > 0.88) {
+        ctx.fillStyle = '#ff6622';
+        ctx.globalAlpha = 0.7;
+        ctx.beginPath();
+        ctx.arc(x, topY - 2 - rng * 6, 1 + rng, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.globalAlpha = 1;
+      }
+      // Ash/soot edge
+      if (rng > 0.3 && x % 2 === 0) {
+        ctx.fillStyle = 'rgba(30,20,15,0.3)';
+        ctx.fillRect(x, topY, 1, 2);
+      }
+    } else if (theme === 'candy') {
+      // Frosting drips + sprinkles
+      if (rng > 0.3) {
+        ctx.fillStyle = '#ffffff';
+        ctx.globalAlpha = 0.6;
+        var frostH = 2 + rng * 5;
+        ctx.fillRect(x, topY - 1, 1, frostH);
+        ctx.globalAlpha = 1;
+      }
+      if (rng > 0.7 && x % 4 === 0) {
+        var spColors = ['#ff4488','#44ddff','#ffdd22','#44ff88','#ff8844'];
+        ctx.fillStyle = spColors[Math.floor(rng * 100) % spColors.length];
+        ctx.fillRect(x, topY - 2, 2, 2);
+      }
+    } else if (theme === 'space') {
+      // Glowing crystal spikes
+      if (rng > 0.75 && x % 5 === 0) {
+        var spikeH = 4 + rng * 10;
+        ctx.fillStyle = '#9966ff';
+        ctx.globalAlpha = 0.6;
+        ctx.beginPath();
+        ctx.moveTo(x - 2, topY);
+        ctx.lineTo(x, topY - spikeH);
+        ctx.lineTo(x + 2, topY);
+        ctx.fill();
+        ctx.fillStyle = '#ccaaff';
+        ctx.globalAlpha = 0.3;
+        ctx.beginPath();
+        ctx.moveTo(x - 1, topY);
+        ctx.lineTo(x, topY - spikeH * 0.7);
+        ctx.lineTo(x + 1, topY);
+        ctx.fill();
+        ctx.globalAlpha = 1;
+      }
+    } else if (theme === 'dark') {
+      // Purple glowing veins
+      if (rng > 0.8 && x % 3 === 0) {
+        ctx.strokeStyle = '#8844cc';
+        ctx.globalAlpha = 0.4;
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(x, topY);
+        ctx.lineTo(x + SimplexNoise2D.noise2D(x, seed) * 4, topY + 5 + rng * 8);
+        ctx.stroke();
+        ctx.globalAlpha = 1;
+      }
+    }
+  }
+
+  // --- Bottom surface decorations (cave ceilings) ---
+  for (var bx = 0; bx < width; bx += 3) {
+    for (var by = 0; by < height - 2; by++) {
+      var bIdx = by * width + bx;
+      if (mask[bIdx] === 1 && mask[bIdx + width] === 0) {
+        var brng = SimplexNoise2D.noise2D(bx * 0.12 + 50, by * 0.12) * 0.5 + 0.5;
+
+        if (theme === 'arctic' && brng > 0.5) {
+          // Icicles
+          var icicleH = 6 + brng * 18;
+          ctx.fillStyle = 'rgba(180,215,245,0.7)';
           ctx.beginPath();
-          ctx.arc(x, by + 2 + brng * 4, 1.5, 0, Math.PI * 2);
+          ctx.moveTo(bx - 2, by + 1);
+          ctx.lineTo(bx + 2, by + 1);
+          ctx.lineTo(bx, by + 1 + icicleH);
+          ctx.fill();
+          // Inner highlight
+          ctx.fillStyle = 'rgba(220,240,255,0.4)';
+          ctx.beginPath();
+          ctx.moveTo(bx - 1, by + 1);
+          ctx.lineTo(bx + 1, by + 1);
+          ctx.lineTo(bx, by + 1 + icicleH * 0.6);
+          ctx.fill();
+        } else if ((theme === 'forest' || theme === 'ocean') && brng > 0.4) {
+          // Hanging vines
+          var vineH = 8 + brng * 15;
+          ctx.strokeStyle = theme === 'ocean' ? 'rgba(40,100,60,0.5)' : 'rgba(50,110,40,0.5)';
+          ctx.lineWidth = 1.5;
+          ctx.beginPath();
+          ctx.moveTo(bx, by + 1);
+          ctx.quadraticCurveTo(bx + Math.sin(bx * 0.2) * 5, by + 1 + vineH * 0.5, bx + Math.sin(bx * 0.1) * 3, by + 1 + vineH);
+          ctx.stroke();
+        } else if (theme === 'volcanic' && brng > 0.6) {
+          // Lava drips
+          var dripH = 3 + brng * 8;
+          ctx.fillStyle = 'rgba(255,100,20,0.7)';
+          ctx.beginPath();
+          ctx.moveTo(bx, by + 1);
+          ctx.lineTo(bx + 1, by + 1);
+          ctx.lineTo(bx + 0.5, by + 1 + dripH);
+          ctx.fill();
+          // Glow
+          ctx.fillStyle = 'rgba(255,200,50,0.3)';
+          ctx.beginPath();
+          ctx.arc(bx + 0.5, by + 1 + dripH, 2, 0, Math.PI * 2);
+          ctx.fill();
+        } else if (theme === 'dark' && brng > 0.55) {
+          // Stalactites
+          var stalH = 5 + brng * 12;
+          ctx.fillStyle = 'rgba(60,55,55,0.8)';
+          ctx.beginPath();
+          ctx.moveTo(bx - 2, by + 1);
+          ctx.lineTo(bx + 2, by + 1);
+          ctx.lineTo(bx, by + 1 + stalH);
           ctx.fill();
         }
         break;
       }
     }
   }
+}
+
+
+// --- Water layer at the bottom ---
+function _drawWaterLayer(ctx: CanvasRenderingContext2D, width: number, height: number, waterColor: string, seed: number) {
+  var waterTop = Math.floor(height * 0.88);
+  var waterH = height - waterTop;
+
+  // Parse water color
+  var wc = waterColor;
+
+  // Water body gradient
+  for (var wy = waterTop; wy < height; wy++) {
+    var t = (wy - waterTop) / waterH;
+    ctx.fillStyle = wc;
+    ctx.globalAlpha = 0.3 + t * 0.4;
+    ctx.fillRect(0, wy, width, 1);
+  }
+  ctx.globalAlpha = 1;
+
+  // Wave surface line
+  ctx.strokeStyle = wc;
+  ctx.globalAlpha = 0.5;
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.moveTo(0, waterTop);
+  for (var wx = 0; wx < width; wx += 4) {
+    var waveY = waterTop + Math.sin(wx * 0.015 + seed * 0.1) * 3 + Math.sin(wx * 0.04) * 1.5;
+    ctx.lineTo(wx, waveY);
+  }
+  ctx.stroke();
+
+  // Surface highlights
+  ctx.strokeStyle = '#ffffff';
+  ctx.globalAlpha = 0.15;
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.moveTo(0, waterTop + 1);
+  for (var whx = 0; whx < width; whx += 4) {
+    var whY = waterTop + 1 + Math.sin(whx * 0.02 + seed * 0.2) * 2;
+    ctx.lineTo(whx, whY);
+  }
+  ctx.stroke();
+  ctx.globalAlpha = 1;
 }
 
 
