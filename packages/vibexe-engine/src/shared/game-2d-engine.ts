@@ -198,46 +198,51 @@ class WorldBuilderSystem {
     }
 
     // =======================================================================
-    // 3. PARALLAX MOUNTAIN LAYERS (3 layers, back to front)
+    // 3. PARALLAX MOUNTAIN LAYERS (3 layers, back to front — smooth rolling hills)
     // =======================================================================
     for (var mi = 0; mi < 3; mi++) {
-      var hillSprite = _getSprite('backgrounds', mi === 2 ? 'mountain_rock' : mi === 1 ? 'hill_snow' : 'hill_green');
+      var mColor = pal.mountains[mi] || pal.mountains[0];
+      var mBaseY = GY - 20 - mi * 70;
+      var mAlpha = 0.5 + mi * 0.15;
       var mLayer: any;
-      if (hillSprite) {
-        // Tile the hill sprite across world width
+
+      // Try sprite-based hills (tinted to theme color)
+      var hillName = mi === 0 ? 'hill_green' : mi === 1 ? 'hill_snow' : 'mountain_rock';
+      var hillTest = _getSprite('backgrounds', hillName);
+      if (hillTest) {
         var hillContainer = new PIXI.Container();
-        var hillW = hillSprite.width || 256;
-        var hillScale = 1.5 + mi * 0.5;
-        var mBaseY = GY - 20 - mi * 70;
-        for (var hx = 0; hx < W + hillW * hillScale; hx += hillW * hillScale * 0.7) {
-          var hSpr = _getSprite('backgrounds', mi === 2 ? 'mountain_rock' : mi === 1 ? 'hill_snow' : 'hill_green');
+        var hillW = (hillTest.width || 512) * (1.5 + mi * 0.4);
+        var overlap = hillW * 0.3;
+        for (var hx = -overlap; hx < W + overlap; hx += hillW - overlap) {
+          var hSpr = _getSprite('backgrounds', hillName);
           if (hSpr) {
-            hSpr.anchor.set(0.5, 1);
-            hSpr.x = hx;
-            hSpr.y = mBaseY;
-            hSpr.scale.set(hillScale + rngRange(-0.2, 0.2), hillScale + rngRange(-0.1, 0.3));
-            hSpr.alpha = 0.4 + mi * 0.2;
+            hSpr.anchor.set(0, 1);
+            hSpr.x = hx + rngRange(-20, 20);
+            hSpr.y = mBaseY + rngRange(-10, 10);
+            hSpr.scale.set((hillW) / (hSpr.width || 512), (1.2 + mi * 0.3) + rngRange(-0.1, 0.1));
+            hSpr.tint = mColor; // Tint to theme palette
+            hSpr.alpha = mAlpha;
             hillContainer.addChild(hSpr);
           }
         }
         mLayer = hillContainer;
       } else {
-        // Fallback: simple colored mountain range using Graphics
+        // Fallback: smooth rolling hills with quadratic curves (NOT jagged triangles)
         var mG = new PIXI.Graphics();
-        var mColor = pal.mountains[mi] || pal.mountains[0];
-        var mBaseY2 = GY - 20 - mi * 70;
-        var mAlpha2 = 0.4 + mi * 0.2;
-        mG.moveTo(0, mBaseY2);
-        for (var mx = 0; mx < W; mx += rngInt(80, 160)) {
-          var peakH = rngRange(40 + mi * 20, 100 + mi * 40);
-          mG.lineTo(mx + rngRange(30, 60), mBaseY2 - peakH);
-          mG.lineTo(mx + rngRange(80, 140), mBaseY2);
+        mG.moveTo(0, mBaseY);
+        var hillWidth = 200 + mi * 80;
+        for (var mx = 0; mx < W; mx += hillWidth * 0.6) {
+          var peakH = rngRange(50 + mi * 25, 100 + mi * 40);
+          var cpX = mx + hillWidth * 0.3;
+          var cpY = mBaseY - peakH;
+          var endX = mx + hillWidth * 0.6;
+          mG.quadraticCurveTo(cpX, cpY, endX, mBaseY + rngRange(-5, 5));
         }
-        mG.lineTo(W, mBaseY2);
+        mG.lineTo(W, mBaseY);
         mG.lineTo(W, H);
         mG.lineTo(0, H);
         mG.closePath();
-        mG.fill({ color: mColor, alpha: mAlpha2 });
+        mG.fill({ color: mColor, alpha: mAlpha });
         mLayer = mG;
       }
       container.addChild(mLayer);

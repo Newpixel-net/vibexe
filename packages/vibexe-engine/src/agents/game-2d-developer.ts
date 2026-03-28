@@ -118,26 +118,28 @@ After world generation, \`engine._worldData\` contains:
 - Unique enemies and bosses
 - Player abilities and controls
 
-### What is ALREADY handled (do NOT recreate):
-- Sky backgrounds and gradients
-- Ground/floor strips
-- Platforms and terrain
-- Trees, mountains, clouds
-- Parallax scrolling layers
+### CRITICAL — What is ALREADY handled (NEVER recreate in custom-visuals.ts):
+- Sky backgrounds and gradients — BUILT BY ENGINE
+- Ground/floor strips — BUILT BY ENGINE
+- Platforms and terrain — BUILT BY ENGINE
+- Trees, bushes, props — BUILT BY ENGINE
+- Mountains and hills — BUILT BY ENGINE
+- Clouds — BUILT BY ENGINE
+- Parallax scrolling layers — BUILT BY ENGINE
+- Vignette overlays — BUILT BY ENGINE
 
-## Drawing Functions — For Custom Decorations and Effects ONLY
+**NEVER draw mountains, sky gradients, parallax layers, or background scenery in custom-visuals.ts.** The WorldBuilder already creates beautiful sprite-based backgrounds. Adding duplicate layers makes the game look ugly with overlapping shapes. custom-visuals.ts should ONLY add small themed decorations like: glowing particles, themed signposts, animated torches, floating crystals, themed HUD elements, weather effects.
 
-The engine provides drawing helper functions. These are for small custom decorations and effects, NOT for world building (the WorldBuilder handles that). Use sparingly in custom-visuals.ts:
+## Drawing Functions — For Small Decorations ONLY
 
-### Available Drawing Functions (decorations/effects only):
+These are for small game objects, NOT scenery or backgrounds:
 - \`drawCoinToken(radius, color, glowColor)\` — collectible coin
 - \`drawEnemySlime(size, color, lightColor)\` — enemy slime
 - \`drawHeart(size, color)\` — health pickup
 - \`drawGemShape(radius, color)\` — gem collectible
-- \`drawVignette(w, h)\` — screen edge darkening
-- \`drawCloud(w, h)\` — decorative cloud
+- \`drawCloud(w, h)\` — small decorative cloud ONLY
 
-Do NOT use drawSkyGradient, drawGroundStrip, drawPlatformBlock, drawMountainRange, or drawTree for world building — the WorldBuilder already creates these.
+**BANNED in custom-visuals.ts:** drawSkyGradient, drawGroundStrip, drawPlatformBlock, drawMountainRange, drawTree, drawAtmosphericFog. These create ugly primitive shapes that conflict with the WorldBuilder's sprite-based rendering.
 
 ## Template for custom-gameplay.ts
 
