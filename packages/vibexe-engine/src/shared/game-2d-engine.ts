@@ -100,6 +100,25 @@ class WorldBuilderSystem {
     function rngRange(min: number, max: number) { return min + rng() * (max - min); }
     function rngInt(min: number, max: number) { return Math.floor(rngRange(min, max + 1)); }
 
+    // Sprite helpers — read from global sprite cache (populated by media-stock.ts)
+    var _cache = (window as any).__vibexeSpriteCache || {};
+    function _getSprite(category: string, name: string): any {
+      var key = '2d/sprites/' + category + '/' + name + '.svg';
+      var tex = _cache[key];
+      if (!tex) { key = '2d/sprites/' + category + '/' + name + '.png'; tex = _cache[key]; }
+      if (!tex) return null;
+      return new PIXI.Sprite(tex);
+    }
+    function _getTilingSprite(category: string, name: string, width: number, height: number): any {
+      var key = '2d/sprites/' + category + '/' + name + '.svg';
+      var tex = _cache[key];
+      if (!tex) { key = '2d/sprites/' + category + '/' + name + '.png'; tex = _cache[key]; }
+      if (!tex || !PIXI.TilingSprite) return null;
+      return new PIXI.TilingSprite({ texture: tex, width: width, height: height });
+    }
+    var _spriteCount = Object.keys(_cache).length;
+    if (_spriteCount > 0) console.log('[WorldBuilder] Sprite cache: ' + _spriteCount + ' textures available');
+
     var container = new PIXI.Container();
     var bodies: any[] = [];
     var platforms: { x: number; y: number; w: number; body: any }[] = [];
@@ -182,7 +201,7 @@ class WorldBuilderSystem {
     // 3. PARALLAX MOUNTAIN LAYERS (3 layers, back to front)
     // =======================================================================
     for (var mi = 0; mi < 3; mi++) {
-      var hillSprite = (typeof _getSprite === 'function') ? _getSprite('backgrounds', mi === 2 ? 'mountain_rock' : mi === 1 ? 'hill_snow' : 'hill_green') : null;
+      var hillSprite = _getSprite('backgrounds', mi === 2 ? 'mountain_rock' : mi === 1 ? 'hill_snow' : 'hill_green');
       var mLayer: any;
       if (hillSprite) {
         // Tile the hill sprite across world width
@@ -191,7 +210,7 @@ class WorldBuilderSystem {
         var hillScale = 1.5 + mi * 0.5;
         var mBaseY = GY - 20 - mi * 70;
         for (var hx = 0; hx < W + hillW * hillScale; hx += hillW * hillScale * 0.7) {
-          var hSpr = (typeof _getSprite === 'function') ? _getSprite('backgrounds', mi === 2 ? 'mountain_rock' : mi === 1 ? 'hill_snow' : 'hill_green') : null;
+          var hSpr = _getSprite('backgrounds', mi === 2 ? 'mountain_rock' : mi === 1 ? 'hill_snow' : 'hill_green');
           if (hSpr) {
             hSpr.anchor.set(0.5, 1);
             hSpr.x = hx;
@@ -231,7 +250,7 @@ class WorldBuilderSystem {
     if (theme !== 'space' && theme !== 'dark') {
       var cCount = cfg.cloudCount;
       for (var ci = 0; ci < cCount; ci++) {
-        var cloudSpr = (typeof _getSprite === 'function') ? _getSprite('clouds', rng() > 0.5 ? 'cloud_puffy' : 'cloud_small') : null;
+        var cloudSpr = _getSprite('clouds', rng() > 0.5 ? 'cloud_puffy' : 'cloud_small');
         if (cloudSpr) {
           cloudSpr.anchor.set(0.5, 0.5);
           cloudSpr.x = rngRange(0, W);
@@ -261,8 +280,8 @@ class WorldBuilderSystem {
     // =======================================================================
     var floorH = H - GY + 60; // extend below screen
     var groundPrefix = groundMap[theme] || 'grass';
-    var groundTopSpr = (typeof _getTilingSprite === 'function') ? _getTilingSprite('ground', groundPrefix + '_top', W, 32) : null;
-    var groundFillSpr = (typeof _getTilingSprite === 'function') ? _getTilingSprite('ground', 'dirt_fill', W, floorH - 32) : null;
+    var groundTopSpr = _getTilingSprite('ground', groundPrefix + '_top', W, 32);
+    var groundFillSpr = _getTilingSprite('ground', 'dirt_fill', W, floorH - 32);
 
     if (groundTopSpr) {
       groundTopSpr.x = 0;
@@ -329,7 +348,7 @@ class WorldBuilderSystem {
         }
       }
 
-      var platSpr = (typeof _getSprite === 'function') ? _getSprite('platforms', platSpriteName) : null;
+      var platSpr = _getSprite('platforms', platSpriteName);
       if (platSpr) {
         platSpr.anchor.set(0.5, 0.5);
         platSpr.x = px;
@@ -363,7 +382,7 @@ class WorldBuilderSystem {
       var treeSpacing = W / Math.max(treeCount, 1);
       for (var ti = 0; ti < treeCount; ti++) {
         var treeName = themeTreeNames[rngInt(0, themeTreeNames.length - 1)];
-        var treeSpr = (typeof _getSprite === 'function') ? _getSprite('trees', treeName) : null;
+        var treeSpr = _getSprite('trees', treeName);
         if (treeSpr) {
           treeSpr.anchor.set(0.5, 1); // bottom-center anchor
           treeSpr.x = ti * treeSpacing + rngRange(40, treeSpacing - 40);
@@ -378,7 +397,7 @@ class WorldBuilderSystem {
     var bushCount = Math.round(rngInt(3, 6) * cfg.decorationDensity);
     for (var bi = 0; bi < bushCount; bi++) {
       var bushName = rng() > 0.5 ? 'bush_green' : 'bush_flower';
-      var bushSpr = (typeof _getSprite === 'function') ? _getSprite('bushes', bushName) : null;
+      var bushSpr = _getSprite('bushes', bushName);
       if (bushSpr) {
         bushSpr.anchor.set(0.5, 1);
         bushSpr.x = rngRange(100, W - 100);
@@ -395,7 +414,7 @@ class WorldBuilderSystem {
     var propNames = ['crate', 'barrel', 'rock', 'fence', 'sign_post'];
     for (var pri = 0; pri < propCount; pri++) {
       var propName = propNames[rngInt(0, propNames.length - 1)];
-      var propSpr = (typeof _getSprite === 'function') ? _getSprite('props', propName) : null;
+      var propSpr = _getSprite('props', propName);
       if (propSpr) {
         propSpr.anchor.set(0.5, 1);
         propSpr.x = rngRange(200, W - 200);
@@ -2544,6 +2563,7 @@ export const _sheetCache: Record<string, any> = {};
 // (esbuild module scope prevents direct access from class methods)
 (window as any).__vibexeSetHeroSheet = function(animations: Record<string, any[]>, frameW?: number, frameH?: number) { _sheetCache['hero'] = { animations: animations, frameWidth: frameW || 128, frameHeight: frameH || 128 }; };
 (window as any).__vibexeSheetCache = _sheetCache;
+(window as any).__vibexeSpriteCache = _spriteCache;
 
 /** Whether the sprite library has been loaded */
 let _spriteLibLoaded = false;
