@@ -1108,9 +1108,12 @@ const supabase = createClient("${supabaseConfig.url}", "${supabaseConfig.anonKey
 import { Engine2D, GameScene } from "../engine/core";
 import { PhysicsWorld, createBody, createStaticBody, createOneWayPlatform, CharacterController } from "../engine/physics";
 import { createAmbientEffect, onJumpDust, onLandImpact, onCollectSparkle, onDeathExplosion } from "../engine/effects";
-import { PALETTES, drawSkyGradient, drawStars, drawMountainRange, drawCloud, drawGroundStrip, drawPlatformBlock, drawPlayerCharacter, drawCoinToken, drawEnemySlime, drawHeart, drawLSystemTree, TREE_PRESETS, createWaterSurface, createLavaSurface, createLightingLayer, drawVignette, drawAtmosphericFog } from "../config/assets";
+import { PALETTES, drawSkyGradient, drawStars, drawMountainRange, drawCloud, drawGroundStrip, drawPlatformBlock, drawPlayerCharacter, drawCoinToken, drawEnemySlime, drawHeart, drawLSystemTree, TREE_PRESETS, createWaterSurface, createLavaSurface, createLightingLayer, drawVignette, drawAtmosphericFog, setNoiseSeed } from "../config/assets";
 import { _loadSpriteLib, _sheetCache } from "../utils/media-stock";
+import { LevelSystem } from "../engine/level-painter";
 ${featureFactories}
+var PIXI = (window as any).PIXI;
+var PAL = PALETTES["${theme}"] || PALETTES.forest;
 export default class GameScene2D implements GameScene {
   name = 'game';
   container = new PIXI.Container();
@@ -1118,6 +1121,15 @@ export default class GameScene2D implements GameScene {
 
   async enter(engine: Engine2D) {
     await _loadSpriteLib("${theme}");
+
+    // Initialize Level Painter
+    if (!engine.level) engine.level = new LevelSystem(engine);
+    engine.level.setHelpers({
+      createStaticBody, createOneWayPlatform,
+      drawSkyGradient, drawStars, drawMountainRange, drawAtmosphericFog, drawCloud,
+      PAL, PALETTES,
+    });
+
 ${spritesheetInjectCode}
     // Register and initialize Feature Bank features
 ${featureRegistrations}
@@ -1146,6 +1158,7 @@ ${featureRegistrations}
 
     this._update = function(dt) {
       engine.features.updateAll(dt);
+      if (engine.level) try { engine.level.update(dt); } catch(e) {}
       if (_customUpdate) try { _customUpdate(engine, dt); } catch(e) {}
       engine.input.endFrame();
     };
