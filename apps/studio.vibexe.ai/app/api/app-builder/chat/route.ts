@@ -1150,7 +1150,7 @@ ${featureRegistrations}
     // Load custom visuals (AI creates src/game/custom-visuals.ts)
     try {
       var _cv = await import("../game/custom-visuals");
-      if (_cv.setup) _cv.setup(engine, this.container);
+      if (_cv.setup) await _cv.setup(engine, this.container);
     } catch(e) { /* custom visuals not created yet — game works without them */ }
 
     var _customUpdate = null;

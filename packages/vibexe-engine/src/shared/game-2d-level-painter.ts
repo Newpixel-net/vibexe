@@ -299,173 +299,211 @@ function generateTerrainMask(width: number, height: number, config: any): Uint8A
 
 
 // ============================================================
-// Phase 2: Procedural Texture Engine (Pattern-Based)
+// Phase 2: Real Texture Engine — PNG assets + Worms rendering pipeline
 // ============================================================
 
-// --- Theme material configs: colors for tiling textures ---
-var THEME_TEXTURES: Record<string, any> = {
-  forest: {
-    surface:  { base: '#4a8c2a', light: '#6ab845', dark: '#2d6618', stripe: '#3a7a22' },
-    interior: { base: '#8b6340', light: '#a07850', dark: '#5c3d20', stripe: '#6b4e30' },
-    deep:     { base: '#6b6060', light: '#858080', dark: '#454040', stripe: '#555050' },
-    edge:     { grass: '#3da025', grassLight: '#60c840', grassDark: '#2a7518' },
-    sky:      { water: '#2288bb' },
-  },
-  sunset: {
-    surface:  { base: '#5a9030', light: '#78b848', dark: '#3a6a18', stripe: '#4a8025' },
-    interior: { base: '#907050', light: '#a88565', dark: '#604530', stripe: '#785a40' },
-    deep:     { base: '#706058', light: '#8a7a70', dark: '#4a3a35', stripe: '#5a4a45' },
-    edge:     { grass: '#4aaa30', grassLight: '#6ad050', grassDark: '#308020' },
-    sky:      { water: '#cc6644' },
-  },
-  volcanic: {
-    surface:  { base: '#4a3a35', light: '#605048', dark: '#2a1a15', stripe: '#3a2a25' },
-    interior: { base: '#5a4540', light: '#705a50', dark: '#3a2520', stripe: '#4a3530' },
-    deep:     { base: '#cc4411', light: '#ff6622', dark: '#882200', stripe: '#ee5518' },
-    edge:     { grass: '#553322', grassLight: '#774433', grassDark: '#332211' },
-    sky:      { water: '#cc3300' },
-  },
-  arctic: {
-    surface:  { base: '#c8dde8', light: '#e0eef5', dark: '#90b0c8', stripe: '#b0cce0' },
-    interior: { base: '#8899a5', light: '#a0b0bb', dark: '#607080', stripe: '#758595' },
-    deep:     { base: '#556068', light: '#6a7880', dark: '#3a4550', stripe: '#485560' },
-    edge:     { grass: '#d0e8f0', grassLight: '#e8f5ff', grassDark: '#a0c8e0' },
-    sky:      { water: '#5588aa' },
-  },
-  candy: {
-    surface:  { base: '#e87aaf', light: '#ff99cc', dark: '#c05588', stripe: '#dd6699' },
-    interior: { base: '#cc88bb', light: '#dda0cc', dark: '#aa6699', stripe: '#bb77aa' },
-    deep:     { base: '#9966aa', light: '#bb88cc', dark: '#774488', stripe: '#aa7799' },
-    edge:     { grass: '#ff88bb', grassLight: '#ffaadd', grassDark: '#dd6699' },
-    sky:      { water: '#ff66aa' },
-  },
-  space: {
-    surface:  { base: '#5533aa', light: '#7755cc', dark: '#331188', stripe: '#4422aa' },
-    interior: { base: '#2a2040', light: '#3a3055', dark: '#1a1028', stripe: '#252035' },
-    deep:     { base: '#6644dd', light: '#8866ff', dark: '#4422aa', stripe: '#5533cc' },
-    edge:     { grass: '#7755dd', grassLight: '#9977ff', grassDark: '#5533bb' },
-    sky:      { water: '#2200aa' },
-  },
-  dark: {
-    surface:  { base: '#3a3535', light: '#504a4a', dark: '#1a1818', stripe: '#2a2525' },
-    interior: { base: '#454040', light: '#5a5555', dark: '#252020', stripe: '#353030' },
-    deep:     { base: '#6633aa', light: '#8855cc', dark: '#441188', stripe: '#5522aa' },
-    edge:     { grass: '#4a4040', grassLight: '#5a5050', grassDark: '#2a2020' },
-    sky:      { water: '#332255' },
-  },
-  ocean: {
-    surface:  { base: '#cc7755', light: '#ee9977', dark: '#994433', stripe: '#bb6644' },
-    interior: { base: '#c8b080', light: '#ddc898', dark: '#a08858', stripe: '#b09870' },
-    deep:     { base: '#6a6560', light: '#807a75', dark: '#454040', stripe: '#555050' },
-    edge:     { grass: '#55aa55', grassLight: '#77cc77', grassDark: '#338833' },
-    sky:      { water: '#2277aa' },
-  },
+// --- Terrain texture paths (served from media-stock CDN) ---
+var TERRAIN_TEXTURE_PATHS: Record<string, any> = {
+  forest:   { fill: '2d/textures/terrain/forest-fill.png',   surface: '2d/textures/terrain/forest-surface.png',   grass: '2d/textures/terrain/forest-grass.png' },
+  sunset:   { fill: '2d/textures/terrain/sunset-fill.png',   surface: '2d/textures/terrain/sunset-surface.png',   grass: '2d/textures/terrain/sunset-grass.png' },
+  volcanic: { fill: '2d/textures/terrain/volcanic-fill.png', surface: '2d/textures/terrain/volcanic-surface.png', grass: '2d/textures/terrain/volcanic-grass.png' },
+  arctic:   { fill: '2d/textures/terrain/arctic-fill.png',   surface: '2d/textures/terrain/arctic-surface.png',   grass: '2d/textures/terrain/arctic-grass.png' },
+  candy:    { fill: '2d/textures/terrain/candy-fill.png',    surface: '2d/textures/terrain/candy-surface.png',    grass: '2d/textures/terrain/candy-grass.png' },
+  space:    { fill: '2d/textures/terrain/space-fill.png',    surface: '2d/textures/terrain/space-surface.png',    grass: '2d/textures/terrain/space-grass.png' },
+  dark:     { fill: '2d/textures/terrain/dark-fill.png',     surface: '2d/textures/terrain/dark-surface.png',     grass: '2d/textures/terrain/dark-grass.png' },
+  ocean:    { fill: '2d/textures/terrain/ocean-fill.png',    surface: '2d/textures/terrain/ocean-surface.png',    grass: '2d/textures/terrain/ocean-grass.png' },
+};
+
+// --- Water colors per theme ---
+var TERRAIN_WATER_COLORS: Record<string, string> = {
+  forest: '#2288bb', sunset: '#cc6644', volcanic: '#cc3300', arctic: '#5588aa',
+  candy: '#ff66aa', space: '#2200aa', dark: '#332255', ocean: '#2277aa',
+};
+
+// --- Grass strip color configs (for procedural fallback) ---
+var TERRAIN_GRASS_COLORS: Record<string, any> = {
+  forest:   { tip: '#1a5510', dark: '#2a7518', main: '#3da025', light: '#60c840' },
+  sunset:   { tip: '#305a10', dark: '#408020', main: '#5aaa30', light: '#7ad050' },
+  volcanic: { tip: '#1a0a05', dark: '#332211', main: '#553322', light: '#664433' },
+  arctic:   { tip: '#90b0c8', dark: '#a0c0d8', main: '#c8dde8', light: '#e8f5ff' },
+  candy:    { tip: '#cc4488', dark: '#dd5599', main: '#ff88bb', light: '#ffaadd' },
+  space:    { tip: '#3322aa', dark: '#5533bb', main: '#7755dd', light: '#9977ff' },
+  dark:     { tip: '#151010', dark: '#2a2020', main: '#3a3030', light: '#4a4040' },
+  ocean:    { tip: '#1a5530', dark: '#2a7540', main: '#3a9550', light: '#55bb77' },
+};
+
+// --- Fallback fill/surface colors when PNGs are not available ---
+var TERRAIN_FALLBACK_COLORS: Record<string, any> = {
+  forest:   { fill: { base: '#8b6340', light: '#a07850', dark: '#5c3d20' }, surface: { base: '#4a8c2a', light: '#6ab845', dark: '#2d6618' } },
+  sunset:   { fill: { base: '#907050', light: '#a88565', dark: '#604530' }, surface: { base: '#5a9030', light: '#78b848', dark: '#3a6a18' } },
+  volcanic: { fill: { base: '#5a4540', light: '#705a50', dark: '#3a2520' }, surface: { base: '#4a3a35', light: '#605048', dark: '#2a1a15' } },
+  arctic:   { fill: { base: '#8899a5', light: '#a0b0bb', dark: '#607080' }, surface: { base: '#c8dde8', light: '#e0eef5', dark: '#90b0c8' } },
+  candy:    { fill: { base: '#cc88bb', light: '#dda0cc', dark: '#aa6699' }, surface: { base: '#e87aaf', light: '#ff99cc', dark: '#c05588' } },
+  space:    { fill: { base: '#2a2040', light: '#3a3055', dark: '#1a1028' }, surface: { base: '#5533aa', light: '#7755cc', dark: '#331188' } },
+  dark:     { fill: { base: '#454040', light: '#5a5555', dark: '#252020' }, surface: { base: '#3a3535', light: '#504a4a', dark: '#1a1818' } },
+  ocean:    { fill: { base: '#c8b080', light: '#ddc898', dark: '#a08858' }, surface: { base: '#cc7755', light: '#ee9977', dark: '#994433' } },
 };
 
 
-// --- Generate high-quality tileable material texture (128x128) ---
-function _generateTileTexture(colors: any, style: string, seed: number): HTMLCanvasElement {
+// --- Load a single image from URL ---
+function _loadImage(url: string): Promise<HTMLImageElement> {
+  return new Promise(function(resolve, reject) {
+    var img = new Image();
+    img.crossOrigin = 'anonymous';
+    img.onload = function() { resolve(img); };
+    img.onerror = function() { reject(new Error('Failed to load: ' + url)); };
+    img.src = url;
+  });
+}
+
+// --- Load all 3 terrain textures for a theme ---
+async function _loadTerrainTextures(theme: string): Promise<any> {
+  var paths = TERRAIN_TEXTURE_PATHS[theme] || TERRAIN_TEXTURE_PATHS.forest;
+  var origin = (window as any).__VIBEXE_API_ORIGIN__ || '';
+  var baseUrl = origin + '/api/app-builder/media-stock/';
+  try {
+    var results = await Promise.all([
+      _loadImage(baseUrl + paths.fill),
+      _loadImage(baseUrl + paths.surface),
+      _loadImage(baseUrl + paths.grass),
+    ]);
+    return { fillImg: results[0], surfaceImg: results[1], grassImg: results[2] };
+  } catch(e) {
+    console.warn('[LevelPainter] Texture load failed, using fallback:', e);
+    return null;
+  }
+}
+
+// --- Generate a fallback tiling pattern canvas (128x128) ---
+function _createFallbackTexture(colors: any, seed: number): HTMLCanvasElement {
   var size = 128;
-  var canvas = document.createElement('canvas');
-  canvas.width = size; canvas.height = size;
-  var ctx = canvas.getContext('2d')!;
+  var c = document.createElement('canvas');
+  c.width = size; c.height = size;
+  var fctx = c.getContext('2d')!;
 
+  // Solid base fill
+  fctx.fillStyle = colors.base;
+  fctx.fillRect(0, 0, size, size);
+
+  // Soft radial blobs for material variation (NOT per-pixel noise)
   SimplexNoise2D.seed(seed);
-
-  // Base fill
-  ctx.fillStyle = colors.base;
-  ctx.fillRect(0, 0, size, size);
-
-  // Layer 1: Large-scale color variation (blotchy)
-  for (var i = 0; i < 12; i++) {
-    var bx = SimplexNoise2D.noise2D(i * 3.7, seed * 0.1) * 0.5 + 0.5;
-    var by = SimplexNoise2D.noise2D(seed * 0.1, i * 3.7) * 0.5 + 0.5;
-    var br = 15 + bx * 30;
-    ctx.fillStyle = i % 2 === 0 ? colors.light : colors.dark;
-    ctx.globalAlpha = 0.15 + bx * 0.1;
-    ctx.beginPath();
-    ctx.ellipse(bx * size, by * size, br, br * 0.7, i * 0.5, 0, Math.PI * 2);
-    ctx.fill();
+  for (var i = 0; i < 10; i++) {
+    var bx = (SimplexNoise2D.noise2D(i * 3.7, seed * 0.1) * 0.5 + 0.5) * size;
+    var by = (SimplexNoise2D.noise2D(seed * 0.1, i * 3.7) * 0.5 + 0.5) * size;
+    var rad = 12 + Math.abs(SimplexNoise2D.noise2D(i * 2, seed)) * 28;
+    var grad = fctx.createRadialGradient(bx, by, 0, bx, by, rad);
+    grad.addColorStop(0, i % 2 === 0 ? colors.light : colors.dark);
+    grad.addColorStop(1, 'rgba(0,0,0,0)');
+    fctx.globalAlpha = 0.18 + Math.abs(SimplexNoise2D.noise2D(i, 0)) * 0.12;
+    fctx.fillStyle = grad;
+    fctx.beginPath();
+    fctx.arc(bx, by, rad, 0, Math.PI * 2);
+    fctx.fill();
   }
-  ctx.globalAlpha = 1;
 
-  // Layer 2: Medium detail (stripes/cracks depending on style)
-  if (style === 'earth' || style === 'rock') {
-    // Horizontal earth strata lines
-    for (var sy = 0; sy < size; sy += 4 + Math.floor(SimplexNoise2D.noise2D(sy * 0.3, seed) * 3)) {
-      var stripeAlpha = 0.06 + Math.abs(SimplexNoise2D.noise2D(sy * 0.2, seed * 0.5)) * 0.08;
-      ctx.strokeStyle = colors.stripe;
-      ctx.globalAlpha = stripeAlpha;
-      ctx.lineWidth = 1 + Math.abs(SimplexNoise2D.noise2D(sy * 0.1, 0)) * 1.5;
-      ctx.beginPath();
-      ctx.moveTo(0, sy);
-      for (var sx = 0; sx < size; sx += 8) {
-        ctx.lineTo(sx, sy + SimplexNoise2D.noise2D(sx * 0.05, sy * 0.05) * 3);
-      }
-      ctx.stroke();
+  // Subtle horizontal strata lines for earth-like look
+  fctx.globalAlpha = 1;
+  for (var sy = 4; sy < size; sy += 5 + Math.floor(Math.abs(SimplexNoise2D.noise2D(sy * 0.3, seed)) * 4)) {
+    fctx.strokeStyle = colors.dark;
+    fctx.globalAlpha = 0.06 + Math.abs(SimplexNoise2D.noise2D(sy * 0.2, seed * 0.5)) * 0.06;
+    fctx.lineWidth = 0.5 + Math.abs(SimplexNoise2D.noise2D(sy * 0.1, 0));
+    fctx.beginPath();
+    fctx.moveTo(0, sy);
+    for (var sx = 0; sx < size; sx += 8) {
+      fctx.lineTo(sx, sy + SimplexNoise2D.noise2D(sx * 0.04, sy * 0.04) * 2);
     }
-    ctx.globalAlpha = 1;
+    fctx.stroke();
   }
+  fctx.globalAlpha = 1;
 
-  if (style === 'rock') {
-    // Crack lines
-    for (var ci = 0; ci < 5; ci++) {
-      var cx = SimplexNoise2D.noise2D(ci * 7, seed) * 0.5 + 0.5;
-      var cy = SimplexNoise2D.noise2D(seed, ci * 7) * 0.5 + 0.5;
-      ctx.strokeStyle = colors.dark;
-      ctx.globalAlpha = 0.2;
-      ctx.lineWidth = 0.5 + Math.random() * 0.5;
-      ctx.beginPath();
-      ctx.moveTo(cx * size, cy * size);
-      for (var cs = 0; cs < 4; cs++) {
-        cx += (SimplexNoise2D.noise2D(ci + cs, seed + cs) * 0.15);
-        cy += (SimplexNoise2D.noise2D(seed + cs, ci + cs) * 0.15);
-        ctx.lineTo(cx * size, cy * size);
-      }
-      ctx.stroke();
+  return c;
+}
+
+// --- Generate a grass strip canvas (256x16) ---
+function _generateGrassStrip(theme: string, seed: number): HTMLCanvasElement {
+  var w = 256, h = 16;
+  var c = document.createElement('canvas');
+  c.width = w; c.height = h;
+  var gctx = c.getContext('2d')!;
+
+  var gc = TERRAIN_GRASS_COLORS[theme] || TERRAIN_GRASS_COLORS.forest;
+
+  // Top 2px: dark blade tips
+  var grad1 = gctx.createLinearGradient(0, 0, 0, 3);
+  grad1.addColorStop(0, gc.tip);
+  grad1.addColorStop(1, gc.dark);
+  gctx.fillStyle = grad1;
+  gctx.fillRect(0, 0, w, 3);
+
+  // Middle 7px: bright grass body
+  gctx.fillStyle = gc.main;
+  gctx.fillRect(0, 3, w, 7);
+
+  // Bottom 6px: gradient to transparent (blends into fill)
+  for (var by = 10; by < h; by++) {
+    var alpha = 1.0 - (by - 10) / (h - 10);
+    gctx.fillStyle = gc.dark;
+    gctx.globalAlpha = alpha * 0.8;
+    gctx.fillRect(0, by, w, 1);
+  }
+  gctx.globalAlpha = 1;
+
+  // Horizontal variation streaks
+  SimplexNoise2D.seed(seed + 888);
+  for (var vx = 0; vx < w; vx++) {
+    var n = SimplexNoise2D.noise2D(vx * 0.3, seed * 0.1);
+    if (n > 0.2) {
+      gctx.fillStyle = gc.light;
+      gctx.globalAlpha = 0.15 + n * 0.1;
+      gctx.fillRect(vx, 2, 1, 7);
+    } else if (n < -0.2) {
+      gctx.fillStyle = gc.dark;
+      gctx.globalAlpha = 0.1;
+      gctx.fillRect(vx, 2, 1, 7);
     }
-    ctx.globalAlpha = 1;
   }
+  gctx.globalAlpha = 1;
 
-  // Layer 3: Fine grain (small noise dots for texture)
-  var imgData = ctx.getImageData(0, 0, size, size);
-  var data = imgData.data;
-  for (var py = 0; py < size; py++) {
-    for (var px = 0; px < size; px++) {
-      var pidx = (py * size + px) * 4;
-      var grain = SimplexNoise2D.noise2D(px * 0.4 + seed * 10, py * 0.4) * 8;
-      data[pidx] = Math.max(0, Math.min(255, data[pidx] + grain));
-      data[pidx+1] = Math.max(0, Math.min(255, data[pidx+1] + grain));
-      data[pidx+2] = Math.max(0, Math.min(255, data[pidx+2] + grain));
-    }
-  }
-  ctx.putImageData(imgData, 0, 0);
-
-  return canvas;
+  return c;
 }
 
 
-// --- Main terrain rendering: pattern-based multi-pass ---
-function renderTerrainCanvas(
+// --- Main terrain rendering: Worms-style multi-pass pipeline ---
+async function renderTerrainCanvas(
   mask: Uint8Array, width: number, height: number,
   theme: string, seed: number
-): HTMLCanvasElement {
+): Promise<HTMLCanvasElement> {
   var canvas = document.createElement('canvas');
   canvas.width = width; canvas.height = height;
   var ctx = canvas.getContext('2d')!;
 
-  var tex = THEME_TEXTURES[theme] || THEME_TEXTURES.forest;
+  // --- Load real PNG textures (or fall back to procedural) ---
+  var textures = await _loadTerrainTextures(theme);
 
-  // Generate tiling textures
-  var surfaceTex = _generateTileTexture(tex.surface, 'earth', seed);
-  var interiorTex = _generateTileTexture(tex.interior, 'earth', seed + 100);
-  var deepTex = _generateTileTexture(tex.deep, 'rock', seed + 200);
+  var fillPat: CanvasPattern;
+  var surfacePat: CanvasPattern;
+  var grassCanvas: HTMLCanvasElement;
 
-  var surfacePat = ctx.createPattern(surfaceTex, 'repeat')!;
-  var interiorPat = ctx.createPattern(interiorTex, 'repeat')!;
-  var deepPat = ctx.createPattern(deepTex, 'repeat')!;
+  if (textures) {
+    fillPat = ctx.createPattern(textures.fillImg, 'repeat')!;
+    surfacePat = ctx.createPattern(textures.surfaceImg, 'repeat')!;
+    // Grass strip from loaded PNG
+    grassCanvas = document.createElement('canvas');
+    grassCanvas.width = textures.grassImg.width;
+    grassCanvas.height = textures.grassImg.height;
+    var grassTmpCtx = grassCanvas.getContext('2d')!;
+    grassTmpCtx.drawImage(textures.grassImg, 0, 0);
+  } else {
+    // Fallback: generate decent pattern textures
+    var fb = TERRAIN_FALLBACK_COLORS[theme] || TERRAIN_FALLBACK_COLORS.forest;
+    var fillCanvas = _createFallbackTexture(fb.fill, seed);
+    var surfCanvas = _createFallbackTexture(fb.surface, seed + 100);
+    fillPat = ctx.createPattern(fillCanvas, 'repeat')!;
+    surfacePat = ctx.createPattern(surfCanvas, 'repeat')!;
+    grassCanvas = _generateGrassStrip(theme, seed);
+  }
 
-  // --- Compute top-surface heightmap for edge detection ---
+  // --- Compute per-column top surface Y ---
   var topSurface = new Int16Array(width);
   for (var tx = 0; tx < width; tx++) {
     topSurface[tx] = -1;
@@ -474,53 +512,34 @@ function renderTerrainCanvas(
     }
   }
 
-  // --- Compute depth from surface for each solid pixel ---
-  var depthFromTop = new Uint8Array(width * height);
-  for (var dx = 0; dx < width; dx++) {
-    var dCount = 0;
-    for (var dy = 0; dy < height; dy++) {
-      var dIdx = dy * width + dx;
-      if (mask[dIdx] === 0) { dCount = 0; }
-      else { dCount++; depthFromTop[dIdx] = Math.min(255, dCount); }
-    }
-  }
-
-  // ===== PASS 1: Fill terrain with interior pattern =====
-  // Use clipping mask approach: draw mask path, then fill with pattern
+  // ===== PASS 1: Fill entire terrain shape with fill pattern =====
   ctx.save();
-  // Build terrain outline path from mask columns
   ctx.beginPath();
   var inSolid = false;
-  // Scan each column, find top pixel
   for (var px = 0; px < width; px++) {
     if (topSurface[px] >= 0) {
       if (!inSolid) { ctx.moveTo(px, topSurface[px]); inSolid = true; }
       else { ctx.lineTo(px, topSurface[px]); }
     } else if (inSolid) {
-      // Gap: close down to bottom and back
       ctx.lineTo(px, height);
       inSolid = false;
     }
   }
-  // Close path along bottom
   if (inSolid) ctx.lineTo(width, height);
   ctx.lineTo(width, height);
   ctx.lineTo(0, height);
   ctx.closePath();
   ctx.clip();
-
-  // Fill entire clipped region with interior texture
-  ctx.fillStyle = interiorPat;
+  ctx.fillStyle = fillPat;
   ctx.fillRect(0, 0, width, height);
   ctx.restore();
 
-  // ===== PASS 2: Paint surface material on top layer (top 25px) =====
+  // ===== PASS 2: Surface texture on top strip (20px from surface) =====
   ctx.save();
   ctx.beginPath();
   for (var sx = 0; sx < width; sx++) {
     if (topSurface[sx] >= 0) {
-      // Top surface strip
-      ctx.rect(sx, topSurface[sx], 1, Math.min(25, height - topSurface[sx]));
+      ctx.rect(sx, topSurface[sx], 1, Math.min(22, height - topSurface[sx]));
     }
   }
   ctx.clip();
@@ -528,134 +547,100 @@ function renderTerrainCanvas(
   ctx.fillRect(0, 0, width, height);
   ctx.restore();
 
-  // ===== PASS 3: Deep material — column-based (efficient) =====
-  // For each column, find where depth > 50 and draw a single rect per column
-  ctx.save();
-  ctx.beginPath();
-  for (var dpx = 0; dpx < width; dpx++) {
-    var deepStart = -1;
-    for (var dpy = 0; dpy < height; dpy++) {
-      var dpIdx = dpy * width + dpx;
-      if (mask[dpIdx] === 1 && depthFromTop[dpIdx] > 50) {
-        if (deepStart < 0) deepStart = dpy;
-      } else if (deepStart >= 0) {
-        ctx.rect(dpx, deepStart, 1, dpy - deepStart);
-        deepStart = -1;
-      }
-    }
-    if (deepStart >= 0) ctx.rect(dpx, deepStart, 1, height - deepStart);
-  }
-  ctx.clip();
-  ctx.fillStyle = deepPat;
-  ctx.fillRect(0, 0, width, height);
-  ctx.restore();
+  // ===== PASS 3: Per-column grass strip painting (Worms edge texture) =====
+  var grassW = grassCanvas.width;
+  var grassH = grassCanvas.height;
+  SimplexNoise2D.seed(seed + 888);
 
-  // ===== PASS 4: Edge highlight along top surface =====
-  ctx.strokeStyle = tex.surface.light;
-  ctx.lineWidth = 2;
-  ctx.globalAlpha = 0.6;
-  ctx.beginPath();
-  var started = false;
-  for (var hx = 0; hx < width; hx++) {
-    if (topSurface[hx] >= 0) {
-      if (!started) { ctx.moveTo(hx, topSurface[hx]); started = true; }
-      else ctx.lineTo(hx, topSurface[hx]);
-    } else { started = false; }
-  }
-  ctx.stroke();
-  ctx.globalAlpha = 1;
+  for (var gx = 0; gx < width; gx++) {
+    var gTopY = topSurface[gx];
+    if (gTopY < 0 || gTopY > height - 3) continue;
 
-  // ===== PASS 5: Shadow on undersides — column scan (efficient) =====
-  // Find bottom edges (solid above air) and draw shadow rects
-  ctx.fillStyle = 'rgba(0,0,0,0.1)';
+    // 0-1px random jitter for natural contour
+    var jitter = Math.round(SimplexNoise2D.noise2D(gx * 0.08, seed * 0.1) * 1.5);
+
+    // Draw a 1px-wide slice of the grass strip texture at the surface
+    ctx.drawImage(
+      grassCanvas,
+      gx % grassW, 0, 1, grassH,
+      gx, gTopY + jitter, 1, grassH
+    );
+  }
+
+  // ===== PASS 4: Bottom edge shadow (darken 5px upward from solid→air) =====
+  ctx.fillStyle = 'rgba(0,0,0,0.12)';
   for (var shx = 0; shx < width; shx += 2) {
-    for (var shy = 0; shy < height - 1; shy++) {
+    for (var shy = 1; shy < height - 1; shy++) {
       var shIdx = shy * width + shx;
       if (mask[shIdx] === 1 && mask[shIdx + width] === 0) {
-        // Bottom edge found: draw shadow rect upward
         var shadowH = Math.min(6, shy);
         ctx.fillRect(shx, shy - shadowH, 2, shadowH);
-        break; // only first bottom edge per column
+        break;
       }
     }
   }
 
-  // ===== PASS 6: Clear air pixels via ImageData =====
-  // Only iterate edge band, not all pixels
+  // ===== PASS 5: Surface highlight line (subtle edge light) =====
+  ctx.strokeStyle = 'rgba(255,255,255,0.15)';
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  var hlStarted = false;
+  for (var hx = 0; hx < width; hx++) {
+    if (topSurface[hx] >= 0) {
+      if (!hlStarted) { ctx.moveTo(hx, topSurface[hx]); hlStarted = true; }
+      else ctx.lineTo(hx, topSurface[hx]);
+    } else { hlStarted = false; }
+  }
+  ctx.stroke();
+
+  // ===== PASS 6: Clear air pixels + soften edges =====
   var edgeData = ctx.getImageData(0, 0, width, height);
   var ed = edgeData.data;
-  // Clear all air pixels and soften edges
   for (var ey = 0; ey < height; ey++) {
     for (var ex = 0; ex < width; ex++) {
       var eIdx = ey * width + ex;
       if (mask[eIdx] === 0) {
-        ed[eIdx*4+3] = 0; // fully transparent air
-      } else if (ey > 0 && ey < height-1 && ex > 0 && ex < width-1) {
-        // Soften edges: check 4 cardinal neighbors
+        ed[eIdx * 4 + 3] = 0;
+      } else if (ey > 0 && ey < height - 1 && ex > 0 && ex < width - 1) {
         var air = 0;
-        if (mask[eIdx-1] === 0) air++;
-        if (mask[eIdx+1] === 0) air++;
-        if (mask[eIdx-width] === 0) air++;
-        if (mask[eIdx+width] === 0) air++;
+        if (mask[eIdx - 1] === 0) air++;
+        if (mask[eIdx + 1] === 0) air++;
+        if (mask[eIdx - width] === 0) air++;
+        if (mask[eIdx + width] === 0) air++;
         if (air > 0) {
-          ed[eIdx*4+3] = Math.max(80, 255 - air * 40);
+          ed[eIdx * 4 + 3] = Math.max(80, 255 - air * 40);
         }
       }
     }
   }
   ctx.putImageData(edgeData, 0, 0);
 
-  // ===== PASS 7: Edge decorations (grass, icicles, etc.) =====
-  _drawEdgeDecorations(ctx, mask, topSurface, width, height, theme, seed, tex);
+  // ===== PASS 7: Theme-specific decorations =====
+  _drawThemeDecorations(ctx, mask, topSurface, width, height, theme, seed);
 
-  // ===== PASS 8: Water layer at bottom =====
-  _drawWaterLayer(ctx, width, height, tex.sky.water, seed);
+  // ===== PASS 8: Water layer =====
+  var waterColor = TERRAIN_WATER_COLORS[theme] || '#2288bb';
+  _drawWaterLayer(ctx, width, height, waterColor, seed);
 
   return canvas;
 }
 
 
-// --- Lush edge decorations ---
-function _drawEdgeDecorations(
+// --- Theme-specific terrain decorations (no generic grass — handled by grass strip) ---
+function _drawThemeDecorations(
   ctx: CanvasRenderingContext2D, mask: Uint8Array, topSurface: Int16Array,
-  width: number, height: number, theme: string, seed: number, tex: any
+  width: number, height: number, theme: string, seed: number
 ) {
   SimplexNoise2D.seed(seed + 999);
-  var edge = tex.edge;
 
-  // --- Top surface: grass strip + blades ---
+  // --- Top surface: theme-specific decorations only ---
   for (var x = 0; x < width; x++) {
     var topY = topSurface[x];
     if (topY < 0 || topY > height - 5) continue;
 
     var rng = SimplexNoise2D.noise2D(x * 0.15 + seed, topY * 0.05) * 0.5 + 0.5;
 
-    // Grass/edge strip (3-5px thick colored band along surface)
-    if (theme !== 'space' && theme !== 'dark') {
-      var stripH = 3 + Math.floor(rng * 3);
-      ctx.fillStyle = edge.grass;
-      ctx.globalAlpha = 0.7;
-      ctx.fillRect(x, topY, 1, stripH);
-      ctx.globalAlpha = 1;
-    }
-
-    // Grass blades (every 1-3 pixels for dense look)
-    if (theme === 'forest' || theme === 'sunset' || theme === 'ocean') {
-      if (rng > 0.15) {
-        var bladeCount = 1 + Math.floor(rng * 2);
-        for (var bi = 0; bi < bladeCount; bi++) {
-          var bladeH = 5 + rng * 14 + bi * 3;
-          var lean = SimplexNoise2D.noise2D(x * 0.08 + bi, seed) * 5;
-          var shade = bi === 0 ? edge.grassLight : (rng > 0.5 ? edge.grass : edge.grassDark);
-          ctx.strokeStyle = shade;
-          ctx.lineWidth = 1.2 + bi * 0.3;
-          ctx.beginPath();
-          ctx.moveTo(x + bi * 0.5, topY);
-          ctx.quadraticCurveTo(x + lean * 0.6 + bi, topY - bladeH * 0.5, x + lean + bi * 0.3, topY - bladeH);
-          ctx.stroke();
-        }
-      }
-    } else if (theme === 'arctic') {
+    if (theme === 'arctic') {
       // Snow mound bumps
       if (rng > 0.4 && x % 3 === 0) {
         ctx.fillStyle = 'rgba(220,235,250,0.8)';
@@ -679,7 +664,7 @@ function _drawEdgeDecorations(
         ctx.fillRect(x, topY, 1, 2);
       }
     } else if (theme === 'candy') {
-      // Frosting drips + sprinkles
+      // Frosting drips
       if (rng > 0.3) {
         ctx.fillStyle = '#ffffff';
         ctx.globalAlpha = 0.6;
@@ -687,8 +672,9 @@ function _drawEdgeDecorations(
         ctx.fillRect(x, topY - 1, 1, frostH);
         ctx.globalAlpha = 1;
       }
+      // Sprinkles
       if (rng > 0.7 && x % 4 === 0) {
-        var spColors = ['#ff4488','#44ddff','#ffdd22','#44ff88','#ff8844'];
+        var spColors = ['#ff4488', '#44ddff', '#ffdd22', '#44ff88', '#ff8844'];
         ctx.fillStyle = spColors[Math.floor(rng * 100) % spColors.length];
         ctx.fillRect(x, topY - 2, 2, 2);
       }
@@ -743,7 +729,6 @@ function _drawEdgeDecorations(
           ctx.lineTo(bx + 2, by + 1);
           ctx.lineTo(bx, by + 1 + icicleH);
           ctx.fill();
-          // Inner highlight
           ctx.fillStyle = 'rgba(220,240,255,0.4)';
           ctx.beginPath();
           ctx.moveTo(bx - 1, by + 1);
@@ -768,7 +753,6 @@ function _drawEdgeDecorations(
           ctx.lineTo(bx + 1, by + 1);
           ctx.lineTo(bx + 0.5, by + 1 + dripH);
           ctx.fill();
-          // Glow
           ctx.fillStyle = 'rgba(255,200,50,0.3)';
           ctx.beginPath();
           ctx.arc(bx + 0.5, by + 1 + dripH, 2, 0, Math.PI * 2);
@@ -1436,7 +1420,7 @@ export class LevelSystem {
     this._helpers = helpers;
   }
 
-  generate(config: any): any {
+  async generate(config: any): Promise<any> {
     var theme = config.theme || 'forest';
     var seed = config.seed || Math.floor(Math.random() * 999999);
     var complexity = config.complexity != null ? config.complexity : 0.5;
@@ -1457,7 +1441,7 @@ export class LevelSystem {
     this._height = levelH;
 
     // --- 2. Render terrain visual ---
-    var terrainCanvas = renderTerrainCanvas(mask, levelW, levelH, theme, seed);
+    var terrainCanvas = await renderTerrainCanvas(mask, levelW, levelH, theme, seed);
     var terrainSprite = PIXI.Sprite.from(terrainCanvas);
     terrainSprite.label = 'level-terrain';
 

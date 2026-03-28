@@ -98,8 +98,8 @@ For PLATFORMER, ADVENTURE, and EXPLORATION games, use engine.level.generate() to
 
 ### Usage in custom-visuals.ts:
 \`\`\`
-export function setup(engine, container) {
-  var result = engine.level.generate({
+export async function setup(engine, container) {
+  var result = await engine.level.generate({
     theme: 'forest',     // matches PALETTES: forest, sunset, space, volcanic, candy, arctic, dark, ocean
     seed: 42,            // deterministic generation
     complexity: 0.6,     // 0 = flat plains, 1 = extreme caves/overhangs
