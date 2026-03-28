@@ -645,55 +645,69 @@ async function renderTerrainCanvas(
     );
   }
 
-  // ===== PASS 4: Bottom edge shadow (darken 5px upward from solid→air) =====
-  ctx.fillStyle = 'rgba(0,0,0,0.12)';
-  for (var shx = 0; shx < width; shx += 2) {
-    for (var shy = 1; shy < height - 1; shy++) {
-      var shIdx = shy * width + shx;
-      if (mask[shIdx] === 1 && mask[shIdx + width] === 0) {
-        var shadowH = Math.min(6, shy);
-        ctx.fillRect(shx, shy - shadowH, 2, shadowH);
-        break;
-      }
+  // ===== PASS 4-7: Combined ImageData pass — depth gradient + edge outline + air clear =====
+  // Compute per-pixel depth from nearest surface (for depth darkening)
+  var depthMap = new Uint16Array(width * height);
+  for (var dmx = 0; dmx < width; dmx++) {
+    var depth = 0;
+    for (var dmy = 0; dmy < height; dmy++) {
+      var dmIdx = dmy * width + dmx;
+      if (mask[dmIdx] === 0) { depth = 0; }
+      else { depth++; depthMap[dmIdx] = depth; }
     }
   }
 
-  // ===== PASS 5: Surface highlight line (subtle edge light) =====
-  ctx.strokeStyle = 'rgba(255,255,255,0.15)';
-  ctx.lineWidth = 1;
-  ctx.beginPath();
-  var hlStarted = false;
-  for (var hx = 0; hx < width; hx++) {
-    if (topSurface[hx] >= 0) {
-      if (!hlStarted) { ctx.moveTo(hx, topSurface[hx]); hlStarted = true; }
-      else ctx.lineTo(hx, topSurface[hx]);
-    } else { hlStarted = false; }
-  }
-  ctx.stroke();
-
-  // ===== PASS 6: Clear air pixels + soften edges =====
   var edgeData = ctx.getImageData(0, 0, width, height);
   var ed = edgeData.data;
+
   for (var ey = 0; ey < height; ey++) {
     for (var ex = 0; ex < width; ex++) {
       var eIdx = ey * width + ex;
+
       if (mask[eIdx] === 0) {
+        // Air pixel: fully transparent
         ed[eIdx * 4 + 3] = 0;
-      } else if (ey > 0 && ey < height - 1 && ex > 0 && ex < width - 1) {
-        var air = 0;
-        if (mask[eIdx - 1] === 0) air++;
-        if (mask[eIdx + 1] === 0) air++;
-        if (mask[eIdx - width] === 0) air++;
-        if (mask[eIdx + width] === 0) air++;
-        if (air > 0) {
-          ed[eIdx * 4 + 3] = Math.max(80, 255 - air * 40);
+        continue;
+      }
+
+      // --- Depth gradient: darken terrain progressively from surface inward ---
+      var d = depthMap[eIdx];
+      if (d > 6) {
+        // Darken by up to 35% at depth 80+
+        var darkFactor = Math.min(0.35, (d - 6) / 220);
+        ed[eIdx * 4] = Math.round(ed[eIdx * 4] * (1 - darkFactor));
+        ed[eIdx * 4 + 1] = Math.round(ed[eIdx * 4 + 1] * (1 - darkFactor));
+        ed[eIdx * 4 + 2] = Math.round(ed[eIdx * 4 + 2] * (1 - darkFactor));
+      }
+
+      // --- Edge detection: count adjacent air pixels ---
+      if (ey > 0 && ey < height - 1 && ex > 0 && ex < width - 1) {
+        var airCount = 0;
+        if (mask[eIdx - 1] === 0) airCount++;
+        if (mask[eIdx + 1] === 0) airCount++;
+        if (mask[eIdx - width] === 0) airCount++;
+        if (mask[eIdx + width] === 0) airCount++;
+        // Diagonal neighbors for thicker outline
+        if (mask[eIdx - width - 1] === 0) airCount++;
+        if (mask[eIdx - width + 1] === 0) airCount++;
+        if (mask[eIdx + width - 1] === 0) airCount++;
+        if (mask[eIdx + width + 1] === 0) airCount++;
+
+        if (airCount >= 1) {
+          // Edge pixel: darken for outline effect
+          // More air neighbors = stronger outline
+          var outlineStrength = Math.min(1.0, airCount / 4);
+          var outlineDark = 0.3 + outlineStrength * 0.4; // 30-70% darkening
+          ed[eIdx * 4] = Math.round(ed[eIdx * 4] * (1 - outlineDark));
+          ed[eIdx * 4 + 1] = Math.round(ed[eIdx * 4 + 1] * (1 - outlineDark));
+          ed[eIdx * 4 + 2] = Math.round(ed[eIdx * 4 + 2] * (1 - outlineDark));
         }
       }
     }
   }
   ctx.putImageData(edgeData, 0, 0);
 
-  // ===== PASS 7: Theme-specific decorations =====
+  // ===== PASS 8: Theme-specific decorations =====
   _drawThemeDecorations(ctx, mask, topSurface, width, height, theme, seed);
 
   // ===== PASS 8: Water layer =====
