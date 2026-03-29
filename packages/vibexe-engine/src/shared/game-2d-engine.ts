@@ -103,16 +103,16 @@ class WorldBuilderSystem {
     // Sprite helpers — read from global sprite cache (populated by media-stock.ts)
     var _cache = (window as any).__vibexeSpriteCache || {};
     function _getSprite(category: string, name: string): any {
-      var key = '2d/sprites/' + category + '/' + name + '.svg';
+      var key = '2d/sprites/' + category + '/' + name + '.png';
       var tex = _cache[key];
-      if (!tex) { key = '2d/sprites/' + category + '/' + name + '.png'; tex = _cache[key]; }
+      if (!tex) { key = '2d/sprites/' + category + '/' + name + '.svg'; tex = _cache[key]; }
       if (!tex) return null;
       return new PIXI.Sprite(tex);
     }
     function _getTilingSprite(category: string, name: string, width: number, height: number): any {
-      var key = '2d/sprites/' + category + '/' + name + '.svg';
+      var key = '2d/sprites/' + category + '/' + name + '.png';
       var tex = _cache[key];
-      if (!tex) { key = '2d/sprites/' + category + '/' + name + '.png'; tex = _cache[key]; }
+      if (!tex) { key = '2d/sprites/' + category + '/' + name + '.svg'; tex = _cache[key]; }
       if (!tex || !PIXI.TilingSprite) return null;
       return new PIXI.TilingSprite({ texture: tex, width: width, height: height });
     }
@@ -2559,14 +2559,14 @@ let _spriteLibLoaded = false;
 /** Sprite catalog — maps style to available sprite paths */
 const SPRITE_CATALOG: Record<string, Record<string, string[]>> = {
   default: {
-    platforms: ['2d/sprites/platforms/grass_block.svg', '2d/sprites/platforms/stone_block.svg', '2d/sprites/platforms/ice_block.svg', '2d/sprites/platforms/sand_block.svg', '2d/sprites/platforms/dark_block.svg'],
-    ground: ['2d/sprites/ground/grass_top.svg', '2d/sprites/ground/dirt_fill.svg', '2d/sprites/ground/stone_top.svg', '2d/sprites/ground/ice_top.svg', '2d/sprites/ground/sand_top.svg'],
-    trees: ['2d/sprites/trees/round_tree.svg', '2d/sprites/trees/pine_tree.svg', '2d/sprites/trees/palm_tree.svg', '2d/sprites/trees/dead_tree.svg'],
-    bushes: ['2d/sprites/bushes/bush_green.svg', '2d/sprites/bushes/bush_flower.svg'],
-    clouds: ['2d/sprites/clouds/cloud_puffy.svg', '2d/sprites/clouds/cloud_small.svg'],
-    collectibles: ['2d/sprites/collectibles/coin_gold.svg', '2d/sprites/collectibles/gem_red.svg', '2d/sprites/collectibles/gem_blue.svg', '2d/sprites/collectibles/star.svg', '2d/sprites/collectibles/heart.svg'],
-    props: ['2d/sprites/props/crate.svg', '2d/sprites/props/barrel.svg', '2d/sprites/props/rock.svg', '2d/sprites/props/fence.svg', '2d/sprites/props/sign_post.svg'],
-    backgrounds: ['2d/sprites/backgrounds/hill_green.svg', '2d/sprites/backgrounds/hill_snow.svg', '2d/sprites/backgrounds/mountain_rock.svg'],
+    platforms: ['2d/sprites/platforms/grass_block.png', '2d/sprites/platforms/stone_block.png', '2d/sprites/platforms/ice_block.png', '2d/sprites/platforms/sand_block.png', '2d/sprites/platforms/dark_block.png'],
+    ground: ['2d/sprites/ground/grass_top.png', '2d/sprites/ground/dirt_fill.png', '2d/sprites/ground/stone_top.png', '2d/sprites/ground/ice_top.png', '2d/sprites/ground/sand_top.png'],
+    trees: ['2d/sprites/trees/round_tree.png', '2d/sprites/trees/pine_tree.png', '2d/sprites/trees/palm_tree.png', '2d/sprites/trees/dead_tree.png'],
+    bushes: ['2d/sprites/bushes/bush_green.png', '2d/sprites/bushes/bush_flower.png'],
+    clouds: ['2d/sprites/clouds/cloud_puffy.png', '2d/sprites/clouds/cloud_small.png'],
+    collectibles: ['2d/sprites/collectibles/coin_gold.png', '2d/sprites/collectibles/gem_red.png', '2d/sprites/collectibles/gem_blue.png', '2d/sprites/collectibles/star.png', '2d/sprites/collectibles/heart.png'],
+    props: ['2d/sprites/props/crate.png', '2d/sprites/props/barrel.png', '2d/sprites/props/rock.png', '2d/sprites/props/fence.png', '2d/sprites/props/sign_post.png'],
+    backgrounds: ['2d/sprites/backgrounds/hill_green.png', '2d/sprites/backgrounds/hill_snow.png', '2d/sprites/backgrounds/mountain_rock.png'],
   },
 };
 
@@ -2651,11 +2651,11 @@ export async function _loadSpriteLib(style?: string): Promise<void> {
  */
 export function _getSprite(category: string, name: string): any {
   var PIXI = (window as any).PIXI;
-  // Try .svg first (new tileset), then .png (legacy)
-  var key = '2d/sprites/' + category + '/' + name + '.svg';
+  // Try .png first (Kenney raster art), then .svg fallback
+  var key = '2d/sprites/' + category + '/' + name + '.png';
   var tex = _spriteCache[key];
   if (!tex) {
-    key = '2d/sprites/' + category + '/' + name + '.png';
+    key = '2d/sprites/' + category + '/' + name + '.svg';
     tex = _spriteCache[key];
   }
   if (!tex) return null;
@@ -2668,10 +2668,10 @@ export function _getSprite(category: string, name: string): any {
  */
 export function _getTilingSprite(category: string, name: string, width: number, height: number): any {
   var PIXI = (window as any).PIXI;
-  var key = '2d/sprites/' + category + '/' + name + '.svg';
+  var key = '2d/sprites/' + category + '/' + name + '.png';
   var tex = _spriteCache[key];
   if (!tex) {
-    key = '2d/sprites/' + category + '/' + name + '.png';
+    key = '2d/sprites/' + category + '/' + name + '.svg';
     tex = _spriteCache[key];
   }
   if (!tex || !PIXI.TilingSprite) return null;
