@@ -523,6 +523,8 @@ export class Engine2D {
   private _elapsed = 0;
   private _paused = false;
   private _updateErrorLogged = false;
+  private _depthSortEnabled = false;
+  private _depthSortLabels: Set<string> | null = null;
   private _fpsFrames = 0;
   private _fpsTime = 0;
   private _fpsDisplay: any = null;
@@ -588,8 +590,9 @@ export class Engine2D {
     const root = rootEl || document.getElementById('root');
     if (root) root.appendChild(this.app.canvas);
 
-    // World container (moves with camera)
+    // World container (moves with camera) — sortableChildren for depth sorting
     this.world = new PIXI.Container();
+    this.world.sortableChildren = true;
     this.app.stage.addChild(this.world);
 
     // UI container (fixed above world)
@@ -640,6 +643,9 @@ export class Engine2D {
 
       // Update feature snippets
       this.features.updateAll(dt);
+
+      // Depth sort — auto-sort world children by y position (depth = -bbox_bottom)
+      if (this._depthSortEnabled) this._depthSort();
 
       // FPS counter
       this._updateFPS(dt);
@@ -747,6 +753,40 @@ export class Engine2D {
 
   // Juice system for professional game feel
   juice: JuiceSystem = new JuiceSystem();
+
+  // ---------------------------------------------------------------------------
+  // Depth sorting — QW7 (GameMaker: depth = -bbox_bottom)
+  // ---------------------------------------------------------------------------
+
+  /**
+   * Enable automatic depth sorting on the world container.
+   * Children are sorted by y position each frame so objects lower on screen render in front.
+   * @param labels — optional array of labels to sort (e.g. ['player','enemy','npc']). If omitted, sorts ALL world children.
+   */
+  enableDepthSort(labels?: string[]): void {
+    this._depthSortEnabled = true;
+    this._depthSortLabels = labels ? new Set(labels) : null;
+  }
+
+  /** Disable automatic depth sorting */
+  disableDepthSort(): void {
+    this._depthSortEnabled = false;
+  }
+
+  /** Internal: set zIndex = -(y + height/2) on sortable children */
+  private _depthSort(): void {
+    var children = this.world.children;
+    var labels = this._depthSortLabels;
+    for (var i = 0; i < children.length; i++) {
+      var c = children[i];
+      if (labels && !labels.has(c.label)) continue;
+      // bbox_bottom ≈ y + half-height (anchor center) or y (anchor top)
+      var h = c.height || 0;
+      var anchorY = c.anchor ? c.anchor.y : 0;
+      var bboxBottom = c.y + h * (1 - anchorY);
+      c.zIndex = -bboxBottom;
+    }
+  }
 
   destroy(): void {
     this.features.destroy();
@@ -1117,6 +1157,45 @@ export class AudioManager {
     if (channel === 'master' && this.masterGain) this.masterGain.gain.value = v;
     else if (channel === 'music' && this.musicGain) this.musicGain.gain.value = v;
     else if (channel === 'sfx' && this.sfxGain) this.sfxGain.gain.value = v;
+  }
+
+  // -------------------------------------------------------------------------
+  // Distance-based audio — QW8 (GameMaker: volume = min(falloff/distance, 1))
+  // -------------------------------------------------------------------------
+
+  /**
+   * Play a sound effect with volume based on distance from the listener (camera center).
+   * @param id - Sound ID (previously loaded)
+   * @param x - World x position of the sound source
+   * @param y - World y position of the sound source
+   * @param config - { falloff?: number (default 300), minVolume?: number (default 0), maxVolume?: number (default 1) }
+   */
+  playAt(id: string, x: number, y: number, config?: { falloff?: number; minVolume?: number; maxVolume?: number }): void {
+    var engine = (window as any).__vibexe_engine__;
+    if (!engine || !engine.camera) { this.playSFX(id, 1); return; }
+    var cam = engine.camera;
+    var cx = cam.x + cam.viewWidth * 0.5;
+    var cy = cam.y + cam.viewHeight * 0.5;
+    var dx = x - cx;
+    var dy = y - cy;
+    var dist = Math.sqrt(dx * dx + dy * dy);
+    var falloff = (config && config.falloff) || 300;
+    var minVol = (config && config.minVolume) || 0;
+    var maxVol = (config && config.maxVolume) || 1;
+    var vol = Math.min(falloff / Math.max(dist, 1), maxVol);
+    if (vol < minVol) return; // Too far — don't play at all
+    this.playSFX(id, vol);
+  }
+
+  /**
+   * Utility: calculate volume from distance (for manual use).
+   * Returns a 0-1 value: min(falloff/distance, 1)
+   */
+  static volumeFromDistance(listenerX: number, listenerY: number, sourceX: number, sourceY: number, falloff = 300): number {
+    var dx = sourceX - listenerX;
+    var dy = sourceY - listenerY;
+    var dist = Math.sqrt(dx * dx + dy * dy);
+    return Math.min(falloff / Math.max(dist, 1), 1);
   }
 }
 

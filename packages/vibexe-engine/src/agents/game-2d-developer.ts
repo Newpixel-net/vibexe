@@ -373,6 +373,21 @@ engine.pixi.blendMode(sprite, 'screen')      // Light overlay (UI highlights)
 engine.pixi.blendMode(sprite, 'normal')      // Default blend mode
 \`\`\`
 
+### Depth Sorting (objects lower on screen render in front)
+\`\`\`
+engine.enableDepthSort()                       // Auto-sort ALL world children by y each frame
+engine.enableDepthSort(['player','enemy','npc']) // Only sort labeled children
+engine.disableDepthSort()                      // Turn off sorting
+\`\`\`
+
+### Distance-Based Audio (volume fades with distance from camera)
+\`\`\`
+engine.audio.playAt('explosion', x, y)                      // Play with auto distance volume (falloff: 300px)
+engine.audio.playAt('fire', x, y, { falloff: 500 })         // Custom falloff range
+engine.audio.playAt('drip', x, y, { minVolume: 0.05 })      // Skip if too quiet
+AudioManager.volumeFromDistance(lx, ly, sx, sy, 300)         // Manual: returns 0-1 volume
+\`\`\`
+
 ### Camera
 \`\`\`
 engine.camera.shake(8, 0.3)                   // Intensity, duration
