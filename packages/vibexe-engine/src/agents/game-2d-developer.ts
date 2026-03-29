@@ -267,25 +267,34 @@ engine.particles.emit('confetti', x, y)                // Celebration burst
 engine.particles.emit('blood', x, y)                   // Impact splatter
 engine.particles.emit('hearts', x, y)                  // Floating hearts
 
-// Custom particle emitter — full control
+// Custom particle emitter — full GM parameter model
 engine.particles.create({
   x: 400, y: 300,
   rate: { min: 5, max: 10, interval: 0.05 },
   life: { min: 0.5, max: 2 },
-  speed: { min: 2, max: 8 },
-  direction: { min: 60, max: 120 },
+  speed: { min: 2, max: 8, wiggle: 3 },
+  direction: { min: 60, max: 120, wiggle: 10 },
   size: { min: 3, max: 12, end: 1 },
-  color: { start: '#ff6600', end: '#220000' },
+  color: { start: '#ff6600', mid: '#ff3300', end: '#220000' },
   alpha: { start: 1, end: 0 },
-  gravity: { force: 3 },
-  emitterShape: 'circle',  // 'point'|'circle'|'rectangle'|'ring'|'line'
+  gravity: { force: 3, direction: 270 },   // direction in degrees (270 = down)
+  rotation: { min: 0, max: 360, speed: 2 },
+  emitterShape: 'circle',  // 'point'|'circle'|'rectangle'|'ring'|'line'|'ellipse'|'diamond'
   emitterSize: 20,
+  emitterWidth: 40,   // For ellipse/rectangle
+  emitterHeight: 20,  // For ellipse/rectangle
+  texture: 'circle',  // 'circle'|'cloud'|'disk'|'explosion'|'flare'|'line'|'pixel'|'ring'|'smoke'|'snow'|'spark'|'sphere'|'square'|'star'
+  additive: true,     // Additive blend mode (glow effect for fire/embers/sparks)
   wiggle: 10,
-  burst: false,  // true = one-shot, false = continuous
+  burst: false,       // true = one-shot, false = continuous
 })
 
+// 14 built-in particle textures (GM shapes)
+engine.particles.textureNames() // ['circle','cloud','disk','explosion','flare','line','pixel','ring','smoke','snow','spark','sphere','square','star']
+engine.particles.getTexture('star')     // Get/generate a texture by name
+
 // Management
-engine.particles.stop(emitter)  // Stop specific emitter
+engine.particles.stop(emitter)  // Stop & recycle to pool
 engine.particles.clear()        // Stop all emitters
 engine.particles.list()         // Get all active emitters
 \`\`\`

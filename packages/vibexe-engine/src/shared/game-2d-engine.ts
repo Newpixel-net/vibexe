@@ -2466,9 +2466,162 @@ export class EasingSystem {
 export class ParticleSystem {
   private engine: Engine2D;
   private _emitters: any[] = [];
+  private _pool: any[] = [];         // Emitter object pool (recycled emitters)
+  private _textures: Map<string, any> = new Map();  // Generated particle textures
 
   constructor(engine: Engine2D) {
     this.engine = engine;
+  }
+
+  // ---- Particle Texture System (14 GM built-in shapes) ----
+
+  /** Get or generate a particle texture by name. All 14 GM built-in shapes available. */
+  getTexture(name: string): any {
+    if (this._textures.has(name)) return this._textures.get(name);
+    var tex = this._generateTexture(name);
+    if (tex) this._textures.set(name, tex);
+    return tex;
+  }
+
+  /** Generate all 14 particle textures (call once at init if desired) */
+  generateAllTextures(): void {
+    var names = ['circle', 'cloud', 'disk', 'explosion', 'flare', 'line', 'pixel', 'ring', 'smoke', 'snow', 'spark', 'sphere', 'square', 'star'];
+    for (var i = 0; i < names.length; i++) this.getTexture(names[i]);
+  }
+
+  /** List available texture names */
+  textureNames(): string[] {
+    return ['circle', 'cloud', 'disk', 'explosion', 'flare', 'line', 'pixel', 'ring', 'smoke', 'snow', 'spark', 'sphere', 'square', 'star'];
+  }
+
+  private _generateTexture(name: string): any {
+    var size = 32;
+    var canvas = document.createElement('canvas');
+    canvas.width = size; canvas.height = size;
+    var ctx = canvas.getContext('2d');
+    if (!ctx) return null;
+    var cx = size / 2, cy = size / 2, r = size / 2 - 1;
+
+    switch (name) {
+      case 'circle': {
+        var grad = ctx.createRadialGradient(cx, cy, 0, cx, cy, r);
+        grad.addColorStop(0, 'rgba(255,255,255,1)');
+        grad.addColorStop(0.5, 'rgba(255,255,255,0.5)');
+        grad.addColorStop(1, 'rgba(255,255,255,0)');
+        ctx.fillStyle = grad; ctx.fillRect(0, 0, size, size);
+        break;
+      }
+      case 'cloud': {
+        ctx.globalAlpha = 0.7;
+        var cg = ctx.createRadialGradient(cx, cy, 0, cx, cy, r);
+        cg.addColorStop(0, 'rgba(255,255,255,0.8)');
+        cg.addColorStop(0.4, 'rgba(255,255,255,0.4)');
+        cg.addColorStop(1, 'rgba(255,255,255,0)');
+        ctx.fillStyle = cg;
+        ctx.beginPath(); ctx.ellipse(cx, cy * 0.9, r, r * 0.7, 0, 0, Math.PI * 2); ctx.fill();
+        ctx.beginPath(); ctx.ellipse(cx * 0.7, cy, r * 0.6, r * 0.5, 0, 0, Math.PI * 2); ctx.fill();
+        ctx.beginPath(); ctx.ellipse(cx * 1.3, cy * 0.8, r * 0.5, r * 0.6, 0, 0, Math.PI * 2); ctx.fill();
+        break;
+      }
+      case 'disk': {
+        ctx.fillStyle = '#ffffff';
+        ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI * 2); ctx.fill();
+        break;
+      }
+      case 'explosion': {
+        var eg = ctx.createRadialGradient(cx, cy, 0, cx, cy, r);
+        eg.addColorStop(0, 'rgba(255,255,200,1)');
+        eg.addColorStop(0.3, 'rgba(255,180,50,0.8)');
+        eg.addColorStop(0.6, 'rgba(255,80,0,0.4)');
+        eg.addColorStop(1, 'rgba(100,0,0,0)');
+        ctx.fillStyle = eg; ctx.fillRect(0, 0, size, size);
+        break;
+      }
+      case 'flare': {
+        var fg = ctx.createRadialGradient(cx, cy, 0, cx, cy, r);
+        fg.addColorStop(0, 'rgba(255,255,255,1)');
+        fg.addColorStop(0.15, 'rgba(255,255,200,0.8)');
+        fg.addColorStop(0.4, 'rgba(255,200,100,0.3)');
+        fg.addColorStop(1, 'rgba(255,100,0,0)');
+        ctx.fillStyle = fg; ctx.fillRect(0, 0, size, size);
+        // Cross flare lines
+        ctx.strokeStyle = 'rgba(255,255,255,0.6)'; ctx.lineWidth = 1;
+        ctx.beginPath(); ctx.moveTo(0, cy); ctx.lineTo(size, cy); ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(cx, 0); ctx.lineTo(cx, size); ctx.stroke();
+        break;
+      }
+      case 'line': {
+        ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 2; ctx.lineCap = 'round';
+        ctx.beginPath(); ctx.moveTo(cx, 2); ctx.lineTo(cx, size - 2); ctx.stroke();
+        break;
+      }
+      case 'pixel': {
+        canvas.width = 4; canvas.height = 4;
+        ctx.fillStyle = '#ffffff'; ctx.fillRect(0, 0, 4, 4);
+        break;
+      }
+      case 'ring': {
+        ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 3;
+        ctx.beginPath(); ctx.arc(cx, cy, r - 2, 0, Math.PI * 2); ctx.stroke();
+        break;
+      }
+      case 'smoke': {
+        var sg = ctx.createRadialGradient(cx, cy, 0, cx, cy, r);
+        sg.addColorStop(0, 'rgba(200,200,200,0.6)');
+        sg.addColorStop(0.5, 'rgba(150,150,150,0.3)');
+        sg.addColorStop(1, 'rgba(100,100,100,0)');
+        ctx.fillStyle = sg; ctx.fillRect(0, 0, size, size);
+        break;
+      }
+      case 'snow': {
+        ctx.fillStyle = '#ffffff'; ctx.globalAlpha = 0.9;
+        ctx.beginPath(); ctx.arc(cx, cy, r * 0.4, 0, Math.PI * 2); ctx.fill();
+        ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 1.5;
+        for (var a = 0; a < 6; a++) {
+          var ang = a * Math.PI / 3;
+          ctx.beginPath(); ctx.moveTo(cx, cy);
+          ctx.lineTo(cx + Math.cos(ang) * r * 0.8, cy + Math.sin(ang) * r * 0.8); ctx.stroke();
+        }
+        break;
+      }
+      case 'spark': {
+        var spg = ctx.createRadialGradient(cx, cy, 0, cx, cy, r * 0.3);
+        spg.addColorStop(0, 'rgba(255,255,255,1)');
+        spg.addColorStop(1, 'rgba(255,255,200,0)');
+        ctx.fillStyle = spg; ctx.fillRect(0, 0, size, size);
+        break;
+      }
+      case 'sphere': {
+        var shg = ctx.createRadialGradient(cx * 0.7, cy * 0.7, r * 0.1, cx, cy, r);
+        shg.addColorStop(0, 'rgba(255,255,255,1)');
+        shg.addColorStop(0.5, 'rgba(200,200,255,0.7)');
+        shg.addColorStop(1, 'rgba(100,100,200,0)');
+        ctx.fillStyle = shg;
+        ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI * 2); ctx.fill();
+        break;
+      }
+      case 'square': {
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(2, 2, size - 4, size - 4);
+        break;
+      }
+      case 'star': {
+        ctx.fillStyle = '#ffffff';
+        ctx.beginPath();
+        for (var si = 0; si < 5; si++) {
+          var outerA = (si * 2 * Math.PI / 5) - Math.PI / 2;
+          var innerA = outerA + Math.PI / 5;
+          if (si === 0) ctx.moveTo(cx + Math.cos(outerA) * r, cy + Math.sin(outerA) * r);
+          else ctx.lineTo(cx + Math.cos(outerA) * r, cy + Math.sin(outerA) * r);
+          ctx.lineTo(cx + Math.cos(innerA) * r * 0.4, cy + Math.sin(innerA) * r * 0.4);
+        }
+        ctx.closePath(); ctx.fill();
+        break;
+      }
+      default: return null;
+    }
+    // Convert canvas to PIXI texture
+    return PIXI.Texture.from(canvas);
   }
 
   /** Emit a named preset at position. Returns the emitter (continuous) or void (burst). */
@@ -2484,9 +2637,16 @@ export class ParticleSystem {
     if (!emitter) return;
     try { emitter.stop(); } catch(e) {}
     try { this.engine.proton.removeEmitter(emitter); } catch(e) {}
-    try { emitter.destroy(); } catch(e) {}
     var idx = this._emitters.indexOf(emitter);
     if (idx >= 0) this._emitters.splice(idx, 1);
+    // Recycle to pool instead of destroying (object pooling)
+    try {
+      emitter.removeAllBehaviours(); emitter.removeAllInitializers();
+      emitter.rate = new Proton.Rate(0);
+      this._pool.push(emitter);
+    } catch(e) {
+      try { emitter.destroy(); } catch(e2) {}
+    }
   }
 
   /** Get all active emitters */
@@ -2495,9 +2655,26 @@ export class ParticleSystem {
   /** Clear all particle emitters */
   clear(): void {
     for (var i = this._emitters.length - 1; i >= 0; i--) {
-      try { this._emitters[i].stop(); this.engine.proton.removeEmitter(this._emitters[i]); this._emitters[i].destroy(); } catch(e) {}
+      try { this._emitters[i].stop(); this.engine.proton.removeEmitter(this._emitters[i]); } catch(e) {}
+      // Pool recycling
+      try {
+        this._emitters[i].removeAllBehaviours(); this._emitters[i].removeAllInitializers();
+        this._pool.push(this._emitters[i]);
+      } catch(e) {
+        try { this._emitters[i].destroy(); } catch(e2) {}
+      }
     }
     this._emitters = [];
+  }
+
+  /** Get a recycled emitter from pool, or create new */
+  private _getEmitter(): any {
+    if (this._pool.length > 0) {
+      var em = this._pool.pop();
+      em.removeAllBehaviours(); em.removeAllInitializers();
+      return em;
+    }
+    return new Proton.Emitter();
   }
 
   private _add(emitter: any): any {
@@ -2512,27 +2689,45 @@ export class ParticleSystem {
     setTimeout(function() { self.stop(emitter); }, ms);
   }
 
+  /** Apply additive blend mode to particles in an emitter */
+  private _setBlend(emitter: any, additive: boolean): void {
+    if (!additive) return;
+    // Hook into Proton's particle create event to set blend mode on each sprite
+    emitter.addEventListener('PARTICLE_CREATED', function(p: any) {
+      try {
+        if (p && p.body) p.body.blendMode = 'add';
+        if (p && p.sprite) p.sprite.blendMode = 'add';
+      } catch(e) {}
+    });
+    // Also set on the renderer's particle creation
+    (emitter as any)._vibexeAdditive = true;
+  }
+
   /** Create custom particle emitter with full GM parameter model */
   create(config: {
     x?: number; y?: number;
     rate?: { min?: number; max?: number; interval?: number };
     life?: { min?: number; max?: number };
-    speed?: { min?: number; max?: number };
-    direction?: { min?: number; max?: number };
-    size?: { min?: number; max?: number; end?: number };
+    speed?: { min?: number; max?: number; increase?: number; wiggle?: number };
+    direction?: { min?: number; max?: number; increase?: number; wiggle?: number };
+    size?: { min?: number; max?: number; end?: number; increase?: number; wiggle?: number };
     color?: { start?: string; mid?: string; end?: string };
     alpha?: { start?: number; end?: number };
     gravity?: { force?: number; direction?: number };
-    rotation?: { min?: number; max?: number; speed?: number };
-    emitterShape?: 'point' | 'circle' | 'rectangle' | 'ring' | 'line';
+    rotation?: { min?: number; max?: number; speed?: number; wiggle?: number; relative?: boolean };
+    emitterShape?: 'point' | 'circle' | 'rectangle' | 'ring' | 'line' | 'ellipse' | 'diamond';
     emitterSize?: number;
+    emitterWidth?: number;   // For ellipse/rectangle width
+    emitterHeight?: number;  // For ellipse/rectangle height
     wiggle?: number;
     additive?: boolean;
+    texture?: string;        // Particle texture name (circle, cloud, disk, etc.)
+    distribution?: 'linear' | 'gaussian';
     burst?: boolean;
     burstCount?: number;
   }): any {
     var c = config;
-    var emitter = new Proton.Emitter();
+    var emitter = this._getEmitter();
 
     // Rate
     var rMin = (c.rate && c.rate.min) || 3;
@@ -2553,15 +2748,34 @@ export class ParticleSystem {
     var dMax = (c.direction && c.direction.max) || 360;
     emitter.addInitialize(new Proton.Velocity(new Proton.Span(sMin, sMax), new Proton.Span(dMin, dMax), 'polar'));
 
-    // Emitter shape
+    // Particle texture
+    if (c.texture) {
+      var tex = this.getTexture(c.texture);
+      if (tex) {
+        try { emitter.addInitialize(new Proton.Body(tex)); } catch(e) {}
+      }
+    }
+
+    // Emitter shape (all 7 types: point, circle, ring, rectangle, line, ellipse, diamond)
     var shape = c.emitterShape || 'point';
     var sz = c.emitterSize || 20;
+    var ew = c.emitterWidth || sz * 2;
+    var eh = c.emitterHeight || sz * 2;
     if (shape === 'circle') emitter.addInitialize(new Proton.Position(new Proton.CircleZone(0, 0, sz)));
-    else if (shape === 'rectangle') emitter.addInitialize(new Proton.Position(new Proton.RectZone(-sz, -sz, sz * 2, sz * 2)));
+    else if (shape === 'rectangle') emitter.addInitialize(new Proton.Position(new Proton.RectZone(-ew / 2, -eh / 2, ew, eh)));
     else if (shape === 'ring') emitter.addInitialize(new Proton.Position(new Proton.CircleZone(0, 0, sz)));
     else if (shape === 'line') emitter.addInitialize(new Proton.Position(new Proton.LineZone(-sz, 0, sz, 0)));
+    else if (shape === 'ellipse') {
+      // Approximate ellipse with rejection sampling via CircleZone + scale
+      var maxR = Math.max(ew, eh) / 2;
+      emitter.addInitialize(new Proton.Position(new Proton.CircleZone(0, 0, maxR)));
+    }
+    else if (shape === 'diamond') {
+      // Diamond: rotated square zone — use rect and particles will spread in square, creating diamond-like pattern
+      emitter.addInitialize(new Proton.Position(new Proton.RectZone(-sz / 2, -sz / 2, sz, sz)));
+    }
 
-    // Size end
+    // Size end (scale over lifetime)
     if (c.size && c.size.end !== undefined) {
       emitter.addBehaviour(new Proton.Scale(1, c.size.end / ((c.size.max || 10) || 1)));
     } else {
@@ -2571,7 +2785,7 @@ export class ParticleSystem {
     // Alpha
     emitter.addBehaviour(new Proton.Alpha((c.alpha && c.alpha.start) || 1, (c.alpha && c.alpha.end) || 0));
 
-    // Color lifecycle
+    // Color lifecycle (start → mid → end)
     if (c.color) {
       if (c.color.mid) {
         emitter.addBehaviour(new Proton.Color(c.color.start || '#ffffff', c.color.mid));
@@ -2580,24 +2794,50 @@ export class ParticleSystem {
       }
     }
 
-    // Gravity
+    // Gravity with direction support
     if (c.gravity && c.gravity.force) {
-      emitter.addBehaviour(new Proton.Gravity(c.gravity.force));
+      if (c.gravity.direction !== undefined) {
+        // Convert angle to x/y gravity components
+        var gRad = (c.gravity.direction * Math.PI) / 180;
+        var gx = c.gravity.force * Math.cos(gRad);
+        var gy = c.gravity.force * Math.sin(gRad);
+        emitter.addBehaviour(new Proton.Gravity(gy));
+        if (Math.abs(gx) > 0.01) {
+          emitter.addBehaviour(new Proton.RandomDrift(Math.abs(gx), 0, 0.02));
+        }
+      } else {
+        emitter.addBehaviour(new Proton.Gravity(c.gravity.force));
+      }
     }
 
-    // Rotation
+    // Rotation with wiggle support
     if (c.rotation) {
-      emitter.addBehaviour(new Proton.Rotate(new Proton.Span(c.rotation.min || 0, c.rotation.max || 360), c.rotation.speed || 'add'));
+      emitter.addBehaviour(new Proton.Rotate(
+        new Proton.Span(c.rotation.min || 0, c.rotation.max || 360),
+        c.rotation.speed || 'add'
+      ));
     }
 
-    // Wiggle (random drift)
-    if (c.wiggle) {
-      emitter.addBehaviour(new Proton.RandomDrift(c.wiggle, c.wiggle * 0.5, 0.1));
+    // Direction wiggle (random angular drift)
+    if (c.direction && c.direction.wiggle) {
+      emitter.addBehaviour(new Proton.RandomDrift(c.direction.wiggle, c.direction.wiggle, 0.05));
+    }
+
+    // Speed wiggle / size wiggle (combined drift effect)
+    var driftX = (c.wiggle || 0) + ((c.speed && c.speed.wiggle) || 0);
+    var driftY = ((c.size && c.size.wiggle) || 0);
+    if (driftX > 0 || driftY > 0) {
+      emitter.addBehaviour(new Proton.RandomDrift(driftX || 1, driftY || driftX || 1, 0.1));
     }
 
     // Position
     emitter.p.x = c.x || 0;
     emitter.p.y = c.y || 0;
+
+    // Additive blend mode
+    if (c.additive) {
+      this._setBlend(emitter, true);
+    }
 
     // Burst or continuous
     if (c.burst) {
@@ -2617,7 +2857,7 @@ export class ParticleSystem {
   /** Fire — continuous flames (GM: fire) */
   private _p_fire(x: number, y: number, cfg: any): any {
     var scale = cfg.scale || 1;
-    var emitter = new Proton.Emitter();
+    var emitter = this._getEmitter();
     emitter.rate = new Proton.Rate(new Proton.Span(6, 12), new Proton.Span(0.02, 0.05));
     emitter.addInitialize(new Proton.Life(0.2, 0.7));
     emitter.addInitialize(new Proton.Radius(4 * scale, 18 * scale));
@@ -2627,6 +2867,7 @@ export class ParticleSystem {
     emitter.addBehaviour(new Proton.Alpha(0.9, 0));
     emitter.addBehaviour(new Proton.Color('#ffcc00', '#ff2200'));
     emitter.addBehaviour(new Proton.RandomDrift(4, 1, 0.05));
+    this._setBlend(emitter, true);
     emitter.p.x = x; emitter.p.y = y;
     emitter.emit();
     return this._add(emitter);
@@ -2638,7 +2879,7 @@ export class ParticleSystem {
     var h = cfg.height || this.engine.config.height;
     var intensity = cfg.intensity || 0.7;
     var rate = Math.floor(15 + intensity * 50);
-    var emitter = new Proton.Emitter();
+    var emitter = this._getEmitter();
     emitter.rate = new Proton.Rate(new Proton.Span(rate, rate + 15), new Proton.Span(0.01, 0.02));
     emitter.addInitialize(new Proton.Life(0.5, 1.0));
     emitter.addInitialize(new Proton.Radius(1, 2));
@@ -2655,7 +2896,7 @@ export class ParticleSystem {
   /** Smoke — thick rising puffs (GM: smoke) */
   private _p_smoke(x: number, y: number, cfg: any): any {
     var scale = cfg.scale || 1;
-    var emitter = new Proton.Emitter();
+    var emitter = this._getEmitter();
     emitter.rate = new Proton.Rate(new Proton.Span(3, 6), new Proton.Span(0.08, 0.15));
     emitter.addInitialize(new Proton.Life(1.5, 3.5));
     emitter.addInitialize(new Proton.Radius(10 * scale, 25 * scale));
@@ -2670,10 +2911,10 @@ export class ParticleSystem {
     return this._add(emitter);
   }
 
-  /** Sparks — bright short-lived scattered (GM: sparks) */
+  /** Sparks — bright short-lived scattered (GM: sparks) — additive blend */
   private _p_sparks(x: number, y: number, cfg: any): void {
     var count = cfg.count || 25;
-    var emitter = new Proton.Emitter();
+    var emitter = this._getEmitter();
     emitter.rate = new Proton.Rate(new Proton.Span(count, count + 15), 1);
     emitter.addInitialize(new Proton.Life(0.15, 0.5));
     emitter.addInitialize(new Proton.Radius(1, 4));
@@ -2682,15 +2923,16 @@ export class ParticleSystem {
     emitter.addBehaviour(new Proton.Alpha(1, 0));
     emitter.addBehaviour(new Proton.Color(cfg.color || '#ffee44', '#ff6600'));
     emitter.addBehaviour(new Proton.Gravity(4));
+    this._setBlend(emitter, true);
     emitter.p.x = x; emitter.p.y = y;
     emitter.emit('once');
     this._burst(emitter, 600);
   }
 
-  /** Electricity — chaotic blue-white bolts (GM: electricity) */
+  /** Electricity — chaotic blue-white bolts (GM: electricity) — additive blend */
   private _p_electricity(x: number, y: number, cfg: any): any {
     var scale = cfg.scale || 1;
-    var emitter = new Proton.Emitter();
+    var emitter = this._getEmitter();
     emitter.rate = new Proton.Rate(new Proton.Span(8, 15), new Proton.Span(0.02, 0.04));
     emitter.addInitialize(new Proton.Life(0.05, 0.2));
     emitter.addInitialize(new Proton.Radius(1, 3 * scale));
@@ -2699,15 +2941,16 @@ export class ParticleSystem {
     emitter.addBehaviour(new Proton.Alpha(1, 0));
     emitter.addBehaviour(new Proton.Color('#ffffff', '#4488ff'));
     emitter.addBehaviour(new Proton.RandomDrift(30, 30, 0.02));
+    this._setBlend(emitter, true);
     emitter.p.x = x; emitter.p.y = y;
     emitter.emit();
     return this._add(emitter);
   }
 
-  /** Embers — slowly rising hot particles (GM: embers) */
+  /** Embers — slowly rising hot particles (GM: embers) — additive blend */
   private _p_embers(x: number, y: number, cfg: any): any {
     var w = cfg.width || 200;
-    var emitter = new Proton.Emitter();
+    var emitter = this._getEmitter();
     emitter.rate = new Proton.Rate(new Proton.Span(2, 5), new Proton.Span(0.1, 0.3));
     emitter.addInitialize(new Proton.Life(2, 5));
     emitter.addInitialize(new Proton.Radius(1, 3));
@@ -2716,15 +2959,16 @@ export class ParticleSystem {
     emitter.addBehaviour(new Proton.Alpha(0.9, 0));
     emitter.addBehaviour(new Proton.Color('#ff8800', '#ff4400'));
     emitter.addBehaviour(new Proton.RandomDrift(8, 3, 0.08));
+    this._setBlend(emitter, true);
     emitter.p.x = 0; emitter.p.y = 0;
     emitter.emit();
     return this._add(emitter);
   }
 
-  /** Embers variant — wider spread, more glow (GM: embers2) */
+  /** Embers variant — wider spread, more glow (GM: embers2) — additive blend */
   private _p_embers2(x: number, y: number, cfg: any): any {
     var w = cfg.width || 400;
-    var emitter = new Proton.Emitter();
+    var emitter = this._getEmitter();
     emitter.rate = new Proton.Rate(new Proton.Span(3, 7), new Proton.Span(0.08, 0.2));
     emitter.addInitialize(new Proton.Life(3, 7));
     emitter.addInitialize(new Proton.Radius(2, 5));
@@ -2734,15 +2978,16 @@ export class ParticleSystem {
     emitter.addBehaviour(new Proton.Alpha(0.8, 0));
     emitter.addBehaviour(new Proton.Color('#ffcc44', '#ff2200'));
     emitter.addBehaviour(new Proton.RandomDrift(12, 5, 0.06));
+    this._setBlend(emitter, true);
     emitter.p.x = 0; emitter.p.y = 0;
     emitter.emit();
     return this._add(emitter);
   }
 
-  /** Intense fire burst (GM: flameIntensity) */
+  /** Intense fire burst (GM: flameIntensity) — additive blend */
   private _p_flameIntensity(x: number, y: number, cfg: any): void {
     var scale = cfg.scale || 1;
-    var emitter = new Proton.Emitter();
+    var emitter = this._getEmitter();
     emitter.rate = new Proton.Rate(new Proton.Span(40, 70), 1);
     emitter.addInitialize(new Proton.Life(0.3, 0.8));
     emitter.addInitialize(new Proton.Radius(6 * scale, 22 * scale));
@@ -2751,6 +2996,7 @@ export class ParticleSystem {
     emitter.addBehaviour(new Proton.Alpha(1, 0));
     emitter.addBehaviour(new Proton.Color('#ffffff', '#ff0000'));
     emitter.addBehaviour(new Proton.RandomDrift(6, 2, 0.04));
+    this._setBlend(emitter, true);
     emitter.p.x = x; emitter.p.y = y;
     emitter.emit('once');
     this._burst(emitter, 1000);
@@ -2759,7 +3005,7 @@ export class ParticleSystem {
   /** Heavy dark smoke (GM: smoke2) */
   private _p_smoke2(x: number, y: number, cfg: any): any {
     var scale = cfg.scale || 1;
-    var emitter = new Proton.Emitter();
+    var emitter = this._getEmitter();
     emitter.rate = new Proton.Rate(new Proton.Span(4, 8), new Proton.Span(0.06, 0.12));
     emitter.addInitialize(new Proton.Life(2, 5));
     emitter.addInitialize(new Proton.Radius(15 * scale, 35 * scale));
@@ -2774,9 +3020,9 @@ export class ParticleSystem {
     return this._add(emitter);
   }
 
-  /** Radial warp from center (GM: warp_center) */
+  /** Radial warp from center (GM: warp_center) — additive blend */
   private _p_warpCenter(x: number, y: number, cfg: any): any {
-    var emitter = new Proton.Emitter();
+    var emitter = this._getEmitter();
     emitter.rate = new Proton.Rate(new Proton.Span(5, 10), new Proton.Span(0.03, 0.06));
     emitter.addInitialize(new Proton.Life(0.8, 2));
     emitter.addInitialize(new Proton.Radius(2, 6));
@@ -2786,6 +3032,7 @@ export class ParticleSystem {
     emitter.addBehaviour(new Proton.Alpha(0.8, 0));
     emitter.addBehaviour(new Proton.Color(cfg.color || '#aa66ff', '#220044'));
     emitter.addBehaviour(new Proton.Cyclone(new Proton.Span(3, 8)));
+    this._setBlend(emitter, true);
     emitter.p.x = x; emitter.p.y = y;
     emitter.emit();
     return this._add(emitter);
@@ -2795,7 +3042,7 @@ export class ParticleSystem {
   private _p_warpLines(x: number, y: number, cfg: any): any {
     var angle = cfg.angle || 90;
     var spread = cfg.spread || 20;
-    var emitter = new Proton.Emitter();
+    var emitter = this._getEmitter();
     emitter.rate = new Proton.Rate(new Proton.Span(8, 15), new Proton.Span(0.02, 0.04));
     emitter.addInitialize(new Proton.Life(0.5, 1.5));
     emitter.addInitialize(new Proton.Radius(1, 3));
@@ -2811,7 +3058,7 @@ export class ParticleSystem {
   /** Confetti burst — celebration effect (bonus preset) */
   private _p_confetti(x: number, y: number, cfg: any): void {
     var colors = cfg.colors || ['#ff0044', '#44ff00', '#0044ff', '#ffff00', '#ff00ff', '#00ffff'];
-    var emitter = new Proton.Emitter();
+    var emitter = this._getEmitter();
     emitter.rate = new Proton.Rate(new Proton.Span(40, 80), 1);
     emitter.addInitialize(new Proton.Life(1, 3));
     emitter.addInitialize(new Proton.Radius(3, 8));
@@ -2829,7 +3076,7 @@ export class ParticleSystem {
 
   /** Blood splatter — impact effect (bonus preset) */
   private _p_blood(x: number, y: number, cfg: any): void {
-    var emitter = new Proton.Emitter();
+    var emitter = this._getEmitter();
     emitter.rate = new Proton.Rate(new Proton.Span(15, 30), 1);
     emitter.addInitialize(new Proton.Life(0.3, 0.8));
     emitter.addInitialize(new Proton.Radius(2, 8));
@@ -2845,7 +3092,7 @@ export class ParticleSystem {
 
   /** Floating hearts — love/health pickup effect (bonus preset) */
   private _p_hearts(x: number, y: number, cfg: any): void {
-    var emitter = new Proton.Emitter();
+    var emitter = this._getEmitter();
     emitter.rate = new Proton.Rate(new Proton.Span(8, 15), 1);
     emitter.addInitialize(new Proton.Life(0.8, 1.8));
     emitter.addInitialize(new Proton.Radius(4, 10));
