@@ -298,31 +298,17 @@ class WorldBuilderSystem {
     }
 
     // =======================================================================
-    // 5-6. GROUND + PLATFORMS (auto-tiled terrain)
+    // 5-6. GROUND + PLATFORMS (solution-path + auto-tiled terrain)
     // =======================================================================
-    // Calculate platform positions first
-    var spacing = (W - 600) / Math.max(cfg.platformCount, 1);
-    var _platPositions: { x: number; y: number; w: number }[] = [];
-    for (var pi = 0; pi < cfg.platformCount; pi++) {
-      var px = 350 + pi * spacing + rngRange(-spacing * 0.2, spacing * 0.2);
-      var pw = rngInt(120, 200);
-      var t = pi / Math.max(cfg.platformCount - 1, 1);
-      var minPY = GY - 360, maxPY = GY - 80;
-      var py: number;
-      switch (cfg.levelShape) {
-        case 'staircase-ascending': py = maxPY - t * (maxPY - minPY) + rngRange(-20, 20); break;
-        case 'valley-bowl': var bowl = Math.abs(t - 0.5) * 2; py = minPY + bowl * (maxPY - minPY) * 0.6 + rngRange(-15, 15); break;
-        case 'hilly-undulating': py = minPY + (maxPY - minPY) * (0.5 + 0.4 * Math.sin(t * Math.PI * 3)) + rngRange(-20, 20); break;
-        default: py = rngRange(minPY, maxPY);
-      }
-      if (pi > 0 && _platPositions.length > 0) {
-        var lastP2 = _platPositions[_platPositions.length - 1];
-        if (Math.abs(py - lastP2.y) < 80) py = lastP2.y + (py > lastP2.y ? 80 : -80);
-      }
-      _platPositions.push({ x: px, y: py, w: pw });
-      var pBody = { x: px, y: py, w: pw, h: 24, isStatic: true, oneWay: true, tag: 'platform' };
+    // Generate reachable platform path from left to right
+    var _platPositions = this._generateSolutionPath(ctx, 350, GY - 200, W - 200, GY - 150, {
+      jumpH: 128, jumpD: 192, count: cfg.platformCount, style: cfg.platformStyle,
+    });
+    for (var pi = 0; pi < _platPositions.length; pi++) {
+      var pp = _platPositions[pi];
+      var pBody = { x: pp.x, y: pp.y, w: pp.w, h: 24, isStatic: true, oneWay: true, tag: 'platform' };
       bodies.push(pBody);
-      platforms.push({ x: px, y: py, w: pw, body: pBody });
+      platforms.push({ x: pp.x, y: pp.y, w: pp.w, body: pBody });
     }
 
     // Ground physics body
@@ -422,6 +408,7 @@ class WorldBuilderSystem {
       container.addChild(vigTop);
       container.addChild(vigBot);
     } catch(e) { /* vignette optional */ }
+    this._addForegroundDecor(ctx, 'outdoor-scroll');
     } // end if (!_bpDone) outdoor-scroll block
 
     // Liquid overlay (applies to any blueprint)
@@ -676,6 +663,181 @@ class WorldBuilderSystem {
   }
 
   // ===================================================================
+  // SOLUTION-PATH GENERATOR — Guarantees playable, reachable platforms
+  // ===================================================================
+
+  /**
+   * Generate a solution path of platform positions from start to end.
+   * Every platform is reachable from the previous one within jump limits.
+   * Returns array of { x, y, w } positions.
+   */
+  private _generateSolutionPath(ctx: any, startX: number, startY: number, endX: number, endY: number, opts?: any): { x: number; y: number; w: number }[] {
+    var rng = ctx.rng, rngRange = ctx.rngRange;
+    var jumpH = (opts && opts.jumpH) || 128;
+    var jumpD = (opts && opts.jumpD) || 192;
+    var count = (opts && opts.count) || ctx.cfg.platformCount || 11;
+    var style = (opts && opts.style) || ctx.cfg.platformStyle || 'spread';
+    var path: { x: number; y: number; w: number }[] = [];
+
+    for (var i = 0; i < count; i++) {
+      var t = (i + 1) / (count + 1); // 0..1 progress
+      var bx: number, by: number, pw: number;
+
+      // Difficulty curve: platforms get narrower as you progress
+      pw = Math.round(180 - t * t * 100 + rng() * 30); // 180→80 range
+
+      switch (style) {
+        case 'staircase':
+          bx = startX + (endX - startX) * t + rngRange(-30, 30);
+          by = startY + (endY - startY) * t + rngRange(-15, 15);
+          break;
+        case 'zigzag':
+          bx = startX + (endX - startX) * t + rngRange(-20, 20);
+          by = startY + (endY - startY) * t + (i % 2 === 0 ? -jumpH * 0.6 : jumpH * 0.3) + rngRange(-10, 10);
+          break;
+        case 'clustered':
+          var group = Math.floor(i / 3);
+          var inGroup = i % 3;
+          var groupCount = Math.ceil(count / 3);
+          bx = startX + ((endX - startX) / groupCount) * (group + 0.3 + inGroup * 0.2) + rngRange(-20, 20);
+          by = startY + (endY - startY) * t + rngRange(-jumpH * 0.4, jumpH * 0.2);
+          pw = Math.round(pw * (inGroup === 1 ? 0.7 : 1.0)); // middle platform in group is smaller
+          break;
+        case 'stacked':
+          bx = startX + (endX - startX) * 0.5 + rngRange(-jumpD * 0.4, jumpD * 0.4);
+          by = startY - (i + 1) * (jumpH * 0.75) + rngRange(-10, 10);
+          break;
+        case 'branching':
+          bx = startX + (endX - startX) * t + rngRange(-40, 40);
+          by = startY + (endY - startY) * t + rngRange(-jumpH * 0.5, jumpH * 0.3);
+          // Every 3rd platform is a side branch (offset further)
+          if (i % 3 === 2) { bx += rngRange(-jumpD * 0.5, jumpD * 0.5); by -= jumpH * 0.4; pw = Math.round(pw * 0.7); }
+          break;
+        default: // spread
+          bx = startX + (endX - startX) * t + rngRange(-jumpD * 0.15, jumpD * 0.15);
+          by = startY + (endY - startY) * t + rngRange(-jumpH * 0.6, jumpH * 0.4);
+      }
+
+      // Ensure reachable from previous platform
+      if (path.length > 0) {
+        var prev = path[path.length - 1];
+        var dx = bx - prev.x, dy = by - prev.y;
+        // Can't jump further than jumpD horizontally
+        if (Math.abs(dx) > jumpD) bx = prev.x + (dx > 0 ? 1 : -1) * jumpD * 0.85;
+        // Can't jump higher than jumpH (but can fall further)
+        if (dy < -jumpH) by = prev.y - jumpH * 0.85;
+      }
+
+      // Clamp to world bounds
+      bx = Math.max(100, Math.min(ctx.W - 100, bx));
+      by = Math.max(60, Math.min(ctx.GY - 40, by));
+
+      path.push({ x: Math.round(bx), y: Math.round(by), w: Math.max(60, pw) });
+    }
+
+    return path;
+  }
+
+  // ===================================================================
+  // FOREGROUND DEPTH — Decoration layers in front of the player
+  // ===================================================================
+
+  /**
+   * Add foreground decoration for depth perception.
+   * Elements render in front of the player (high zIndex).
+   */
+  private _addForegroundDecor(ctx: any, blueprint: string): void {
+    var PIXI = ctx.PIXI, rng = ctx.rng, rngRange = ctx.rngRange, rngInt = ctx.rngInt;
+    var container = ctx.container, W = ctx.W, H = ctx.H, GY = ctx.GY;
+    var fg = new PIXI.Container();
+    fg.label = 'foreground';
+    fg.zIndex = 5000; // render in front of entities
+
+    if (blueprint === 'outdoor-scroll' || blueprint === 'forest-canopy' || blueprint === 'endless-runner') {
+      // Grass tufts at ground level
+      for (var gi = 0; gi < rngInt(12, 25); gi++) {
+        var gx = rngRange(0, W), gs = rngRange(8, 18);
+        var grass = new PIXI.Graphics();
+        grass.moveTo(-gs, 0); grass.lineTo(0, -gs * 1.5); grass.lineTo(gs, 0); grass.closePath();
+        grass.fill({ color: 0x2d6b1a, alpha: rngRange(0.15, 0.35) });
+        grass.x = gx; grass.y = GY; fg.addChild(grass);
+      }
+      // Light rays (diagonal transparent strips)
+      for (var li = 0; li < rngInt(2, 4); li++) {
+        var ray = new PIXI.Graphics();
+        var rx = rngRange(100, W - 100), rw = rngRange(40, 100);
+        ray.moveTo(rx, 0); ray.lineTo(rx + rw, 0);
+        ray.lineTo(rx + rw * 0.3, GY); ray.lineTo(rx - rw * 0.3, GY); ray.closePath();
+        ray.fill({ color: 0xffffcc, alpha: rngRange(0.02, 0.06) });
+        fg.addChild(ray);
+      }
+    }
+
+    if (blueprint === 'cave-system' || blueprint === 'dungeon-rooms') {
+      // Dust motes floating in foreground
+      for (var di = 0; di < rngInt(15, 30); di++) {
+        var dot = new PIXI.Graphics();
+        dot.circle(0, 0, rngRange(1, 3));
+        dot.fill({ color: 0xccccaa, alpha: rngRange(0.08, 0.2) });
+        dot.x = rngRange(0, W); dot.y = rngRange(0, GY);
+        fg.addChild(dot);
+      }
+    }
+
+    if (blueprint === 'forest-canopy') {
+      // Hanging vines in foreground
+      for (var vi = 0; vi < rngInt(6, 12); vi++) {
+        var vine = new PIXI.Graphics();
+        var vx = rngRange(50, W - 50), vh = rngRange(60, 160);
+        vine.rect(-1, 0, 3, vh);
+        vine.fill({ color: 0x1a5a1a, alpha: rngRange(0.12, 0.25) });
+        vine.x = vx; vine.y = rngRange(0, GY * 0.3); fg.addChild(vine);
+      }
+      // Leaf overlay (top)
+      var leafOverlay = new PIXI.Graphics();
+      leafOverlay.rect(0, 0, W, GY * 0.1);
+      leafOverlay.fill({ color: 0x1a4a1a, alpha: 0.1 });
+      fg.addChild(leafOverlay);
+    }
+
+    if (blueprint === 'underwater') {
+      // Foreground bubbles (larger, more visible)
+      for (var bi = 0; bi < rngInt(8, 16); bi++) {
+        var bub = new PIXI.Graphics();
+        bub.circle(0, 0, rngRange(4, 10));
+        bub.fill({ color: 0xccddff, alpha: rngRange(0.06, 0.15) });
+        bub.x = rngRange(0, W); bub.y = rngRange(50, GY);
+        fg.addChild(bub);
+      }
+    }
+
+    if (blueprint === 'city-rooftops') {
+      // Foreground building edge / antenna silhouette
+      for (var ai = 0; ai < rngInt(3, 6); ai++) {
+        var ant = new PIXI.Graphics();
+        var ax = rngRange(50, W - 50);
+        ant.rect(-1, 0, 3, rngRange(30, 60));
+        ant.fill({ color: 0x111122, alpha: rngRange(0.15, 0.3) });
+        ant.x = ax; ant.y = GY - rngRange(50, 150);
+        fg.addChild(ant);
+      }
+    }
+
+    // Atmospheric particles (all blueprints except arena)
+    if (blueprint !== 'arena') {
+      for (var pi = 0; pi < rngInt(5, 12); pi++) {
+        var particle = new PIXI.Graphics();
+        particle.circle(0, 0, rngRange(0.5, 2));
+        particle.fill({ color: 0xffffff, alpha: rngRange(0.04, 0.12) });
+        particle.x = rngRange(0, W); particle.y = rngRange(0, H * 0.8);
+        fg.addChild(particle);
+      }
+    }
+
+    if (fg.children.length > 0) container.addChild(fg);
+  }
+
+  // ===================================================================
   // BLUEPRINT: cave-system — enclosed dark caves with ceiling + floor
   // ===================================================================
   private _buildCaveSystem(ctx: any): void {
@@ -754,6 +916,7 @@ class WorldBuilderSystem {
     var darkTop = new PIXI.Graphics(); darkTop.rect(0, 0, W, 100); darkTop.fill({ color: 0x000000, alpha: 0.4 });
     var darkBot = new PIXI.Graphics(); darkBot.rect(0, H - 60, W, 60); darkBot.fill({ color: 0x000000, alpha: 0.3 });
     container.addChild(darkTop); container.addChild(darkBot);
+    this._addForegroundDecor(ctx, 'cave-system');
   }
 
   // ===================================================================
@@ -818,6 +981,7 @@ class WorldBuilderSystem {
       brickG.rect(W - wallW, by, wallW, 1); brickG.fill({ color: 0x000000, alpha: 0.15 });
     }
     container.addChild(brickG);
+    this._addForegroundDecor(ctx, 'vertical-tower');
   }
 
   // ===================================================================
@@ -885,6 +1049,7 @@ class WorldBuilderSystem {
 
     // Death pit at very bottom
     bodies.push({ x: W / 2, y: H + 20, w: W, h: 40, isStatic: true, tag: 'death' });
+    this._addForegroundDecor(ctx, 'floating-islands');
   }
 
   // ===================================================================
@@ -929,6 +1094,7 @@ class WorldBuilderSystem {
       var pBody = { x: px, y: py, w: pw, h: 16, isStatic: true, oneWay: true, tag: 'platform' };
       bodies.push(pBody); platforms.push({ x: px, y: py, w: pw, body: pBody });
     }
+    this._addForegroundDecor(ctx, 'arena');
   }
 
   // ===================================================================
@@ -1002,6 +1168,7 @@ class WorldBuilderSystem {
       var tG = new PIXI.Graphics(); tG.circle(0, 0, 4); tG.fill({ color: 0xff9933, alpha: 0.7 });
       tG.x = tr.x + rngRange(15, tr.w - 15); tG.y = tr.y + 20; container.addChild(tG);
     }
+    this._addForegroundDecor(ctx, 'dungeon-rooms');
   }
 
   // ===================================================================
@@ -1076,6 +1243,7 @@ class WorldBuilderSystem {
 
     // Death pit at very bottom
     bodies.push({ x: W / 2, y: H + 20, w: W, h: 40, isStatic: true, tag: 'death' });
+    this._addForegroundDecor(ctx, 'city-rooftops');
   }
 
   // ===================================================================
@@ -1150,6 +1318,7 @@ class WorldBuilderSystem {
       var vx = rngRange(50, W - 50), vh = rngRange(80, 200), vy = rngRange(0, GY * 0.4);
       var vG = new PIXI.Graphics(); vG.rect(vx - 1, vy, 3, vh); vG.fill({ color: 0x227722, alpha: 0.5 }); container.addChild(vG);
     }
+    this._addForegroundDecor(ctx, 'forest-canopy');
   }
 
   // ===================================================================
@@ -1212,6 +1381,7 @@ class WorldBuilderSystem {
 
     // Water tint overlay
     var tintG = new PIXI.Graphics(); tintG.rect(0, 0, W, H); tintG.fill({ color: 0x0033aa, alpha: 0.08 }); container.addChild(tintG);
+    this._addForegroundDecor(ctx, 'underwater');
   }
 
   // ===================================================================
@@ -1284,6 +1454,7 @@ class WorldBuilderSystem {
 
     // Death pit
     bodies.push({ x: W / 2, y: H + 20, w: W, h: 40, isStatic: true, tag: 'death' });
+    this._addForegroundDecor(ctx, 'endless-runner');
   }
 }
 
