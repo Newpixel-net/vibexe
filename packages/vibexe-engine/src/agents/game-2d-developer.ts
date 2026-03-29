@@ -302,6 +302,9 @@ engine.particles.list()         // Get all active emitters
 ### Filters (post-processing effects — engine.filters.*)
 \`\`\`
 // Each filter returns an ID for removal. Apply to world (default) or specific container.
+// Convenience: engine.filters.add('underwater', { distortion: 10 }) — add by name
+
+// Core filters
 var id = engine.filters.blur({ strength: 4 })                            // Gaussian blur
 var id = engine.filters.glow({ color: 0x00ffff, outerStrength: 3 })      // Outer glow
 var id = engine.filters.outline({ color: 0xff0000, thickness: 2 })       // Edge outline
@@ -310,11 +313,19 @@ var id = engine.filters.godray({ angle: 30, speed: 1 })                  // Ligh
 var id = engine.filters.adjustment({ brightness: 1.2, saturation: 0.5 }) // Color correction
 var id = engine.filters.dropShadow({ blur: 4, offset: { x: 3, y: 3 } }) // Drop shadow
 var id = engine.filters.motionBlur({ velocity: { x: 10, y: 0 } })       // Directional blur
-var id = engine.filters.vignette({ intensity: 0.5 })                     // Dark edges
-var id = engine.filters.underwater({ tint: 0x4488cc })                   // Underwater tint
-var id = engine.filters.oldFilm({ sepia: 0.3 })                         // Retro film look
-var id = engine.filters.gradient({ color1: 0x000044, alpha: 0.3 })      // Screen gradient
 var { id, filter } = engine.filters.colorMatrix()                        // Raw color matrix
+
+// GM-ported filters (animated)
+var id = engine.filters.vignette({ intensity: 0.5 })                     // Dark edges overlay
+var id = engine.filters.underwater({ distortion: 15, speed: 1 })         // Water distortion + tint
+var id = engine.filters.heathaze({ distortion: 12, speed: 1 })           // Animated heat shimmer
+var id = engine.filters.ripples({ x: 400, y: 300, amplitude: 15 })      // Radial shockwave
+var id = engine.filters.clouds({ scale: 40, density: 0.5, speed: 0.5 }) // Drifting cloud overlay
+var id = engine.filters.oldFilm({ noise: 0.3, flicker: 0.05 })          // Retro film + scanlines
+var id = engine.filters.pixelate({ cellSize: 4 })                        // Retro pixel effect
+var id = engine.filters.gradient({ color1: 0x000044, mode: 'radial' })  // Gradient (linear/radial/horizontal)
+var id = engine.filters.glitch({ slices: 10, offset: 10 })               // Digital glitch
+var id = engine.filters.crt({ curvature: 1, noise: 0.2 })                // CRT monitor effect
 engine.filters.screenshake({ intensity: 10, duration: 0.5 })             // Camera shake
 
 // Management

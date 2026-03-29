@@ -83,7 +83,7 @@ canvas{display:block;width:100%;height:100%}
   // Verify pixi-filters and promote to top-level PIXI.* aliases
   if (PIXI.filters && PIXI.filters.DropShadowFilter) {
     // AI often writes PIXI.GlowFilter instead of PIXI.filters.GlowFilter — alias both
-    var _filterNames = ['GlowFilter', 'DropShadowFilter', 'OutlineFilter', 'BloomFilter', 'BlurFilter', 'ColorMatrixFilter'];
+    var _filterNames = ['GlowFilter', 'DropShadowFilter', 'OutlineFilter', 'BloomFilter', 'BlurFilter', 'ColorMatrixFilter', 'PixelateFilter', 'ShockwaveFilter', 'CRTFilter', 'GlitchFilter', 'AdjustmentFilter', 'AdvancedBloomFilter', 'MotionBlurFilter', 'GodrayFilter'];
     for (var _fi = 0; _fi < _filterNames.length; _fi++) {
       var _fn = _filterNames[_fi];
       if (PIXI.filters[_fn] && !PIXI[_fn]) PIXI[_fn] = PIXI.filters[_fn];

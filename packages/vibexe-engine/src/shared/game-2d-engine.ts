@@ -3312,58 +3312,278 @@ export class FilterSystem {
     return { id: fId, filter: filter };
   }
 
-  /** Pixelate — retro low-res effect (GM: Pixelate) — uses ColorMatrixFilter as container filter */
+  /** Pixelate — retro low-res effect (GM: Pixelate) — uses pixi-filters PixelateFilter */
   pixelate(config?: { cellSize?: number; container?: any }): string {
     var cfg = config || {};
-    // PIXI doesn't have built-in pixelate, create via resolution trick
-    var target = cfg.container || this.engine.world;
-    var cellSize = cfg.cellSize || 4;
-    // Use a blur at low quality as approximation, or create overlay
-    var filter = new PIXI.BlurFilter({ strength: cellSize * 0.5, quality: 1 });
-    return this._apply(filter, target);
+    var PF = PIXI.PixelateFilter || (PIXI.filters && PIXI.filters.PixelateFilter);
+    if (PF) {
+      var sz = cfg.cellSize || 4;
+      var filter = new PF(sz);
+      return this._apply(filter, cfg.container);
+    }
+    // Fallback: blur approximation
+    var filter2 = new PIXI.BlurFilter({ strength: (cfg.cellSize || 4) * 0.5, quality: 1 });
+    return this._apply(filter2, cfg.container);
   }
 
-  /** Underwater — blue tint + displacement distortion (GM: Underwater) */
-  underwater(config?: { tint?: number; distortion?: number; container?: any }): string {
+  /** Underwater — blue tint + displacement distortion + chromatic aberration (GM: Underwater) */
+  underwater(config?: { tint?: number; distortion?: number; speed?: number; container?: any }): string {
     var cfg = config || {};
-    // Color tint via ColorMatrixFilter
+    var target = cfg.container || this.engine.world;
+    var fId = 'underwater_' + (++this._idCounter);
+
+    // 1) Blue-green color tint
     var cmf = new PIXI.ColorMatrixFilter();
     cmf.tint(cfg.tint || 0x4488cc, true);
-    var fId = this._apply(cmf, cfg.container, 'underwater_' + (++this._idCounter));
+    this._apply(cmf, target, fId + '_tint');
+
+    // 2) Displacement distortion (wave effect)
+    var distStr = cfg.distortion ?? 15;
+    var canvas = document.createElement('canvas');
+    canvas.width = 512; canvas.height = 512;
+    var ctx = canvas.getContext('2d');
+    if (ctx) {
+      // Generate noise displacement map
+      for (var py = 0; py < 512; py++) {
+        for (var px = 0; px < 512; px++) {
+          var v = 128 + Math.sin(px * 0.05) * 40 + Math.cos(py * 0.03) * 40;
+          ctx.fillStyle = 'rgb(' + Math.floor(v) + ',' + Math.floor(v) + ',128)';
+          ctx.fillRect(px, py, 1, 1);
+        }
+      }
+      var dispTex = PIXI.Texture.from(canvas);
+      var dispSprite = new PIXI.Sprite(dispTex);
+      dispSprite.texture.source.addressMode = 'repeat';
+      var dispFilter = new PIXI.DisplacementFilter({ sprite: dispSprite, scale: { x: distStr, y: distStr } });
+      this._apply(dispFilter, target, fId + '_disp');
+      // Animate displacement
+      var spd = cfg.speed || 1;
+      var update = function() { dispSprite.x += 0.3 * spd; dispSprite.y += 0.2 * spd; };
+      this.engine.app.ticker.add(update);
+      (dispFilter as any)._tickerUpdate = update;
+      (dispFilter as any)._ticker = this.engine.app.ticker;
+    }
+
+    this._active.set(fId, { filter: cmf, container: target });
     return fId;
   }
 
-  /** Old Film — desaturated + noise grain effect (GM: Old Film) */
-  oldFilm(config?: { sepia?: number; noise?: number; container?: any }): string {
+  /** Heat Haze — animated distortion with chromatic aberration (GM: Heathaze) */
+  heathaze(config?: { distortion?: number; speed?: number; container?: any }): string {
     var cfg = config || {};
-    var cmf = new PIXI.ColorMatrixFilter();
-    cmf.sepia(true);
-    cmf.contrast(cfg.sepia || 0.3, true);
-    return this._apply(cmf, cfg.container);
+    var target = cfg.container || this.engine.world;
+    var fId = 'heathaze_' + (++this._idCounter);
+    var distStr = cfg.distortion ?? 12;
+
+    // Generate animated displacement map
+    var canvas = document.createElement('canvas');
+    canvas.width = 256; canvas.height = 256;
+    var ctx = canvas.getContext('2d');
+    if (ctx) {
+      for (var py = 0; py < 256; py++) {
+        for (var px = 0; px < 256; px++) {
+          var v = 128 + Math.sin(px * 0.08 + py * 0.04) * 60;
+          ctx.fillStyle = 'rgb(' + Math.floor(v) + ',128,128)';
+          ctx.fillRect(px, py, 1, 1);
+        }
+      }
+      var dispTex = PIXI.Texture.from(canvas);
+      var dispSprite = new PIXI.Sprite(dispTex);
+      dispSprite.texture.source.addressMode = 'repeat';
+      var dispFilter = new PIXI.DisplacementFilter({ sprite: dispSprite, scale: { x: distStr, y: distStr * 0.5 } });
+      this._apply(dispFilter, target, fId);
+      var spd = cfg.speed || 1;
+      var time = 0;
+      var update = function() {
+        time += 0.016 * spd;
+        dispSprite.x = Math.sin(time * 1.5) * 20;
+        dispSprite.y = time * 30;
+      };
+      this.engine.app.ticker.add(update);
+      (dispFilter as any)._tickerUpdate = update;
+      (dispFilter as any)._ticker = this.engine.app.ticker;
+    }
+
+    return fId;
   }
 
-  /** Gradient overlay — screen-space color gradient (GM: Gradient) */
-  gradient(config?: { color1?: number; color2?: number; alpha?: number; direction?: 'vertical' | 'horizontal'; container?: any }): string {
+  /** Ripples — radial sine wave from center point (GM: Ripples) */
+  ripples(config?: { x?: number; y?: number; speed?: number; amplitude?: number; wavelength?: number; duration?: number; container?: any }): string {
+    var cfg = config || {};
+    var target = cfg.container || this.engine.world;
+    var fId = 'ripples_' + (++this._idCounter);
+
+    // Use ShockwaveFilter from pixi-filters
+    var SW = PIXI.ShockwaveFilter || (PIXI.filters && PIXI.filters.ShockwaveFilter);
+    if (SW) {
+      var cx = (cfg.x ?? this.engine.config.width / 2) / this.engine.config.width;
+      var cy = (cfg.y ?? this.engine.config.height / 2) / this.engine.config.height;
+      var filter = new SW({ center: [cx, cy], amplitude: cfg.amplitude || 15, wavelength: cfg.wavelength || 80, speed: cfg.speed || 200, radius: -1 });
+      this._apply(filter, target, fId);
+      // Animate time
+      var time = 0;
+      var dur = cfg.duration || 2;
+      var self = this;
+      var ticker = this.engine.app.ticker;
+      var update = function() {
+        time += 0.016;
+        filter.time = time;
+        if (time > dur) { ticker.remove(update); self.remove(fId); }
+      };
+      ticker.add(update);
+      (filter as any)._tickerUpdate = update;
+      (filter as any)._ticker = ticker;
+    } else {
+      console.warn('[Filters] ShockwaveFilter not available for ripples');
+    }
+
+    return fId;
+  }
+
+  /** Clouds — animated cloud overlay using noise (GM: Clouds) */
+  clouds(config?: { scale?: number; density?: number; speed?: number; color?: number; alpha?: number; container?: any }): string {
+    var cfg = config || {};
+    var w = this.engine.config.width;
+    var h = this.engine.config.height;
+    var fId = 'clouds_' + (++this._idCounter);
+
+    // Generate cloud texture via Perlin-like noise
+    var canvas = document.createElement('canvas');
+    canvas.width = 256; canvas.height = 256;
+    var ctx = canvas.getContext('2d');
+    if (ctx) {
+      var scale = cfg.scale || 40;
+      for (var py = 0; py < 256; py++) {
+        for (var px = 0; px < 256; px++) {
+          // Simple value noise with octaves
+          var nx = px / scale, ny = py / scale;
+          var v = Math.sin(nx * 2.1 + ny * 1.7) * 0.5 + Math.sin(nx * 0.7 - ny * 2.3) * 0.3 + Math.sin(nx * 3.1 + ny * 0.5) * 0.2;
+          v = (v + 1) * 0.5; // 0-1
+          var density = cfg.density ?? 0.5;
+          v = Math.max(0, v - (1 - density)) / density;
+          var alpha_v = v * (cfg.alpha ?? 0.4);
+          ctx.fillStyle = 'rgba(255,255,255,' + alpha_v + ')';
+          ctx.fillRect(px, py, 1, 1);
+        }
+      }
+    }
+    var cloudSprite = new PIXI.Sprite(PIXI.Texture.from(canvas));
+    cloudSprite.width = w * 2; cloudSprite.height = h;
+    cloudSprite.alpha = cfg.alpha ?? 0.4;
+    if (cfg.color) cloudSprite.tint = cfg.color;
+    if (this.engine.uiLayer) this.engine.uiLayer.addChild(cloudSprite);
+    this._overlays.set(fId, cloudSprite);
+    this._active.set(fId, { filter: cloudSprite, container: this.engine.uiLayer || this.engine.world });
+
+    // Animate drift
+    var spd = cfg.speed || 0.5;
+    var update = function() { cloudSprite.x -= spd; if (cloudSprite.x < -w) cloudSprite.x = 0; };
+    this.engine.app.ticker.add(update);
+    (cloudSprite as any)._tickerUpdate = update;
+    (cloudSprite as any)._ticker = this.engine.app.ticker;
+
+    return fId;
+  }
+
+  /** Old Film — sepia + noise grain + flicker + scanlines (GM: Old Film) */
+  oldFilm(config?: { sepia?: number; noise?: number; flicker?: number; scanlines?: boolean; container?: any }): string {
+    var cfg = config || {};
+    var target = cfg.container || this.engine.world;
+    var fId = 'oldfilm_' + (++this._idCounter);
+
+    // Try pixi-filters CRTFilter for scanlines + noise
+    var CRT = PIXI.CRTFilter || (PIXI.filters && PIXI.filters.CRTFilter);
+    if (CRT && cfg.scanlines !== false) {
+      var crtFilter = new CRT({
+        curvature: 0,
+        lineWidth: 1,
+        lineContrast: 0.15,
+        noise: cfg.noise ?? 0.3,
+        noiseSize: 1.5,
+        vignetting: 0.2,
+        seed: Math.random(),
+      });
+      this._apply(crtFilter, target, fId + '_crt');
+      // Animate noise seed
+      var ticker = this.engine.app.ticker;
+      var update = function() { crtFilter.seed = Math.random(); crtFilter.time += 0.5; };
+      ticker.add(update);
+      (crtFilter as any)._tickerUpdate = update;
+      (crtFilter as any)._ticker = ticker;
+    }
+
+    // Sepia tint
+    var cmf = new PIXI.ColorMatrixFilter();
+    cmf.sepia(true);
+    cmf.contrast(cfg.sepia ?? 0.3, true);
+    cmf.brightness(0.9 + Math.random() * 0.1, true);
+    this._apply(cmf, target, fId + '_sepia');
+
+    // Flicker effect via brightness animation
+    if (cfg.flicker !== 0) {
+      var flickerStr = cfg.flicker ?? 0.05;
+      var flickUpdate = function() {
+        cmf.brightness(0.9 + Math.random() * flickerStr * 2, true);
+      };
+      this.engine.app.ticker.add(flickUpdate);
+      (cmf as any)._tickerUpdate = flickUpdate;
+      (cmf as any)._ticker = this.engine.app.ticker;
+    }
+
+    this._active.set(fId, { filter: cmf, container: target });
+    return fId;
+  }
+
+  /** Gradient overlay — screen-space color gradient (GM: Gradient, 6 modes) */
+  gradient(config?: { color1?: number; color2?: number; alpha?: number; mode?: 'linear' | 'radial' | 'rect' | 'diamond' | 'conic' | 'horizontal'; container?: any }): string {
     var cfg = config || {};
     var w = this.engine.config.width;
     var h = this.engine.config.height;
     var alpha = cfg.alpha ?? 0.3;
-    // Create gradient overlay
+    var mode = cfg.mode || 'linear';
+
     var g = new PIXI.Graphics();
     g.rect(0, 0, w, h);
+
     try {
-      var grad = new PIXI.FillGradient({
-        type: 'linear',
-        colorStops: [
-          { offset: 0, color: cfg.color1 || 0x000044 },
-          { offset: 1, color: cfg.color2 || 0x000000 },
-        ],
-        end: (cfg.direction === 'horizontal') ? { x: 1, y: 0 } : { x: 0, y: 1 },
-      });
-      g.fill(grad);
+      if (mode === 'radial') {
+        // Radial gradient using FillGradient
+        var grad = new PIXI.FillGradient({
+          type: 'radial',
+          colorStops: [
+            { offset: 0, color: cfg.color1 || 0x000044 },
+            { offset: 1, color: cfg.color2 || 0x000000 },
+          ],
+          center: { x: 0.5, y: 0.5 },
+          radius: 0.5,
+        });
+        g.fill(grad);
+      } else if (mode === 'horizontal') {
+        var hgrad = new PIXI.FillGradient({
+          type: 'linear',
+          colorStops: [
+            { offset: 0, color: cfg.color1 || 0x000044 },
+            { offset: 1, color: cfg.color2 || 0x000000 },
+          ],
+          end: { x: 1, y: 0 },
+        });
+        g.fill(hgrad);
+      } else {
+        // linear (vertical), rect, diamond, conic — use linear as base
+        var vgrad = new PIXI.FillGradient({
+          type: 'linear',
+          colorStops: [
+            { offset: 0, color: cfg.color1 || 0x000044 },
+            { offset: 1, color: cfg.color2 || 0x000000 },
+          ],
+          end: { x: 0, y: 1 },
+        });
+        g.fill(vgrad);
+      }
     } catch(e) {
       g.fill({ color: cfg.color1 || 0x000044, alpha: alpha });
     }
+
     g.alpha = alpha;
     if (this.engine.uiLayer) this.engine.uiLayer.addChild(g);
     var fId = 'gradient_' + (++this._idCounter);
@@ -3376,6 +3596,56 @@ export class FilterSystem {
   screenshake(config?: { intensity?: number; duration?: number }): void {
     var cfg = config || {};
     this.engine.juice.screenShake(this.engine.world, cfg.intensity || 8, cfg.duration || 0.3);
+  }
+
+  /** Glitch — digital glitch distortion (pixi-filters GlitchFilter) */
+  glitch(config?: { slices?: number; offset?: number; direction?: number; container?: any }): string {
+    var cfg = config || {};
+    var GF = PIXI.GlitchFilter || (PIXI.filters && PIXI.filters.GlitchFilter);
+    if (!GF) { console.warn('[Filters] GlitchFilter not available'); return ''; }
+    var filter = new GF({
+      slices: cfg.slices || 10,
+      offset: cfg.offset || 10,
+      direction: cfg.direction || 0,
+    });
+    var fId = this._apply(filter, cfg.container);
+    // Animate seed for glitch effect
+    var ticker = this.engine.app.ticker;
+    var update = function() { filter.seed = Math.random(); };
+    ticker.add(update);
+    (filter as any)._tickerUpdate = update;
+    (filter as any)._ticker = ticker;
+    return fId;
+  }
+
+  /** CRT — cathode ray tube effect with scanlines + curvature (pixi-filters CRTFilter) */
+  crt(config?: { curvature?: number; lineWidth?: number; lineContrast?: number; noise?: number; container?: any }): string {
+    var cfg = config || {};
+    var CRT = PIXI.CRTFilter || (PIXI.filters && PIXI.filters.CRTFilter);
+    if (!CRT) { console.warn('[Filters] CRTFilter not available'); return ''; }
+    var filter = new CRT({
+      curvature: cfg.curvature ?? 1,
+      lineWidth: cfg.lineWidth ?? 1,
+      lineContrast: cfg.lineContrast ?? 0.25,
+      noise: cfg.noise ?? 0.2,
+    });
+    var fId = this._apply(filter, cfg.container);
+    var ticker = this.engine.app.ticker;
+    var update = function() { filter.seed = Math.random(); filter.time += 0.5; };
+    ticker.add(update);
+    (filter as any)._tickerUpdate = update;
+    (filter as any)._ticker = ticker;
+    return fId;
+  }
+
+  // ---- Convenience API: engine.effects.add() ----
+
+  /** Add a filter by name (convenience wrapper matching GM's effect API) */
+  add(name: string, config?: any): string {
+    var fn = (this as any)[name];
+    if (typeof fn === 'function') return fn.call(this, config || {});
+    console.warn('[Filters] Unknown filter: ' + name + '. Available: vignette, blur, glow, outline, bloom, godray, adjustment, dropShadow, motionBlur, pixelate, underwater, heathaze, ripples, clouds, oldFilm, gradient, screenshake, glitch, crt');
+    return '';
   }
 }
 `;
