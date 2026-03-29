@@ -198,55 +198,38 @@ class WorldBuilderSystem {
     }
 
     // =======================================================================
-    // 3. PARALLAX MOUNTAIN LAYERS (3 layers, back to front — smooth rolling hills)
+    // 3. PARALLAX HILLS (3 layers — purely procedural smooth bezier curves)
     // =======================================================================
     for (var mi = 0; mi < 3; mi++) {
       var mColor = pal.mountains[mi] || pal.mountains[0];
-      var mBaseY = GY - 20 - mi * 70;
-      var mAlpha = 0.5 + mi * 0.15;
-      var mLayer: any;
+      var mBaseY = GY - 10 - mi * 55;
+      var mAlpha = 0.35 + mi * 0.15;
+      var mG = new PIXI.Graphics();
 
-      // Try sprite-based hills (tinted to theme color)
-      var hillName = mi === 0 ? 'hill_green' : mi === 1 ? 'hill_snow' : 'mountain_rock';
-      var hillTest = _getSprite('backgrounds', hillName);
-      if (hillTest) {
-        var hillContainer = new PIXI.Container();
-        var hillW = (hillTest.width || 512) * (1.5 + mi * 0.4);
-        var overlap = hillW * 0.3;
-        for (var hx = -overlap; hx < W + overlap; hx += hillW - overlap) {
-          var hSpr = _getSprite('backgrounds', hillName);
-          if (hSpr) {
-            hSpr.anchor.set(0, 1);
-            hSpr.x = hx + rngRange(-20, 20);
-            hSpr.y = mBaseY + rngRange(-10, 10);
-            hSpr.scale.set((hillW) / (hSpr.width || 512), (1.2 + mi * 0.3) + rngRange(-0.1, 0.1));
-            hSpr.tint = mColor; // Tint to theme palette
-            hSpr.alpha = mAlpha;
-            hillContainer.addChild(hSpr);
-          }
-        }
-        mLayer = hillContainer;
-      } else {
-        // Fallback: smooth rolling hills with quadratic curves (NOT jagged triangles)
-        var mG = new PIXI.Graphics();
-        mG.moveTo(0, mBaseY);
-        var hillWidth = 200 + mi * 80;
-        for (var mx = 0; mx < W; mx += hillWidth * 0.6) {
-          var peakH = rngRange(50 + mi * 25, 100 + mi * 40);
-          var cpX = mx + hillWidth * 0.3;
-          var cpY = mBaseY - peakH;
-          var endX = mx + hillWidth * 0.6;
-          mG.quadraticCurveTo(cpX, cpY, endX, mBaseY + rngRange(-5, 5));
-        }
-        mG.lineTo(W, mBaseY);
-        mG.lineTo(W, H);
-        mG.lineTo(0, H);
-        mG.closePath();
-        mG.fill({ color: mColor, alpha: mAlpha });
-        mLayer = mG;
+      // Generate smooth rolling hills using bezier curves (NO sharp peaks)
+      var hillW = 300 + mi * 120 + rngRange(-40, 40);
+      var x = 0;
+      mG.moveTo(0, mBaseY + rngRange(-10, 10));
+      while (x < W + hillW) {
+        var rise = rngRange(40 + mi * 20, 90 + mi * 35);
+        var cp1x = x + hillW * 0.25;
+        var cp1y = mBaseY - rise;
+        var cp2x = x + hillW * 0.75;
+        var cp2y = mBaseY - rise * rngRange(0.4, 0.9);
+        var endx = x + hillW;
+        var endy = mBaseY + rngRange(-8, 8);
+        mG.bezierCurveTo(cp1x, cp1y, cp2x, cp2y, endx, endy);
+        x = endx;
+        hillW = 250 + mi * 100 + rngRange(-60, 60);
       }
-      container.addChild(mLayer);
-      parallaxLayers.push({ gfx: mLayer, factor: 0.1 + mi * 0.15 });
+      mG.lineTo(W + 50, mBaseY);
+      mG.lineTo(W + 50, H + 20);
+      mG.lineTo(-50, H + 20);
+      mG.closePath();
+      mG.fill({ color: mColor, alpha: mAlpha });
+
+      container.addChild(mG);
+      parallaxLayers.push({ gfx: mG, factor: 0.08 + mi * 0.12 });
     }
 
     // =======================================================================
