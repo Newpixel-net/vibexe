@@ -479,6 +479,572 @@ class WorldBuilderSystem {
 }
 
 // ---------------------------------------------------------------------------
+// LayerSystem — Plan 3: Proper Layer System (GameMaker-style)
+// ---------------------------------------------------------------------------
+
+type LayerType = 'background' | 'instance' | 'tile' | 'asset' | 'effect';
+
+interface LayerConfig {
+  name: string;
+  type: LayerType;
+  depth?: number;        // Lower depth = renders behind (default: auto-assigned)
+  visible?: boolean;
+  locked?: boolean;
+  // Background layer options
+  parallaxX?: number;    // 0 = fixed, 1 = moves with camera (default 1)
+  parallaxY?: number;
+  tileX?: boolean;       // Repeat horizontally
+  tileY?: boolean;       // Repeat vertically
+  scrollSpeedX?: number; // Auto-scroll speed (px/s)
+  scrollSpeedY?: number;
+  color?: number;        // Background fill color
+  sprite?: any;          // Background image texture
+}
+
+interface LayerEntry {
+  name: string;
+  type: LayerType;
+  depth: number;
+  container: any;        // PIXI.Container
+  visible: boolean;
+  locked: boolean;
+  config: LayerConfig;
+  // Background-specific
+  _bgSprite?: any;       // Tiling sprite for background
+  _scrollOffset: { x: number; y: number };
+}
+
+class LayerSystem {
+  private engine: Engine2D;
+  private layers: Map<string, LayerEntry> = new Map();
+  private _nextDepth = 0;
+  private _sorted = false;
+
+  constructor(engine: Engine2D) {
+    this.engine = engine;
+  }
+
+  /**
+   * Add a new layer to the world.
+   * Returns the PIXI.Container for the layer (add children to it).
+   */
+  add(name: string, config: Partial<LayerConfig> = {}): any {
+    var PIXI = (window as any).PIXI;
+    if (this.layers.has(name)) {
+      console.warn('[Layers] Layer already exists:', name);
+      return this.layers.get(name)!.container;
+    }
+
+    var type: LayerType = config.type || 'instance';
+    var depth = config.depth ?? this._autoDepth(type);
+    var container = new PIXI.Container();
+    container.label = 'layer:' + name;
+    container.sortableChildren = (type === 'instance'); // Instance layers auto-sort by depth
+
+    var entry: LayerEntry = {
+      name: name,
+      type: type,
+      depth: depth,
+      container: container,
+      visible: config.visible !== false,
+      locked: config.locked || false,
+      config: config as LayerConfig,
+      _scrollOffset: { x: 0, y: 0 },
+    };
+
+    // Background layer: create tiling sprite if sprite texture provided
+    if (type === 'background' && config.sprite) {
+      try {
+        var ts = new PIXI.TilingSprite({
+          texture: config.sprite,
+          width: this.engine.config.worldWidth || this.engine.config.width * 3,
+          height: this.engine.config.worldHeight || this.engine.config.height * 2,
+        });
+        container.addChild(ts);
+        entry._bgSprite = ts;
+      } catch(e) {
+        console.warn('[Layers] Failed to create tiling sprite for', name, e);
+      }
+    }
+
+    // Background layer: fill color
+    if (type === 'background' && config.color !== undefined) {
+      var bg = new PIXI.Graphics();
+      bg.rect(0, 0,
+        this.engine.config.worldWidth || this.engine.config.width * 3,
+        this.engine.config.worldHeight || this.engine.config.height * 2);
+      bg.fill({ color: config.color });
+      container.addChildAt(bg, 0);
+    }
+
+    this.layers.set(name, entry);
+    this.engine.world.addChild(container);
+    this._sorted = false;
+    this._sortLayers();
+
+    console.log('[Layers] Added:', name, '(' + type + ', depth=' + depth + ')');
+    return container;
+  }
+
+  /** Get a layer's container by name */
+  get(name: string): any {
+    var entry = this.layers.get(name);
+    return entry ? entry.container : null;
+  }
+
+  /** Get the full layer entry (for advanced use) */
+  getEntry(name: string): LayerEntry | undefined {
+    return this.layers.get(name);
+  }
+
+  /** Remove a layer and all its children */
+  remove(name: string): void {
+    var entry = this.layers.get(name);
+    if (!entry) return;
+    try { this.engine.world.removeChild(entry.container); } catch(e) {}
+    entry.container.destroy({ children: true });
+    this.layers.delete(name);
+  }
+
+  /** Show/hide a layer */
+  setVisible(name: string, visible: boolean): void {
+    var entry = this.layers.get(name);
+    if (entry) { entry.visible = visible; entry.container.visible = visible; }
+  }
+
+  /** Lock/unlock a layer (prevents adding children when locked) */
+  setLocked(name: string, locked: boolean): void {
+    var entry = this.layers.get(name);
+    if (entry) entry.locked = locked;
+  }
+
+  /** Change a layer's depth (re-sorts all layers) */
+  setDepth(name: string, depth: number): void {
+    var entry = this.layers.get(name);
+    if (!entry) return;
+    entry.depth = depth;
+    entry.container.zIndex = -depth; // Lower depth = behind = higher zIndex magnitude
+    this._sorted = false;
+    this._sortLayers();
+  }
+
+  /** List all layers sorted by depth */
+  list(): { name: string; type: LayerType; depth: number; visible: boolean; childCount: number }[] {
+    var result: any[] = [];
+    this.layers.forEach(function(entry) {
+      result.push({
+        name: entry.name,
+        type: entry.type,
+        depth: entry.depth,
+        visible: entry.visible,
+        childCount: entry.container.children.length,
+      });
+    });
+    result.sort(function(a: any, b: any) { return a.depth - b.depth; });
+    return result;
+  }
+
+  /** Update all layers (called from game loop) — handles parallax, scroll, instance depth sort */
+  update(dt: number): void {
+    var cam = this.engine.camera;
+    this.layers.forEach(function(entry) {
+      if (!entry.visible) return;
+
+      if (entry.type === 'background') {
+        // Parallax
+        var px = entry.config.parallaxX ?? 0;
+        var py = entry.config.parallaxY ?? 0;
+        if (px !== 1 || py !== 1) {
+          entry.container.x = cam.x * (1 - px);
+          entry.container.y = cam.y * (1 - py);
+        }
+
+        // Auto-scroll
+        if (entry.config.scrollSpeedX || entry.config.scrollSpeedY) {
+          entry._scrollOffset.x += (entry.config.scrollSpeedX || 0) * dt;
+          entry._scrollOffset.y += (entry.config.scrollSpeedY || 0) * dt;
+          if (entry._bgSprite) {
+            entry._bgSprite.tilePosition.x = entry._scrollOffset.x;
+            entry._bgSprite.tilePosition.y = entry._scrollOffset.y;
+          }
+        }
+      }
+
+      // Instance layer: depth sort children by y (bbox_bottom)
+      if (entry.type === 'instance' && entry.container.children.length > 1) {
+        var children = entry.container.children;
+        for (var i = 0; i < children.length; i++) {
+          var c = children[i];
+          var h = c.height || 0;
+          var anchorY = c.anchor ? c.anchor.y : 0;
+          c.zIndex = -(c.y + h * (1 - anchorY));
+        }
+      }
+    });
+  }
+
+  /** Remove all layers */
+  clear(): void {
+    var self = this;
+    this.layers.forEach(function(entry) {
+      try { self.engine.world.removeChild(entry.container); } catch(e) {}
+      entry.container.destroy({ children: true });
+    });
+    this.layers.clear();
+    this._nextDepth = 0;
+  }
+
+  /** Auto-assign depth based on layer type (GameMaker convention) */
+  private _autoDepth(type: LayerType): number {
+    // Background layers go way behind, instance in middle, effect on top
+    var base: Record<LayerType, number> = {
+      background: -10000,
+      tile:       -5000,
+      asset:      -1000,
+      instance:   0,
+      effect:     10000,
+    };
+    this._nextDepth++;
+    return (base[type] || 0) + this._nextDepth;
+  }
+
+  /** Sort world children by layer depth */
+  private _sortLayers(): void {
+    if (this._sorted) return;
+    this.layers.forEach(function(entry) {
+      entry.container.zIndex = -entry.depth; // Lower depth renders behind (negative zIndex = back)
+    });
+    this._sorted = true;
+  }
+}
+
+// ---------------------------------------------------------------------------
+// TilemapSystem — Plan 4: Auto-Tiling Engine (47-tile bitmask)
+// ---------------------------------------------------------------------------
+
+interface TilemapConfig {
+  tileSize?: number;     // Default 32
+  width: number;         // Grid width (in tiles)
+  height: number;        // Grid height (in tiles)
+  tileset?: any;         // PIXI.Texture (spritesheet)
+  tilesetCols?: number;  // Columns in tileset image
+}
+
+class TilemapSystem {
+  private engine: Engine2D;
+  private grid: Int16Array;    // -1 = empty, 0+ = tile type
+  private tileSize: number;
+  private gridW: number;
+  private gridH: number;
+  private container: any;      // PIXI.Container for tile sprites
+  private tileset: any;        // Base tileset texture
+  private tilesetCols: number;
+  private sprites: Map<number, any> = new Map(); // key = y*W+x → sprite
+  private _dirty: Set<number> = new Set();       // Tiles needing redraw
+  private _bitmaskCache: Map<number, number> = new Map(); // 8bit→47tile index
+
+  // 47-tile bitmask lookup: maps 8-bit neighbor mask to tile index (0-46)
+  // GameMaker standard: neighbors are N,NE,E,SE,S,SW,W,NW (bits 0-7)
+  private static BITMASK_47: Record<number, number> = (() => {
+    // Build the full 256→47 map. The 47-tile set uses cardinal+diagonal masking.
+    // Cardinal bits: N=1, E=2, S=4, W=8. Diagonals only matter when both adjacent cardinals are set.
+    var map: Record<number, number> = {};
+
+    // Reduce 8-bit mask to effective 4+4 bit (strip irrelevant diagonals)
+    function reduce(mask: number): number {
+      var N  = (mask & 1)   ? 1 : 0;
+      var NE = (mask & 2)   ? 1 : 0;
+      var E  = (mask & 4)   ? 1 : 0;
+      var SE = (mask & 8)   ? 1 : 0;
+      var S  = (mask & 16)  ? 1 : 0;
+      var SW = (mask & 32)  ? 1 : 0;
+      var W  = (mask & 64)  ? 1 : 0;
+      var NW = (mask & 128) ? 1 : 0;
+      // Diagonals only relevant when both adjacent cardinals are filled
+      if (!(N && E)) NE = 0;
+      if (!(E && S)) SE = 0;
+      if (!(S && W)) SW = 0;
+      if (!(W && N)) NW = 0;
+      return N | (NE << 1) | (E << 2) | (SE << 3) | (S << 4) | (SW << 5) | (W << 6) | (NW << 7);
+    }
+
+    // 47 unique reduced masks → tile indices
+    var uniques: number[] = [
+      0,    // 0: isolated
+      1,    // 1: N only
+      4,    // 2: E only
+      5,    // 3: N+E
+      7,    // 4: N+NE+E
+      16,   // 5: S only
+      17,   // 6: N+S
+      20,   // 7: E+S
+      21,   // 8: N+E+S
+      23,   // 9: N+NE+E+S
+      28,   // 10: E+SE+S
+      29,   // 11: N+E+SE+S
+      31,   // 12: N+NE+E+SE+S
+      64,   // 13: W only
+      65,   // 14: N+W
+      68,   // 15: E+W
+      69,   // 16: N+E+W
+      71,   // 17: N+NE+E+W
+      80,   // 18: S+W
+      81,   // 19: N+S+W
+      84,   // 20: E+S+W
+      85,   // 21: N+E+S+W (all cardinal, no diag)
+      87,   // 22: N+NE+E+S+W
+      92,   // 23: E+SE+S+W
+      93,   // 24: N+E+SE+S+W
+      95,   // 25: N+NE+E+SE+S+W
+      193,  // 26: N+W+NW
+      197,  // 27: N+E+W+NW
+      199,  // 28: N+NE+E+W+NW
+      209,  // 29: N+S+W+NW
+      213,  // 30: N+E+S+W+NW
+      215,  // 31: N+NE+E+S+W+NW
+      221,  // 32: N+E+SE+S+W+NW
+      223,  // 33: N+NE+E+SE+S+W+NW
+      112,  // 34: S+SW+W
+      113,  // 35: N+S+SW+W
+      116,  // 36: E+S+SW+W
+      117,  // 37: N+E+S+SW+W
+      119,  // 38: N+NE+E+S+SW+W
+      124,  // 39: E+SE+S+SW+W
+      125,  // 40: N+E+SE+S+SW+W
+      127,  // 41: N+NE+E+SE+S+SW+W
+      241,  // 42: N+S+SW+W+NW
+      245,  // 43: N+E+S+SW+W+NW
+      247,  // 44: N+NE+E+S+SW+W+NW
+      253,  // 45: N+E+SE+S+SW+W+NW
+      255,  // 46: all neighbors (center piece)
+    ];
+    // Build reverse map: for each of 256 possible masks, find the matching tile
+    var uniqueToIdx: Record<number, number> = {};
+    for (var i = 0; i < uniques.length; i++) uniqueToIdx[uniques[i]] = i;
+
+    for (var m = 0; m < 256; m++) {
+      var r = reduce(m);
+      map[m] = (uniqueToIdx[r] !== undefined) ? uniqueToIdx[r] : 0;
+    }
+    return map;
+  })();
+
+  constructor(engine: Engine2D) {
+    this.engine = engine;
+    this.tileSize = 32;
+    this.gridW = 0;
+    this.gridH = 0;
+    this.grid = new Int16Array(0);
+    this.tilesetCols = 8;
+    this.container = null;
+  }
+
+  /**
+   * Initialize the tilemap grid.
+   */
+  init(config: TilemapConfig): any {
+    var PIXI = (window as any).PIXI;
+    this.tileSize = config.tileSize || 32;
+    this.gridW = config.width;
+    this.gridH = config.height;
+    this.grid = new Int16Array(this.gridW * this.gridH).fill(-1);
+    this.tileset = config.tileset || null;
+    this.tilesetCols = config.tilesetCols || 8;
+
+    if (this.container) {
+      try { this.engine.world.removeChild(this.container); } catch(e) {}
+      this.container.destroy({ children: true });
+    }
+    this.container = new PIXI.Container();
+    this.container.label = 'tilemap';
+    this.engine.world.addChild(this.container);
+    this.sprites.clear();
+    this._dirty.clear();
+
+    console.log('[Tilemap] Init ' + this.gridW + 'x' + this.gridH + ' (tile=' + this.tileSize + 'px)');
+    return this.container;
+  }
+
+  /**
+   * Set a tile at grid position (gx, gy). tileType: 0+ = filled, -1 = empty.
+   * Auto-updates neighboring tiles for bitmask edges.
+   */
+  setTile(gx: number, gy: number, tileType = 0): void {
+    if (gx < 0 || gy < 0 || gx >= this.gridW || gy >= this.gridH) return;
+    var idx = gy * this.gridW + gx;
+    this.grid[idx] = tileType;
+
+    // Mark this tile + all 8 neighbors as dirty
+    for (var dy = -1; dy <= 1; dy++) {
+      for (var dx = -1; dx <= 1; dx++) {
+        var nx = gx + dx;
+        var ny = gy + dy;
+        if (nx >= 0 && ny >= 0 && nx < this.gridW && ny < this.gridH) {
+          this._dirty.add(ny * this.gridW + nx);
+        }
+      }
+    }
+  }
+
+  /** Remove a tile at grid position */
+  clearTile(gx: number, gy: number): void {
+    this.setTile(gx, gy, -1);
+  }
+
+  /** Get tile type at grid position (-1 = empty) */
+  getTile(gx: number, gy: number): number {
+    if (gx < 0 || gy < 0 || gx >= this.gridW || gy >= this.gridH) return -1;
+    return this.grid[gy * this.gridW + gx];
+  }
+
+  /** Fill a rectangular region with tiles */
+  fillRect(gx: number, gy: number, w: number, h: number, tileType = 0): void {
+    for (var y = gy; y < gy + h; y++) {
+      for (var x = gx; x < gx + w; x++) {
+        this.setTile(x, y, tileType);
+      }
+    }
+  }
+
+  /** Fill a line of tiles from (x1,y1) to (x2,y2) — Bresenham */
+  fillLine(gx1: number, gy1: number, gx2: number, gy2: number, tileType = 0): void {
+    var dx = Math.abs(gx2 - gx1);
+    var dy = Math.abs(gy2 - gy1);
+    var sx = gx1 < gx2 ? 1 : -1;
+    var sy = gy1 < gy2 ? 1 : -1;
+    var err = dx - dy;
+    while (true) {
+      this.setTile(gx1, gy1, tileType);
+      if (gx1 === gx2 && gy1 === gy2) break;
+      var e2 = 2 * err;
+      if (e2 > -dy) { err -= dy; gx1 += sx; }
+      if (e2 < dx) { err += dx; gy1 += sy; }
+    }
+  }
+
+  /**
+   * Flush dirty tiles — recalculate bitmask and update sprites.
+   * Call this after batch setTile() calls, or it auto-flushes each frame.
+   */
+  flush(): void {
+    var PIXI = (window as any).PIXI;
+    if (this._dirty.size === 0 || !this.container) return;
+
+    var self = this;
+    this._dirty.forEach(function(idx) {
+      var gx = idx % self.gridW;
+      var gy = (idx / self.gridW) | 0;
+      var tile = self.grid[idx];
+
+      // Remove existing sprite
+      var existing = self.sprites.get(idx);
+      if (existing) {
+        self.container.removeChild(existing);
+        existing.destroy();
+        self.sprites.delete(idx);
+      }
+
+      if (tile < 0) return; // Empty tile
+
+      // Calculate 8-neighbor bitmask
+      var mask = 0;
+      if (self._isFilled(gx, gy - 1)) mask |= 1;   // N
+      if (self._isFilled(gx + 1, gy - 1)) mask |= 2;  // NE
+      if (self._isFilled(gx + 1, gy)) mask |= 4;    // E
+      if (self._isFilled(gx + 1, gy + 1)) mask |= 8;  // SE
+      if (self._isFilled(gx, gy + 1)) mask |= 16;   // S
+      if (self._isFilled(gx - 1, gy + 1)) mask |= 32; // SW
+      if (self._isFilled(gx - 1, gy)) mask |= 64;   // W
+      if (self._isFilled(gx - 1, gy - 1)) mask |= 128;// NW
+
+      var tileIdx = TilemapSystem.BITMASK_47[mask] || 0;
+
+      var spr: any;
+      if (self.tileset) {
+        // Cut tile from tileset spritesheet
+        var cols = self.tilesetCols;
+        var tx = (tileIdx % cols) * self.tileSize;
+        var ty = ((tileIdx / cols) | 0) * self.tileSize;
+        try {
+          var frame = new PIXI.Rectangle(tx, ty, self.tileSize, self.tileSize);
+          var tex = new PIXI.Texture({ source: self.tileset.source || self.tileset, frame: frame });
+          spr = new PIXI.Sprite(tex);
+        } catch(e) {
+          // Fallback: colored square
+          spr = new PIXI.Graphics();
+          spr.rect(0, 0, self.tileSize, self.tileSize);
+          spr.fill({ color: 0x556644 });
+          spr.stroke({ color: 0x334422, width: 1 });
+        }
+      } else {
+        // No tileset: colored squares with edge indicators
+        spr = new PIXI.Graphics();
+        spr.rect(0, 0, self.tileSize, self.tileSize);
+        spr.fill({ color: 0x556644 });
+        // Draw edge lines where there's no neighbor
+        var ts = self.tileSize;
+        if (!(mask & 1))  { spr.rect(0, 0, ts, 2); spr.fill({ color: 0x88aa66 }); }  // top edge
+        if (!(mask & 16)) { spr.rect(0, ts - 2, ts, 2); spr.fill({ color: 0x334422 }); } // bottom edge
+        if (!(mask & 64)) { spr.rect(0, 0, 2, ts); spr.fill({ color: 0x667744 }); }  // left edge
+        if (!(mask & 4))  { spr.rect(ts - 2, 0, 2, ts); spr.fill({ color: 0x667744 }); } // right edge
+      }
+
+      spr.x = gx * self.tileSize;
+      spr.y = gy * self.tileSize;
+      self.container.addChild(spr);
+      self.sprites.set(idx, spr);
+    });
+
+    this._dirty.clear();
+  }
+
+  /** Convert world position to grid position */
+  worldToGrid(wx: number, wy: number): { gx: number; gy: number } {
+    return {
+      gx: Math.floor(wx / this.tileSize),
+      gy: Math.floor(wy / this.tileSize),
+    };
+  }
+
+  /** Convert grid position to world position (top-left of tile) */
+  gridToWorld(gx: number, gy: number): { x: number; y: number } {
+    return {
+      x: gx * this.tileSize,
+      y: gy * this.tileSize,
+    };
+  }
+
+  /** Check if a world position has a solid tile */
+  isSolidAt(wx: number, wy: number): boolean {
+    var g = this.worldToGrid(wx, wy);
+    return this.getTile(g.gx, g.gy) >= 0;
+  }
+
+  /** Clear all tiles */
+  clear(): void {
+    this.grid.fill(-1);
+    if (this.container) this.container.removeChildren();
+    this.sprites.clear();
+    this._dirty.clear();
+  }
+
+  /** Destroy the tilemap */
+  destroy(): void {
+    this.clear();
+    if (this.container) {
+      try { this.engine.world.removeChild(this.container); } catch(e) {}
+      this.container.destroy({ children: true });
+      this.container = null;
+    }
+  }
+
+  private _isFilled(gx: number, gy: number): boolean {
+    if (gx < 0 || gy < 0 || gx >= this.gridW || gy >= this.gridH) return false;
+    return this.grid[gy * this.gridW + gx] >= 0;
+  }
+}
+
+// ---------------------------------------------------------------------------
 // Engine2D — main orchestrator
 // ---------------------------------------------------------------------------
 
@@ -507,6 +1073,9 @@ export class Engine2D {
   particles: ParticleSystem;
   filters: FilterSystem;
   ease: EasingSystem;
+  layers: LayerSystem;
+  tilemap: TilemapSystem;
+  anim: AnimationSystem;
   _worldData: any;  // WorldBuilder result — used by Feature Bank features
 
   // Simple event bus — AI uses engine.events.emit(name, data)
@@ -557,6 +1126,9 @@ export class Engine2D {
     this.particles = new ParticleSystem(this);
     this.filters = new FilterSystem(this);
     this.ease = new EasingSystem();
+    this.layers = new LayerSystem(this);
+    this.tilemap = new TilemapSystem(this);
+    this.anim = new AnimationSystem(this);
   }
 
   /**
@@ -643,6 +1215,15 @@ export class Engine2D {
 
       // Update feature snippets
       this.features.updateAll(dt);
+
+      // Update animation state machines
+      this.anim.update(dt);
+
+      // Update layers (parallax, auto-scroll, instance depth sort)
+      this.layers.update(dt);
+
+      // Auto-flush dirty tilemap tiles
+      this.tilemap.flush();
 
       // Depth sort — auto-sort world children by y position (depth = -bbox_bottom)
       if (this._depthSortEnabled) this._depthSort();
@@ -794,6 +1375,9 @@ export class Engine2D {
     this.effects.destroyAll();
     this.particles.clear();
     this.filters.removeAll();
+    this.layers.clear();
+    this.tilemap.destroy();
+    this.anim.clear();
     this.input.destroy();
     if (this.proton) this.proton.destroy();
     if (this.app) this.app.destroy(true, { children: true, texture: true });
@@ -2452,6 +3036,265 @@ export class JuiceSystem {
     if (this.gsap) {
       try { this.gsap.killTweensOf('*'); } catch(e) {}
     }
+  }
+}
+
+// ---------------------------------------------------------------------------
+// AnimationSystem — Plan 5: Enhanced Animation (engine.anim.*)
+// ---------------------------------------------------------------------------
+
+type AnimLoopMode = 'once' | 'loop' | 'pingpong';
+
+interface AnimState {
+  name: string;
+  frames: number[];           // Frame indices in the spritesheet
+  speed: number;              // Frames per second
+  loop: AnimLoopMode;
+  next?: string;              // Auto-transition to this state on complete
+  onEnter?: (sprite: any) => void;
+  onExit?: (sprite: any) => void;
+}
+
+interface AnimInstance {
+  sprite: any;
+  states: Map<string, AnimState>;
+  current: string;
+  frameIndex: number;          // Fractional frame index (GM: image_index)
+  speed: number;               // Current playback speed multiplier (GM: image_speed)
+  direction: 1 | -1;           // 1 = forward, -1 = reverse (for pingpong)
+  paused: boolean;
+  onComplete?: (stateName: string) => void;
+  onFrame?: (frameNumber: number) => void;
+  _frameEvents: Map<number, () => void>; // Callbacks on specific frames
+}
+
+class AnimationSystem {
+  private engine: Engine2D;
+  private _instances: Map<any, AnimInstance> = new Map(); // keyed by sprite
+
+  constructor(engine: Engine2D) {
+    this.engine = engine;
+  }
+
+  /**
+   * Create a sprite state machine with named animation states.
+   * @param sprite - PIXI.AnimatedSprite (must have textures array)
+   * @param states - Map of state name → AnimState config
+   * @param initial - Starting state name
+   */
+  create(sprite: any, states: Record<string, Partial<AnimState>>, initial?: string): AnimInstance {
+    var stateMap = new Map<string, AnimState>();
+    var firstState = '';
+
+    for (var name in states) {
+      if (!firstState) firstState = name;
+      var s = states[name];
+      stateMap.set(name, {
+        name: name,
+        frames: s.frames || [],
+        speed: s.speed || 10,
+        loop: s.loop || 'loop',
+        next: s.next,
+        onEnter: s.onEnter,
+        onExit: s.onExit,
+      });
+    }
+
+    var inst: AnimInstance = {
+      sprite: sprite,
+      states: stateMap,
+      current: initial || firstState,
+      frameIndex: 0,
+      speed: 1,
+      direction: 1,
+      paused: false,
+      _frameEvents: new Map(),
+    };
+
+    this._instances.set(sprite, inst);
+
+    // Enter initial state
+    var initState = stateMap.get(inst.current);
+    if (initState && initState.onEnter) {
+      try { initState.onEnter(sprite); } catch(e) {}
+    }
+    this._applyFrame(inst);
+
+    return inst;
+  }
+
+  /**
+   * Play a named animation state on a sprite.
+   * If already playing, restarts from frame 0.
+   */
+  play(sprite: any, stateName: string, config?: { speed?: number; onComplete?: (s: string) => void }): void {
+    var inst = this._instances.get(sprite);
+    if (!inst) return;
+
+    var state = inst.states.get(stateName);
+    if (!state) {
+      console.warn('[Anim] State not found:', stateName);
+      return;
+    }
+
+    // Exit current state
+    var current = inst.states.get(inst.current);
+    if (current && current.onExit) {
+      try { current.onExit(sprite); } catch(e) {}
+    }
+
+    inst.current = stateName;
+    inst.frameIndex = 0;
+    inst.direction = 1;
+    inst.paused = false;
+    if (config?.speed !== undefined) inst.speed = config.speed;
+    if (config?.onComplete) inst.onComplete = config.onComplete;
+
+    // Enter new state
+    if (state.onEnter) {
+      try { state.onEnter(sprite); } catch(e) {}
+    }
+    this._applyFrame(inst);
+  }
+
+  /** Pause/resume animation */
+  pause(sprite: any): void {
+    var inst = this._instances.get(sprite);
+    if (inst) inst.paused = true;
+  }
+
+  resume(sprite: any): void {
+    var inst = this._instances.get(sprite);
+    if (inst) inst.paused = false;
+  }
+
+  /** Set playback speed multiplier */
+  setSpeed(sprite: any, speed: number): void {
+    var inst = this._instances.get(sprite);
+    if (inst) inst.speed = speed;
+  }
+
+  /** Get current state name */
+  getState(sprite: any): string | null {
+    var inst = this._instances.get(sprite);
+    return inst ? inst.current : null;
+  }
+
+  /** Get current frame index */
+  getFrame(sprite: any): number {
+    var inst = this._instances.get(sprite);
+    return inst ? Math.floor(inst.frameIndex) : 0;
+  }
+
+  /** Register callback on specific frame number */
+  onFrame(sprite: any, frameNumber: number, callback: () => void): void {
+    var inst = this._instances.get(sprite);
+    if (inst) inst._frameEvents.set(frameNumber, callback);
+  }
+
+  /** Remove animation tracking from a sprite */
+  remove(sprite: any): void {
+    this._instances.delete(sprite);
+  }
+
+  /** Update all animation instances — called from game loop */
+  update(dt: number): void {
+    this._instances.forEach(function(inst) {
+      if (inst.paused) return;
+
+      var state = inst.states.get(inst.current);
+      if (!state || state.frames.length === 0) return;
+
+      var prevFrame = Math.floor(inst.frameIndex);
+      var frameCount = state.frames.length;
+
+      // Advance frame index
+      inst.frameIndex += state.speed * inst.speed * dt * inst.direction;
+
+      var currentFrame = Math.floor(inst.frameIndex);
+
+      // Check frame events
+      if (currentFrame !== prevFrame && inst._frameEvents.has(currentFrame)) {
+        try { inst._frameEvents.get(currentFrame)!(); } catch(e) {}
+      }
+      if (inst.onFrame && currentFrame !== prevFrame) {
+        try { inst.onFrame(currentFrame); } catch(e) {}
+      }
+
+      // Handle end of animation
+      if (inst.frameIndex >= frameCount || inst.frameIndex < 0) {
+        switch (state.loop) {
+          case 'loop':
+            inst.frameIndex = inst.frameIndex % frameCount;
+            if (inst.frameIndex < 0) inst.frameIndex += frameCount;
+            break;
+
+          case 'pingpong':
+            inst.direction *= -1;
+            if (inst.frameIndex >= frameCount) {
+              inst.frameIndex = frameCount - 1;
+            } else {
+              inst.frameIndex = 0;
+            }
+            break;
+
+          case 'once':
+          default:
+            inst.frameIndex = Math.max(0, frameCount - 1);
+            inst.paused = true;
+
+            // Fire completion callback
+            if (inst.onComplete) {
+              try { inst.onComplete(inst.current); } catch(e) {}
+            }
+
+            // Auto-transition to next state
+            if (state.next && inst.states.has(state.next)) {
+              var exitState = inst.states.get(inst.current);
+              if (exitState && exitState.onExit) {
+                try { exitState.onExit(inst.sprite); } catch(e) {}
+              }
+              inst.current = state.next;
+              inst.frameIndex = 0;
+              inst.direction = 1;
+              inst.paused = false;
+              var nextState = inst.states.get(state.next);
+              if (nextState && nextState.onEnter) {
+                try { nextState.onEnter(inst.sprite); } catch(e) {}
+              }
+            }
+            break;
+        }
+      }
+
+      // Apply frame to sprite
+      try {
+        var frameIdx = state.frames[Math.floor(Math.max(0, Math.min(inst.frameIndex, frameCount - 1)))];
+        if (inst.sprite.textures && inst.sprite.textures[frameIdx]) {
+          inst.sprite.texture = inst.sprite.textures[frameIdx];
+        } else if (typeof inst.sprite.gotoAndStop === 'function') {
+          inst.sprite.gotoAndStop(frameIdx);
+        }
+      } catch(e) {}
+    });
+  }
+
+  /** Clear all animation instances */
+  clear(): void {
+    this._instances.clear();
+  }
+
+  private _applyFrame(inst: AnimInstance): void {
+    var state = inst.states.get(inst.current);
+    if (!state || state.frames.length === 0) return;
+    try {
+      var frameIdx = state.frames[0];
+      if (inst.sprite.textures && inst.sprite.textures[frameIdx]) {
+        inst.sprite.texture = inst.sprite.textures[frameIdx];
+      } else if (typeof inst.sprite.gotoAndStop === 'function') {
+        inst.sprite.gotoAndStop(frameIdx);
+      }
+    } catch(e) {}
   }
 }
 

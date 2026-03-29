@@ -373,6 +373,30 @@ engine.pixi.blendMode(sprite, 'screen')      // Light overlay (UI highlights)
 engine.pixi.blendMode(sprite, 'normal')      // Default blend mode
 \`\`\`
 
+### Layers (engine.layers.* — typed layer system)
+\`\`\`
+// Add layers (background renders behind, instance in middle, effect on top)
+var bgLayer = engine.layers.add('sky', { type: 'background', parallaxX: 0.2, color: 0x001133 });
+var bgScroll = engine.layers.add('clouds', { type: 'background', sprite: cloudTex, parallaxX: 0.5, scrollSpeedX: 20 });
+var tileLayer = engine.layers.add('terrain', { type: 'tile' });
+var assetLayer = engine.layers.add('decorations', { type: 'asset' });
+var instanceLayer = engine.layers.add('entities', { type: 'instance' }); // Auto depth-sorts by y
+var fxLayer = engine.layers.add('effects', { type: 'effect' });
+
+// Use layers (add sprites to the layer's container)
+instanceLayer.addChild(playerSprite);
+instanceLayer.addChild(enemySprite);
+assetLayer.addChild(treeSpr);
+
+// Manage layers
+engine.layers.get('entities')                  // Get container by name
+engine.layers.setVisible('effects', false)     // Show/hide
+engine.layers.setDepth('decorations', -500)    // Change render order
+engine.layers.remove('effects')                // Remove layer + children
+engine.layers.list()                           // List all layers (sorted by depth)
+engine.layers.clear()                          // Remove all layers
+\`\`\`
+
 ### Depth Sorting (objects lower on screen render in front)
 \`\`\`
 engine.enableDepthSort()                       // Auto-sort ALL world children by y each frame
@@ -386,6 +410,46 @@ engine.audio.playAt('explosion', x, y)                      // Play with auto di
 engine.audio.playAt('fire', x, y, { falloff: 500 })         // Custom falloff range
 engine.audio.playAt('drip', x, y, { minVolume: 0.05 })      // Skip if too quiet
 AudioManager.volumeFromDistance(lx, ly, sx, sy, 300)         // Manual: returns 0-1 volume
+\`\`\`
+
+### Tilemap (engine.tilemap.* — auto-tiling with 47-tile bitmask)
+\`\`\`
+engine.tilemap.init({ width: 120, height: 30, tileSize: 32 })  // Create grid
+engine.tilemap.setTile(5, 10, 0)              // Place tile at grid pos (auto-updates edges)
+engine.tilemap.clearTile(5, 10)               // Remove tile
+engine.tilemap.fillRect(0, 25, 120, 5, 0)     // Fill rectangle with tiles
+engine.tilemap.fillLine(0, 20, 30, 15, 0)     // Bresenham line of tiles
+engine.tilemap.getTile(5, 10)                  // Get tile type (-1 = empty)
+engine.tilemap.isSolidAt(worldX, worldY)       // Check world position
+engine.tilemap.worldToGrid(worldX, worldY)     // → { gx, gy }
+engine.tilemap.gridToWorld(gx, gy)             // → { x, y }
+engine.tilemap.flush()                         // Force redraw (auto-called each frame)
+engine.tilemap.clear()                         // Clear all tiles
+\`\`\`
+
+### Animation State Machine (engine.anim.* — loop modes, transitions, events)
+\`\`\`
+// Create state machine on an AnimatedSprite
+engine.anim.create(sprite, {
+  idle:   { frames: [0,1,2,3], speed: 8, loop: 'loop' },
+  walk:   { frames: [4,5,6,7,8,9], speed: 12, loop: 'loop' },
+  jump:   { frames: [10,11,12], speed: 10, loop: 'once', next: 'fall' },
+  fall:   { frames: [13,14], speed: 8, loop: 'loop' },
+  attack: { frames: [15,16,17,18], speed: 14, loop: 'once', next: 'idle',
+            onEnter: (spr) => { /* play sfx */ }, onExit: (spr) => { /* cleanup */ } },
+  die:    { frames: [19,20,21,22], speed: 6, loop: 'once' },
+}, 'idle');
+
+engine.anim.play(sprite, 'walk')               // Switch state
+engine.anim.play(sprite, 'attack', { speed: 1.5, onComplete: (s) => {} })
+engine.anim.pause(sprite)                      // Pause animation
+engine.anim.resume(sprite)                     // Resume
+engine.anim.setSpeed(sprite, 2)                // Speed multiplier
+engine.anim.getState(sprite)                   // → 'walk'
+engine.anim.getFrame(sprite)                   // → current frame index
+engine.anim.onFrame(sprite, 2, () => {})       // Callback on specific frame
+engine.anim.remove(sprite)                     // Stop tracking
+// Loop modes: 'once' (stop at end), 'loop' (wrap), 'pingpong' (reverse at ends)
 \`\`\`
 
 ### Camera
