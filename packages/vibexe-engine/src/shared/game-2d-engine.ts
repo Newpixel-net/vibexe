@@ -504,6 +504,9 @@ export class Engine2D {
   pixi: PixiAdvancedSystem;
   level: any;  // LevelSystem (set by GameScene2D via level-painter.ts)
   worldBuilder: WorldBuilderSystem;
+  particles: ParticleSystem;
+  filters: FilterSystem;
+  ease: EasingSystem;
   _worldData: any;  // WorldBuilder result — used by Feature Bank features
 
   // Simple event bus — AI uses engine.events.emit(name, data)
@@ -549,6 +552,9 @@ export class Engine2D {
     this.features = new FeatureManager(this);
     this.pixi = new PixiAdvancedSystem(this);
     this.worldBuilder = new WorldBuilderSystem(this);
+    this.particles = new ParticleSystem(this);
+    this.filters = new FilterSystem(this);
+    this.ease = new EasingSystem();
   }
 
   /**
@@ -746,6 +752,8 @@ export class Engine2D {
     this.features.destroy();
     this.juice.killAll();
     this.effects.destroyAll();
+    this.particles.clear();
+    this.filters.removeAll();
     this.input.destroy();
     if (this.proton) this.proton.destroy();
     if (this.app) this.app.destroy(true, { children: true, texture: true });
@@ -2365,6 +2373,762 @@ export class JuiceSystem {
     if (this.gsap) {
       try { this.gsap.killTweensOf('*'); } catch(e) {}
     }
+  }
+}
+
+// ---------------------------------------------------------------------------
+// EasingSystem — 30 GameMaker-ported easing curves (engine.ease.*)
+// ---------------------------------------------------------------------------
+
+export class EasingSystem {
+  /** Linear (no easing) */
+  linear(t: number): number { return t; }
+
+  // --- Quadratic ---
+  easeIn(t: number): number { return t * t; }
+  easeOut(t: number): number { return t * (2 - t); }
+  easeInOut(t: number): number { return t < 0.5 ? 2 * t * t : -1 + (4 - 2 * t) * t; }
+
+  // --- Cubic ---
+  easeCubicIn(t: number): number { return t * t * t; }
+  easeCubicOut(t: number): number { var u = t - 1; return u * u * u + 1; }
+  easeCubicInOut(t: number): number { return t < 0.5 ? 4 * t * t * t : (t - 1) * (2 * t - 2) * (2 * t - 2) + 1; }
+
+  // --- Quartic ---
+  easeQuartIn(t: number): number { return t * t * t * t; }
+  easeQuartOut(t: number): number { var u = t - 1; return 1 - u * u * u * u; }
+  easeQuartInOut(t: number): number { var u = t - 1; return t < 0.5 ? 8 * t * t * t * t : 1 - 8 * u * u * u * u; }
+
+  // --- Exponential ---
+  easeExpoIn(t: number): number { return t === 0 ? 0 : Math.pow(2, 10 * (t - 1)); }
+  easeExpoOut(t: number): number { return t === 1 ? 1 : 1 - Math.pow(2, -10 * t); }
+  easeExpoInOut(t: number): number { if (t === 0 || t === 1) return t; return t < 0.5 ? Math.pow(2, 20 * t - 10) / 2 : (2 - Math.pow(2, -20 * t + 10)) / 2; }
+
+  // --- Circular ---
+  easeCircIn(t: number): number { return 1 - Math.sqrt(1 - t * t); }
+  easeCircOut(t: number): number { return Math.sqrt(1 - (t - 1) * (t - 1)); }
+  easeCircInOut(t: number): number { return t < 0.5 ? (1 - Math.sqrt(1 - 4 * t * t)) / 2 : (Math.sqrt(1 - (2 * t - 2) * (2 * t - 2)) + 1) / 2; }
+
+  // --- Back (overshoot) ---
+  easeBackIn(t: number): number { var s = 1.70158; return t * t * ((s + 1) * t - s); }
+  easeBackOut(t: number): number { var s = 1.70158; t -= 1; return t * t * ((s + 1) * t + s) + 1; }
+  easeBackInOut(t: number): number { var s = 1.70158 * 1.525; t *= 2; if (t < 1) return (t * t * ((s + 1) * t - s)) / 2; t -= 2; return (t * t * ((s + 1) * t + s) + 2) / 2; }
+
+  // --- Elastic ---
+  elasticIn(t: number): number { if (t === 0 || t === 1) return t; return -Math.pow(2, 10 * (t - 1)) * Math.sin((t - 1.1) * 5 * Math.PI); }
+  elasticOut(t: number): number { if (t === 0 || t === 1) return t; return Math.pow(2, -10 * t) * Math.sin((t - 0.1) * 5 * Math.PI) + 1; }
+  elasticInOut(t: number): number { if (t === 0 || t === 1) return t; t *= 2; if (t < 1) return -0.5 * Math.pow(2, 10 * (t - 1)) * Math.sin((t - 1.1) * 5 * Math.PI); return Math.pow(2, -10 * (t - 1)) * Math.sin((t - 1.1) * 5 * Math.PI) * 0.5 + 1; }
+
+  // --- Bounce ---
+  bounceOut(t: number): number { if (t < 1 / 2.75) return 7.5625 * t * t; if (t < 2 / 2.75) { t -= 1.5 / 2.75; return 7.5625 * t * t + 0.75; } if (t < 2.5 / 2.75) { t -= 2.25 / 2.75; return 7.5625 * t * t + 0.9375; } t -= 2.625 / 2.75; return 7.5625 * t * t + 0.984375; }
+  bounceIn(t: number): number { return 1 - this.bounceOut(1 - t); }
+  bounceInOut(t: number): number { return t < 0.5 ? this.bounceIn(t * 2) * 0.5 : this.bounceOut(t * 2 - 1) * 0.5 + 0.5; }
+
+  // --- Special (GM-specific) ---
+  fastOutSlowIn(t: number): number { return t < 0.5 ? 4 * t * t * t : (t - 1) * (2 * t - 2) * (2 * t - 2) + 1; }
+  slowMiddle(t: number): number { return 3 * t * t - 2 * t * t * t; }
+
+  /** Get easing function by name string. Returns linear if not found. */
+  get(name: string): (t: number) => number {
+    var fn = (this as any)[name];
+    return fn ? fn.bind(this) : this.linear;
+  }
+
+  /** Interpolate between two values: engine.ease.lerp(0, 100, t, 'easeOutCubic') */
+  lerp(from: number, to: number, t: number, easeFn?: string | ((t: number) => number)): number {
+    var fn = typeof easeFn === 'string' ? this.get(easeFn) : (easeFn || this.linear);
+    return from + (to - from) * fn(Math.max(0, Math.min(1, t)));
+  }
+
+  /** Tween helper: animate a property over time using requestAnimationFrame.
+   *  Returns a cancel function. */
+  tween(obj: any, prop: string, from: number, to: number, duration: number, easeFn?: string, onDone?: () => void): () => void {
+    var fn = typeof easeFn === 'string' ? this.get(easeFn) : (easeFn ? easeFn as any : this.linear);
+    var start = performance.now();
+    var cancelled = false;
+    var step = function() {
+      if (cancelled) return;
+      var elapsed = (performance.now() - start) / 1000;
+      var t = Math.min(elapsed / duration, 1);
+      try { obj[prop] = from + (to - from) * fn(t); } catch(e) {}
+      if (t < 1) requestAnimationFrame(step);
+      else if (onDone) try { onDone(); } catch(e) {}
+    };
+    requestAnimationFrame(step);
+    return function() { cancelled = true; };
+  }
+}
+
+// ---------------------------------------------------------------------------
+// ParticleSystem — GameMaker-style preset + custom particle emitters (engine.particles.*)
+// ---------------------------------------------------------------------------
+
+export class ParticleSystem {
+  private engine: Engine2D;
+  private _emitters: any[] = [];
+
+  constructor(engine: Engine2D) {
+    this.engine = engine;
+  }
+
+  /** Emit a named preset at position. Returns the emitter (continuous) or void (burst). */
+  emit(preset: string, x: number, y: number, config?: any): any {
+    var fn = (this as any)['_p_' + preset];
+    if (fn) return fn.call(this, x, y, config || {});
+    console.warn('[Particles] Unknown preset: ' + preset + '. Available: fire, rain, smoke, sparks, electricity, embers, embers2, flameIntensity, smoke2, warpCenter, warpLines, confetti, blood, hearts');
+    return null;
+  }
+
+  /** Stop and remove an emitter */
+  stop(emitter: any): void {
+    if (!emitter) return;
+    try { emitter.stop(); } catch(e) {}
+    try { this.engine.proton.removeEmitter(emitter); } catch(e) {}
+    try { emitter.destroy(); } catch(e) {}
+    var idx = this._emitters.indexOf(emitter);
+    if (idx >= 0) this._emitters.splice(idx, 1);
+  }
+
+  /** Get all active emitters */
+  list(): any[] { return this._emitters.slice(); }
+
+  /** Clear all particle emitters */
+  clear(): void {
+    for (var i = this._emitters.length - 1; i >= 0; i--) {
+      try { this._emitters[i].stop(); this.engine.proton.removeEmitter(this._emitters[i]); this._emitters[i].destroy(); } catch(e) {}
+    }
+    this._emitters = [];
+  }
+
+  private _add(emitter: any): any {
+    this.engine.proton.addEmitter(emitter);
+    this._emitters.push(emitter);
+    return emitter;
+  }
+
+  private _burst(emitter: any, ms = 800): void {
+    this._add(emitter);
+    var self = this;
+    setTimeout(function() { self.stop(emitter); }, ms);
+  }
+
+  /** Create custom particle emitter with full GM parameter model */
+  create(config: {
+    x?: number; y?: number;
+    rate?: { min?: number; max?: number; interval?: number };
+    life?: { min?: number; max?: number };
+    speed?: { min?: number; max?: number };
+    direction?: { min?: number; max?: number };
+    size?: { min?: number; max?: number; end?: number };
+    color?: { start?: string; mid?: string; end?: string };
+    alpha?: { start?: number; end?: number };
+    gravity?: { force?: number; direction?: number };
+    rotation?: { min?: number; max?: number; speed?: number };
+    emitterShape?: 'point' | 'circle' | 'rectangle' | 'ring' | 'line';
+    emitterSize?: number;
+    wiggle?: number;
+    additive?: boolean;
+    burst?: boolean;
+    burstCount?: number;
+  }): any {
+    var c = config;
+    var emitter = new Proton.Emitter();
+
+    // Rate
+    var rMin = (c.rate && c.rate.min) || 3;
+    var rMax = (c.rate && c.rate.max) || 8;
+    var rInt = (c.rate && c.rate.interval) || 0.05;
+    emitter.rate = new Proton.Rate(new Proton.Span(rMin, rMax), rInt);
+
+    // Life
+    emitter.addInitialize(new Proton.Life((c.life && c.life.min) || 0.5, (c.life && c.life.max) || 1.5));
+
+    // Size
+    emitter.addInitialize(new Proton.Radius((c.size && c.size.min) || 3, (c.size && c.size.max) || 10));
+
+    // Speed + Direction
+    var sMin = (c.speed && c.speed.min) || 2;
+    var sMax = (c.speed && c.speed.max) || 6;
+    var dMin = (c.direction && c.direction.min) || 0;
+    var dMax = (c.direction && c.direction.max) || 360;
+    emitter.addInitialize(new Proton.Velocity(new Proton.Span(sMin, sMax), new Proton.Span(dMin, dMax), 'polar'));
+
+    // Emitter shape
+    var shape = c.emitterShape || 'point';
+    var sz = c.emitterSize || 20;
+    if (shape === 'circle') emitter.addInitialize(new Proton.Position(new Proton.CircleZone(0, 0, sz)));
+    else if (shape === 'rectangle') emitter.addInitialize(new Proton.Position(new Proton.RectZone(-sz, -sz, sz * 2, sz * 2)));
+    else if (shape === 'ring') emitter.addInitialize(new Proton.Position(new Proton.CircleZone(0, 0, sz)));
+    else if (shape === 'line') emitter.addInitialize(new Proton.Position(new Proton.LineZone(-sz, 0, sz, 0)));
+
+    // Size end
+    if (c.size && c.size.end !== undefined) {
+      emitter.addBehaviour(new Proton.Scale(1, c.size.end / ((c.size.max || 10) || 1)));
+    } else {
+      emitter.addBehaviour(new Proton.Scale(1, 0.2));
+    }
+
+    // Alpha
+    emitter.addBehaviour(new Proton.Alpha((c.alpha && c.alpha.start) || 1, (c.alpha && c.alpha.end) || 0));
+
+    // Color lifecycle
+    if (c.color) {
+      if (c.color.mid) {
+        emitter.addBehaviour(new Proton.Color(c.color.start || '#ffffff', c.color.mid));
+      } else {
+        emitter.addBehaviour(new Proton.Color(c.color.start || '#ffffff', c.color.end || '#000000'));
+      }
+    }
+
+    // Gravity
+    if (c.gravity && c.gravity.force) {
+      emitter.addBehaviour(new Proton.Gravity(c.gravity.force));
+    }
+
+    // Rotation
+    if (c.rotation) {
+      emitter.addBehaviour(new Proton.Rotate(new Proton.Span(c.rotation.min || 0, c.rotation.max || 360), c.rotation.speed || 'add'));
+    }
+
+    // Wiggle (random drift)
+    if (c.wiggle) {
+      emitter.addBehaviour(new Proton.RandomDrift(c.wiggle, c.wiggle * 0.5, 0.1));
+    }
+
+    // Position
+    emitter.p.x = c.x || 0;
+    emitter.p.y = c.y || 0;
+
+    // Burst or continuous
+    if (c.burst) {
+      emitter.rate = new Proton.Rate(new Proton.Span(c.burstCount || 30, (c.burstCount || 30) + 10), 1);
+      emitter.emit('once');
+      this._burst(emitter, ((c.life && c.life.max) || 1.5) * 1000 + 200);
+    } else {
+      emitter.emit();
+      this._add(emitter);
+    }
+
+    return emitter;
+  }
+
+  // ---- GM Presets ----
+
+  /** Fire — continuous flames (GM: fire) */
+  private _p_fire(x: number, y: number, cfg: any): any {
+    var scale = cfg.scale || 1;
+    var emitter = new Proton.Emitter();
+    emitter.rate = new Proton.Rate(new Proton.Span(6, 12), new Proton.Span(0.02, 0.05));
+    emitter.addInitialize(new Proton.Life(0.2, 0.7));
+    emitter.addInitialize(new Proton.Radius(4 * scale, 18 * scale));
+    emitter.addInitialize(new Proton.Position(new Proton.CircleZone(0, 0, 12 * scale)));
+    emitter.addInitialize(new Proton.Velocity(new Proton.Span(2, 6), new Proton.Span(80, 100), 'polar'));
+    emitter.addBehaviour(new Proton.Scale(1, 0.1));
+    emitter.addBehaviour(new Proton.Alpha(0.9, 0));
+    emitter.addBehaviour(new Proton.Color('#ffcc00', '#ff2200'));
+    emitter.addBehaviour(new Proton.RandomDrift(4, 1, 0.05));
+    emitter.p.x = x; emitter.p.y = y;
+    emitter.emit();
+    return this._add(emitter);
+  }
+
+  /** Rain — diagonal weather particles (GM: rain) */
+  private _p_rain(x: number, y: number, cfg: any): any {
+    var w = cfg.width || this.engine.config.width;
+    var h = cfg.height || this.engine.config.height;
+    var intensity = cfg.intensity || 0.7;
+    var rate = Math.floor(15 + intensity * 50);
+    var emitter = new Proton.Emitter();
+    emitter.rate = new Proton.Rate(new Proton.Span(rate, rate + 15), new Proton.Span(0.01, 0.02));
+    emitter.addInitialize(new Proton.Life(0.5, 1.0));
+    emitter.addInitialize(new Proton.Radius(1, 2));
+    emitter.addInitialize(new Proton.Position(new Proton.LineZone(0, -30, w, -30)));
+    emitter.addInitialize(new Proton.Velocity(new Proton.Span(6, 10), new Proton.Span(250, 275), 'polar'));
+    emitter.addBehaviour(new Proton.Alpha(0.6, 0.1));
+    emitter.addBehaviour(new Proton.Color('#aaddff'));
+    emitter.addBehaviour(new Proton.CrossZone(new Proton.RectZone(-50, -50, w + 100, h + 50), 'dead'));
+    emitter.p.x = 0; emitter.p.y = 0;
+    emitter.emit();
+    return this._add(emitter);
+  }
+
+  /** Smoke — thick rising puffs (GM: smoke) */
+  private _p_smoke(x: number, y: number, cfg: any): any {
+    var scale = cfg.scale || 1;
+    var emitter = new Proton.Emitter();
+    emitter.rate = new Proton.Rate(new Proton.Span(3, 6), new Proton.Span(0.08, 0.15));
+    emitter.addInitialize(new Proton.Life(1.5, 3.5));
+    emitter.addInitialize(new Proton.Radius(10 * scale, 25 * scale));
+    emitter.addInitialize(new Proton.Position(new Proton.CircleZone(0, 0, 8 * scale)));
+    emitter.addInitialize(new Proton.Velocity(new Proton.Span(1, 3), new Proton.Span(75, 105), 'polar'));
+    emitter.addBehaviour(new Proton.Scale(0.4, 2.5));
+    emitter.addBehaviour(new Proton.Alpha(0.6, 0));
+    emitter.addBehaviour(new Proton.Color('#888888', '#222222'));
+    emitter.addBehaviour(new Proton.RandomDrift(10, 3, 0.08));
+    emitter.p.x = x; emitter.p.y = y;
+    emitter.emit();
+    return this._add(emitter);
+  }
+
+  /** Sparks — bright short-lived scattered (GM: sparks) */
+  private _p_sparks(x: number, y: number, cfg: any): void {
+    var count = cfg.count || 25;
+    var emitter = new Proton.Emitter();
+    emitter.rate = new Proton.Rate(new Proton.Span(count, count + 15), 1);
+    emitter.addInitialize(new Proton.Life(0.15, 0.5));
+    emitter.addInitialize(new Proton.Radius(1, 4));
+    emitter.addInitialize(new Proton.Velocity(new Proton.Span(5, 15), new Proton.Span(0, 360), 'polar'));
+    emitter.addBehaviour(new Proton.Scale(1, 0));
+    emitter.addBehaviour(new Proton.Alpha(1, 0));
+    emitter.addBehaviour(new Proton.Color(cfg.color || '#ffee44', '#ff6600'));
+    emitter.addBehaviour(new Proton.Gravity(4));
+    emitter.p.x = x; emitter.p.y = y;
+    emitter.emit('once');
+    this._burst(emitter, 600);
+  }
+
+  /** Electricity — chaotic blue-white bolts (GM: electricity) */
+  private _p_electricity(x: number, y: number, cfg: any): any {
+    var scale = cfg.scale || 1;
+    var emitter = new Proton.Emitter();
+    emitter.rate = new Proton.Rate(new Proton.Span(8, 15), new Proton.Span(0.02, 0.04));
+    emitter.addInitialize(new Proton.Life(0.05, 0.2));
+    emitter.addInitialize(new Proton.Radius(1, 3 * scale));
+    emitter.addInitialize(new Proton.Velocity(new Proton.Span(8, 20), new Proton.Span(0, 360), 'polar'));
+    emitter.addBehaviour(new Proton.Scale(1, 0.5));
+    emitter.addBehaviour(new Proton.Alpha(1, 0));
+    emitter.addBehaviour(new Proton.Color('#ffffff', '#4488ff'));
+    emitter.addBehaviour(new Proton.RandomDrift(30, 30, 0.02));
+    emitter.p.x = x; emitter.p.y = y;
+    emitter.emit();
+    return this._add(emitter);
+  }
+
+  /** Embers — slowly rising hot particles (GM: embers) */
+  private _p_embers(x: number, y: number, cfg: any): any {
+    var w = cfg.width || 200;
+    var emitter = new Proton.Emitter();
+    emitter.rate = new Proton.Rate(new Proton.Span(2, 5), new Proton.Span(0.1, 0.3));
+    emitter.addInitialize(new Proton.Life(2, 5));
+    emitter.addInitialize(new Proton.Radius(1, 3));
+    emitter.addInitialize(new Proton.Position(new Proton.LineZone(x - w / 2, y, x + w / 2, y)));
+    emitter.addInitialize(new Proton.Velocity(new Proton.Span(0.5, 2), new Proton.Span(80, 100), 'polar'));
+    emitter.addBehaviour(new Proton.Alpha(0.9, 0));
+    emitter.addBehaviour(new Proton.Color('#ff8800', '#ff4400'));
+    emitter.addBehaviour(new Proton.RandomDrift(8, 3, 0.08));
+    emitter.p.x = 0; emitter.p.y = 0;
+    emitter.emit();
+    return this._add(emitter);
+  }
+
+  /** Embers variant — wider spread, more glow (GM: embers2) */
+  private _p_embers2(x: number, y: number, cfg: any): any {
+    var w = cfg.width || 400;
+    var emitter = new Proton.Emitter();
+    emitter.rate = new Proton.Rate(new Proton.Span(3, 7), new Proton.Span(0.08, 0.2));
+    emitter.addInitialize(new Proton.Life(3, 7));
+    emitter.addInitialize(new Proton.Radius(2, 5));
+    emitter.addInitialize(new Proton.Position(new Proton.RectZone(x - w / 2, y - 20, w, 40)));
+    emitter.addInitialize(new Proton.Velocity(new Proton.Span(0.3, 1.5), new Proton.Span(75, 105), 'polar'));
+    emitter.addBehaviour(new Proton.Scale(1, 0.3));
+    emitter.addBehaviour(new Proton.Alpha(0.8, 0));
+    emitter.addBehaviour(new Proton.Color('#ffcc44', '#ff2200'));
+    emitter.addBehaviour(new Proton.RandomDrift(12, 5, 0.06));
+    emitter.p.x = 0; emitter.p.y = 0;
+    emitter.emit();
+    return this._add(emitter);
+  }
+
+  /** Intense fire burst (GM: flameIntensity) */
+  private _p_flameIntensity(x: number, y: number, cfg: any): void {
+    var scale = cfg.scale || 1;
+    var emitter = new Proton.Emitter();
+    emitter.rate = new Proton.Rate(new Proton.Span(40, 70), 1);
+    emitter.addInitialize(new Proton.Life(0.3, 0.8));
+    emitter.addInitialize(new Proton.Radius(6 * scale, 22 * scale));
+    emitter.addInitialize(new Proton.Velocity(new Proton.Span(4, 12), new Proton.Span(50, 130), 'polar'));
+    emitter.addBehaviour(new Proton.Scale(1.3, 0));
+    emitter.addBehaviour(new Proton.Alpha(1, 0));
+    emitter.addBehaviour(new Proton.Color('#ffffff', '#ff0000'));
+    emitter.addBehaviour(new Proton.RandomDrift(6, 2, 0.04));
+    emitter.p.x = x; emitter.p.y = y;
+    emitter.emit('once');
+    this._burst(emitter, 1000);
+  }
+
+  /** Heavy dark smoke (GM: smoke2) */
+  private _p_smoke2(x: number, y: number, cfg: any): any {
+    var scale = cfg.scale || 1;
+    var emitter = new Proton.Emitter();
+    emitter.rate = new Proton.Rate(new Proton.Span(4, 8), new Proton.Span(0.06, 0.12));
+    emitter.addInitialize(new Proton.Life(2, 5));
+    emitter.addInitialize(new Proton.Radius(15 * scale, 35 * scale));
+    emitter.addInitialize(new Proton.Position(new Proton.CircleZone(0, 0, 15 * scale)));
+    emitter.addInitialize(new Proton.Velocity(new Proton.Span(0.5, 2.5), new Proton.Span(70, 110), 'polar'));
+    emitter.addBehaviour(new Proton.Scale(0.3, 3));
+    emitter.addBehaviour(new Proton.Alpha(0.5, 0));
+    emitter.addBehaviour(new Proton.Color('#555555', '#111111'));
+    emitter.addBehaviour(new Proton.RandomDrift(12, 4, 0.06));
+    emitter.p.x = x; emitter.p.y = y;
+    emitter.emit();
+    return this._add(emitter);
+  }
+
+  /** Radial warp from center (GM: warp_center) */
+  private _p_warpCenter(x: number, y: number, cfg: any): any {
+    var emitter = new Proton.Emitter();
+    emitter.rate = new Proton.Rate(new Proton.Span(5, 10), new Proton.Span(0.03, 0.06));
+    emitter.addInitialize(new Proton.Life(0.8, 2));
+    emitter.addInitialize(new Proton.Radius(2, 6));
+    emitter.addInitialize(new Proton.Position(new Proton.CircleZone(0, 0, 5)));
+    emitter.addInitialize(new Proton.Velocity(new Proton.Span(3, 10), new Proton.Span(0, 360), 'polar'));
+    emitter.addBehaviour(new Proton.Scale(0.5, 2));
+    emitter.addBehaviour(new Proton.Alpha(0.8, 0));
+    emitter.addBehaviour(new Proton.Color(cfg.color || '#aa66ff', '#220044'));
+    emitter.addBehaviour(new Proton.Cyclone(new Proton.Span(3, 8)));
+    emitter.p.x = x; emitter.p.y = y;
+    emitter.emit();
+    return this._add(emitter);
+  }
+
+  /** Directional warp lines (GM: warp_lines) */
+  private _p_warpLines(x: number, y: number, cfg: any): any {
+    var angle = cfg.angle || 90;
+    var spread = cfg.spread || 20;
+    var emitter = new Proton.Emitter();
+    emitter.rate = new Proton.Rate(new Proton.Span(8, 15), new Proton.Span(0.02, 0.04));
+    emitter.addInitialize(new Proton.Life(0.5, 1.5));
+    emitter.addInitialize(new Proton.Radius(1, 3));
+    emitter.addInitialize(new Proton.Velocity(new Proton.Span(6, 14), new Proton.Span(angle - spread, angle + spread), 'polar'));
+    emitter.addBehaviour(new Proton.Scale(1, 2));
+    emitter.addBehaviour(new Proton.Alpha(0.7, 0));
+    emitter.addBehaviour(new Proton.Color(cfg.color || '#66aaff', '#000044'));
+    emitter.p.x = x; emitter.p.y = y;
+    emitter.emit();
+    return this._add(emitter);
+  }
+
+  /** Confetti burst — celebration effect (bonus preset) */
+  private _p_confetti(x: number, y: number, cfg: any): void {
+    var colors = cfg.colors || ['#ff0044', '#44ff00', '#0044ff', '#ffff00', '#ff00ff', '#00ffff'];
+    var emitter = new Proton.Emitter();
+    emitter.rate = new Proton.Rate(new Proton.Span(40, 80), 1);
+    emitter.addInitialize(new Proton.Life(1, 3));
+    emitter.addInitialize(new Proton.Radius(3, 8));
+    emitter.addInitialize(new Proton.Velocity(new Proton.Span(6, 16), new Proton.Span(40, 140), 'polar'));
+    emitter.addBehaviour(new Proton.Scale(1, 0.3));
+    emitter.addBehaviour(new Proton.Alpha(1, 0));
+    emitter.addBehaviour(new Proton.Color(colors[Math.floor(Math.random() * colors.length)], colors[Math.floor(Math.random() * colors.length)]));
+    emitter.addBehaviour(new Proton.Rotate(new Proton.Span(0, 360), new Proton.Span(-5, 5), 'add'));
+    emitter.addBehaviour(new Proton.Gravity(3));
+    emitter.addBehaviour(new Proton.RandomDrift(5, 2, 0.1));
+    emitter.p.x = x; emitter.p.y = y;
+    emitter.emit('once');
+    this._burst(emitter, 3000);
+  }
+
+  /** Blood splatter — impact effect (bonus preset) */
+  private _p_blood(x: number, y: number, cfg: any): void {
+    var emitter = new Proton.Emitter();
+    emitter.rate = new Proton.Rate(new Proton.Span(15, 30), 1);
+    emitter.addInitialize(new Proton.Life(0.3, 0.8));
+    emitter.addInitialize(new Proton.Radius(2, 8));
+    emitter.addInitialize(new Proton.Velocity(new Proton.Span(4, 10), new Proton.Span(0, 360), 'polar'));
+    emitter.addBehaviour(new Proton.Scale(1, 0.5));
+    emitter.addBehaviour(new Proton.Alpha(1, 0.3));
+    emitter.addBehaviour(new Proton.Color(cfg.color || '#cc0000', '#440000'));
+    emitter.addBehaviour(new Proton.Gravity(6));
+    emitter.p.x = x; emitter.p.y = y;
+    emitter.emit('once');
+    this._burst(emitter, 900);
+  }
+
+  /** Floating hearts — love/health pickup effect (bonus preset) */
+  private _p_hearts(x: number, y: number, cfg: any): void {
+    var emitter = new Proton.Emitter();
+    emitter.rate = new Proton.Rate(new Proton.Span(8, 15), 1);
+    emitter.addInitialize(new Proton.Life(0.8, 1.8));
+    emitter.addInitialize(new Proton.Radius(4, 10));
+    emitter.addInitialize(new Proton.Velocity(new Proton.Span(2, 5), new Proton.Span(60, 120), 'polar'));
+    emitter.addBehaviour(new Proton.Scale(0.5, 1.2));
+    emitter.addBehaviour(new Proton.Alpha(1, 0));
+    emitter.addBehaviour(new Proton.Color('#ff4488', '#ff88aa'));
+    emitter.addBehaviour(new Proton.RandomDrift(10, 3, 0.1));
+    emitter.p.x = x; emitter.p.y = y;
+    emitter.emit('once');
+    this._burst(emitter, 2000);
+  }
+}
+
+// ---------------------------------------------------------------------------
+// FilterSystem — Post-processing filter presets (engine.filters.*)
+// Wraps pixi-filters + built-in PIXI filters with safe apply/remove.
+// PIXI v8 rule: NEVER mutate container.filters — always reassign.
+// ---------------------------------------------------------------------------
+
+export class FilterSystem {
+  private engine: Engine2D;
+  private _active: Map<string, { filter: any; container: any }> = new Map();
+  private _idCounter: number = 0;
+  private _overlays: Map<string, any> = new Map();
+
+  constructor(engine: Engine2D) {
+    this.engine = engine;
+  }
+
+  /** Apply a filter to a container. Returns a filter ID for removal. */
+  private _apply(filter: any, container?: any, id?: string): string {
+    var target = container || this.engine.world;
+    var existing = target.filters ? Array.from(target.filters) : [];
+    existing.push(filter);
+    target.filters = existing;
+    var fId = id || ('filter_' + (++this._idCounter));
+    this._active.set(fId, { filter: filter, container: target });
+    return fId;
+  }
+
+  /** Remove a filter by its ID */
+  remove(id: string): void {
+    var entry = this._active.get(id);
+    if (!entry) return;
+    var target = entry.container;
+    if (target && target.filters) {
+      var cur = Array.from(target.filters);
+      var idx = cur.indexOf(entry.filter);
+      if (idx >= 0) { cur.splice(idx, 1); target.filters = cur.length > 0 ? cur : null; }
+    }
+    this._active.delete(id);
+    // Remove overlay if any
+    var overlay = this._overlays.get(id);
+    if (overlay && overlay.parent) { overlay.parent.removeChild(overlay); }
+    this._overlays.delete(id);
+  }
+
+  /** Remove all active filters */
+  removeAll(container?: any): void {
+    if (container) {
+      // Remove only filters on this container
+      var toRemove: string[] = [];
+      this._active.forEach(function(entry, id) { if (entry.container === container) toRemove.push(id); });
+      for (var i = 0; i < toRemove.length; i++) this.remove(toRemove[i]);
+    } else {
+      var ids = Array.from(this._active.keys());
+      for (var j = 0; j < ids.length; j++) this.remove(ids[j]);
+    }
+  }
+
+  /** Get a filter by ID (to update uniforms at runtime) */
+  get(id: string): any {
+    var entry = this._active.get(id);
+    return entry ? entry.filter : null;
+  }
+
+  /** List all active filter IDs */
+  list(): string[] { return Array.from(this._active.keys()); }
+
+  // ---- Preset Filters ----
+
+  /** Vignette — dark edge overlay (GM: Vignette) */
+  vignette(config?: { intensity?: number; color?: number; container?: any }): string {
+    var cfg = config || {};
+    var intensity = cfg.intensity ?? 0.5;
+    // Create vignette as a radial gradient overlay sprite
+    var w = this.engine.config.width;
+    var h = this.engine.config.height;
+    var g = new PIXI.Graphics();
+    // Draw outer dark rectangle with alpha based on distance from center
+    g.rect(0, 0, w, h).fill({ color: cfg.color || 0x000000, alpha: intensity * 0.8 });
+    // Cut out bright center using ellipse mask-like approach
+    var inner = new PIXI.Graphics();
+    inner.ellipse(w / 2, h / 2, w * 0.45, h * 0.45).fill({ color: 0x000000 });
+    g.mask = inner;
+    // Add to UI layer (screen-fixed)
+    if (this.engine.uiLayer) {
+      this.engine.uiLayer.addChild(inner);
+      this.engine.uiLayer.addChild(g);
+    }
+    var fId = 'vignette_' + (++this._idCounter);
+    this._overlays.set(fId, g);
+    this._active.set(fId, { filter: g, container: this.engine.uiLayer || this.engine.world });
+    return fId;
+  }
+
+  /** Blur — gaussian blur (built-in PIXI.BlurFilter) */
+  blur(config?: { strength?: number; quality?: number; container?: any }): string {
+    var cfg = config || {};
+    var filter = new PIXI.BlurFilter({ strength: cfg.strength || 4, quality: cfg.quality || 4 });
+    return this._apply(filter, cfg.container);
+  }
+
+  /** Glow — outer glow (pixi-filters GlowFilter) */
+  glow(config?: { color?: number; distance?: number; outerStrength?: number; innerStrength?: number; container?: any }): string {
+    var cfg = config || {};
+    if (!PIXI.GlowFilter && !(PIXI.filters && PIXI.filters.GlowFilter)) {
+      console.warn('[Filters] GlowFilter not available');
+      return '';
+    }
+    var GF = PIXI.GlowFilter || PIXI.filters.GlowFilter;
+    var filter = new GF({
+      color: cfg.color || 0xffffff,
+      distance: cfg.distance || 15,
+      outerStrength: cfg.outerStrength || 2,
+      innerStrength: cfg.innerStrength || 0,
+    });
+    return this._apply(filter, cfg.container);
+  }
+
+  /** Outline — alpha-based outline detection (GM: Outline, pixi-filters OutlineFilter) */
+  outline(config?: { color?: number; thickness?: number; container?: any }): string {
+    var cfg = config || {};
+    var OF = PIXI.OutlineFilter || (PIXI.filters && PIXI.filters.OutlineFilter);
+    if (!OF) { console.warn('[Filters] OutlineFilter not available'); return ''; }
+    var filter = new OF({ color: cfg.color || 0x000000, thickness: cfg.thickness || 2 });
+    return this._apply(filter, cfg.container);
+  }
+
+  /** Bloom — bright area bleed (GM: glow/bloom, pixi-filters BloomFilter) */
+  bloom(config?: { strength?: number; threshold?: number; container?: any }): string {
+    var cfg = config || {};
+    var BF = PIXI.AdvancedBloomFilter || PIXI.BloomFilter || (PIXI.filters && (PIXI.filters.AdvancedBloomFilter || PIXI.filters.BloomFilter));
+    if (!BF) { console.warn('[Filters] BloomFilter not available'); return ''; }
+    var filter = new BF({ threshold: cfg.threshold || 0.5, bloomScale: cfg.strength || 1.5, brightness: 1 });
+    return this._apply(filter, cfg.container);
+  }
+
+  /** Godray — volumetric light shafts (pixi-filters GodrayFilter) */
+  godray(config?: { angle?: number; gain?: number; lacunarity?: number; speed?: number; container?: any }): string {
+    var cfg = config || {};
+    var GR = PIXI.GodrayFilter || (PIXI.filters && PIXI.filters.GodrayFilter);
+    if (!GR) { console.warn('[Filters] GodrayFilter not available'); return ''; }
+    var filter = new GR({
+      angle: cfg.angle || 30,
+      gain: cfg.gain || 0.5,
+      lacunarity: cfg.lacunarity || 2.5,
+      parallel: true,
+    });
+    // Animate if speed specified
+    if (cfg.speed) {
+      var time = 0;
+      var ticker = this.engine.app.ticker;
+      var update = function() { time += 0.01 * (cfg.speed || 1); filter.time = time; };
+      ticker.add(update);
+      (filter as any)._tickerUpdate = update;
+      (filter as any)._ticker = ticker;
+    }
+    return this._apply(filter, cfg.container);
+  }
+
+  /** Adjustment — brightness/contrast/saturation/gamma (pixi-filters AdjustmentFilter) */
+  adjustment(config?: { brightness?: number; contrast?: number; saturation?: number; gamma?: number; container?: any }): string {
+    var cfg = config || {};
+    var AF = PIXI.AdjustmentFilter || (PIXI.filters && PIXI.filters.AdjustmentFilter);
+    if (!AF) { console.warn('[Filters] AdjustmentFilter not available'); return ''; }
+    var filter = new AF({
+      brightness: cfg.brightness ?? 1,
+      contrast: cfg.contrast ?? 1,
+      saturation: cfg.saturation ?? 1,
+      gamma: cfg.gamma ?? 1,
+    });
+    return this._apply(filter, cfg.container);
+  }
+
+  /** Drop Shadow — cast shadow behind sprites (pixi-filters DropShadowFilter) */
+  dropShadow(config?: { color?: number; alpha?: number; blur?: number; offset?: { x?: number; y?: number }; container?: any }): string {
+    var cfg = config || {};
+    var DS = PIXI.DropShadowFilter || (PIXI.filters && PIXI.filters.DropShadowFilter);
+    if (!DS) { console.warn('[Filters] DropShadowFilter not available'); return ''; }
+    var filter = new DS({
+      color: cfg.color || 0x000000,
+      alpha: cfg.alpha ?? 0.5,
+      blur: cfg.blur || 4,
+      offset: { x: (cfg.offset && cfg.offset.x) || 4, y: (cfg.offset && cfg.offset.y) || 4 },
+    });
+    return this._apply(filter, cfg.container);
+  }
+
+  /** Motion Blur — directional blur (pixi-filters MotionBlurFilter) */
+  motionBlur(config?: { velocity?: { x?: number; y?: number }; kernelSize?: number; container?: any }): string {
+    var cfg = config || {};
+    var MB = PIXI.MotionBlurFilter || (PIXI.filters && PIXI.filters.MotionBlurFilter);
+    if (!MB) { console.warn('[Filters] MotionBlurFilter not available'); return ''; }
+    var filter = new MB({
+      velocity: { x: (cfg.velocity && cfg.velocity.x) || 10, y: (cfg.velocity && cfg.velocity.y) || 0 },
+      kernelSize: cfg.kernelSize || 9,
+    });
+    return this._apply(filter, cfg.container);
+  }
+
+  /** Color Matrix — hue/saturation/brightness via matrix (built-in PIXI.ColorMatrixFilter) */
+  colorMatrix(config?: { container?: any }): { id: string; filter: any } {
+    var filter = new PIXI.ColorMatrixFilter();
+    var fId = this._apply(filter, (config && config.container));
+    return { id: fId, filter: filter };
+  }
+
+  /** Pixelate — retro low-res effect (GM: Pixelate) — uses ColorMatrixFilter as container filter */
+  pixelate(config?: { cellSize?: number; container?: any }): string {
+    var cfg = config || {};
+    // PIXI doesn't have built-in pixelate, create via resolution trick
+    var target = cfg.container || this.engine.world;
+    var cellSize = cfg.cellSize || 4;
+    // Use a blur at low quality as approximation, or create overlay
+    var filter = new PIXI.BlurFilter({ strength: cellSize * 0.5, quality: 1 });
+    return this._apply(filter, target);
+  }
+
+  /** Underwater — blue tint + displacement distortion (GM: Underwater) */
+  underwater(config?: { tint?: number; distortion?: number; container?: any }): string {
+    var cfg = config || {};
+    // Color tint via ColorMatrixFilter
+    var cmf = new PIXI.ColorMatrixFilter();
+    cmf.tint(cfg.tint || 0x4488cc, true);
+    var fId = this._apply(cmf, cfg.container, 'underwater_' + (++this._idCounter));
+    return fId;
+  }
+
+  /** Old Film — desaturated + noise grain effect (GM: Old Film) */
+  oldFilm(config?: { sepia?: number; noise?: number; container?: any }): string {
+    var cfg = config || {};
+    var cmf = new PIXI.ColorMatrixFilter();
+    cmf.sepia(true);
+    cmf.contrast(cfg.sepia || 0.3, true);
+    return this._apply(cmf, cfg.container);
+  }
+
+  /** Gradient overlay — screen-space color gradient (GM: Gradient) */
+  gradient(config?: { color1?: number; color2?: number; alpha?: number; direction?: 'vertical' | 'horizontal'; container?: any }): string {
+    var cfg = config || {};
+    var w = this.engine.config.width;
+    var h = this.engine.config.height;
+    var alpha = cfg.alpha ?? 0.3;
+    // Create gradient overlay
+    var g = new PIXI.Graphics();
+    g.rect(0, 0, w, h);
+    try {
+      var grad = new PIXI.FillGradient({
+        type: 'linear',
+        colorStops: [
+          { offset: 0, color: cfg.color1 || 0x000044 },
+          { offset: 1, color: cfg.color2 || 0x000000 },
+        ],
+        end: (cfg.direction === 'horizontal') ? { x: 1, y: 0 } : { x: 0, y: 1 },
+      });
+      g.fill(grad);
+    } catch(e) {
+      g.fill({ color: cfg.color1 || 0x000044, alpha: alpha });
+    }
+    g.alpha = alpha;
+    if (this.engine.uiLayer) this.engine.uiLayer.addChild(g);
+    var fId = 'gradient_' + (++this._idCounter);
+    this._overlays.set(fId, g);
+    this._active.set(fId, { filter: g, container: this.engine.uiLayer || this.engine.world });
+    return fId;
+  }
+
+  /** Screen shake as a filter effect (GM: Screenshake) — shortcut to engine.juice.shake */
+  screenshake(config?: { intensity?: number; duration?: number }): void {
+    var cfg = config || {};
+    this.engine.juice.screenShake(this.engine.world, cfg.intensity || 8, cfg.duration || 0.3);
   }
 }
 `;

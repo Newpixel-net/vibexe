@@ -237,7 +237,7 @@ if (heroSheet && heroSheet.animations) {
 }
 \`\`\`
 
-### Effects (Proton particles)
+### Effects (Proton particles — simple API)
 \`\`\`
 engine.effects.explosion(x, y)         // Burst of fire particles
 engine.effects.sparkle(x, y)           // Golden sparkle burst
@@ -249,6 +249,91 @@ engine.effects.snow(0.4)               // Snow weather
 engine.effects.ambient('fireflies')    // 'fireflies'|'embers'|'dust'|'leaves'|'pollen'
 \`\`\`
 
+### Particles (advanced particle presets — engine.particles.*)
+\`\`\`
+// 14 presets — emit(name, x, y, config?)
+engine.particles.emit('fire', x, y)                    // Continuous flames
+engine.particles.emit('rain', 0, 0, { intensity: 0.8 }) // Weather rain (fullscreen)
+engine.particles.emit('smoke', x, y)                   // Rising smoke puffs
+engine.particles.emit('sparks', x, y)                  // Impact sparks (burst)
+engine.particles.emit('electricity', x, y)             // Chaotic blue arcs
+engine.particles.emit('embers', x, y, { width: 300 })  // Rising hot embers
+engine.particles.emit('embers2', x, y)                 // Wide embers variant
+engine.particles.emit('flameIntensity', x, y)          // Intense fire burst
+engine.particles.emit('smoke2', x, y)                  // Heavy dark smoke
+engine.particles.emit('warpCenter', x, y)              // Spiral vortex
+engine.particles.emit('warpLines', x, y, { angle: 90 }) // Directional warp
+engine.particles.emit('confetti', x, y)                // Celebration burst
+engine.particles.emit('blood', x, y)                   // Impact splatter
+engine.particles.emit('hearts', x, y)                  // Floating hearts
+
+// Custom particle emitter — full control
+engine.particles.create({
+  x: 400, y: 300,
+  rate: { min: 5, max: 10, interval: 0.05 },
+  life: { min: 0.5, max: 2 },
+  speed: { min: 2, max: 8 },
+  direction: { min: 60, max: 120 },
+  size: { min: 3, max: 12, end: 1 },
+  color: { start: '#ff6600', end: '#220000' },
+  alpha: { start: 1, end: 0 },
+  gravity: { force: 3 },
+  emitterShape: 'circle',  // 'point'|'circle'|'rectangle'|'ring'|'line'
+  emitterSize: 20,
+  wiggle: 10,
+  burst: false,  // true = one-shot, false = continuous
+})
+
+// Management
+engine.particles.stop(emitter)  // Stop specific emitter
+engine.particles.clear()        // Stop all emitters
+engine.particles.list()         // Get all active emitters
+\`\`\`
+
+### Filters (post-processing effects — engine.filters.*)
+\`\`\`
+// Each filter returns an ID for removal. Apply to world (default) or specific container.
+var id = engine.filters.blur({ strength: 4 })                            // Gaussian blur
+var id = engine.filters.glow({ color: 0x00ffff, outerStrength: 3 })      // Outer glow
+var id = engine.filters.outline({ color: 0xff0000, thickness: 2 })       // Edge outline
+var id = engine.filters.bloom({ strength: 1.5, threshold: 0.5 })         // Bloom/glow bleed
+var id = engine.filters.godray({ angle: 30, speed: 1 })                  // Light shafts
+var id = engine.filters.adjustment({ brightness: 1.2, saturation: 0.5 }) // Color correction
+var id = engine.filters.dropShadow({ blur: 4, offset: { x: 3, y: 3 } }) // Drop shadow
+var id = engine.filters.motionBlur({ velocity: { x: 10, y: 0 } })       // Directional blur
+var id = engine.filters.vignette({ intensity: 0.5 })                     // Dark edges
+var id = engine.filters.underwater({ tint: 0x4488cc })                   // Underwater tint
+var id = engine.filters.oldFilm({ sepia: 0.3 })                         // Retro film look
+var id = engine.filters.gradient({ color1: 0x000044, alpha: 0.3 })      // Screen gradient
+var { id, filter } = engine.filters.colorMatrix()                        // Raw color matrix
+engine.filters.screenshake({ intensity: 10, duration: 0.5 })             // Camera shake
+
+// Management
+engine.filters.remove(id)      // Remove by ID
+engine.filters.removeAll()     // Remove all filters
+engine.filters.get(id)         // Get filter object (to update uniforms)
+engine.filters.list()          // Get all filter IDs
+\`\`\`
+
+### Easing Curves (engine.ease.*)
+\`\`\`
+// 30 easing functions — each takes t (0-1), returns value (0-1)
+engine.ease.linear(t)          engine.ease.easeIn(t)          engine.ease.easeOut(t)
+engine.ease.easeInOut(t)       engine.ease.easeCubicIn(t)     engine.ease.easeCubicOut(t)
+engine.ease.easeCubicInOut(t)  engine.ease.easeQuartIn(t)     engine.ease.easeQuartOut(t)
+engine.ease.easeQuartInOut(t)  engine.ease.easeExpoIn(t)      engine.ease.easeExpoOut(t)
+engine.ease.easeCircIn(t)      engine.ease.easeCircOut(t)     engine.ease.easeCircInOut(t)
+engine.ease.easeBackIn(t)      engine.ease.easeBackOut(t)     engine.ease.easeBackInOut(t)
+engine.ease.elasticIn(t)       engine.ease.elasticOut(t)      engine.ease.elasticInOut(t)
+engine.ease.bounceIn(t)        engine.ease.bounceOut(t)       engine.ease.bounceInOut(t)
+engine.ease.fastOutSlowIn(t)   engine.ease.slowMiddle(t)
+
+// Helpers
+engine.ease.lerp(0, 100, t, 'easeOutCubic')        // Interpolate with easing
+engine.ease.get('bounceOut')                         // Get function by name
+engine.ease.tween(obj, 'x', 0, 500, 1.0, 'easeInOut', onDone)  // Animate property
+\`\`\`
+
 ### Juice (game feel effects)
 \`\`\`
 engine.juice.pop(sprite)                      // Scale bounce
@@ -258,6 +343,14 @@ engine.juice.squash(sprite)                    // Squash & stretch
 engine.juice.hitPause(engine.app, 80)          // Freeze frame (ms)
 engine.juice.float(sprite, 6, 2)              // Sine float (returns kill fn)
 engine.juice.breathe(sprite, 1.05, 1.5)       // Pulse scale (returns kill fn)
+\`\`\`
+
+### Blend Modes (engine.pixi.blendMode)
+\`\`\`
+engine.pixi.blendMode(sprite, 'add')         // Additive glow (fire, embers, gold particles)
+engine.pixi.blendMode(sprite, 'multiply')    // Dark overlay (shadows, gradient darkening)
+engine.pixi.blendMode(sprite, 'screen')      // Light overlay (UI highlights)
+engine.pixi.blendMode(sprite, 'normal')      // Default blend mode
 \`\`\`
 
 ### Camera
