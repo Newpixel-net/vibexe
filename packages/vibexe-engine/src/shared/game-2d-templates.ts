@@ -2416,6 +2416,15 @@ var CONFIG = {
   levelShape: 'flat-wide' as 'flat-wide' | 'staircase-ascending' | 'valley-bowl' | 'hilly-undulating',
   doubleJump: true,
   wallSlide: false,
+  // Blueprint config — AI sets these based on user's game request
+  worldBlueprint: 'outdoor-scroll',
+  worldDensity: 'medium',
+  worldDirection: 'horizontal',
+  worldHasGround: true,
+  worldHasCeiling: false,
+  worldLiquidType: 'none',
+  worldLiquidLevel: 0,
+  worldPlatformStyle: 'spread',
 };
 
 // ======================== PLACEMENT GENERATORS ========================
@@ -2486,6 +2495,7 @@ export class GameScene2D implements GameScene {
 
     // ---- 1. BUILD WORLD (sprites + fallback graphics) ----
     this.worldResult = engine.worldBuilder.build({
+      blueprint: CONFIG.worldBlueprint || 'outdoor-scroll',
       theme: THEME,
       width: CONFIG.worldWidth,
       height: CONFIG.worldHeight,
@@ -2493,6 +2503,13 @@ export class GameScene2D implements GameScene {
       platformCount: CONFIG.platformCount,
       levelShape: CONFIG.levelShape,
       seed: _seed,
+      density: CONFIG.worldDensity,
+      direction: CONFIG.worldDirection,
+      hasGround: CONFIG.worldHasGround,
+      hasCeiling: CONFIG.worldHasCeiling,
+      liquidType: CONFIG.worldLiquidType,
+      liquidLevel: CONFIG.worldLiquidLevel,
+      platformStyle: CONFIG.worldPlatformStyle,
     });
     this.container.addChild(this.worldResult.container);
     engine._worldData = this.worldResult;
@@ -4696,7 +4713,10 @@ export function buildGame2dSceneStarter(brief: CreativeBrief): string {
 		`var THEME = '${brief.theme}'; // Seed ${brief.seed} -- ${brief.difficultyProfile}, ${brief.mechanicEmphasis}`,
 	);
 
-	// Replace CONFIG values (including new hybrid fields)
+	// Replace CONFIG values (including blueprint + hybrid fields)
+	const bp = brief.worldBlueprint || 'outdoor-scroll';
+	const bpHasGround = !['floating-islands'].includes(bp);
+	const bpHasCeiling = ['cave-system', 'arena', 'dungeon-rooms'].includes(bp);
 	code = code.replace(
 		[
 			"var CONFIG = {",
@@ -4718,14 +4738,23 @@ export function buildGame2dSceneStarter(brief: CreativeBrief): string {
 			"  levelShape: 'flat-wide' as 'flat-wide' | 'staircase-ascending' | 'valley-bowl' | 'hilly-undulating',",
 			"  doubleJump: true,",
 			"  wallSlide: false,",
+			"  // Blueprint config — AI sets these based on user's game request",
+			"  worldBlueprint: 'outdoor-scroll',",
+			"  worldDensity: 'medium',",
+			"  worldDirection: 'horizontal',",
+			"  worldHasGround: true,",
+			"  worldHasCeiling: false,",
+			"  worldLiquidType: 'none',",
+			"  worldLiquidLevel: 0,",
+			"  worldPlatformStyle: 'spread',",
 			"};",
 		].join("\n"),
 		[
 			"var CONFIG = {",
 			`  gravity: ${brief.gravity},`,
 			`  worldWidth: ${brief.worldWidth},`,
-			"  worldHeight: 900,",
-			"  groundY: 680,",
+			`  worldHeight: ${bp === 'vertical-tower' ? 1800 : 900},`,
+			`  groundY: ${bp === 'vertical-tower' ? 1680 : 680},`,
 			"  playerSize: 48,",
 			"  playerStartX: 250,",
 			`  moveSpeed: ${brief.moveSpeed},`,
@@ -4740,6 +4769,14 @@ export function buildGame2dSceneStarter(brief: CreativeBrief): string {
 			`  levelShape: '${brief.levelShape}' as 'flat-wide' | 'staircase-ascending' | 'valley-bowl' | 'hilly-undulating',`,
 			`  doubleJump: ${brief.specialMechanic === "double-jump" || brief.specialMechanic === "dash"},`,
 			`  wallSlide: ${brief.specialMechanic === "wall-slide"},`,
+			`  worldBlueprint: '${bp}',`,
+			`  worldDensity: '${brief.difficultyProfile === "hard-intense" ? "tight" : "medium"}',`,
+			`  worldDirection: '${bp === 'vertical-tower' ? 'vertical' : 'horizontal'}',`,
+			`  worldHasGround: ${bpHasGround},`,
+			`  worldHasCeiling: ${bpHasCeiling},`,
+			"  worldLiquidType: 'none',",
+			"  worldLiquidLevel: 0,",
+			`  worldPlatformStyle: '${bp === 'cave-system' ? 'clustered' : bp === 'vertical-tower' ? 'stacked' : 'spread'}',`,
 			"};",
 		].join("\n"),
 	);

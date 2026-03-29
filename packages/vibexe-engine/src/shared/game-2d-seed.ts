@@ -213,6 +213,8 @@ export interface CreativeBrief {
 	fireRate: number;
 	enemySpawnRate: number;
 	waveCount: number;
+	// World blueprint
+	worldBlueprint: string;
 }
 
 // ===== Helper =====
@@ -278,6 +280,27 @@ export function expandSeed(seed: number, subGenre: SubGenre): CreativeBrief {
 	const enemySpawnRate = Number((1.6 - d * 0.6).toFixed(2)); // harder = more enemies
 	const waveCount = lerp(5, 15, d);
 
+	// World blueprint — derived from subGenre + layout + atmosphere
+	let worldBlueprint = 'outdoor-scroll';
+	if (subGenre === 'runner') {
+		worldBlueprint = 'endless-runner';
+	} else if (subGenre === 'shooter') {
+		worldBlueprint = 'arena';
+	} else if (subGenre === 'platformer') {
+		if (layoutStyle === 'vertical-challenge') worldBlueprint = 'vertical-tower';
+		else if (atmosphere === 'embers-dark') worldBlueprint = 'cave-system';
+		else if (atmosphere === 'rain-moody') worldBlueprint = 'city-rooftops';
+		else if (atmosphere === 'pollen-bright') worldBlueprint = 'forest-canopy';
+		else if (theme === 'ocean') worldBlueprint = 'underwater';
+		else if (theme === 'space') worldBlueprint = 'floating-islands';
+		else if (theme === 'dark') worldBlueprint = 'dungeon-rooms';
+		else {
+			// Weighted random among remaining blueprints
+			const bpPool = ['outdoor-scroll', 'outdoor-scroll', 'cave-system', 'floating-islands', 'forest-canopy', 'city-rooftops'];
+			worldBlueprint = pick(bpPool, rng);
+		}
+	}
+
 	return {
 		seed,
 		subGenre,
@@ -307,6 +330,7 @@ export function expandSeed(seed: number, subGenre: SubGenre): CreativeBrief {
 		fireRate,
 		enemySpawnRate,
 		waveCount,
+		worldBlueprint,
 	};
 }
 
@@ -340,6 +364,7 @@ export function buildCreativeBriefPrompt(brief: CreativeBrief): string {
 **Collectibles**: ${formatLabel(brief.collectiblePattern)}
 **Special Mechanic**: ${formatLabel(brief.specialMechanic)} -- ${specialFlavor}
 **Art Direction**: ${formatLabel(brief.artStyleDirection)}
+**World Blueprint**: ${brief.worldBlueprint} (this determines the world STRUCTURE -- cave, tower, islands, arena, etc.)
 `;
 
 	// Genre-specific numeric parameters
@@ -353,6 +378,7 @@ export function buildCreativeBriefPrompt(brief: CreativeBrief): string {
 - Platform Count: ${brief.platformCount}
 - Enemy Count: ${brief.enemyCount}
 - Coin Count: ${brief.coinCount}
+- World Blueprint: ${brief.worldBlueprint} (already set in CONFIG.worldBlueprint — do NOT override unless user explicitly asks for a different world type)
 `;
 	} else if (brief.subGenre === "runner") {
 		prompt += `

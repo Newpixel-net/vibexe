@@ -53,6 +53,7 @@ export interface Engine2DConfig {
 // ---------------------------------------------------------------------------
 
 interface WorldBuilderConfig {
+  blueprint: string;
   theme: string;
   width: number;
   height: number;
@@ -62,6 +63,13 @@ interface WorldBuilderConfig {
   decorationDensity: number;
   cloudCount: number;
   seed: number;
+  density: string;
+  direction: string;
+  hasGround: boolean;
+  hasCeiling: boolean;
+  liquidType: string;
+  liquidLevel: number;
+  platformStyle: string;
 }
 
 interface WorldBuilderResult {
@@ -83,6 +91,7 @@ class WorldBuilderSystem {
   build(config: Partial<WorldBuilderConfig> = {}): WorldBuilderResult {
     var PIXI = (window as any).PIXI;
     var cfg: WorldBuilderConfig = {
+      blueprint: config.blueprint || 'outdoor-scroll',
       theme: config.theme || 'forest',
       width: config.width || 4000,
       height: config.height || 900,
@@ -92,6 +101,13 @@ class WorldBuilderSystem {
       decorationDensity: config.decorationDensity ?? 1.0,
       cloudCount: config.cloudCount ?? 7,
       seed: config.seed || Date.now(),
+      density: config.density || 'medium',
+      direction: config.direction || 'horizontal',
+      hasGround: config.hasGround !== false,
+      hasCeiling: config.hasCeiling || false,
+      liquidType: config.liquidType || 'none',
+      liquidLevel: config.liquidLevel || 0,
+      platformStyle: config.platformStyle || 'spread',
     };
 
     // Seeded PRNG (Mulberry32)
@@ -132,14 +148,14 @@ class WorldBuilderSystem {
 
     // Theme palettes (inline for independence from template imports)
     var palettes: Record<string, any> = {
-      forest:   { skyTop: 0x0a0a2e, skyBottom: 0x1a4a3a, mountains: [0x0d1a0d, 0x1a2d1a, 0x2a3d2a], ground: 0x2d5a27, groundTop: 0x4a8a3a, platform: 0x5a3a1a, platformTop: 0x7a5a3a, foliage: 0x339933 },
-      sunset:   { skyTop: 0x1a0533, skyBottom: 0xff6633, mountains: [0x1a1133, 0x2d1a44, 0x442d55], ground: 0x3a5a2a, groundTop: 0x5a8a3a, platform: 0x6a4a2a, platformTop: 0x8a6a4a, foliage: 0x447733 },
-      space:    { skyTop: 0x000011, skyBottom: 0x0a0a33, mountains: [0x111133, 0x1a1a44, 0x222255], ground: 0x333355, groundTop: 0x444477, platform: 0x555577, platformTop: 0x6666aa, foliage: 0x4466aa },
-      volcanic: { skyTop: 0x1a0000, skyBottom: 0x4a1500, mountains: [0x1a0505, 0x2d0a0a, 0x3d1515], ground: 0x2a1a0a, groundTop: 0x4a2a1a, platform: 0x3a2a1a, platformTop: 0x5a3a2a, foliage: 0x553322 },
-      candy:    { skyTop: 0xffaacc, skyBottom: 0xaaccff, mountains: [0xddaacc, 0xccbbdd, 0xbbccee], ground: 0x88cc77, groundTop: 0xaaee99, platform: 0xcc88aa, platformTop: 0xeeaacc, foliage: 0x77cc55 },
-      arctic:   { skyTop: 0x1a2a4a, skyBottom: 0x7799bb, mountains: [0x334455, 0x445566, 0x556677], ground: 0x889999, groundTop: 0xaabbcc, platform: 0x778899, platformTop: 0x99aabb, foliage: 0x446666 },
-      dark:     { skyTop: 0x050510, skyBottom: 0x0a0a20, mountains: [0x0a0a15, 0x10101d, 0x151525], ground: 0x1a1a2a, groundTop: 0x2a2a3a, platform: 0x222233, platformTop: 0x333344, foliage: 0x1a2a1a },
-      ocean:    { skyTop: 0x001133, skyBottom: 0x0055aa, mountains: [0x002244, 0x003355, 0x004466], ground: 0x224455, groundTop: 0x336677, platform: 0x335566, platformTop: 0x447788, foliage: 0x228855 },
+      forest:   { skyTop: 0x0a0a2e, skyBottom: 0x1a4a3a, mountains: [0x0d1a0d, 0x1a2d1a, 0x2a3d2a], ground: 0x2d5a27, groundTop: 0x4a8a3a, platform: 0x5a3a1a, platformTop: 0x7a5a3a, foliage: 0x339933, wall: 0x444433, ceiling: 0x333322 },
+      sunset:   { skyTop: 0x1a0533, skyBottom: 0xff6633, mountains: [0x1a1133, 0x2d1a44, 0x442d55], ground: 0x3a5a2a, groundTop: 0x5a8a3a, platform: 0x6a4a2a, platformTop: 0x8a6a4a, foliage: 0x447733, wall: 0x553344, ceiling: 0x442233 },
+      space:    { skyTop: 0x000011, skyBottom: 0x0a0a33, mountains: [0x111133, 0x1a1a44, 0x222255], ground: 0x333355, groundTop: 0x444477, platform: 0x555577, platformTop: 0x6666aa, foliage: 0x4466aa, wall: 0x333355, ceiling: 0x222244 },
+      volcanic: { skyTop: 0x1a0000, skyBottom: 0x4a1500, mountains: [0x1a0505, 0x2d0a0a, 0x3d1515], ground: 0x2a1a0a, groundTop: 0x4a2a1a, platform: 0x3a2a1a, platformTop: 0x5a3a2a, foliage: 0x553322, wall: 0x3a2020, ceiling: 0x2a1515 },
+      candy:    { skyTop: 0xffaacc, skyBottom: 0xaaccff, mountains: [0xddaacc, 0xccbbdd, 0xbbccee], ground: 0x88cc77, groundTop: 0xaaee99, platform: 0xcc88aa, platformTop: 0xeeaacc, foliage: 0x77cc55, wall: 0xddaacc, ceiling: 0xccbbdd },
+      arctic:   { skyTop: 0x1a2a4a, skyBottom: 0x7799bb, mountains: [0x334455, 0x445566, 0x556677], ground: 0x889999, groundTop: 0xaabbcc, platform: 0x778899, platformTop: 0x99aabb, foliage: 0x446666, wall: 0x556677, ceiling: 0x445566 },
+      dark:     { skyTop: 0x050510, skyBottom: 0x0a0a20, mountains: [0x0a0a15, 0x10101d, 0x151525], ground: 0x1a1a2a, groundTop: 0x2a2a3a, platform: 0x222233, platformTop: 0x333344, foliage: 0x1a2a1a, wall: 0x151520, ceiling: 0x0a0a15 },
+      ocean:    { skyTop: 0x001133, skyBottom: 0x0055aa, mountains: [0x002244, 0x003355, 0x004466], ground: 0x224455, groundTop: 0x336677, platform: 0x335566, platformTop: 0x447788, foliage: 0x228855, wall: 0x003355, ceiling: 0x002244 },
     };
     var pal = palettes[theme] || palettes.forest;
 
@@ -154,6 +170,24 @@ class WorldBuilderSystem {
 
     // Helper: hex number to CSS
     function hexCss(c: number): string { return '#' + ('000000' + c.toString(16)).slice(-6); }
+
+    // Build context for blueprint dispatch
+    var ctx = { PIXI: PIXI, cfg: cfg, rng: rng, rngRange: rngRange, rngInt: rngInt, _getSprite: _getSprite, _getTilingSprite: _getTilingSprite, pal: pal, hexCss: hexCss, container: container, bodies: bodies, platforms: platforms, parallaxLayers: parallaxLayers, clouds: clouds, W: W, H: H, GY: GY, groundMap: groundMap, platMap: platMap, treeMap: treeMap };
+
+    var _bpDone = false;
+    var _bp = cfg.blueprint;
+    if (_bp === 'cave-system') { this._buildCaveSystem(ctx); _bpDone = true; }
+    else if (_bp === 'vertical-tower') { this._buildVerticalTower(ctx); _bpDone = true; }
+    else if (_bp === 'floating-islands') { this._buildFloatingIslands(ctx); _bpDone = true; }
+    else if (_bp === 'arena') { this._buildArena(ctx); _bpDone = true; }
+    else if (_bp === 'dungeon-rooms') { this._buildDungeonRooms(ctx); _bpDone = true; }
+    else if (_bp === 'city-rooftops') { this._buildCityRooftops(ctx); _bpDone = true; }
+    else if (_bp === 'forest-canopy') { this._buildForestCanopy(ctx); _bpDone = true; }
+    else if (_bp === 'underwater') { this._buildUnderwater(ctx); _bpDone = true; }
+    else if (_bp === 'endless-runner') { this._buildEndlessRunner(ctx); _bpDone = true; }
+
+    if (!_bpDone) {
+    // ==== Default: OUTDOOR SCROLL blueprint ====
 
     // =======================================================================
     // 1. SKY GRADIENT
@@ -437,8 +471,19 @@ class WorldBuilderSystem {
       container.addChild(vigTop);
       container.addChild(vigBot);
     } catch(e) { /* vignette optional */ }
+    } // end if (!_bpDone) outdoor-scroll block
 
-    console.log('[WorldBuilder] Built ' + theme + ' world (' + W + 'x' + H + ', ' + platforms.length + ' platforms, seed=' + cfg.seed + ')');
+    // Liquid overlay (applies to any blueprint)
+    if (cfg.liquidType !== 'none' && cfg.liquidLevel > 0) {
+      var liqColors: Record<string,number> = { water: 0x0066cc, lava: 0xff3300, acid: 0x33ff00 };
+      var liqY = H - (H * cfg.liquidLevel);
+      var liqG = new PIXI.Graphics();
+      liqG.rect(0, liqY, W, H - liqY);
+      liqG.fill({ color: liqColors[cfg.liquidType] || 0x0066cc, alpha: cfg.liquidType === 'lava' ? 0.5 : 0.35 });
+      container.addChild(liqG);
+    }
+
+    console.log('[WorldBuilder] Built ' + (cfg.blueprint || 'outdoor-scroll') + '/' + cfg.theme + ' world (' + W + 'x' + H + ', ' + platforms.length + ' platforms, seed=' + cfg.seed + ')');
 
     // Build result
     var result: WorldBuilderResult = {
@@ -475,6 +520,555 @@ class WorldBuilderSystem {
     };
 
     return result;
+  }
+
+  // ===================================================================
+  // BLUEPRINT: cave-system — enclosed dark caves with ceiling + floor
+  // ===================================================================
+  private _buildCaveSystem(ctx: any): void {
+    var PIXI = ctx.PIXI, rng = ctx.rng, rngRange = ctx.rngRange, rngInt = ctx.rngInt;
+    var _getSprite = ctx._getSprite, pal = ctx.pal;
+    var container = ctx.container, bodies = ctx.bodies, platforms = ctx.platforms;
+    var W = ctx.W, H = ctx.H, GY = ctx.GY, cfg = ctx.cfg;
+
+    // Dark solid background
+    var bg = new PIXI.Graphics(); bg.rect(0, 0, W, H); bg.fill({ color: 0x0a0a0f }); container.addChild(bg);
+
+    // Irregular ceiling
+    var ceilH = 60 + rngInt(0, 40);
+    var ceilG = new PIXI.Graphics(); ceilG.moveTo(0, 0);
+    for (var cx = 0; cx <= W; cx += 20) {
+      ceilG.lineTo(cx, ceilH + Math.sin(cx * 0.01 + rng() * 2) * 25 + rng() * 15);
+    }
+    ceilG.lineTo(W, 0); ceilG.closePath(); ceilG.fill({ color: pal.ceiling || 0x222222 });
+    container.addChild(ceilG);
+    bodies.push({ x: W / 2, y: ceilH / 2, w: W, h: ceilH, isStatic: true, tag: 'ceiling' });
+
+    // Irregular floor
+    var floorG = new PIXI.Graphics(); floorG.moveTo(0, H);
+    for (var fx = 0; fx <= W; fx += 30) {
+      floorG.lineTo(fx, GY + Math.sin(fx * 0.008 + rng() * 3) * 40 + rng() * 20 - 20);
+    }
+    floorG.lineTo(W, H); floorG.closePath(); floorG.fill({ color: pal.ground || 0x2a2a1a });
+    container.addChild(floorG);
+    bodies.push({ x: W / 2, y: GY + 4, w: W, h: 8, isStatic: true, tag: 'ground' });
+
+    // Stalactites from ceiling
+    for (var si = 0; si < rngInt(6, 14); si++) {
+      var sx = rngRange(100, W - 100), sh = rngRange(30, 80), sw = rngRange(8, 20);
+      var stalG = new PIXI.Graphics();
+      stalG.moveTo(sx - sw, ceilH); stalG.lineTo(sx, ceilH + sh); stalG.lineTo(sx + sw, ceilH);
+      stalG.closePath(); stalG.fill({ color: pal.wall || 0x333322 }); container.addChild(stalG);
+    }
+
+    // Stalagmites from floor
+    for (var gi = 0; gi < rngInt(4, 10); gi++) {
+      var gx = rngRange(100, W - 100), gh = rngRange(20, 60), gw = rngRange(8, 18);
+      var stagG = new PIXI.Graphics();
+      stagG.moveTo(gx - gw, GY); stagG.lineTo(gx, GY - gh); stagG.lineTo(gx + gw, GY);
+      stagG.closePath(); stagG.fill({ color: pal.ground || 0x2a2a1a }); container.addChild(stagG);
+    }
+
+    // Platforms — clustered in cave space
+    var pCount = cfg.platformCount || 8;
+    var minY = ceilH + 60, maxY = GY - 60;
+    for (var pi = 0; pi < pCount; pi++) {
+      var px = rngRange(200, W - 200), py = rngRange(minY, maxY), pw = rngInt(80, 160);
+      var pG = new PIXI.Graphics(); pG.roundRect(-pw / 2, -8, pw, 16, 3); pG.fill({ color: pal.platform || 0x444433 });
+      pG.x = px; pG.y = py; container.addChild(pG);
+      var pBody = { x: px, y: py, w: pw, h: 16, isStatic: true, oneWay: true, tag: 'platform' };
+      bodies.push(pBody); platforms.push({ x: px, y: py, w: pw, body: pBody });
+    }
+
+    // Glowing crystals
+    for (var ci = 0; ci < rngInt(3, 8); ci++) {
+      var crG = new PIXI.Graphics(); crG.circle(0, 0, rngRange(3, 8));
+      crG.fill({ color: 0x66ccff, alpha: rngRange(0.4, 0.8) });
+      crG.x = rngRange(50, W - 50); crG.y = rng() > 0.5 ? ceilH + rngRange(5, 30) : GY - rngRange(5, 30);
+      container.addChild(crG);
+    }
+
+    // Cave darkness overlay
+    var darkTop = new PIXI.Graphics(); darkTop.rect(0, 0, W, 100); darkTop.fill({ color: 0x000000, alpha: 0.4 });
+    var darkBot = new PIXI.Graphics(); darkBot.rect(0, H - 60, W, 60); darkBot.fill({ color: 0x000000, alpha: 0.3 });
+    container.addChild(darkTop); container.addChild(darkBot);
+  }
+
+  // ===================================================================
+  // BLUEPRINT: vertical-tower — tall walled tower, platforms spiral up
+  // ===================================================================
+  private _buildVerticalTower(ctx: any): void {
+    var PIXI = ctx.PIXI, rng = ctx.rng, rngRange = ctx.rngRange, rngInt = ctx.rngInt;
+    var pal = ctx.pal, hexCss = ctx.hexCss;
+    var container = ctx.container, bodies = ctx.bodies, platforms = ctx.platforms;
+    var W = ctx.W, H = ctx.H, GY = ctx.GY, cfg = ctx.cfg;
+
+    // Sky gradient
+    try {
+      if (PIXI.FillGradient) {
+        var sg = new PIXI.FillGradient({ type: 'linear', colorStops: [
+          { offset: 0, color: hexCss(pal.skyTop) }, { offset: 1, color: hexCss(pal.skyBottom) }
+        ], x0: 0, y0: 0, x1: 0, y1: H });
+        var sr = new PIXI.Graphics(); sr.rect(0, 0, W, H); sr.fill(sg); container.addChild(sr);
+      } else { var s2 = new PIXI.Graphics(); s2.rect(0, 0, W, H); s2.fill({ color: pal.skyBottom }); container.addChild(s2); }
+    } catch(e) { var sf = new PIXI.Graphics(); sf.rect(0, 0, W, H); sf.fill({ color: pal.skyBottom }); container.addChild(sf); }
+
+    // Left and right walls
+    var wallW = 40;
+    var wallG = new PIXI.Graphics();
+    wallG.rect(0, 0, wallW, H); wallG.fill({ color: pal.wall || 0x444433 });
+    wallG.rect(W - wallW, 0, wallW, H); wallG.fill({ color: pal.wall || 0x444433 });
+    container.addChild(wallG);
+    bodies.push({ x: wallW / 2, y: H / 2, w: wallW, h: H, isStatic: true, tag: 'wall-left' });
+    bodies.push({ x: W - wallW / 2, y: H / 2, w: wallW, h: H, isStatic: true, tag: 'wall-right' });
+
+    // Ground at bottom
+    var gG = new PIXI.Graphics(); gG.rect(0, GY, W, H - GY); gG.fill({ color: pal.ground }); container.addChild(gG);
+    bodies.push({ x: W / 2, y: GY + 4, w: W, h: 8, isStatic: true, tag: 'ground' });
+
+    // Platforms spiraling upward (alternating left/right)
+    var pCount = cfg.platformCount || 15;
+    var vertSpacing = (GY - 100) / pCount;
+    var side = 0;
+    for (var pi = 0; pi < pCount; pi++) {
+      var py = GY - 80 - pi * vertSpacing + rngRange(-10, 10);
+      var pw = rngInt(100, 180);
+      var px: number;
+      if (side === 0) { px = wallW + 40 + rngRange(0, W * 0.3); side = 1; }
+      else { px = W - wallW - 40 - rngRange(0, W * 0.3); side = 0; }
+      var pG = new PIXI.Graphics(); pG.roundRect(-pw / 2, -8, pw, 16, 3); pG.fill({ color: pal.platform });
+      pG.rect(-pw / 2, -8, pw, 3); pG.fill({ color: pal.platformTop }); pG.x = px; pG.y = py;
+      container.addChild(pG);
+      var pBody = { x: px, y: py, w: pw, h: 16, isStatic: true, oneWay: true, tag: 'platform' };
+      bodies.push(pBody); platforms.push({ x: px, y: py, w: pw, body: pBody });
+    }
+
+    // Wall texture details (brick lines)
+    var brickG = new PIXI.Graphics();
+    for (var by = 0; by < H; by += 32) {
+      brickG.rect(0, by, wallW, 1); brickG.fill({ color: 0x000000, alpha: 0.15 });
+      brickG.rect(W - wallW, by, wallW, 1); brickG.fill({ color: 0x000000, alpha: 0.15 });
+    }
+    container.addChild(brickG);
+  }
+
+  // ===================================================================
+  // BLUEPRINT: floating-islands — no ground, islands in open sky
+  // ===================================================================
+  private _buildFloatingIslands(ctx: any): void {
+    var PIXI = ctx.PIXI, rng = ctx.rng, rngRange = ctx.rngRange, rngInt = ctx.rngInt;
+    var pal = ctx.pal, hexCss = ctx.hexCss, _getSprite = ctx._getSprite;
+    var container = ctx.container, bodies = ctx.bodies, platforms = ctx.platforms;
+    var clouds = ctx.clouds; var W = ctx.W, H = ctx.H, cfg = ctx.cfg;
+
+    // Deep sky gradient
+    try {
+      if (PIXI.FillGradient) {
+        var sg = new PIXI.FillGradient({ type: 'linear', colorStops: [
+          { offset: 0, color: hexCss(0x0a0a2e) }, { offset: 0.6, color: hexCss(pal.skyBottom) }, { offset: 1, color: hexCss(0xddeeff) }
+        ], x0: 0, y0: 0, x1: 0, y1: H });
+        var sr = new PIXI.Graphics(); sr.rect(0, 0, W, H); sr.fill(sg); container.addChild(sr);
+      } else { var s2 = new PIXI.Graphics(); s2.rect(0, 0, W, H); s2.fill({ color: pal.skyBottom }); container.addChild(s2); }
+    } catch(e) { var sf = new PIXI.Graphics(); sf.rect(0, 0, W, H); sf.fill({ color: pal.skyBottom }); container.addChild(sf); }
+
+    // Cloud layer below (bottom 30%)
+    var cloudBaseY = H * 0.7;
+    for (var ci = 0; ci < 12; ci++) {
+      var cG = new PIXI.Graphics(); var cw = rngRange(150, 400), ch = rngRange(30, 60);
+      cG.ellipse(0, 0, cw / 2, ch / 2); cG.fill({ color: 0xffffff, alpha: rngRange(0.15, 0.4) });
+      cG.x = rngRange(-100, W + 100); cG.y = cloudBaseY + rngRange(-40, 80);
+      container.addChild(cG); clouds.push({ gfx: cG, speed: rngRange(3, 10) });
+    }
+
+    // NO ground body — floating islands
+
+    // Island masses (large platforms with decoration)
+    var islandCount = rngInt(4, 6);
+    var islandSpacing = W / islandCount;
+    for (var ii = 0; ii < islandCount; ii++) {
+      var ix = islandSpacing * (ii + 0.5) + rngRange(-80, 80);
+      var iy = rngRange(H * 0.2, H * 0.55);
+      var iw = rngInt(180, 350);
+      var iG = new PIXI.Graphics();
+      // Top surface
+      iG.roundRect(-iw / 2, -12, iw, 24, 6); iG.fill({ color: pal.groundTop || 0x4a8a3a });
+      // Bottom mass
+      iG.moveTo(-iw / 2 + 10, 12); iG.lineTo(0, 12 + rngRange(30, 70)); iG.lineTo(iw / 2 - 10, 12);
+      iG.fill({ color: pal.ground || 0x5a4a2a }); iG.x = ix; iG.y = iy; container.addChild(iG);
+      var iBody = { x: ix, y: iy, w: iw, h: 24, isStatic: true, oneWay: true, tag: 'platform' };
+      bodies.push(iBody); platforms.push({ x: ix, y: iy, w: iw, body: iBody });
+
+      // Tree on island
+      var treeSpr = _getSprite('trees', rng() > 0.5 ? 'round_tree' : 'pine_tree');
+      if (treeSpr) {
+        treeSpr.anchor.set(0.5, 1); treeSpr.x = ix + rngRange(-iw * 0.3, iw * 0.3);
+        treeSpr.y = iy - 12; treeSpr.scale.set(rngRange(1.2, 2.0)); container.addChild(treeSpr);
+      }
+    }
+
+    // Stepping-stone platforms between islands
+    for (var si = 0; si < rngInt(4, 8); si++) {
+      var sx = rngRange(100, W - 100), sy = rngRange(H * 0.15, H * 0.6), sw = rngInt(60, 100);
+      var sG = new PIXI.Graphics(); sG.roundRect(-sw / 2, -6, sw, 12, 3); sG.fill({ color: pal.platform });
+      sG.x = sx; sG.y = sy; container.addChild(sG);
+      var sBody = { x: sx, y: sy, w: sw, h: 12, isStatic: true, oneWay: true, tag: 'platform' };
+      bodies.push(sBody); platforms.push({ x: sx, y: sy, w: sw, body: sBody });
+    }
+
+    // Death pit at very bottom
+    bodies.push({ x: W / 2, y: H + 20, w: W, h: 40, isStatic: true, tag: 'death' });
+  }
+
+  // ===================================================================
+  // BLUEPRINT: arena — single-screen walled room
+  // ===================================================================
+  private _buildArena(ctx: any): void {
+    var PIXI = ctx.PIXI, rng = ctx.rng, rngRange = ctx.rngRange, rngInt = ctx.rngInt;
+    var pal = ctx.pal, container = ctx.container, bodies = ctx.bodies, platforms = ctx.platforms;
+    var W = ctx.W, H = ctx.H, GY = ctx.GY;
+
+    // Solid background
+    var bg = new PIXI.Graphics(); bg.rect(0, 0, W, H); bg.fill({ color: pal.skyBottom }); container.addChild(bg);
+
+    var wallW = 30;
+    // Floor
+    var floorG = new PIXI.Graphics(); floorG.rect(0, GY, W, H - GY); floorG.fill({ color: pal.ground });
+    var floorTop = new PIXI.Graphics(); floorTop.rect(0, GY, W, 6); floorTop.fill({ color: pal.groundTop });
+    container.addChild(floorG); container.addChild(floorTop);
+    bodies.push({ x: W / 2, y: GY + 4, w: W, h: 8, isStatic: true, tag: 'ground' });
+
+    // Ceiling
+    var ceilG = new PIXI.Graphics(); ceilG.rect(0, 0, W, wallW); ceilG.fill({ color: pal.ceiling || 0x333322 });
+    container.addChild(ceilG);
+    bodies.push({ x: W / 2, y: wallW / 2, w: W, h: wallW, isStatic: true, tag: 'ceiling' });
+
+    // Walls
+    var wG = new PIXI.Graphics();
+    wG.rect(0, 0, wallW, H); wG.fill({ color: pal.wall || 0x444433 });
+    wG.rect(W - wallW, 0, wallW, H); wG.fill({ color: pal.wall || 0x444433 });
+    container.addChild(wG);
+    bodies.push({ x: wallW / 2, y: H / 2, w: wallW, h: H, isStatic: true, tag: 'wall-left' });
+    bodies.push({ x: W - wallW / 2, y: H / 2, w: wallW, h: H, isStatic: true, tag: 'wall-right' });
+
+    // 1-2 center platforms
+    var centerCount = rngInt(1, 2);
+    for (var pi = 0; pi < centerCount; pi++) {
+      var pw = rngInt(120, 200), px = W / 2 + (pi === 0 ? -80 : 80), py = GY - rngRange(120, 200);
+      var pG = new PIXI.Graphics(); pG.roundRect(-pw / 2, -8, pw, 16, 3); pG.fill({ color: pal.platform });
+      pG.x = px; pG.y = py; container.addChild(pG);
+      var pBody = { x: px, y: py, w: pw, h: 16, isStatic: true, oneWay: true, tag: 'platform' };
+      bodies.push(pBody); platforms.push({ x: px, y: py, w: pw, body: pBody });
+    }
+  }
+
+  // ===================================================================
+  // BLUEPRINT: dungeon-rooms — connected rooms with corridors
+  // ===================================================================
+  private _buildDungeonRooms(ctx: any): void {
+    var PIXI = ctx.PIXI, rng = ctx.rng, rngRange = ctx.rngRange, rngInt = ctx.rngInt;
+    var pal = ctx.pal, container = ctx.container, bodies = ctx.bodies, platforms = ctx.platforms;
+    var W = ctx.W, H = ctx.H, GY = ctx.GY, cfg = ctx.cfg;
+
+    // Dark background
+    var bg = new PIXI.Graphics(); bg.rect(0, 0, W, H); bg.fill({ color: 0x0d0d15 }); container.addChild(bg);
+
+    // Generate 4-6 rooms
+    var roomCount = rngInt(4, 6);
+    var rooms: { x: number; y: number; w: number; h: number }[] = [];
+    var roomW = W / (roomCount + 1);
+    for (var ri = 0; ri < roomCount; ri++) {
+      var rw = rngRange(roomW * 0.6, roomW * 0.9), rh = rngRange(200, 350);
+      var rx = roomW * (ri + 0.5) + rngRange(-30, 30) - rw / 2;
+      var ry = rngRange(H * 0.15, H - rh - 80);
+      rooms.push({ x: rx, y: ry, w: rw, h: rh });
+
+      // Room background
+      var roomBg = new PIXI.Graphics(); roomBg.rect(rx, ry, rw, rh); roomBg.fill({ color: 0x1a1a25 }); container.addChild(roomBg);
+
+      // Room floor + ceiling
+      var wt = 12;
+      var flG = new PIXI.Graphics(); flG.rect(rx, ry + rh - wt, rw, wt); flG.fill({ color: pal.wall || 0x333344 }); container.addChild(flG);
+      bodies.push({ x: rx + rw / 2, y: ry + rh - wt / 2, w: rw, h: wt, isStatic: true, tag: 'ground' });
+      var clG = new PIXI.Graphics(); clG.rect(rx, ry, rw, wt); clG.fill({ color: pal.wall || 0x333344 }); container.addChild(clG);
+      bodies.push({ x: rx + rw / 2, y: ry + wt / 2, w: rw, h: wt, isStatic: true, tag: 'ceiling' });
+
+      // Platforms inside room
+      var rpCount = rngInt(1, 3);
+      for (var pi = 0; pi < rpCount; pi++) {
+        var pw = rngInt(60, 120), px = rx + rngRange(30, rw - 30), py = ry + rngRange(rh * 0.3, rh * 0.7);
+        var pG = new PIXI.Graphics(); pG.roundRect(-pw / 2, -6, pw, 12, 2); pG.fill({ color: pal.platform }); pG.x = px; pG.y = py;
+        container.addChild(pG);
+        var pBody = { x: px, y: py, w: pw, h: 12, isStatic: true, oneWay: true, tag: 'platform' };
+        bodies.push(pBody); platforms.push({ x: px, y: py, w: pw, body: pBody });
+      }
+    }
+
+    // Corridors connecting adjacent rooms
+    for (var ci = 0; ci < rooms.length - 1; ci++) {
+      var r1 = rooms[ci], r2 = rooms[ci + 1];
+      var corY = Math.max(r1.y + r1.h * 0.4, r2.y + r2.h * 0.4);
+      var corX1 = r1.x + r1.w, corX2 = r2.x, corH = 50;
+      var corG = new PIXI.Graphics(); corG.rect(corX1, corY - corH / 2, corX2 - corX1, corH);
+      corG.fill({ color: 0x151520 }); container.addChild(corG);
+      bodies.push({ x: (corX1 + corX2) / 2, y: corY + corH / 2 - 4, w: Math.abs(corX2 - corX1), h: 8, isStatic: true, tag: 'ground' });
+    }
+
+    // Torches (glow dots)
+    for (var ti = 0; ti < rooms.length * 2; ti++) {
+      var tr = rooms[rngInt(0, rooms.length - 1)];
+      var tG = new PIXI.Graphics(); tG.circle(0, 0, 4); tG.fill({ color: 0xff9933, alpha: 0.7 });
+      tG.x = tr.x + rngRange(15, tr.w - 15); tG.y = tr.y + 20; container.addChild(tG);
+    }
+  }
+
+  // ===================================================================
+  // BLUEPRINT: city-rooftops — building tops at varying heights
+  // ===================================================================
+  private _buildCityRooftops(ctx: any): void {
+    var PIXI = ctx.PIXI, rng = ctx.rng, rngRange = ctx.rngRange, rngInt = ctx.rngInt;
+    var pal = ctx.pal, container = ctx.container, bodies = ctx.bodies, platforms = ctx.platforms;
+    var parallaxLayers = ctx.parallaxLayers; var W = ctx.W, H = ctx.H, GY = ctx.GY;
+
+    // Night sky
+    try {
+      if (PIXI.FillGradient) {
+        var sg = new PIXI.FillGradient({ type: 'linear', colorStops: [
+          { offset: 0, color: '#05051a' }, { offset: 1, color: '#1a1a3a' }
+        ], x0: 0, y0: 0, x1: 0, y1: H });
+        var sr = new PIXI.Graphics(); sr.rect(0, 0, W, H); sr.fill(sg); container.addChild(sr);
+      } else { var s2 = new PIXI.Graphics(); s2.rect(0, 0, W, H); s2.fill({ color: 0x1a1a3a }); container.addChild(s2); }
+    } catch(e) { var sf = new PIXI.Graphics(); sf.rect(0, 0, W, H); sf.fill({ color: 0x1a1a3a }); container.addChild(sf); }
+
+    // Stars
+    var stG = new PIXI.Graphics();
+    for (var si = 0; si < 80; si++) {
+      stG.circle(rngRange(0, W), rngRange(0, H * 0.4), rngRange(0.5, 1.5));
+      stG.fill({ color: 0xffffff, alpha: rngRange(0.3, 0.8) });
+    }
+    container.addChild(stG);
+
+    // Distant building silhouettes (parallax)
+    for (var layer = 0; layer < 2; layer++) {
+      var silG = new PIXI.Graphics(); var bx = 0;
+      while (bx < W + 100) {
+        var bw = rngRange(60, 140), bh = rngRange(100, 250 - layer * 60);
+        silG.rect(bx, GY - bh - layer * 30, bw, bh + 200);
+        silG.fill({ color: layer === 0 ? 0x111122 : 0x0a0a18, alpha: 0.6 }); bx += bw + rngRange(5, 30);
+      }
+      container.addChild(silG); parallaxLayers.push({ gfx: silG, factor: 0.05 + layer * 0.08 });
+    }
+
+    // Building tops (the "ground" segments)
+    var buildingCount = rngInt(6, 10);
+    var buildSpacing = W / buildingCount;
+    for (var bi = 0; bi < buildingCount; bi++) {
+      var bx2 = bi * buildSpacing, bw2 = buildSpacing - rngRange(20, 40);
+      var bTopY = GY - rngRange(0, 180);
+      var bG = new PIXI.Graphics();
+      bG.rect(bx2, bTopY, bw2, H - bTopY); bG.fill({ color: 0x2a2a3a });
+      bG.rect(bx2, bTopY, bw2, 6); bG.fill({ color: 0x3a3a4a }); container.addChild(bG);
+      var bBody = { x: bx2 + bw2 / 2, y: bTopY + 3, w: bw2, h: 6, isStatic: true, oneWay: true, tag: 'platform' };
+      bodies.push(bBody); platforms.push({ x: bx2 + bw2 / 2, y: bTopY + 3, w: bw2, body: bBody });
+
+      // Windows
+      for (var wi = 0; wi < rngInt(3, 10); wi++) {
+        var wG2 = new PIXI.Graphics(); wG2.rect(0, 0, 6, 8);
+        wG2.fill({ color: rng() > 0.3 ? 0xffdd66 : 0x334455, alpha: 0.7 });
+        wG2.x = bx2 + rngRange(8, bw2 - 8); wG2.y = bTopY + rngRange(20, Math.min(H - bTopY - 20, 200));
+        container.addChild(wG2);
+      }
+    }
+
+    // Death pit at very bottom
+    bodies.push({ x: W / 2, y: H + 20, w: W, h: 40, isStatic: true, tag: 'death' });
+  }
+
+  // ===================================================================
+  // BLUEPRINT: forest-canopy — ground + mid branch + canopy tiers
+  // ===================================================================
+  private _buildForestCanopy(ctx: any): void {
+    var PIXI = ctx.PIXI, rng = ctx.rng, rngRange = ctx.rngRange, rngInt = ctx.rngInt;
+    var pal = ctx.pal, hexCss = ctx.hexCss;
+    var container = ctx.container, bodies = ctx.bodies, platforms = ctx.platforms;
+    var W = ctx.W, H = ctx.H, GY = ctx.GY;
+
+    // Green-tinted sky
+    try {
+      if (PIXI.FillGradient) {
+        var sg = new PIXI.FillGradient({ type: 'linear', colorStops: [
+          { offset: 0, color: hexCss(0x1a3a1a) }, { offset: 1, color: hexCss(0x2a5a2a) }
+        ], x0: 0, y0: 0, x1: 0, y1: H });
+        var sr = new PIXI.Graphics(); sr.rect(0, 0, W, H); sr.fill(sg); container.addChild(sr);
+      } else { var s2 = new PIXI.Graphics(); s2.rect(0, 0, W, H); s2.fill({ color: 0x2a5a2a }); container.addChild(s2); }
+    } catch(e) { var sf = new PIXI.Graphics(); sf.rect(0, 0, W, H); sf.fill({ color: 0x2a5a2a }); container.addChild(sf); }
+
+    // Ground
+    var gG = new PIXI.Graphics(); gG.rect(0, GY, W, H - GY); gG.fill({ color: pal.ground });
+    var gTop = new PIXI.Graphics(); gTop.rect(0, GY, W, 6); gTop.fill({ color: pal.groundTop });
+    container.addChild(gG); container.addChild(gTop);
+    bodies.push({ x: W / 2, y: GY + 4, w: W, h: 8, isStatic: true, tag: 'ground' });
+
+    // Tree trunks (vertical brown bars)
+    var trunkCount = rngInt(8, 14), trunkSpacing = W / trunkCount;
+    for (var ti = 0; ti < trunkCount; ti++) {
+      var tx = ti * trunkSpacing + rngRange(10, trunkSpacing - 10), tw = rngRange(16, 30);
+      var trG = new PIXI.Graphics(); trG.rect(tx - tw / 2, 0, tw, GY); trG.fill({ color: 0x4a3020, alpha: 0.7 }); container.addChild(trG);
+    }
+
+    // Mid-level branch platforms (50% height)
+    var midY = GY * 0.5;
+    for (var mi = 0; mi < rngInt(5, 10); mi++) {
+      var mx = rngRange(100, W - 100), my = midY + rngRange(-60, 60), mw = rngInt(80, 160);
+      var mG = new PIXI.Graphics(); mG.roundRect(-mw / 2, -6, mw, 12, 3); mG.fill({ color: 0x5a4020 }); mG.x = mx; mG.y = my;
+      container.addChild(mG);
+      var mBody = { x: mx, y: my, w: mw, h: 12, isStatic: true, oneWay: true, tag: 'platform' };
+      bodies.push(mBody); platforms.push({ x: mx, y: my, w: mw, body: mBody });
+    }
+
+    // Canopy level (20% height)
+    var canY = GY * 0.2;
+    for (var ci = 0; ci < rngInt(4, 8); ci++) {
+      var cx2 = rngRange(80, W - 80), cy2 = canY + rngRange(-40, 40), cw2 = rngInt(100, 200);
+      var cG = new PIXI.Graphics(); cG.roundRect(-cw2 / 2, -8, cw2, 16, 4); cG.fill({ color: 0x339933 }); cG.x = cx2; cG.y = cy2;
+      container.addChild(cG);
+      var cBody = { x: cx2, y: cy2, w: cw2, h: 16, isStatic: true, oneWay: true, tag: 'platform' };
+      bodies.push(cBody); platforms.push({ x: cx2, y: cy2, w: cw2, body: cBody });
+    }
+
+    // Lower platforms near ground
+    for (var li = 0; li < rngInt(4, 7); li++) {
+      var lx = rngRange(100, W - 100), ly = GY - rngRange(60, 140), lw = rngInt(80, 150);
+      var lG = new PIXI.Graphics(); lG.roundRect(-lw / 2, -6, lw, 12, 3); lG.fill({ color: pal.platform }); lG.x = lx; lG.y = ly;
+      container.addChild(lG);
+      var lBody = { x: lx, y: ly, w: lw, h: 12, isStatic: true, oneWay: true, tag: 'platform' };
+      bodies.push(lBody); platforms.push({ x: lx, y: ly, w: lw, body: lBody });
+    }
+
+    // Canopy overlay (foreground tint)
+    var canOverlay = new PIXI.Graphics(); canOverlay.rect(0, 0, W, GY * 0.15); canOverlay.fill({ color: 0x1a5a1a, alpha: 0.15 });
+    container.addChild(canOverlay);
+
+    // Vines
+    for (var vi = 0; vi < rngInt(5, 12); vi++) {
+      var vx = rngRange(50, W - 50), vh = rngRange(80, 200), vy = rngRange(0, GY * 0.4);
+      var vG = new PIXI.Graphics(); vG.rect(vx - 1, vy, 3, vh); vG.fill({ color: 0x227722, alpha: 0.5 }); container.addChild(vG);
+    }
+  }
+
+  // ===================================================================
+  // BLUEPRINT: underwater — deep blue, coral, no gravity feel
+  // ===================================================================
+  private _buildUnderwater(ctx: any): void {
+    var PIXI = ctx.PIXI, rng = ctx.rng, rngRange = ctx.rngRange, rngInt = ctx.rngInt;
+    var pal = ctx.pal, container = ctx.container, bodies = ctx.bodies, platforms = ctx.platforms;
+    var W = ctx.W, H = ctx.H, GY = ctx.GY, cfg = ctx.cfg;
+
+    // Deep blue gradient
+    try {
+      if (PIXI.FillGradient) {
+        var sg = new PIXI.FillGradient({ type: 'linear', colorStops: [
+          { offset: 0, color: '#1188aa' }, { offset: 0.5, color: '#0055aa' }, { offset: 1, color: '#001133' }
+        ], x0: 0, y0: 0, x1: 0, y1: H });
+        var sr = new PIXI.Graphics(); sr.rect(0, 0, W, H); sr.fill(sg); container.addChild(sr);
+      } else { var s2 = new PIXI.Graphics(); s2.rect(0, 0, W, H); s2.fill({ color: 0x003377 }); container.addChild(s2); }
+    } catch(e) { var sf = new PIXI.Graphics(); sf.rect(0, 0, W, H); sf.fill({ color: 0x003377 }); container.addChild(sf); }
+
+    // Sandy bottom (irregular)
+    var sandG = new PIXI.Graphics(); sandG.moveTo(0, H);
+    for (var fx = 0; fx <= W; fx += 25) {
+      sandG.lineTo(fx, GY + Math.sin(fx * 0.006) * 15 + rng() * 10);
+    }
+    sandG.lineTo(W, H); sandG.closePath(); sandG.fill({ color: 0xccaa77 }); container.addChild(sandG);
+    bodies.push({ x: W / 2, y: GY + 4, w: W, h: 8, isStatic: true, tag: 'ground' });
+
+    // Coral formations as platforms
+    var coralColors = [0xff6666, 0xff9933, 0xcc66cc, 0x66cccc, 0xffcc33];
+    var coralCount = cfg.platformCount || 10;
+    for (var ci = 0; ci < coralCount; ci++) {
+      var cx = rngRange(150, W - 150), cy = rngRange(H * 0.25, GY - 40), cw2 = rngInt(70, 150);
+      var cc = coralColors[rngInt(0, coralColors.length - 1)];
+      var cG = new PIXI.Graphics(); cG.roundRect(-cw2 / 2, -8, cw2, 16, 6); cG.fill({ color: cc }); cG.x = cx; cG.y = cy;
+      container.addChild(cG);
+      var cBody = { x: cx, y: cy, w: cw2, h: 16, isStatic: true, oneWay: true, tag: 'platform' };
+      bodies.push(cBody); platforms.push({ x: cx, y: cy, w: cw2, body: cBody });
+    }
+
+    // Seaweed / kelp
+    for (var ki = 0; ki < rngInt(8, 16); ki++) {
+      var kx = rngRange(50, W - 50), kh = rngRange(60, 180);
+      var kG = new PIXI.Graphics(); kG.moveTo(kx, GY);
+      for (var ky = GY; ky > GY - kh; ky -= 10) { kG.lineTo(kx + Math.sin((GY - ky) * 0.05) * 12, ky); }
+      kG.stroke({ color: 0x22aa44, alpha: 0.6, width: 3 }); container.addChild(kG);
+    }
+
+    // Bubbles
+    for (var bi = 0; bi < rngInt(15, 30); bi++) {
+      var bG = new PIXI.Graphics(); bG.circle(0, 0, rngRange(2, 6)); bG.fill({ color: 0xaaddff, alpha: rngRange(0.2, 0.5) });
+      bG.x = rngRange(0, W); bG.y = rngRange(50, GY - 20); container.addChild(bG);
+    }
+
+    // Water tint overlay
+    var tintG = new PIXI.Graphics(); tintG.rect(0, 0, W, H); tintG.fill({ color: 0x0033aa, alpha: 0.08 }); container.addChild(tintG);
+  }
+
+  // ===================================================================
+  // BLUEPRINT: endless-runner — segmented ground with gaps + platforms
+  // ===================================================================
+  private _buildEndlessRunner(ctx: any): void {
+    var PIXI = ctx.PIXI, rng = ctx.rng, rngRange = ctx.rngRange, rngInt = ctx.rngInt;
+    var pal = ctx.pal, hexCss = ctx.hexCss;
+    var container = ctx.container, bodies = ctx.bodies, platforms = ctx.platforms;
+    var parallaxLayers = ctx.parallaxLayers; var W = ctx.W, H = ctx.H, GY = ctx.GY, cfg = ctx.cfg;
+
+    // Sky gradient
+    try {
+      if (PIXI.FillGradient) {
+        var sg = new PIXI.FillGradient({ type: 'linear', colorStops: [
+          { offset: 0, color: hexCss(pal.skyTop) }, { offset: 1, color: hexCss(pal.skyBottom) }
+        ], x0: 0, y0: 0, x1: 0, y1: H });
+        var sr = new PIXI.Graphics(); sr.rect(0, 0, W, H); sr.fill(sg); container.addChild(sr);
+      } else { var s2 = new PIXI.Graphics(); s2.rect(0, 0, W, H); s2.fill({ color: pal.skyBottom }); container.addChild(s2); }
+    } catch(e) { var sf = new PIXI.Graphics(); sf.rect(0, 0, W, H); sf.fill({ color: pal.skyBottom }); container.addChild(sf); }
+
+    // 2-layer parallax hills
+    for (var mi = 0; mi < 2; mi++) {
+      var mColor = pal.mountains[mi] || pal.mountains[0];
+      var mBaseY = GY - 10 - mi * 50;
+      var mG = new PIXI.Graphics(); var hillW = 250 + mi * 100; var x = 0;
+      mG.moveTo(0, mBaseY);
+      while (x < W + hillW) {
+        var rise = rngRange(30 + mi * 15, 70 + mi * 25);
+        mG.bezierCurveTo(x + hillW * 0.25, mBaseY - rise, x + hillW * 0.75, mBaseY - rise * 0.6, x + hillW, mBaseY + rngRange(-5, 5));
+        x += hillW; hillW = 200 + mi * 80 + rngRange(-40, 40);
+      }
+      mG.lineTo(W + 50, H + 20); mG.lineTo(-50, H + 20); mG.closePath();
+      mG.fill({ color: mColor, alpha: 0.35 + mi * 0.15 }); container.addChild(mG);
+      parallaxLayers.push({ gfx: mG, factor: 0.08 + mi * 0.12 });
+    }
+
+    // Ground segments with gaps
+    var segCount = rngInt(6, 10), segSpacing = W / segCount;
+    for (var si = 0; si < segCount; si++) {
+      if (si > 0 && rng() > 0.4) continue; // 60% chance of gap after first
+      var sx = si * segSpacing, sw = segSpacing - rngRange(10, 40);
+      var sG = new PIXI.Graphics(); sG.rect(sx, GY, sw, H - GY); sG.fill({ color: pal.ground });
+      var sTop = new PIXI.Graphics(); sTop.rect(sx, GY, sw, 6); sTop.fill({ color: pal.groundTop });
+      container.addChild(sG); container.addChild(sTop);
+      bodies.push({ x: sx + sw / 2, y: GY + 4, w: sw, h: 8, isStatic: true, tag: 'ground' });
+      platforms.push({ x: sx + sw / 2, y: GY + 4, w: sw, body: bodies[bodies.length - 1] });
+    }
+
+    // Overhead platforms
+    for (var pi = 0; pi < rngInt(4, 8); pi++) {
+      var px = rngRange(200, W - 100), py = GY - rngRange(100, 250), pw = rngInt(80, 140);
+      var pG = new PIXI.Graphics(); pG.roundRect(-pw / 2, -8, pw, 16, 3); pG.fill({ color: pal.platform }); pG.x = px; pG.y = py;
+      container.addChild(pG);
+      var pBody = { x: px, y: py, w: pw, h: 16, isStatic: true, oneWay: true, tag: 'platform' };
+      bodies.push(pBody); platforms.push({ x: px, y: py, w: pw, body: pBody });
+    }
+
+    // Death pit
+    bodies.push({ x: W / 2, y: H + 20, w: W, h: 40, isStatic: true, tag: 'death' });
   }
 }
 

@@ -92,12 +92,36 @@ export function update(engine, dt) {
 }
 \`\`\`
 
-## WorldBuilder — Pre-Built Game Worlds (IMPORTANT)
+## WorldBuilder — Blueprint-Based World Generation (CRITICAL)
 
-The engine automatically builds a complete themed world BEFORE your code runs via \`engine.worldBuilder.build()\`. This means:
-- Sky, ground, platforms, trees, mountains, clouds, and parallax layers are ALREADY created
-- You do NOT need to draw sky, ground, platforms, or scenery — it is done for you
-- Feature Bank features (level-platforms, collectible-coins, enemy-patrol) use the world data for positioning
+The engine builds worlds using **blueprints** — each blueprint produces a completely different world structure. You MUST pick the right blueprint based on the user's game request.
+
+### Blueprint Selection Guide
+When the user asks for:
+- "platformer" / "adventure" → blueprint: 'outdoor-scroll' (default — sky + hills + ground + platforms)
+- "cave game" / "underground" → blueprint: 'cave-system' (dark enclosed, ceiling + floor + stalactites)
+- "tower climb" / "vertical game" → blueprint: 'vertical-tower' (walled tower, platforms spiral up)
+- "sky game" / "floating/cloud game" → blueprint: 'floating-islands' (no ground, island masses in open sky)
+- "fighting game" / "boss arena" → blueprint: 'arena' (walled room, floor + ceiling + walls)
+- "dungeon" / "RPG" / "roguelike" → blueprint: 'dungeon-rooms' (connected rooms with corridors)
+- "city" / "urban" / "rooftop" → blueprint: 'city-rooftops' (building tops at varying heights, gaps)
+- "forest" / "jungle" / "tree game" → blueprint: 'forest-canopy' (ground + mid branches + canopy tiers)
+- "underwater" / "ocean" / "diving" → blueprint: 'underwater' (blue gradient, coral platforms, seaweed)
+- "runner" / "endless" / "auto-run" → blueprint: 'endless-runner' (ground segments with gaps)
+
+### WorldBuilder Config — Already Set in CONFIG
+The blueprint is already set in CONFIG.worldBlueprint based on the creative brief. If you need to override it (e.g., user asks for a "cave game" but brief picked outdoor-scroll), change these CONFIG fields:
+\`\`\`
+CONFIG.worldBlueprint = 'cave-system';   // Pick based on user's game request
+CONFIG.worldHasGround = true;            // false for floating-islands
+CONFIG.worldHasCeiling = true;           // true for caves/arenas/dungeons
+CONFIG.worldLiquidType = 'lava';         // none|water|lava|acid
+CONFIG.worldLiquidLevel = 0.3;           // 0-1 from bottom
+CONFIG.worldPlatformStyle = 'clustered'; // spread|clustered|stacked|branching
+CONFIG.worldDirection = 'horizontal';    // horizontal|vertical|both
+CONFIG.worldDensity = 'tight';           // tight|medium|open|sparse
+\`\`\`
+Themes: forest|sunset|space|volcanic|candy|arctic|dark|ocean
 
 ### engine._worldData (WorldBuilder result)
 After world generation, \`engine._worldData\` contains:
@@ -105,30 +129,24 @@ After world generation, \`engine._worldData\` contains:
 {
   container,           // PIXI.Container with all world visuals
   groundY,             // Y position of the ground surface
-  platforms: [],       // Array of { x, y, w, h } platform rects
-  bodies: [],          // Physics bodies for ground + platforms
+  platforms: [],       // Array of { x, y, w, body } platform data
+  bodies: [],          // Physics bodies for ground + platforms + walls + ceiling
   getHeightAt(x),      // Returns ground height at world X position
   updateParallax(cam)  // Call with camera to scroll parallax layers
 }
 \`\`\`
 
+Note: Some blueprints have NO ground (floating-islands), WALLS (arena, vertical-tower), CEILINGS (cave-system, arena, dungeon-rooms), or DEATH PITS (city-rooftops, floating-islands, endless-runner). Adjust gameplay accordingly.
+
 ### What YOU should focus on:
+- Picking the RIGHT blueprint for the user's game concept
+- Setting appropriate theme + config options for the blueprint
 - Gameplay mechanics (combat, scoring, AI, progression)
-- Custom visuals and special effects (particles, HUD, unique sprites)
-- Unique enemies and bosses
-- Player abilities and controls
+- Custom visuals (particles, HUD, unique sprites) that complement the blueprint
+- Unique enemies and bosses appropriate to the world type
 
-### CRITICAL — What is ALREADY handled (NEVER recreate in custom-visuals.ts):
-- Sky backgrounds and gradients — BUILT BY ENGINE
-- Ground/floor strips — BUILT BY ENGINE
-- Platforms and terrain — BUILT BY ENGINE
-- Trees, bushes, props — BUILT BY ENGINE
-- Mountains and hills — BUILT BY ENGINE
-- Clouds — BUILT BY ENGINE
-- Parallax scrolling layers — BUILT BY ENGINE
-- Vignette overlays — BUILT BY ENGINE
-
-**NEVER draw mountains, sky gradients, parallax layers, or background scenery in custom-visuals.ts.** The WorldBuilder already creates beautiful sprite-based backgrounds. Adding duplicate layers makes the game look ugly with overlapping shapes. custom-visuals.ts should ONLY add small themed decorations like: glowing particles, themed signposts, animated torches, floating crystals, themed HUD elements, weather effects.
+### IMPORTANT — Do NOT recreate world elements in custom-visuals.ts:
+The WorldBuilder handles all terrain, sky, platforms, walls, ceilings, and decorations. custom-visuals.ts should ONLY add small themed decorations: glowing particles, themed signposts, animated torches, floating crystals, HUD elements, weather effects.
 
 ## Drawing Functions — For Small Decorations ONLY
 
@@ -138,8 +156,6 @@ These are for small game objects, NOT scenery or backgrounds:
 - \`drawHeart(size, color)\` — health pickup
 - \`drawGemShape(radius, color)\` — gem collectible
 - \`drawCloud(w, h)\` — small decorative cloud ONLY
-
-**BANNED in custom-visuals.ts:** drawSkyGradient, drawGroundStrip, drawPlatformBlock, drawMountainRange, drawTree, drawAtmosphericFog. These create ugly primitive shapes that conflict with the WorldBuilder's sprite-based rendering.
 
 ## Template for custom-gameplay.ts
 
