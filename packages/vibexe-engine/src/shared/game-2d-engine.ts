@@ -893,7 +893,7 @@ class WorldBuilderSystem {
   // ===================================================================
   private _buildCaveSystem(ctx: any): void {
     var PIXI = ctx.PIXI, rng = ctx.rng, rngRange = ctx.rngRange, rngInt = ctx.rngInt;
-    var _getSprite = ctx._getSprite, pal = ctx.pal;
+    var _getSprite = ctx._getSprite, pal = ctx.pal, _makePlatform = ctx._makePlatform;
     var container = ctx.container, bodies = ctx.bodies, platforms = ctx.platforms;
     var W = ctx.W, H = ctx.H, GY = ctx.GY, cfg = ctx.cfg;
 
@@ -975,7 +975,7 @@ class WorldBuilderSystem {
   // ===================================================================
   private _buildVerticalTower(ctx: any): void {
     var PIXI = ctx.PIXI, rng = ctx.rng, rngRange = ctx.rngRange, rngInt = ctx.rngInt;
-    var pal = ctx.pal, hexCss = ctx.hexCss;
+    var pal = ctx.pal, hexCss = ctx.hexCss, _makePlatform = ctx._makePlatform;
     var container = ctx.container, bodies = ctx.bodies, platforms = ctx.platforms;
     var W = ctx.W, H = ctx.H, GY = ctx.GY, cfg = ctx.cfg;
 
@@ -1040,7 +1040,7 @@ class WorldBuilderSystem {
   // ===================================================================
   private _buildFloatingIslands(ctx: any): void {
     var PIXI = ctx.PIXI, rng = ctx.rng, rngRange = ctx.rngRange, rngInt = ctx.rngInt;
-    var pal = ctx.pal, hexCss = ctx.hexCss, _getSprite = ctx._getSprite;
+    var pal = ctx.pal, hexCss = ctx.hexCss, _getSprite = ctx._getSprite, _makePlatform = ctx._makePlatform;
     var container = ctx.container, bodies = ctx.bodies, platforms = ctx.platforms;
     var clouds = ctx.clouds; var W = ctx.W, H = ctx.H, cfg = ctx.cfg;
 
@@ -1108,7 +1108,7 @@ class WorldBuilderSystem {
   // ===================================================================
   private _buildArena(ctx: any): void {
     var PIXI = ctx.PIXI, rng = ctx.rng, rngRange = ctx.rngRange, rngInt = ctx.rngInt;
-    var pal = ctx.pal, container = ctx.container, bodies = ctx.bodies, platforms = ctx.platforms;
+    var pal = ctx.pal, _makePlatform = ctx._makePlatform, container = ctx.container, bodies = ctx.bodies, platforms = ctx.platforms;
     var W = ctx.W, H = ctx.H, GY = ctx.GY;
 
     // Solid background
@@ -1153,7 +1153,7 @@ class WorldBuilderSystem {
   // ===================================================================
   private _buildDungeonRooms(ctx: any): void {
     var PIXI = ctx.PIXI, rng = ctx.rng, rngRange = ctx.rngRange, rngInt = ctx.rngInt;
-    var pal = ctx.pal, container = ctx.container, bodies = ctx.bodies, platforms = ctx.platforms;
+    var pal = ctx.pal, _makePlatform = ctx._makePlatform, container = ctx.container, bodies = ctx.bodies, platforms = ctx.platforms;
     var W = ctx.W, H = ctx.H, GY = ctx.GY, cfg = ctx.cfg;
 
     // Dark background
@@ -1303,7 +1303,7 @@ class WorldBuilderSystem {
   // ===================================================================
   private _buildForestCanopy(ctx: any): void {
     var PIXI = ctx.PIXI, rng = ctx.rng, rngRange = ctx.rngRange, rngInt = ctx.rngInt;
-    var pal = ctx.pal, hexCss = ctx.hexCss;
+    var pal = ctx.pal, hexCss = ctx.hexCss, _makePlatform = ctx._makePlatform;
     var container = ctx.container, bodies = ctx.bodies, platforms = ctx.platforms;
     var W = ctx.W, H = ctx.H, GY = ctx.GY;
 
@@ -1381,7 +1381,7 @@ class WorldBuilderSystem {
   // ===================================================================
   private _buildUnderwater(ctx: any): void {
     var PIXI = ctx.PIXI, rng = ctx.rng, rngRange = ctx.rngRange, rngInt = ctx.rngInt;
-    var pal = ctx.pal, container = ctx.container, bodies = ctx.bodies, platforms = ctx.platforms;
+    var pal = ctx.pal, _makePlatform = ctx._makePlatform, container = ctx.container, bodies = ctx.bodies, platforms = ctx.platforms;
     var W = ctx.W, H = ctx.H, GY = ctx.GY, cfg = ctx.cfg;
 
     // Deep blue gradient
@@ -1445,7 +1445,7 @@ class WorldBuilderSystem {
   // ===================================================================
   private _buildEndlessRunner(ctx: any): void {
     var PIXI = ctx.PIXI, rng = ctx.rng, rngRange = ctx.rngRange, rngInt = ctx.rngInt;
-    var pal = ctx.pal, hexCss = ctx.hexCss;
+    var pal = ctx.pal, hexCss = ctx.hexCss, _makePlatform = ctx._makePlatform;
     var container = ctx.container, bodies = ctx.bodies, platforms = ctx.platforms;
     var parallaxLayers = ctx.parallaxLayers; var W = ctx.W, H = ctx.H, GY = ctx.GY, cfg = ctx.cfg;
 
