@@ -3179,24 +3179,28 @@ export class FilterSystem {
   vignette(config?: { intensity?: number; color?: number; container?: any }): string {
     var cfg = config || {};
     var intensity = cfg.intensity ?? 0.5;
-    // Create vignette as a radial gradient overlay sprite
     var w = this.engine.config.width;
     var h = this.engine.config.height;
-    var g = new PIXI.Graphics();
-    // Draw outer dark rectangle with alpha based on distance from center
-    g.rect(0, 0, w, h).fill({ color: cfg.color || 0x000000, alpha: intensity * 0.8 });
-    // Cut out bright center using ellipse mask-like approach
-    var inner = new PIXI.Graphics();
-    inner.ellipse(w / 2, h / 2, w * 0.45, h * 0.45).fill({ color: 0x000000 });
-    g.mask = inner;
-    // Add to UI layer (screen-fixed)
-    if (this.engine.uiLayer) {
-      this.engine.uiLayer.addChild(inner);
-      this.engine.uiLayer.addChild(g);
+    // Create vignette via canvas radial gradient: transparent center → dark edges
+    var canvas = document.createElement('canvas');
+    canvas.width = w; canvas.height = h;
+    var ctx = canvas.getContext('2d');
+    if (ctx) {
+      var cx = w / 2, cy = h / 2;
+      var r = Math.max(w, h) * 0.55;
+      var grad = ctx.createRadialGradient(cx, cy, r * 0.3, cx, cy, r);
+      grad.addColorStop(0, 'rgba(0,0,0,0)');
+      grad.addColorStop(0.5, 'rgba(0,0,0,' + (intensity * 0.3) + ')');
+      grad.addColorStop(1, 'rgba(0,0,0,' + (intensity * 0.9) + ')');
+      ctx.fillStyle = grad;
+      ctx.fillRect(0, 0, w, h);
     }
+    var sprite = new PIXI.Sprite(PIXI.Texture.from(canvas));
+    sprite.width = w; sprite.height = h;
+    if (this.engine.uiLayer) this.engine.uiLayer.addChild(sprite);
     var fId = 'vignette_' + (++this._idCounter);
-    this._overlays.set(fId, g);
-    this._active.set(fId, { filter: g, container: this.engine.uiLayer || this.engine.world });
+    this._overlays.set(fId, sprite);
+    this._active.set(fId, { filter: sprite, container: this.engine.uiLayer || this.engine.world });
     return fId;
   }
 
