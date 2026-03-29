@@ -517,6 +517,27 @@ engine.objectEvents.onRoomEnd(() => { /* scene exiting */ });
 engine.objectEvents.remove(sprite);            // Unregister (fires destroy event)
 \`\`\`
 
+### Sprite Import (engine.spriteImport.* — strip import, atlas packing)
+\`\`\`
+// Split spritesheet strip into animation frames
+var frames = engine.spriteImport.stripImport(texture, 8)        // 8-column strip
+var frames = engine.spriteImport.stripImport(texture, 4, 3)     // 4 cols × 3 rows
+var info = engine.spriteImport.autoDetect(texture)               // → { cols, rows, frameSize }
+
+// Create AnimatedSprite from strip in one call
+var anim = engine.spriteImport.createAnimated(texture, 6, 1, 0.15)
+
+// Set anchor from preset
+engine.spriteImport.setOrigin(sprite, 'bottom-center')  // top-left/center/bottom-center/etc.
+
+// Auto-detect collision mask from alpha channel
+var mask = engine.spriteImport.autoMask(texture, 128)    // → { offsetX, offsetY, width, height }
+engine.collision.setMask(sprite, 'rectangle', mask)       // Apply to collision system
+
+// Pack multiple textures into a single atlas
+var { canvas, regions } = engine.spriteImport.packAtlas({ player: tex1, enemy: tex2 })
+\`\`\`
+
 ### Camera
 \`\`\`
 engine.camera.shake(8, 0.3)                   // Intensity, duration

@@ -1150,6 +1150,7 @@ export class Engine2D {
   surface: SurfaceSystem;
   collision: CollisionMaskSystem;
   objectEvents: ObjectEventSystem;
+  spriteImport: SpriteImportSystem;
   _worldData: any;  // WorldBuilder result — used by Feature Bank features
 
   // Simple event bus — AI uses engine.events.emit(name, data)
@@ -1207,6 +1208,7 @@ export class Engine2D {
     this.surface = new SurfaceSystem(this);
     this.collision = new CollisionMaskSystem(this);
     this.objectEvents = new ObjectEventSystem(this);
+    this.spriteImport = new SpriteImportSystem(this);
   }
 
   /**
@@ -2671,6 +2673,230 @@ export class AssetsSystem {
     } catch(e) {
       console.warn('[Assets] setPlayerSprites failed:', e);
     }
+  }
+}
+
+// ---------------------------------------------------------------------------
+// SpriteImportSystem — Plan 10: Bitmap Import + Sprite Sheet Workflow (engine.spriteImport.*)
+// ---------------------------------------------------------------------------
+
+type OriginPreset = 'top-left' | 'top-center' | 'top-right' | 'center-left' | 'center' | 'center-right' | 'bottom-left' | 'bottom-center' | 'bottom-right';
+
+class SpriteImportSystem {
+  private engine: Engine2D;
+
+  constructor(engine: Engine2D) {
+    this.engine = engine;
+  }
+
+  /**
+   * Import a sprite strip — split a single image into animation frames.
+   * @param texture - PIXI.Texture (loaded image)
+   * @param cols - Number of columns in the strip
+   * @param rows - Number of rows (default 1 for horizontal strips)
+   * @returns Array of PIXI.Texture frames
+   */
+  stripImport(texture: any, cols: number, rows = 1): any[] {
+    var PIXI = (window as any).PIXI;
+    var baseW = texture.width;
+    var baseH = texture.height;
+    var frameW = Math.floor(baseW / cols);
+    var frameH = Math.floor(baseH / rows);
+    var frames: any[] = [];
+
+    for (var r = 0; r < rows; r++) {
+      for (var c = 0; c < cols; c++) {
+        try {
+          var rect = new PIXI.Rectangle(c * frameW, r * frameH, frameW, frameH);
+          frames.push(new PIXI.Texture({ source: texture.source || texture, frame: rect }));
+        } catch(e) {
+          console.warn('[SpriteImport] Failed to cut frame at', c, r, e);
+        }
+      }
+    }
+    console.log('[SpriteImport] Strip import: ' + frames.length + ' frames (' + frameW + 'x' + frameH + ')');
+    return frames;
+  }
+
+  /**
+   * Auto-detect frame count from image dimensions.
+   * Assumes square frames — returns { cols, rows, frameSize }.
+   */
+  autoDetect(texture: any): { cols: number; rows: number; frameSize: number } {
+    var w = texture.width;
+    var h = texture.height;
+
+    // If wider than tall, assume horizontal strip with square frames
+    if (w > h) {
+      var frameSize = h;
+      var cols = Math.round(w / frameSize);
+      return { cols: cols, rows: 1, frameSize: frameSize };
+    }
+    // If taller than wide, vertical strip
+    if (h > w) {
+      var frameSize2 = w;
+      var rows = Math.round(h / frameSize2);
+      return { cols: 1, rows: rows, frameSize: frameSize2 };
+    }
+    // Square — single frame
+    return { cols: 1, rows: 1, frameSize: w };
+  }
+
+  /**
+   * Create an AnimatedSprite from a strip import.
+   */
+  createAnimated(texture: any, cols: number, rows = 1, speed = 0.15): any {
+    var PIXI = (window as any).PIXI;
+    var frames = this.stripImport(texture, cols, rows);
+    if (frames.length === 0) return null;
+    var anim = new PIXI.AnimatedSprite(frames);
+    anim.anchor.set(0.5);
+    anim.animationSpeed = speed;
+    anim.play();
+    return anim;
+  }
+
+  /**
+   * Set sprite origin (anchor) from a preset name.
+   */
+  setOrigin(sprite: any, preset: OriginPreset): void {
+    var origins: Record<string, [number, number]> = {
+      'top-left':      [0, 0],
+      'top-center':    [0.5, 0],
+      'top-right':     [1, 0],
+      'center-left':   [0, 0.5],
+      'center':        [0.5, 0.5],
+      'center-right':  [1, 0.5],
+      'bottom-left':   [0, 1],
+      'bottom-center': [0.5, 1],
+      'bottom-right':  [1, 1],
+    };
+    var o = origins[preset] || origins['center'];
+    if (sprite.anchor) sprite.anchor.set(o[0], o[1]);
+  }
+
+  /**
+   * Auto-generate collision mask from sprite alpha channel.
+   * Scans the texture to find the tight bounding box of non-transparent pixels.
+   * @param texture - PIXI.Texture
+   * @param tolerance - Alpha threshold 0-255 (default 128)
+   * @returns CollisionMask with trimmed bounds
+   */
+  autoMask(texture: any, tolerance = 128): { offsetX: number; offsetY: number; width: number; height: number } {
+    try {
+      // Render texture to canvas and scan pixels
+      var canvas = document.createElement('canvas');
+      var w = texture.width;
+      var h = texture.height;
+      canvas.width = w;
+      canvas.height = h;
+      var ctx = canvas.getContext('2d');
+      if (!ctx) return { offsetX: 0, offsetY: 0, width: w, height: h };
+
+      // Draw texture source to canvas
+      var source = texture.source?.resource || texture.baseTexture?.resource?.source;
+      if (!source) return { offsetX: 0, offsetY: 0, width: w, height: h };
+
+      var frame = texture.frame || { x: 0, y: 0, width: w, height: h };
+      ctx.drawImage(source, frame.x, frame.y, frame.width, frame.height, 0, 0, w, h);
+
+      var imageData = ctx.getImageData(0, 0, w, h);
+      var data = imageData.data;
+
+      var minX = w, minY = h, maxX = 0, maxY = 0;
+      for (var py = 0; py < h; py++) {
+        for (var px = 0; px < w; px++) {
+          var alpha = data[(py * w + px) * 4 + 3];
+          if (alpha >= tolerance) {
+            if (px < minX) minX = px;
+            if (px > maxX) maxX = px;
+            if (py < minY) minY = py;
+            if (py > maxY) maxY = py;
+          }
+        }
+      }
+
+      if (maxX < minX) return { offsetX: 0, offsetY: 0, width: w, height: h }; // Fully transparent
+
+      var maskW = maxX - minX + 1;
+      var maskH = maxY - minY + 1;
+      // Offset from center (assuming anchor 0.5, 0.5)
+      var offsetX = minX + maskW / 2 - w / 2;
+      var offsetY = minY + maskH / 2 - h / 2;
+
+      return { offsetX: offsetX, offsetY: offsetY, width: maskW, height: maskH };
+    } catch(e) {
+      console.warn('[SpriteImport] autoMask failed:', e);
+      return { offsetX: 0, offsetY: 0, width: texture.width || 32, height: texture.height || 32 };
+    }
+  }
+
+  /**
+   * Pack multiple textures into a single atlas (2048x2048 max).
+   * Returns { atlas: PIXI.Texture, regions: Map<name, Rectangle> }
+   */
+  packAtlas(textures: Record<string, any>, maxSize = 2048): { canvas: HTMLCanvasElement; regions: Record<string, { x: number; y: number; w: number; h: number }> } {
+    var entries = Object.entries(textures);
+    // Sort by height descending for better packing
+    entries.sort(function(a, b) { return (b[1].height || 0) - (a[1].height || 0); });
+
+    var canvas = document.createElement('canvas');
+    canvas.width = maxSize;
+    canvas.height = maxSize;
+    var ctx = canvas.getContext('2d')!;
+    var regions: Record<string, { x: number; y: number; w: number; h: number }> = {};
+
+    // Simple shelf packing algorithm
+    var shelfY = 0;
+    var shelfH = 0;
+    var cursorX = 0;
+    var padding = 2;
+
+    for (var i = 0; i < entries.length; i++) {
+      var name = entries[i][0];
+      var tex = entries[i][1];
+      var tw = tex.width || 32;
+      var th = tex.height || 32;
+
+      // New shelf if doesn't fit
+      if (cursorX + tw + padding > maxSize) {
+        shelfY += shelfH + padding;
+        shelfH = 0;
+        cursorX = 0;
+      }
+
+      // Overflow check
+      if (shelfY + th > maxSize) {
+        console.warn('[SpriteImport] Atlas overflow, skipping:', name);
+        continue;
+      }
+
+      // Draw texture source to atlas canvas
+      try {
+        var source = tex.source?.resource || tex.baseTexture?.resource?.source;
+        if (source) {
+          var frame = tex.frame || { x: 0, y: 0, width: tw, height: th };
+          ctx.drawImage(source, frame.x, frame.y, frame.width, frame.height, cursorX, shelfY, tw, th);
+        }
+      } catch(e) {}
+
+      regions[name] = { x: cursorX, y: shelfY, w: tw, h: th };
+      cursorX += tw + padding;
+      if (th > shelfH) shelfH = th;
+    }
+
+    // Trim canvas height
+    var usedH = shelfY + shelfH;
+    if (usedH < maxSize) {
+      var trimmed = document.createElement('canvas');
+      trimmed.width = maxSize;
+      trimmed.height = usedH;
+      trimmed.getContext('2d')!.drawImage(canvas, 0, 0);
+      canvas = trimmed;
+    }
+
+    console.log('[SpriteImport] Packed atlas: ' + entries.length + ' textures (' + maxSize + 'x' + usedH + ')');
+    return { canvas: canvas, regions: regions };
   }
 }
 
