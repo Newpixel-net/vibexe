@@ -953,7 +953,23 @@ const supabase = createClient("${supabaseConfig.url}", "${supabaseConfig.anonKey
 			const effectiveSeed = game2dSeed ?? Math.floor(Math.random() * 9000) + 1000;
 			const subGenre = isShooter2d ? "shooter" as const : isRunner2d ? "runner" as const : isPuzzle2d ? "puzzle" as const : "platformer" as const;
 			game2dBrief = expandSeed(effectiveSeed, subGenre);
-			console.log(`[Chat API] 2D seed=${effectiveSeed}, genre=${subGenre}, theme=${game2dBrief.theme}, difficulty=${game2dBrief.difficultyProfile}`);
+			// Override blueprint from user prompt keywords
+			const promptLower = (userPrompt || "").toLowerCase();
+			if (/cave|underground|cavern|mine/.test(promptLower)) game2dBrief.worldBlueprint = 'cave-system';
+			else if (/tower|climb|vertical/.test(promptLower)) game2dBrief.worldBlueprint = 'vertical-tower';
+			else if (/float|island|sky|cloud/.test(promptLower)) game2dBrief.worldBlueprint = 'floating-islands';
+			else if (/arena|fight|boss|battle/.test(promptLower)) game2dBrief.worldBlueprint = 'arena';
+			else if (/dungeon|rpg|roguelike|room/.test(promptLower)) game2dBrief.worldBlueprint = 'dungeon-rooms';
+			else if (/city|rooftop|urban|building/.test(promptLower)) game2dBrief.worldBlueprint = 'city-rooftops';
+			else if (/forest|jungle|canopy|tree/.test(promptLower)) game2dBrief.worldBlueprint = 'forest-canopy';
+			else if (/underwater|ocean|sea|diving|coral/.test(promptLower)) game2dBrief.worldBlueprint = 'underwater';
+			else if (/runner|endless|auto.?run/.test(promptLower)) game2dBrief.worldBlueprint = 'endless-runner';
+			// Also override theme if prompt strongly suggests one
+			if (/cave|underground|dark|shadow/.test(promptLower) && game2dBrief.theme === 'forest') game2dBrief.theme = 'dark';
+			if (/underwater|ocean|sea/.test(promptLower) && game2dBrief.theme !== 'ocean') game2dBrief.theme = 'ocean';
+			if (/lava|volcano|volcanic|fire/.test(promptLower) && game2dBrief.theme !== 'volcanic') game2dBrief.theme = 'volcanic';
+			if (/ice|snow|arctic|frozen/.test(promptLower) && game2dBrief.theme !== 'arctic') game2dBrief.theme = 'arctic';
+			console.log(`[Chat API] 2D seed=${effectiveSeed}, genre=${subGenre}, theme=${game2dBrief.theme}, blueprint=${game2dBrief.worldBlueprint}, difficulty=${game2dBrief.difficultyProfile}`);
 		}
 
 		// Declare at outer scope so 2D addenda can reference sprites after the game block closes
@@ -1123,6 +1139,7 @@ export default class GameScene2D implements GameScene {
 
     // Build world using WorldBuilder (sprite-based with fallback graphics)
     var worldResult = engine.worldBuilder.build({
+      blueprint: "${game2dBrief?.worldBlueprint || 'outdoor-scroll'}",
       theme: "${theme}",
       width: ${wW},
       height: ${wH},
@@ -1130,6 +1147,8 @@ export default class GameScene2D implements GameScene {
       platformCount: ${game2dBrief?.platformCount || 11},
       levelShape: "${game2dBrief?.levelShape || 'flat-wide'}",
       seed: ${game2dBrief?.seed || 'Date.now()'},
+      hasGround: ${!['floating-islands'].includes(game2dBrief?.worldBlueprint || 'outdoor-scroll')},
+      hasCeiling: ${['cave-system', 'arena', 'dungeon-rooms'].includes(game2dBrief?.worldBlueprint || 'outdoor-scroll')},
     });
     this.container.addChild(worldResult.container);
     engine._worldData = worldResult;
