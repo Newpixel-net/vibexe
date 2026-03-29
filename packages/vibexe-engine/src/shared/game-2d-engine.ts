@@ -186,8 +186,31 @@ class WorldBuilderSystem {
     // Helper: hex number to CSS
     function hexCss(c: number): string { return '#' + ('000000' + c.toString(16)).slice(-6); }
 
+    // Helper: create a sprite-based platform (TilingSprite) instead of Graphics
+    function _makePlatform(pw: number, ph: number): any {
+      var platName = platMap[theme] || 'grass_block';
+      var ts = _getTilingSprite('platforms', platName, pw, ph);
+      if (ts) {
+        ts.anchor.set(0.5, 0.5);
+        return ts;
+      }
+      // Fallback: single sprite scaled to fit
+      var spr = _getSprite('platforms', platName);
+      if (spr) {
+        spr.anchor.set(0.5, 0.5);
+        spr.width = pw;
+        spr.height = ph;
+        return spr;
+      }
+      // Last resort: Graphics
+      var g = new PIXI.Graphics();
+      g.roundRect(-pw / 2, -ph / 2, pw, ph, 3);
+      g.fill({ color: pal.platform || 0x5a3a1a });
+      return g;
+    }
+
     // Build context for blueprint dispatch
-    var ctx = { PIXI: PIXI, cfg: cfg, rng: rng, rngRange: rngRange, rngInt: rngInt, _getSprite: _getSprite, _getTilingSprite: _getTilingSprite, pal: pal, hexCss: hexCss, container: container, bodies: bodies, platforms: platforms, parallaxLayers: parallaxLayers, clouds: clouds, W: W, H: H, GY: GY, groundMap: groundMap, platMap: platMap, treeMap: treeMap };
+    var ctx = { PIXI: PIXI, cfg: cfg, rng: rng, rngRange: rngRange, rngInt: rngInt, _getSprite: _getSprite, _getTilingSprite: _getTilingSprite, pal: pal, hexCss: hexCss, _makePlatform: _makePlatform, container: container, bodies: bodies, platforms: platforms, parallaxLayers: parallaxLayers, clouds: clouds, W: W, H: H, GY: GY, groundMap: groundMap, platMap: platMap, treeMap: treeMap };
 
     var _bpDone = false;
     var _bp = cfg.blueprint;
@@ -926,7 +949,7 @@ class WorldBuilderSystem {
     var minY = ceilH + 60, maxY = GY - 60;
     for (var pi = 0; pi < pCount; pi++) {
       var px = rngRange(200, W - 200), py = rngRange(minY, maxY), pw = rngInt(80, 160);
-      var pG = new PIXI.Graphics(); pG.roundRect(-pw / 2, -8, pw, 16, 3); pG.fill({ color: pal.platform || 0x444433 });
+      var pG = _makePlatform(pw, 16);
       pG.x = px; pG.y = py; container.addChild(pG);
       var pBody = { x: px, y: py, w: pw, h: 16, isStatic: true, oneWay: true, tag: 'platform' };
       bodies.push(pBody); platforms.push({ x: px, y: py, w: pw, body: pBody });
@@ -995,8 +1018,8 @@ class WorldBuilderSystem {
       var px: number;
       if (side === 0) { px = wallW + 40 + rngRange(0, W * 0.3); side = 1; }
       else { px = W - wallW - 40 - rngRange(0, W * 0.3); side = 0; }
-      var pG = new PIXI.Graphics(); pG.roundRect(-pw / 2, -8, pw, 16, 3); pG.fill({ color: pal.platform });
-      pG.rect(-pw / 2, -8, pw, 3); pG.fill({ color: pal.platformTop }); pG.x = px; pG.y = py;
+      var pG = _makePlatform(pw, 16);
+      pG.x = px; pG.y = py;
       container.addChild(pG);
       var pBody = { x: px, y: py, w: pw, h: 16, isStatic: true, oneWay: true, tag: 'platform' };
       bodies.push(pBody); platforms.push({ x: px, y: py, w: pw, body: pBody });
@@ -1069,7 +1092,7 @@ class WorldBuilderSystem {
     // Stepping-stone platforms between islands
     for (var si = 0; si < rngInt(4, 8); si++) {
       var sx = rngRange(100, W - 100), sy = rngRange(H * 0.15, H * 0.6), sw = rngInt(60, 100);
-      var sG = new PIXI.Graphics(); sG.roundRect(-sw / 2, -6, sw, 12, 3); sG.fill({ color: pal.platform });
+      var sG = _makePlatform(sw, 12);
       sG.x = sx; sG.y = sy; container.addChild(sG);
       var sBody = { x: sx, y: sy, w: sw, h: 12, isStatic: true, oneWay: true, tag: 'platform' };
       bodies.push(sBody); platforms.push({ x: sx, y: sy, w: sw, body: sBody });
@@ -1117,7 +1140,7 @@ class WorldBuilderSystem {
     var centerCount = rngInt(1, 2);
     for (var pi = 0; pi < centerCount; pi++) {
       var pw = rngInt(120, 200), px = W / 2 + (pi === 0 ? -80 : 80), py = GY - rngRange(120, 200);
-      var pG = new PIXI.Graphics(); pG.roundRect(-pw / 2, -8, pw, 16, 3); pG.fill({ color: pal.platform });
+      var pG = _makePlatform(pw, 16);
       pG.x = px; pG.y = py; container.addChild(pG);
       var pBody = { x: px, y: py, w: pw, h: 16, isStatic: true, oneWay: true, tag: 'platform' };
       bodies.push(pBody); platforms.push({ x: px, y: py, w: pw, body: pBody });
@@ -1158,7 +1181,8 @@ class WorldBuilderSystem {
       var rpCount = rngInt(1, 3);
       for (var pi = 0; pi < rpCount; pi++) {
         var pw = rngInt(60, 120), px = rx + rngRange(30, rw - 30), py = ry + rngRange(rh * 0.3, rh * 0.7);
-        var pG = new PIXI.Graphics(); pG.roundRect(-pw / 2, -6, pw, 12, 2); pG.fill({ color: pal.platform }); pG.x = px; pG.y = py;
+        var pG = _makePlatform(pw, 12);
+        pG.x = px; pG.y = py;
         container.addChild(pG);
         var pBody = { x: px, y: py, w: pw, h: 12, isStatic: true, oneWay: true, tag: 'platform' };
         bodies.push(pBody); platforms.push({ x: px, y: py, w: pw, body: pBody });
@@ -1312,7 +1336,8 @@ class WorldBuilderSystem {
     var midY = GY * 0.5;
     for (var mi = 0; mi < rngInt(5, 10); mi++) {
       var mx = rngRange(100, W - 100), my = midY + rngRange(-60, 60), mw = rngInt(80, 160);
-      var mG = new PIXI.Graphics(); mG.roundRect(-mw / 2, -6, mw, 12, 3); mG.fill({ color: 0x5a4020 }); mG.x = mx; mG.y = my;
+      var mG = _makePlatform(mw, 12);
+      mG.x = mx; mG.y = my;
       container.addChild(mG);
       var mBody = { x: mx, y: my, w: mw, h: 12, isStatic: true, oneWay: true, tag: 'platform' };
       bodies.push(mBody); platforms.push({ x: mx, y: my, w: mw, body: mBody });
@@ -1322,7 +1347,8 @@ class WorldBuilderSystem {
     var canY = GY * 0.2;
     for (var ci = 0; ci < rngInt(4, 8); ci++) {
       var cx2 = rngRange(80, W - 80), cy2 = canY + rngRange(-40, 40), cw2 = rngInt(100, 200);
-      var cG = new PIXI.Graphics(); cG.roundRect(-cw2 / 2, -8, cw2, 16, 4); cG.fill({ color: 0x339933 }); cG.x = cx2; cG.y = cy2;
+      var cG = _makePlatform(cw2, 16);
+      cG.x = cx2; cG.y = cy2;
       container.addChild(cG);
       var cBody = { x: cx2, y: cy2, w: cw2, h: 16, isStatic: true, oneWay: true, tag: 'platform' };
       bodies.push(cBody); platforms.push({ x: cx2, y: cy2, w: cw2, body: cBody });
@@ -1331,7 +1357,8 @@ class WorldBuilderSystem {
     // Lower platforms near ground
     for (var li = 0; li < rngInt(4, 7); li++) {
       var lx = rngRange(100, W - 100), ly = GY - rngRange(60, 140), lw = rngInt(80, 150);
-      var lG = new PIXI.Graphics(); lG.roundRect(-lw / 2, -6, lw, 12, 3); lG.fill({ color: pal.platform }); lG.x = lx; lG.y = ly;
+      var lG = _makePlatform(lw, 12);
+      lG.x = lx; lG.y = ly;
       container.addChild(lG);
       var lBody = { x: lx, y: ly, w: lw, h: 12, isStatic: true, oneWay: true, tag: 'platform' };
       bodies.push(lBody); platforms.push({ x: lx, y: ly, w: lw, body: lBody });
@@ -1387,7 +1414,8 @@ class WorldBuilderSystem {
     for (var ci = 0; ci < coralCount; ci++) {
       var cx = rngRange(150, W - 150), cy = rngRange(H * 0.25, GY - 40), cw2 = rngInt(70, 150);
       var cc = coralColors[rngInt(0, coralColors.length - 1)];
-      var cG = new PIXI.Graphics(); cG.roundRect(-cw2 / 2, -8, cw2, 16, 6); cG.fill({ color: cc }); cG.x = cx; cG.y = cy;
+      var cG = _makePlatform(cw2, 16);
+      cG.x = cx; cG.y = cy;
       container.addChild(cG);
       var cBody = { x: cx, y: cy, w: cw2, h: 16, isStatic: true, oneWay: true, tag: 'platform' };
       bodies.push(cBody); platforms.push({ x: cx, y: cy, w: cw2, body: cBody });
@@ -1474,7 +1502,8 @@ class WorldBuilderSystem {
     // Overhead platforms
     for (var pi = 0; pi < rngInt(4, 8); pi++) {
       var px = rngRange(200, W - 100), py = GY - rngRange(100, 250), pw = rngInt(80, 140);
-      var pG = new PIXI.Graphics(); pG.roundRect(-pw / 2, -8, pw, 16, 3); pG.fill({ color: pal.platform }); pG.x = px; pG.y = py;
+      var pG = _makePlatform(pw, 16);
+      pG.x = px; pG.y = py;
       container.addChild(pG);
       var pBody = { x: px, y: py, w: pw, h: 16, isStatic: true, oneWay: true, tag: 'platform' };
       bodies.push(pBody); platforms.push({ x: px, y: py, w: pw, body: pBody });
