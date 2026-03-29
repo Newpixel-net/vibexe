@@ -424,6 +424,8 @@ engine.tilemap.isSolidAt(worldX, worldY)       // Check world position
 engine.tilemap.worldToGrid(worldX, worldY)     // → { gx, gy }
 engine.tilemap.gridToWorld(gx, gy)             // → { x, y }
 engine.tilemap.flush()                         // Force redraw (auto-called each frame)
+engine.tilemap.defineAnimatedTile(1, [0,1,2,3], 4)  // Tile type 1 cycles 4 frames at 4fps
+engine.tilemap.removeAnimatedTile(1)           // Remove animation definition
 engine.tilemap.clear()                         // Clear all tiles
 \`\`\`
 

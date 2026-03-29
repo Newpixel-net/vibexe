@@ -730,6 +730,11 @@ interface TilemapConfig {
   tilesetCols?: number;  // Columns in tileset image
 }
 
+interface AnimatedTileDef {
+  frames: number[];      // Array of tile indices to cycle through
+  speed: number;         // Frames per second
+}
+
 class TilemapSystem {
   private engine: Engine2D;
   private grid: Int16Array;    // -1 = empty, 0+ = tile type
@@ -742,6 +747,9 @@ class TilemapSystem {
   private sprites: Map<number, any> = new Map(); // key = y*W+x → sprite
   private _dirty: Set<number> = new Set();       // Tiles needing redraw
   private _bitmaskCache: Map<number, number> = new Map(); // 8bit→47tile index
+  private _animDefs: Map<number, AnimatedTileDef> = new Map(); // tileType → animation def
+  private _animTiles: Map<number, { def: AnimatedTileDef; frameIdx: number }> = new Map(); // gridIdx → anim state
+  private _animElapsed = 0;
 
   // 47-tile bitmask lookup: maps 8-bit neighbor mask to tile index (0-46)
   // GameMaker standard: neighbors are N,NE,E,SE,S,SW,W,NW (bits 0-7)
@@ -993,6 +1001,14 @@ class TilemapSystem {
       spr.y = gy * self.tileSize;
       self.container.addChild(spr);
       self.sprites.set(idx, spr);
+
+      // Register animated tile if this tile type has an animation definition
+      var animDef = self._animDefs.get(tile);
+      if (animDef) {
+        self._animTiles.set(idx, { def: animDef, frameIdx: 0 });
+      } else {
+        self._animTiles.delete(idx);
+      }
     });
 
     this._dirty.clear();
@@ -1020,17 +1036,71 @@ class TilemapSystem {
     return this.getTile(g.gx, g.gy) >= 0;
   }
 
+  // ---- Animated Tiles ----
+
+  /**
+   * Register an animated tile definition.
+   * When a tile of this type is placed, it cycles through the given frame indices.
+   * @param tileType - The tile type number used in setTile()
+   * @param frames - Array of tileset indices to cycle (2-16 frames)
+   * @param speed - Animation speed in frames per second (default 4)
+   */
+  defineAnimatedTile(tileType: number, frames: number[], speed = 4): void {
+    this._animDefs.set(tileType, { frames: frames, speed: speed });
+  }
+
+  /** Remove an animated tile definition */
+  removeAnimatedTile(tileType: number): void {
+    this._animDefs.delete(tileType);
+  }
+
+  /**
+   * Update animated tiles — called from game loop.
+   * Cycles through animation frames for all tiles with animated definitions.
+   */
+  update(dt: number): void {
+    if (this._animDefs.size === 0 || this._animTiles.size === 0) return;
+    var PIXI = (window as any).PIXI;
+    var self = this;
+
+    this._animTiles.forEach(function(anim, gridIdx) {
+      var prevFrame = Math.floor(anim.frameIdx);
+      anim.frameIdx += anim.def.speed * dt;
+      if (anim.frameIdx >= anim.def.frames.length) {
+        anim.frameIdx = anim.frameIdx % anim.def.frames.length;
+      }
+      var curFrame = Math.floor(anim.frameIdx);
+
+      // Only update sprite texture when frame changes
+      if (curFrame !== prevFrame) {
+        var spr = self.sprites.get(gridIdx);
+        if (spr && self.tileset) {
+          var tileIdx = anim.def.frames[curFrame];
+          var cols = self.tilesetCols;
+          var tx = (tileIdx % cols) * self.tileSize;
+          var ty = ((tileIdx / cols) | 0) * self.tileSize;
+          try {
+            var frame = new PIXI.Rectangle(tx, ty, self.tileSize, self.tileSize);
+            spr.texture = new PIXI.Texture({ source: self.tileset.source || self.tileset, frame: frame });
+          } catch(e) {}
+        }
+      }
+    });
+  }
+
   /** Clear all tiles */
   clear(): void {
     this.grid.fill(-1);
     if (this.container) this.container.removeChildren();
     this.sprites.clear();
     this._dirty.clear();
+    this._animTiles.clear();
   }
 
   /** Destroy the tilemap */
   destroy(): void {
     this.clear();
+    this._animDefs.clear();
     if (this.container) {
       try { this.engine.world.removeChild(this.container); } catch(e) {}
       this.container.destroy({ children: true });
@@ -1222,8 +1292,9 @@ export class Engine2D {
       // Update layers (parallax, auto-scroll, instance depth sort)
       this.layers.update(dt);
 
-      // Auto-flush dirty tilemap tiles
+      // Auto-flush dirty tilemap tiles + update animated tiles
       this.tilemap.flush();
+      this.tilemap.update(dt);
 
       // Depth sort — auto-sort world children by y position (depth = -bbox_bottom)
       if (this._depthSortEnabled) this._depthSort();
