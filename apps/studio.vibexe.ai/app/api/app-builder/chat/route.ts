@@ -965,7 +965,7 @@ const supabase = createClient("${supabaseConfig.url}", "${supabaseConfig.anonKey
 			else if (/underwater|ocean|sea|diving|coral/.test(promptLower)) game2dBrief.worldBlueprint = 'underwater';
 			else if (/runner|endless|auto.?run/.test(promptLower)) game2dBrief.worldBlueprint = 'endless-runner';
 			// Also override theme if prompt strongly suggests one
-			if (/cave|underground|dark|shadow/.test(promptLower) && game2dBrief.theme === 'forest') game2dBrief.theme = 'dark';
+			if (/cave|underground|dark|shadow/.test(promptLower) && !['dark', 'volcanic'].includes(game2dBrief.theme)) game2dBrief.theme = 'dark';
 			if (/underwater|ocean|sea/.test(promptLower) && game2dBrief.theme !== 'ocean') game2dBrief.theme = 'ocean';
 			if (/lava|volcano|volcanic|fire/.test(promptLower) && game2dBrief.theme !== 'volcanic') game2dBrief.theme = 'volcanic';
 			if (/ice|snow|arctic|frozen/.test(promptLower) && game2dBrief.theme !== 'arctic') game2dBrief.theme = 'arctic';
