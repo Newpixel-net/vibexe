@@ -473,6 +473,112 @@ class WorldBuilderSystem {
       }
     }
 
+    // ===================================================================
+    // AUTO-POPULATE: Place sprite-based collectibles, props, enemies on platforms
+    // This runs for ALL blueprints — ensures the world is never empty
+    // ===================================================================
+    var _autoRng = rng;
+
+    // Collectibles on platforms (coins, gems)
+    var coinNames = ['coin_gold', 'coin_silver', 'coin_bronze'];
+    var gemNames = ['gem_red', 'gem_blue', 'gem_green', 'gem_yellow'];
+    for (var _pi = 0; _pi < platforms.length; _pi++) {
+      var _pp = platforms[_pi];
+      // 70% chance of coins on each platform
+      if (_autoRng() < 0.7) {
+        var coinCount = rngInt(1, 4);
+        var coinSpacing = _pp.w / (coinCount + 1);
+        for (var _ci = 0; _ci < coinCount; _ci++) {
+          var cName = coinNames[rngInt(0, coinNames.length - 1)];
+          var coinSpr = _getSprite('collectibles', cName);
+          if (coinSpr) {
+            coinSpr.anchor.set(0.5, 1);
+            coinSpr.x = _pp.x - _pp.w / 2 + coinSpacing * (_ci + 1);
+            coinSpr.y = _pp.y - 10;
+            coinSpr.scale.set(0.6);
+            coinSpr.zIndex = 100;
+            container.addChild(coinSpr);
+          }
+        }
+      }
+      // 30% chance of a gem on a platform
+      if (_autoRng() < 0.3) {
+        var gName = gemNames[rngInt(0, gemNames.length - 1)];
+        var gemSpr = _getSprite('collectibles', gName);
+        if (gemSpr) {
+          gemSpr.anchor.set(0.5, 1);
+          gemSpr.x = _pp.x;
+          gemSpr.y = _pp.y - 14;
+          gemSpr.scale.set(0.7);
+          gemSpr.zIndex = 100;
+          container.addChild(gemSpr);
+        }
+      }
+    }
+
+    // Props on ground level (crates, barrels, rocks, signs)
+    var propNames = ['crate', 'barrel', 'rock', 'sign_post'];
+    if (cfg.hasGround !== false) {
+      var propCount = rngInt(3, 7);
+      var propSpacing = W / (propCount + 1);
+      for (var _di = 0; _di < propCount; _di++) {
+        var pName = propNames[rngInt(0, propNames.length - 1)];
+        var propSpr = _getSprite('props', pName);
+        if (propSpr) {
+          propSpr.anchor.set(0.5, 1);
+          propSpr.x = propSpacing * (_di + 1) + rngRange(-30, 30);
+          propSpr.y = GY;
+          propSpr.scale.set(rngRange(0.5, 0.9));
+          propSpr.zIndex = 50;
+          container.addChild(propSpr);
+        }
+      }
+    }
+
+    // Decorations scattered on ground (plants, flags)
+    var decoNames = ['plant_green', 'plant_purple', 'cactus'];
+    if (cfg.hasGround !== false) {
+      var decoCount = rngInt(4, 10);
+      for (var _ei = 0; _ei < decoCount; _ei++) {
+        var dName = decoNames[rngInt(0, decoNames.length - 1)];
+        var decoSpr = _getSprite('decorations', dName);
+        if (decoSpr) {
+          decoSpr.anchor.set(0.5, 1);
+          decoSpr.x = rngRange(50, W - 50);
+          decoSpr.y = GY;
+          decoSpr.scale.set(rngRange(0.4, 0.8));
+          decoSpr.zIndex = 30;
+          container.addChild(decoSpr);
+        }
+      }
+    }
+
+    // Enemy sprites on some platforms (snails, blockers)
+    var enemyPairs = [['slime_walk1', 'slime_walk2'], ['snail_walk1', 'snail_walk2'], ['fly1', 'fly2'], ['blocker', 'blocker_mad']];
+    for (var _eni = 0; _eni < platforms.length; _eni++) {
+      if (_autoRng() < 0.35) { // 35% of platforms get an enemy
+        var _ep = platforms[_eni];
+        var ePair = enemyPairs[rngInt(0, enemyPairs.length - 1)];
+        var eSpr = _getSprite('enemies', ePair[0]);
+        if (eSpr) {
+          eSpr.anchor.set(0.5, 1);
+          eSpr.x = _ep.x + rngRange(-_ep.w * 0.3, _ep.w * 0.3);
+          eSpr.y = _ep.y - 2;
+          eSpr.scale.set(0.5);
+          eSpr.zIndex = 80;
+          container.addChild(eSpr);
+        }
+      }
+    }
+
+    // UI sprites: hearts at top-right (replace primitive HUD)
+    var heartSpr = _getSprite('ui', 'hud_heartFull');
+    if (heartSpr) {
+      // Don't add to world container — UI should be on uiLayer (handled by features)
+    }
+
+    console.log('[WorldBuilder] Auto-populated ' + platforms.length + ' platforms with sprite collectibles, props, enemies');
+
     // Build result
     var result: WorldBuilderResult = {
       container: container,
