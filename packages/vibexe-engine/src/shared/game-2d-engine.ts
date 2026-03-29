@@ -1146,6 +1146,10 @@ export class Engine2D {
   layers: LayerSystem;
   tilemap: TilemapSystem;
   anim: AnimationSystem;
+  instances: InstanceSystem;
+  surface: SurfaceSystem;
+  collision: CollisionMaskSystem;
+  objectEvents: ObjectEventSystem;
   _worldData: any;  // WorldBuilder result — used by Feature Bank features
 
   // Simple event bus — AI uses engine.events.emit(name, data)
@@ -1199,6 +1203,10 @@ export class Engine2D {
     this.layers = new LayerSystem(this);
     this.tilemap = new TilemapSystem(this);
     this.anim = new AnimationSystem(this);
+    this.instances = new InstanceSystem(this);
+    this.surface = new SurfaceSystem(this);
+    this.collision = new CollisionMaskSystem(this);
+    this.objectEvents = new ObjectEventSystem(this);
   }
 
   /**
@@ -1286,6 +1294,12 @@ export class Engine2D {
       // Update feature snippets
       this.features.updateAll(dt);
 
+      // Update GM-style instance variables (motion, gravity, friction, alarms)
+      this.instances.update(dt);
+
+      // Update object events (step phases, mouse events, collision pairs)
+      this.objectEvents.update(dt);
+
       // Update animation state machines
       this.anim.update(dt);
 
@@ -1327,6 +1341,7 @@ export class Engine2D {
 
   switchScene(name: SceneName, data?: any): void {
     if (this.currentScene) {
+      try { this.objectEvents.fireRoomEnd(); } catch(e) {}
       try { this.juice.killAll(); } catch(e) {}
       try { this.currentScene.exit(this); } catch(e) {}
       try { this.world.removeChild(this.currentScene.container); } catch(e) {}
@@ -1349,6 +1364,7 @@ export class Engine2D {
     } catch(e) {
       console.error('[Engine2D] Scene enter() error:', e);
     }
+    try { this.objectEvents.fireRoomStart(); } catch(e) {}
     console.log('[Engine2D] Scene:', name);
   }
 
@@ -1449,6 +1465,10 @@ export class Engine2D {
     this.layers.clear();
     this.tilemap.destroy();
     this.anim.clear();
+    this.instances.clear();
+    this.surface.clear();
+    this.collision.clear();
+    this.objectEvents.clear();
     this.input.destroy();
     if (this.proton) this.proton.destroy();
     if (this.app) this.app.destroy(true, { children: true, texture: true });
@@ -3367,6 +3387,573 @@ class AnimationSystem {
       }
     } catch(e) {}
   }
+}
+
+// ---------------------------------------------------------------------------
+// InstanceSystem — Plan 6: GameMaker-style instance variables (engine.instances.*)
+// ---------------------------------------------------------------------------
+
+interface InstanceVars {
+  sprite: any;
+  // Position
+  x: number; y: number;
+  xprevious: number; yprevious: number;
+  xstart: number; ystart: number;
+  // Velocity (GM: speed/direction → hspeed/vspeed)
+  speed: number; direction: number;
+  hspeed: number; vspeed: number;
+  // Physics
+  gravity: number; gravity_direction: number; friction: number;
+  // Image
+  image_index: number; image_speed: number;
+  image_alpha: number; image_blend: number;
+  image_xscale: number; image_yscale: number; image_angle: number;
+  // Alarms (12 countdown timers)
+  alarm: number[];
+  _alarmCallbacks: ((() => void) | null)[];
+  // Tags
+  tag: string;
+  // Built-in
+  score: number; lives: number; health: number;
+}
+
+class InstanceSystem {
+  private engine: Engine2D;
+  private _instances: Map<any, InstanceVars> = new Map();
+
+  constructor(engine: Engine2D) {
+    this.engine = engine;
+  }
+
+  /**
+   * Register a sprite as a managed instance with GM-style variables.
+   * Returns the instance vars object (modify directly).
+   */
+  create(sprite: any, config: Partial<InstanceVars> = {}): InstanceVars {
+    var vars: InstanceVars = {
+      sprite: sprite,
+      x: sprite.x || 0, y: sprite.y || 0,
+      xprevious: sprite.x || 0, yprevious: sprite.y || 0,
+      xstart: sprite.x || 0, ystart: sprite.y || 0,
+      speed: config.speed || 0,
+      direction: config.direction || 0,
+      hspeed: config.hspeed || 0,
+      vspeed: config.vspeed || 0,
+      gravity: config.gravity || 0,
+      gravity_direction: config.gravity_direction || 270, // Down
+      friction: config.friction || 0,
+      image_index: 0, image_speed: config.image_speed || 1,
+      image_alpha: config.image_alpha ?? 1,
+      image_blend: config.image_blend ?? 0xffffff,
+      image_xscale: config.image_xscale ?? 1,
+      image_yscale: config.image_yscale ?? 1,
+      image_angle: config.image_angle || 0,
+      alarm: new Array(12).fill(-1),
+      _alarmCallbacks: new Array(12).fill(null),
+      tag: config.tag || '',
+      score: 0, lives: config.lives ?? 3, health: config.health ?? 100,
+    };
+
+    // Sync speed/direction to hspeed/vspeed
+    if (config.speed && config.direction !== undefined) {
+      var rad = config.direction * Math.PI / 180;
+      vars.hspeed = config.speed * Math.cos(rad);
+      vars.vspeed = -config.speed * Math.sin(rad);
+    }
+
+    this._instances.set(sprite, vars);
+    return vars;
+  }
+
+  /** Get instance vars for a sprite */
+  get(sprite: any): InstanceVars | undefined {
+    return this._instances.get(sprite);
+  }
+
+  /** Set an alarm timer. Counts down each frame, fires callback at 0. */
+  setAlarm(sprite: any, index: number, frames: number, callback: () => void): void {
+    var inst = this._instances.get(sprite);
+    if (!inst || index < 0 || index >= 12) return;
+    inst.alarm[index] = frames;
+    inst._alarmCallbacks[index] = callback;
+  }
+
+  /** Cancel an alarm */
+  clearAlarm(sprite: any, index: number): void {
+    var inst = this._instances.get(sprite);
+    if (!inst || index < 0 || index >= 12) return;
+    inst.alarm[index] = -1;
+    inst._alarmCallbacks[index] = null;
+  }
+
+  /** Remove an instance from tracking */
+  remove(sprite: any): void {
+    this._instances.delete(sprite);
+  }
+
+  /** Get all instances with a given tag */
+  findByTag(tag: string): InstanceVars[] {
+    var result: InstanceVars[] = [];
+    this._instances.forEach(function(inst) {
+      if (inst.tag === tag) result.push(inst);
+    });
+    return result;
+  }
+
+  /** Update all instances — GM automatic motion + alarm countdown */
+  update(dt: number): void {
+    var fps60dt = dt * 60; // Normalize to ~60fps steps like GM
+    this._instances.forEach(function(inst) {
+      // Store previous position
+      inst.xprevious = inst.x;
+      inst.yprevious = inst.y;
+
+      // Apply gravity
+      if (inst.gravity !== 0) {
+        var grad = inst.gravity_direction * Math.PI / 180;
+        inst.hspeed += inst.gravity * Math.cos(grad) * fps60dt;
+        inst.vspeed += -inst.gravity * Math.sin(grad) * fps60dt;
+      }
+
+      // Apply friction
+      if (inst.friction > 0) {
+        var spd = Math.sqrt(inst.hspeed * inst.hspeed + inst.vspeed * inst.vspeed);
+        if (spd > 0) {
+          var newSpd = Math.max(0, spd * (1 - inst.friction * fps60dt));
+          var ratio = newSpd / spd;
+          inst.hspeed *= ratio;
+          inst.vspeed *= ratio;
+        }
+      }
+
+      // Apply velocity
+      inst.x += inst.hspeed * fps60dt;
+      inst.y += inst.vspeed * fps60dt;
+
+      // Sync speed/direction from hspeed/vspeed
+      inst.speed = Math.sqrt(inst.hspeed * inst.hspeed + inst.vspeed * inst.vspeed);
+      if (inst.speed > 0.001) {
+        inst.direction = Math.atan2(-inst.vspeed, inst.hspeed) * 180 / Math.PI;
+        if (inst.direction < 0) inst.direction += 360;
+      }
+
+      // Apply image properties to sprite
+      var spr = inst.sprite;
+      if (spr) {
+        spr.x = inst.x;
+        spr.y = inst.y;
+        spr.alpha = inst.image_alpha;
+        spr.rotation = inst.image_angle * Math.PI / 180;
+        if (spr.scale) {
+          spr.scale.x = inst.image_xscale;
+          spr.scale.y = inst.image_yscale;
+        }
+        if (inst.image_blend !== 0xffffff) spr.tint = inst.image_blend;
+      }
+
+      // Update alarms
+      for (var a = 0; a < 12; a++) {
+        if (inst.alarm[a] > 0) {
+          inst.alarm[a] -= fps60dt;
+          if (inst.alarm[a] <= 0) {
+            inst.alarm[a] = -1;
+            if (inst._alarmCallbacks[a]) {
+              try { inst._alarmCallbacks[a]!(); } catch(e) {}
+            }
+          }
+        }
+      }
+    });
+  }
+
+  /** Clear all instances */
+  clear(): void {
+    this._instances.clear();
+  }
+
+  /** Count of tracked instances */
+  count(): number {
+    return this._instances.size;
+  }
+}
+
+// ---------------------------------------------------------------------------
+// SurfaceSystem — Plan 7: Off-screen render targets (engine.surface.*)
+// ---------------------------------------------------------------------------
+
+class SurfaceSystem {
+  private engine: Engine2D;
+  private _surfaces: Map<string, any> = new Map();
+
+  constructor(engine: Engine2D) {
+    this.engine = engine;
+  }
+
+  /** Create an off-screen render texture surface */
+  create(name: string, width: number, height: number): any {
+    var PIXI = (window as any).PIXI;
+    var renderTexture = PIXI.RenderTexture.create({ width: width, height: height });
+    var sprite = new PIXI.Sprite(renderTexture);
+    this._surfaces.set(name, { texture: renderTexture, sprite: sprite, width: width, height: height });
+    return { texture: renderTexture, sprite: sprite };
+  }
+
+  /** Render a container/sprite onto a surface */
+  drawTo(name: string, displayObject: any, clear = true): void {
+    var surf = this._surfaces.get(name);
+    if (!surf || !this.engine.app?.renderer) return;
+    if (clear) this.engine.app.renderer.render({ container: displayObject, target: surf.texture, clear: true });
+    else this.engine.app.renderer.render({ container: displayObject, target: surf.texture, clear: false });
+  }
+
+  /** Get the surface's sprite (to add to stage) */
+  getSprite(name: string): any {
+    var surf = this._surfaces.get(name);
+    return surf ? surf.sprite : null;
+  }
+
+  /** Get the surface's render texture (for filters, masking) */
+  getTexture(name: string): any {
+    var surf = this._surfaces.get(name);
+    return surf ? surf.texture : null;
+  }
+
+  /** Resize a surface */
+  resize(name: string, width: number, height: number): void {
+    var surf = this._surfaces.get(name);
+    if (surf) surf.texture.resize(width, height);
+  }
+
+  /** Destroy a surface */
+  remove(name: string): void {
+    var surf = this._surfaces.get(name);
+    if (!surf) return;
+    surf.texture.destroy(true);
+    this._surfaces.delete(name);
+  }
+
+  /** Clear all surfaces */
+  clear(): void {
+    var self = this;
+    this._surfaces.forEach(function(surf) {
+      try { surf.texture.destroy(true); } catch(e) {}
+    });
+    this._surfaces.clear();
+  }
+
+  /** List surface names */
+  list(): string[] {
+    return Array.from(this._surfaces.keys());
+  }
+}
+
+// ---------------------------------------------------------------------------
+// CollisionMaskSystem — Plan 8: Collision shapes (engine.collision.*)
+// ---------------------------------------------------------------------------
+
+type MaskType = 'rectangle' | 'ellipse' | 'diamond' | 'precise';
+
+interface CollisionMask {
+  type: MaskType;
+  offsetX: number;
+  offsetY: number;
+  width: number;
+  height: number;
+  tolerance?: number;  // Alpha threshold for precise mode (0-255)
+}
+
+class CollisionMaskSystem {
+  private engine: Engine2D;
+  private _masks: Map<any, CollisionMask> = new Map();
+
+  constructor(engine: Engine2D) {
+    this.engine = engine;
+  }
+
+  /** Set collision mask for a sprite */
+  setMask(sprite: any, type: MaskType, config: Partial<CollisionMask> = {}): void {
+    this._masks.set(sprite, {
+      type: type,
+      offsetX: config.offsetX || 0,
+      offsetY: config.offsetY || 0,
+      width: config.width || (sprite.width || 32),
+      height: config.height || (sprite.height || 32),
+      tolerance: config.tolerance ?? 128,
+    });
+  }
+
+  /** Get collision mask for a sprite */
+  getMask(sprite: any): CollisionMask | undefined {
+    return this._masks.get(sprite);
+  }
+
+  /** Remove collision mask */
+  removeMask(sprite: any): void {
+    this._masks.delete(sprite);
+  }
+
+  /** Check if two sprites overlap based on their collision masks */
+  check(a: any, b: any): boolean {
+    var maskA = this._masks.get(a) || this._defaultMask(a);
+    var maskB = this._masks.get(b) || this._defaultMask(b);
+    var ax = a.x + maskA.offsetX;
+    var ay = a.y + maskA.offsetY;
+    var bx = b.x + maskB.offsetX;
+    var by = b.y + maskB.offsetY;
+
+    // Both rectangle → AABB
+    if (maskA.type === 'rectangle' && maskB.type === 'rectangle') {
+      return this._aabb(ax, ay, maskA.width, maskA.height, bx, by, maskB.width, maskB.height);
+    }
+
+    // Both ellipse → ellipse-ellipse
+    if (maskA.type === 'ellipse' && maskB.type === 'ellipse') {
+      return this._ellipseOverlap(ax, ay, maskA.width / 2, maskA.height / 2, bx, by, maskB.width / 2, maskB.height / 2);
+    }
+
+    // Diamond → rotated AABB (simplified as center distance check)
+    if (maskA.type === 'diamond' || maskB.type === 'diamond') {
+      return this._diamondCheck(ax, ay, maskA, bx, by, maskB);
+    }
+
+    // Fallback: AABB
+    return this._aabb(ax, ay, maskA.width, maskA.height, bx, by, maskB.width, maskB.height);
+  }
+
+  /**
+   * Check collision at a specific position (sliding collision pattern).
+   * Tests if placing sprite at (testX, testY) would collide with any tagged bodies.
+   */
+  collisionAt(sprite: any, testX: number, testY: number, targetTag: string): boolean {
+    var mask = this._masks.get(sprite) || this._defaultMask(sprite);
+    var hw = mask.width / 2;
+    var hh = mask.height / 2;
+    var ax = testX + mask.offsetX;
+    var ay = testY + mask.offsetY;
+
+    // Check against all physics bodies with matching tag
+    var bodies = this.engine.physics.bodies;
+    for (var i = 0; i < bodies.length; i++) {
+      var b = bodies[i];
+      if (!b.enabled || b.tag !== targetTag) continue;
+      if (this._aabb(ax, ay, mask.width, mask.height, b.x, b.y, b.hw * 2, b.hh * 2)) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  /**
+   * Sliding collision resolve — Hero's Trail pattern.
+   * Tries X first, then Y, then both. Returns resolved {x, y}.
+   */
+  slideResolve(sprite: any, newX: number, newY: number, targetTag: string): { x: number; y: number } {
+    var inst = this.engine.instances.get(sprite);
+    var prevX = inst ? inst.xprevious : sprite.x;
+    var prevY = inst ? inst.yprevious : sprite.y;
+
+    // Try new position
+    if (!this.collisionAt(sprite, newX, newY, targetTag)) {
+      return { x: newX, y: newY };
+    }
+    // Try X only
+    if (!this.collisionAt(sprite, newX, prevY, targetTag)) {
+      return { x: newX, y: prevY };
+    }
+    // Try Y only
+    if (!this.collisionAt(sprite, prevX, newY, targetTag)) {
+      return { x: prevX, y: newY };
+    }
+    // Both blocked — stay at previous
+    return { x: prevX, y: prevY };
+  }
+
+  /** Clear all masks */
+  clear(): void {
+    this._masks.clear();
+  }
+
+  private _defaultMask(sprite: any): CollisionMask {
+    return { type: 'rectangle', offsetX: 0, offsetY: 0, width: sprite.width || 32, height: sprite.height || 32 };
+  }
+
+  private _aabb(ax: number, ay: number, aw: number, ah: number, bx: number, by: number, bw: number, bh: number): boolean {
+    return Math.abs(ax - bx) < (aw + bw) / 2 && Math.abs(ay - by) < (ah + bh) / 2;
+  }
+
+  private _ellipseOverlap(ax: number, ay: number, arx: number, ary: number, bx: number, by: number, brx: number, bry: number): boolean {
+    var dx = (ax - bx) / (arx + brx);
+    var dy = (ay - by) / (ary + bry);
+    return dx * dx + dy * dy <= 1;
+  }
+
+  private _diamondCheck(ax: number, ay: number, maskA: CollisionMask, bx: number, by: number, maskB: CollisionMask): boolean {
+    // Diamond = 45° rotated rectangle → Manhattan distance check
+    var dx = Math.abs(ax - bx);
+    var dy = Math.abs(ay - by);
+    var sizeA = (maskA.type === 'diamond') ? (maskA.width + maskA.height) / 4 : (maskA.width + maskA.height) / 4;
+    var sizeB = (maskB.type === 'diamond') ? (maskB.width + maskB.height) / 4 : (maskB.width + maskB.height) / 4;
+    return dx + dy < sizeA + sizeB;
+  }
+}
+
+// ---------------------------------------------------------------------------
+// ObjectEventSystem — Plan 9: Enhanced object events (engine.objectEvents.*)
+// ---------------------------------------------------------------------------
+
+class ObjectEventSystem {
+  private engine: Engine2D;
+  private _objects: Map<any, ObjectEventEntry> = new Map();
+  private _collisionPairs: Array<{ tagA: string; tagB: string; callback: (a: any, b: any) => void }> = [];
+  private _roomCallbacks: { start: Array<() => void>; end: Array<() => void> } = { start: [], end: [] };
+
+  constructor(engine: Engine2D) {
+    this.engine = engine;
+  }
+
+  /**
+   * Register an object with lifecycle events.
+   */
+  register(sprite: any, events: {
+    create?: (spr: any) => void;
+    stepBegin?: (spr: any, dt: number) => void;
+    step?: (spr: any, dt: number) => void;
+    stepEnd?: (spr: any, dt: number) => void;
+    draw?: (spr: any) => void;
+    drawGUI?: (spr: any) => void;
+    animationEnd?: (spr: any) => void;
+    mouseEnter?: (spr: any) => void;
+    mouseLeave?: (spr: any) => void;
+    mouseClick?: (spr: any) => void;
+    destroy?: (spr: any) => void;
+  }): void {
+    var entry: ObjectEventEntry = {
+      sprite: sprite,
+      events: events,
+      _mouseOver: false,
+    };
+    this._objects.set(sprite, entry);
+
+    // Fire create event immediately
+    if (events.create) {
+      try { events.create(sprite); } catch(e) {}
+    }
+
+    // Set up mouse tracking if needed
+    if (events.mouseEnter || events.mouseLeave || events.mouseClick) {
+      sprite.eventMode = 'static';
+      sprite.cursor = 'pointer';
+      if (events.mouseClick) {
+        sprite.on('pointerdown', function() {
+          try { events.mouseClick!(sprite); } catch(e) {}
+        });
+      }
+    }
+  }
+
+  /** Register collision event between two tags */
+  onCollision(tagA: string, tagB: string, callback: (a: any, b: any) => void): void {
+    this._collisionPairs.push({ tagA: tagA, tagB: tagB, callback: callback });
+  }
+
+  /** Register room start/end events */
+  onRoomStart(callback: () => void): void { this._roomCallbacks.start.push(callback); }
+  onRoomEnd(callback: () => void): void { this._roomCallbacks.end.push(callback); }
+
+  /** Fire room start events (call when switching scenes) */
+  fireRoomStart(): void {
+    for (var i = 0; i < this._roomCallbacks.start.length; i++) {
+      try { this._roomCallbacks.start[i](); } catch(e) {}
+    }
+  }
+
+  /** Fire room end events */
+  fireRoomEnd(): void {
+    for (var i = 0; i < this._roomCallbacks.end.length; i++) {
+      try { this._roomCallbacks.end[i](); } catch(e) {}
+    }
+  }
+
+  /** Unregister an object */
+  remove(sprite: any): void {
+    var entry = this._objects.get(sprite);
+    if (entry && entry.events.destroy) {
+      try { entry.events.destroy(sprite); } catch(e) {}
+    }
+    this._objects.delete(sprite);
+  }
+
+  /** Update all object events — called from game loop */
+  update(dt: number): void {
+    var self = this;
+    var pointer = this.engine.input;
+    var camX = this.engine.camera.x;
+    var camY = this.engine.camera.y;
+
+    this._objects.forEach(function(entry) {
+      var spr = entry.sprite;
+      var ev = entry.events;
+
+      // Step Begin
+      if (ev.stepBegin) { try { ev.stepBegin(spr, dt); } catch(e) {} }
+
+      // Step
+      if (ev.step) { try { ev.step(spr, dt); } catch(e) {} }
+
+      // Mouse Enter/Leave (check pointer against sprite bounds)
+      if (ev.mouseEnter || ev.mouseLeave) {
+        var mx = (pointer as any)._pointerX;
+        var my = (pointer as any)._pointerY;
+        if (mx !== undefined && my !== undefined) {
+          var wx = mx + camX;
+          var wy = my + camY;
+          var hw = (spr.width || 32) / 2;
+          var hh = (spr.height || 32) / 2;
+          var inside = wx >= spr.x - hw && wx <= spr.x + hw && wy >= spr.y - hh && wy <= spr.y + hh;
+          if (inside && !entry._mouseOver) {
+            entry._mouseOver = true;
+            if (ev.mouseEnter) { try { ev.mouseEnter(spr); } catch(e) {} }
+          } else if (!inside && entry._mouseOver) {
+            entry._mouseOver = false;
+            if (ev.mouseLeave) { try { ev.mouseLeave(spr); } catch(e) {} }
+          }
+        }
+      }
+
+      // Step End
+      if (ev.stepEnd) { try { ev.stepEnd(spr, dt); } catch(e) {} }
+    });
+
+    // Check collision pairs
+    if (this._collisionPairs.length > 0) {
+      var instances = this.engine.instances;
+      for (var cp = 0; cp < this._collisionPairs.length; cp++) {
+        var pair = this._collisionPairs[cp];
+        var groupA = instances.findByTag(pair.tagA);
+        var groupB = instances.findByTag(pair.tagB);
+        for (var ai = 0; ai < groupA.length; ai++) {
+          for (var bi = 0; bi < groupB.length; bi++) {
+            if (this.engine.collision.check(groupA[ai].sprite, groupB[bi].sprite)) {
+              try { pair.callback(groupA[ai].sprite, groupB[bi].sprite); } catch(e) {}
+            }
+          }
+        }
+      }
+    }
+  }
+
+  /** Clear all registered objects and events */
+  clear(): void {
+    this._objects.clear();
+    this._collisionPairs = [];
+    this._roomCallbacks = { start: [], end: [] };
+  }
+}
+
+interface ObjectEventEntry {
+  sprite: any;
+  events: any;
+  _mouseOver: boolean;
 }
 
 // ---------------------------------------------------------------------------

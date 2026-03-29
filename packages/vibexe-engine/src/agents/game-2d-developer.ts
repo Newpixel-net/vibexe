@@ -454,6 +454,69 @@ engine.anim.remove(sprite)                     // Stop tracking
 // Loop modes: 'once' (stop at end), 'loop' (wrap), 'pingpong' (reverse at ends)
 \`\`\`
 
+### Instance Variables (engine.instances.* — GM-style per-object properties)
+\`\`\`
+// Register sprite with auto-updated variables (motion, gravity, friction, alarms)
+var inst = engine.instances.create(sprite, { gravity: 0.5, friction: 0.02, tag: 'enemy' });
+inst.hspeed = 3; inst.vspeed = -5;             // Direct velocity
+inst.speed = 4; inst.direction = 45;           // Speed + angle (auto-syncs h/vspeed)
+inst.image_alpha = 0.5;                        // Transparency
+inst.image_xscale = -1;                        // Flip horizontal
+inst.image_angle = 45;                         // Rotation (degrees)
+inst.image_blend = 0xff0000;                   // Tint color
+
+// Alarms (12 countdown timers, fire callback at 0)
+engine.instances.setAlarm(sprite, 0, 60, () => { /* fires after ~1 sec */ });
+engine.instances.clearAlarm(sprite, 0);
+
+// Queries
+engine.instances.get(sprite)                   // Get vars object
+engine.instances.findByTag('enemy')            // All instances with tag
+engine.instances.count()                       // Total tracked instances
+engine.instances.remove(sprite)                // Stop tracking
+\`\`\`
+
+### Surfaces (engine.surface.* — off-screen render targets)
+\`\`\`
+var { texture, sprite } = engine.surface.create('blur-pass', 800, 600);
+engine.surface.drawTo('blur-pass', someContainer)  // Render to surface
+engine.surface.getSprite('blur-pass')              // Get sprite to add to stage
+engine.surface.getTexture('blur-pass')             // Get texture for filters
+engine.surface.resize('blur-pass', 1024, 768)
+engine.surface.remove('blur-pass')
+engine.surface.list()                              // All surface names
+\`\`\`
+
+### Collision Masks (engine.collision.* — shape-based collision)
+\`\`\`
+engine.collision.setMask(sprite, 'rectangle', { width: 24, height: 32 })
+engine.collision.setMask(sprite, 'ellipse', { width: 30, height: 20 })
+engine.collision.setMask(sprite, 'diamond', { width: 28, height: 28 })
+engine.collision.check(spriteA, spriteB)       // → true/false
+engine.collision.collisionAt(sprite, x, y, 'wall')  // Test position vs tagged bodies
+// Sliding collision resolve (Hero's Trail pattern)
+var pos = engine.collision.slideResolve(sprite, newX, newY, 'wall');
+sprite.x = pos.x; sprite.y = pos.y;
+\`\`\`
+
+### Object Events (engine.objectEvents.* — lifecycle + collision events)
+\`\`\`
+engine.objectEvents.register(sprite, {
+  create: (spr) => { /* on spawn */ },
+  stepBegin: (spr, dt) => { /* before step */ },
+  step: (spr, dt) => { /* main update */ },
+  stepEnd: (spr, dt) => { /* after step */ },
+  mouseEnter: (spr) => { /* hover start */ },
+  mouseLeave: (spr) => { /* hover end */ },
+  mouseClick: (spr) => { /* clicked */ },
+  destroy: (spr) => { /* cleanup */ },
+});
+engine.objectEvents.onCollision('player', 'enemy', (a, b) => { /* tag vs tag */ });
+engine.objectEvents.onRoomStart(() => { /* scene entered */ });
+engine.objectEvents.onRoomEnd(() => { /* scene exiting */ });
+engine.objectEvents.remove(sprite);            // Unregister (fires destroy event)
+\`\`\`
+
 ### Camera
 \`\`\`
 engine.camera.shake(8, 0.3)                   // Intensity, duration
