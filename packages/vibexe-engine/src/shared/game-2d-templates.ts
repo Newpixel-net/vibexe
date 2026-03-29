@@ -2345,6 +2345,7 @@ export default function Game2D({ onReady }: { onReady?: (engine: any) => void })
         width: window.innerWidth,
         height: window.innerHeight,
         backgroundColor: 0x1a1a2e,
+        genre: CONFIG.genre || 'platformer',
       });
 
       if (destroyed) {
@@ -2425,6 +2426,8 @@ var CONFIG = {
   worldLiquidType: 'none',
   worldLiquidLevel: 0,
   worldPlatformStyle: 'spread',
+  // Genre preset — sets camera, physics defaults
+  genre: 'platformer',
 };
 
 // ======================== PLACEMENT GENERATORS ========================
@@ -4747,6 +4750,7 @@ export function buildGame2dSceneStarter(brief: CreativeBrief): string {
 			"  worldLiquidType: 'none',",
 			"  worldLiquidLevel: 0,",
 			"  worldPlatformStyle: 'spread',",
+			"  genre: 'platformer',",
 			"};",
 		].join("\n"),
 		[
@@ -4777,6 +4781,7 @@ export function buildGame2dSceneStarter(brief: CreativeBrief): string {
 			"  worldLiquidType: 'none',",
 			"  worldLiquidLevel: 0,",
 			`  worldPlatformStyle: '${bp === 'cave-system' ? 'clustered' : bp === 'vertical-tower' ? 'stacked' : 'spread'}',`,
+			`  genre: '${brief.subGenre === 'shooter' ? 'bullet-hell' : brief.subGenre === 'puzzle' ? 'puzzle' : 'platformer'}',`,
 			"};",
 		].join("\n"),
 	);

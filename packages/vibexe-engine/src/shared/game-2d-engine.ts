@@ -46,7 +46,21 @@ export interface Engine2DConfig {
   gravity?: number;
   pixelRatio?: number;
   antialias?: boolean;
+  genre?: string;
+  cameraFollowX?: boolean;
+  cameraFollowY?: boolean;
+  cameraClampY?: boolean;
 }
+
+// Genre presets — configure physics, camera, world shape
+var GENRE_PRESETS: Record<string, { gravity: number; followX: boolean; followY: boolean; clampY: boolean; worldShape: string }> = {
+  'platformer':       { gravity: 980,  followX: true,  followY: true,  clampY: true,  worldShape: 'wide' },
+  'top-down':         { gravity: 0,    followX: true,  followY: true,  clampY: false, worldShape: 'square' },
+  'vertical-climber': { gravity: 980,  followX: false, followY: true,  clampY: false, worldShape: 'tall' },
+  'bullet-hell':      { gravity: 0,    followX: false, followY: false, clampY: false, worldShape: 'tall' },
+  'puzzle':           { gravity: 0,    followX: false, followY: false, clampY: false, worldShape: 'screen' },
+  'fighting':         { gravity: 980,  followX: true,  followY: false, clampY: true,  worldShape: 'wide' },
+};
 
 // ---------------------------------------------------------------------------
 // WorldBuilderSystem — Dynamic sprite-based world generation
@@ -2166,6 +2180,17 @@ export class Engine2D {
     this.input = new InputManager();
     this.camera = new Camera2D(this.config.width, this.config.height,
       this.config.worldWidth!, this.config.worldHeight!);
+
+    // Apply genre preset to camera + physics
+    var _genre = this.config.genre || 'platformer';
+    var _preset = GENRE_PRESETS[_genre];
+    if (_preset) {
+      this.camera.followX = this.config.cameraFollowX !== undefined ? this.config.cameraFollowX : _preset.followX;
+      this.camera.followY = this.config.cameraFollowY !== undefined ? this.config.cameraFollowY : _preset.followY;
+      this.camera.clampY = this.config.cameraClampY !== undefined ? this.config.cameraClampY : _preset.clampY;
+      if (this.config.gravity === undefined) this.config.gravity = _preset.gravity;
+    }
+
     this.audio = new AudioManager();
 
     // Initialize namespace systems
@@ -2617,6 +2642,9 @@ export class Camera2D {
   smoothing = 0.1;
   deadZoneX = 50;
   deadZoneY = 30;
+  followX = true;
+  followY = true;
+  clampY = true;
 
   constructor(vw: number, vh: number, ww: number, wh: number) {
     this.viewWidth = vw;
@@ -2634,20 +2662,26 @@ export class Camera2D {
       const targetX = this.target.x - this.viewWidth / 2;
       const targetY = this.target.y - this.viewHeight / 2;
 
-      // Smooth follow with dead zone
-      const dx = targetX - this.x;
-      const dy = targetY - this.y;
-      if (Math.abs(dx) > this.deadZoneX) {
-        this.x += (dx - Math.sign(dx) * this.deadZoneX) * this.smoothing;
+      // Smooth follow with dead zone (respects followX/followY flags)
+      if (this.followX) {
+        const dx = targetX - this.x;
+        if (Math.abs(dx) > this.deadZoneX) {
+          this.x += (dx - Math.sign(dx) * this.deadZoneX) * this.smoothing;
+        }
       }
-      if (Math.abs(dy) > this.deadZoneY) {
-        this.y += (dy - Math.sign(dy) * this.deadZoneY) * this.smoothing;
+      if (this.followY) {
+        const dy = targetY - this.y;
+        if (Math.abs(dy) > this.deadZoneY) {
+          this.y += (dy - Math.sign(dy) * this.deadZoneY) * this.smoothing;
+        }
       }
     }
 
     // Clamp to world bounds
     this.x = Math.max(0, Math.min(this.x, this.worldWidth - this.viewWidth));
-    this.y = Math.max(0, Math.min(this.y, this.worldHeight - this.viewHeight));
+    if (this.clampY) {
+      this.y = Math.max(0, Math.min(this.y, this.worldHeight - this.viewHeight));
+    }
 
     // Apply to world container (negative = world moves opposite to camera)
     worldContainer.x = -Math.round(this.x);

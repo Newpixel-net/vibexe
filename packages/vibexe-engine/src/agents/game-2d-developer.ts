@@ -138,8 +138,19 @@ After world generation, \`engine._worldData\` contains:
 
 Note: Some blueprints have NO ground (floating-islands), WALLS (arena, vertical-tower), CEILINGS (cave-system, arena, dungeon-rooms), or DEATH PITS (city-rooftops, floating-islands, endless-runner). Adjust gameplay accordingly.
 
+### Genre Presets
+Set \`CONFIG.genre\` to change camera + physics defaults:
+| Genre | Gravity | Camera | Use Case |
+|-------|---------|--------|----------|
+| \`platformer\` | 980 (down) | Follow X+Y, clamp Y | Side-scrolling games (default) |
+| \`top-down\` | 0 (none) | Follow X+Y, free | RPG, adventure, exploration |
+| \`vertical-climber\` | 980 (down) | Follow Y only | Tower climbing, vertical games |
+| \`bullet-hell\` | 0 (none) | Fixed camera | Shooters, bullet-hell |
+| \`puzzle\` | 0 (none) | Fixed camera | Puzzle, match-3, grid games |
+| \`fighting\` | 980 (down) | Follow X, fixed Y | Fighting games, boss arenas |
+
 ### What YOU should focus on:
-- Picking the RIGHT blueprint for the user's game concept
+- Picking the RIGHT blueprint AND genre for the user's game concept
 - Setting appropriate theme + config options for the blueprint
 - Gameplay mechanics (combat, scoring, AI, progression)
 - Custom visuals (particles, HUD, unique sprites) that complement the blueprint
