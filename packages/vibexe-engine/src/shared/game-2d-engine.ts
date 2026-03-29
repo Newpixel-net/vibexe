@@ -298,102 +298,53 @@ class WorldBuilderSystem {
     }
 
     // =======================================================================
-    // 5. GROUND (tiled sprite or filled rect)
+    // 5-6. GROUND + PLATFORMS (auto-tiled terrain)
     // =======================================================================
-    var floorH = H - GY + 60; // extend below screen
-    var groundPrefix = groundMap[theme] || 'grass';
-    var groundTopSpr = _getTilingSprite('ground', groundPrefix + '_top', W, 32);
-    var groundFillSpr = _getTilingSprite('ground', 'dirt_fill', W, floorH - 32);
-
-    if (groundTopSpr) {
-      groundTopSpr.x = 0;
-      groundTopSpr.y = GY - 16;
-      container.addChild(groundTopSpr);
-      if (groundFillSpr) {
-        groundFillSpr.x = 0;
-        groundFillSpr.y = GY + 16;
-        container.addChild(groundFillSpr);
-      } else {
-        var fillG = new PIXI.Graphics();
-        fillG.rect(0, GY + 16, W, floorH - 32);
-        fillG.fill({ color: pal.ground });
-        container.addChild(fillG);
-      }
-    } else {
-      // Fallback: solid ground with gradient-ish top
-      var gG = new PIXI.Graphics();
-      gG.rect(0, GY, W, floorH);
-      gG.fill({ color: pal.ground });
-      var gTopG = new PIXI.Graphics();
-      gTopG.rect(0, GY, W, 8);
-      gTopG.fill({ color: pal.groundTop });
-      container.addChild(gG);
-      container.addChild(gTopG);
-    }
-
-    // Ground physics body
-    var gBody = { x: W / 2, y: GY + 4, w: W, h: 8, isStatic: true, tag: 'ground' };
-    bodies.push(gBody);
-
-    // =======================================================================
-    // 6. PLATFORMS (positioned by levelShape algorithm)
-    // =======================================================================
+    // Calculate platform positions first
     var spacing = (W - 600) / Math.max(cfg.platformCount, 1);
-    var platSpriteName = platMap[theme] || 'grass_block';
-
+    var _platPositions: { x: number; y: number; w: number }[] = [];
     for (var pi = 0; pi < cfg.platformCount; pi++) {
       var px = 350 + pi * spacing + rngRange(-spacing * 0.2, spacing * 0.2);
       var pw = rngInt(120, 200);
-
-      // Y from levelShape algorithm
       var t = pi / Math.max(cfg.platformCount - 1, 1);
-      var minPY = GY - 360;
-      var maxPY = GY - 80;
+      var minPY = GY - 360, maxPY = GY - 80;
       var py: number;
       switch (cfg.levelShape) {
-        case 'staircase-ascending':
-          py = maxPY - t * (maxPY - minPY) + rngRange(-20, 20); break;
-        case 'valley-bowl':
-          var bowl = Math.abs(t - 0.5) * 2;
-          py = minPY + bowl * (maxPY - minPY) * 0.6 + rngRange(-15, 15); break;
-        case 'hilly-undulating':
-          py = minPY + (maxPY - minPY) * (0.5 + 0.4 * Math.sin(t * Math.PI * 3)) + rngRange(-20, 20); break;
-        default: // flat-wide
-          py = rngRange(minPY, maxPY);
+        case 'staircase-ascending': py = maxPY - t * (maxPY - minPY) + rngRange(-20, 20); break;
+        case 'valley-bowl': var bowl = Math.abs(t - 0.5) * 2; py = minPY + bowl * (maxPY - minPY) * 0.6 + rngRange(-15, 15); break;
+        case 'hilly-undulating': py = minPY + (maxPY - minPY) * (0.5 + 0.4 * Math.sin(t * Math.PI * 3)) + rngRange(-20, 20); break;
+        default: py = rngRange(minPY, maxPY);
       }
-
-      // Ensure min 80px vertical gap between adjacent platforms
-      if (pi > 0 && platforms.length > 0) {
-        var lastP = platforms[platforms.length - 1];
-        if (Math.abs(py - lastP.y) < 80) {
-          py = lastP.y + (py > lastP.y ? 80 : -80);
-        }
+      if (pi > 0 && _platPositions.length > 0) {
+        var lastP2 = _platPositions[_platPositions.length - 1];
+        if (Math.abs(py - lastP2.y) < 80) py = lastP2.y + (py > lastP2.y ? 80 : -80);
       }
-
-      var platSpr = _getSprite('platforms', platSpriteName);
-      if (platSpr) {
-        platSpr.anchor.set(0.5, 0.5);
-        platSpr.x = px;
-        platSpr.y = py;
-        platSpr.scale.x = pw / (platSpr.width || 64);
-        platSpr.scale.y = 24 / (platSpr.height || 32);
-        container.addChild(platSpr);
-      } else {
-        // Fallback: colored rectangle
-        var pG = new PIXI.Graphics();
-        pG.roundRect(-pw / 2, -12, pw, 24, 4);
-        pG.fill({ color: pal.platform });
-        pG.rect(-pw / 2, -12, pw, 4);
-        pG.fill({ color: pal.platformTop });
-        pG.x = px;
-        pG.y = py;
-        container.addChild(pG);
-      }
-
+      _platPositions.push({ x: px, y: py, w: pw });
       var pBody = { x: px, y: py, w: pw, h: 24, isStatic: true, oneWay: true, tag: 'platform' };
       bodies.push(pBody);
       platforms.push({ x: px, y: py, w: pw, body: pBody });
     }
+
+    // Ground physics body
+    bodies.push({ x: W / 2, y: GY + 4, w: W, h: 8, isStatic: true, tag: 'ground' });
+
+    // Render auto-tiled terrain (ground + platforms)
+    var _gy = GY;
+    var _pp = _platPositions;
+    this._renderTerrainTiles(ctx, function(grid, gridW, gridH, ts) {
+      // Ground: fill from groundY to bottom
+      var groundRow = Math.floor(_gy / ts);
+      for (var y = groundRow; y < gridH; y++)
+        for (var x = 0; x < gridW; x++) grid[y * gridW + x] = 1;
+      // Platforms: fill thin rectangles
+      for (var i = 0; i < _pp.length; i++) {
+        var p = _pp[i];
+        var px1 = Math.max(0, Math.floor((p.x - p.w / 2) / ts));
+        var px2 = Math.min(gridW, Math.ceil((p.x + p.w / 2) / ts));
+        var py2 = Math.floor(p.y / ts);
+        for (var x = px1; x < px2; x++) grid[py2 * gridW + x] = 1;
+      }
+    });
 
     // =======================================================================
     // 7. TREES/BUSHES on ground surface
@@ -523,6 +474,208 @@ class WorldBuilderSystem {
   }
 
   // ===================================================================
+  // TILESET GENERATOR — Programmatic 47-tile auto-tile spritesheet
+  // ===================================================================
+
+  // Biome color definitions: body fill, surface top, edge tint, corner accent
+  private static BIOME_COLORS: Record<string, { body: string; top: string; edge: string; accent: string }> = {
+    grass:  { body: '#6B4226', top: '#4CAF50', edge: '#5D3A1A', accent: '#3E8E41' },
+    stone:  { body: '#666666', top: '#888888', edge: '#505050', accent: '#777777' },
+    ice:    { body: '#A8CCE0', top: '#E0F0FF', edge: '#8AB8D4', accent: '#C8E4F4' },
+    sand:   { body: '#C2A060', top: '#D4B878', edge: '#A89050', accent: '#CCB068' },
+    cave:   { body: '#3A3A2A', top: '#4A4A3A', edge: '#282818', accent: '#505040' },
+    castle: { body: '#707070', top: '#909090', edge: '#505050', accent: '#808080' },
+    candy:  { body: '#E090B0', top: '#F0A8C8', edge: '#C87898', accent: '#E8A0C0' },
+    lava:   { body: '#2A1A0A', top: '#4A2A15', edge: '#1A0A00', accent: '#803010' },
+  };
+
+  // Theme → biome mapping
+  private static THEME_BIOME: Record<string, string> = {
+    forest: 'grass', sunset: 'grass', candy: 'candy', volcanic: 'lava',
+    dark: 'cave', space: 'stone', arctic: 'ice', ocean: 'sand',
+  };
+
+  // 47 unique reduced bitmasks (same as TilemapSystem)
+  private static TILE47_MASKS: number[] = [
+    0,1,4,5,7,16,17,20,21,23,28,29,31,64,65,68,69,71,80,81,84,85,87,92,93,95,
+    193,197,199,209,213,215,221,223,112,113,116,117,119,124,125,127,241,245,247,253,255
+  ];
+
+  // Reduce 8-bit neighbor mask to effective mask (strip irrelevant diagonals)
+  private static _reduceMask(mask: number): number {
+    var N = (mask & 1) ? 1 : 0, NE = (mask & 2) ? 1 : 0, E = (mask & 4) ? 1 : 0, SE = (mask & 8) ? 1 : 0;
+    var S = (mask & 16) ? 1 : 0, SW = (mask & 32) ? 1 : 0, W = (mask & 64) ? 1 : 0, NW = (mask & 128) ? 1 : 0;
+    if (!(N && E)) NE = 0; if (!(E && S)) SE = 0; if (!(S && W)) SW = 0; if (!(W && N)) NW = 0;
+    return N | (NE << 1) | (E << 2) | (SE << 3) | (S << 4) | (SW << 5) | (W << 6) | (NW << 7);
+  }
+
+  // Build 256→47 lookup
+  private static _bitmask256to47: number[] = (() => {
+    var map: number[] = new Array(256);
+    var rev: Record<number, number> = {};
+    for (var i = 0; i < WorldBuilderSystem.TILE47_MASKS.length; i++) rev[WorldBuilderSystem.TILE47_MASKS[i]] = i;
+    for (var m = 0; m < 256; m++) {
+      var r = WorldBuilderSystem._reduceMask(m);
+      map[m] = (rev[r] !== undefined) ? rev[r] : 0;
+    }
+    return map;
+  })();
+
+  /**
+   * Generate a 47-tile auto-tile spritesheet for a biome.
+   * Returns a PIXI.Texture (256×192px: 8 cols × 6 rows of 32×32 tiles).
+   */
+  private _generateTileset(biome: string, tileSize: number): any {
+    var PIXI = (window as any).PIXI;
+    var colors = WorldBuilderSystem.BIOME_COLORS[biome] || WorldBuilderSystem.BIOME_COLORS.grass;
+    var cols = 8, rows = 6;
+    var cw = cols * tileSize, ch = rows * tileSize;
+
+    var canvas = document.createElement('canvas');
+    canvas.width = cw; canvas.height = ch;
+    var g = canvas.getContext('2d')!;
+
+    var masks = WorldBuilderSystem.TILE47_MASKS;
+    var edge = Math.max(2, tileSize >> 4); // edge width (2-4px)
+    var topH = Math.max(3, tileSize >> 3); // surface strip height (3-4px)
+
+    for (var ti = 0; ti < 47; ti++) {
+      var mask = masks[ti];
+      var tx = (ti % cols) * tileSize;
+      var ty = (ti / cols | 0) * tileSize;
+
+      var hasN = !!(mask & 1), hasNE = !!(mask & 2), hasE = !!(mask & 4), hasSE = !!(mask & 8);
+      var hasS = !!(mask & 16), hasSW = !!(mask & 32), hasW = !!(mask & 64), hasNW = !!(mask & 128);
+
+      // 1. Base fill
+      g.fillStyle = colors.body;
+      g.fillRect(tx, ty, tileSize, tileSize);
+
+      // 2. Surface strip on exposed top
+      if (!hasN) {
+        g.fillStyle = colors.top;
+        g.fillRect(tx, ty, tileSize, topH);
+      }
+
+      // 3. Edge shading on exposed sides
+      g.fillStyle = colors.edge;
+      if (!hasS) g.fillRect(tx, ty + tileSize - edge, tileSize, edge);
+      if (!hasW) g.fillRect(tx, ty, edge, tileSize);
+      if (!hasE) g.fillRect(tx + tileSize - edge, ty, edge, tileSize);
+      if (!hasN) { g.fillRect(tx, ty + topH, tileSize, 1); } // subtle line below surface
+
+      // 4. Outer corners (both adjacent cardinals missing)
+      g.fillStyle = colors.edge;
+      var cr = edge + 1;
+      if (!hasN && !hasW) { g.fillRect(tx, ty, cr, cr); g.fillStyle = colors.top; g.fillRect(tx, ty, cr, Math.min(cr, topH)); g.fillStyle = colors.edge; }
+      if (!hasN && !hasE) { g.fillRect(tx + tileSize - cr, ty, cr, cr); g.fillStyle = colors.top; g.fillRect(tx + tileSize - cr, ty, cr, Math.min(cr, topH)); g.fillStyle = colors.edge; }
+      if (!hasS && !hasW) g.fillRect(tx, ty + tileSize - cr, cr, cr);
+      if (!hasS && !hasE) g.fillRect(tx + tileSize - cr, ty + tileSize - cr, cr, cr);
+
+      // 5. Inner corners (diagonal missing but both cardinals present)
+      g.fillStyle = colors.accent;
+      var ic = edge;
+      if (hasN && hasW && !hasNW) g.fillRect(tx, ty, ic, ic);
+      if (hasN && hasE && !hasNE) g.fillRect(tx + tileSize - ic, ty, ic, ic);
+      if (hasS && hasW && !hasSW) g.fillRect(tx, ty + tileSize - ic, ic, ic);
+      if (hasS && hasE && !hasSE) g.fillRect(tx + tileSize - ic, ty + tileSize - ic, ic, ic);
+
+      // 6. Noise variation (subtle 1px dots for texture)
+      g.fillStyle = colors.accent;
+      g.globalAlpha = 0.15;
+      for (var ni = 0; ni < 3; ni++) {
+        var nx = tx + ((ti * 7 + ni * 13) % (tileSize - 4)) + 2;
+        var ny = ty + ((ti * 11 + ni * 17) % (tileSize - 4)) + 2;
+        g.fillRect(nx, ny, 1, 1);
+      }
+      g.globalAlpha = 1.0;
+    }
+
+    // Create PIXI texture from canvas
+    return PIXI.Texture.from(canvas);
+  }
+
+  /**
+   * Render a terrain grid using auto-tiled sprites.
+   * grid: Uint8Array (1=solid, 0=empty), gridW×gridH
+   * Returns PIXI.Container with all tile sprites.
+   */
+  private _renderAutoTiles(ctx: any, grid: Uint8Array, gridW: number, gridH: number, tileSize: number, tileset: any, offsetX?: number, offsetY?: number): any {
+    var PIXI = ctx.PIXI;
+    var container = new PIXI.Container();
+    container.label = 'autotiles';
+    var cols = 8;
+    var lookup = WorldBuilderSystem._bitmask256to47;
+    var ox = offsetX || 0, oy = offsetY || 0;
+
+    for (var gy = 0; gy < gridH; gy++) {
+      for (var gx = 0; gx < gridW; gx++) {
+        if (!grid[gy * gridW + gx]) continue;
+
+        // Compute 8-bit neighbor mask
+        var mask = 0;
+        if (gy > 0 && grid[(gy - 1) * gridW + gx]) mask |= 1;          // N
+        if (gy > 0 && gx < gridW - 1 && grid[(gy - 1) * gridW + gx + 1]) mask |= 2; // NE
+        if (gx < gridW - 1 && grid[gy * gridW + gx + 1]) mask |= 4;    // E
+        if (gy < gridH - 1 && gx < gridW - 1 && grid[(gy + 1) * gridW + gx + 1]) mask |= 8; // SE
+        if (gy < gridH - 1 && grid[(gy + 1) * gridW + gx]) mask |= 16;  // S
+        if (gy < gridH - 1 && gx > 0 && grid[(gy + 1) * gridW + gx - 1]) mask |= 32; // SW
+        if (gx > 0 && grid[gy * gridW + gx - 1]) mask |= 64;            // W
+        if (gy > 0 && gx > 0 && grid[(gy - 1) * gridW + gx - 1]) mask |= 128; // NW
+
+        var tileIdx = lookup[mask];
+        var stx = (tileIdx % cols) * tileSize;
+        var sty = (tileIdx / cols | 0) * tileSize;
+
+        var frame = new PIXI.Rectangle(stx, sty, tileSize, tileSize);
+        var tex = new PIXI.Texture({ source: tileset.source || tileset, frame: frame });
+        var spr = new PIXI.Sprite(tex);
+        spr.x = ox + gx * tileSize;
+        spr.y = oy + gy * tileSize;
+        container.addChild(spr);
+      }
+    }
+
+    return container;
+  }
+
+  /**
+   * Fill a terrain grid rect. Used by blueprints.
+   */
+  private _fillGridRect(grid: Uint8Array, gridW: number, gx: number, gy: number, w: number, h: number): void {
+    for (var y = gy; y < gy + h; y++) {
+      for (var x = gx; x < gx + w; x++) {
+        if (x >= 0 && x < gridW && y >= 0) grid[y * gridW + x] = 1;
+      }
+    }
+  }
+
+  /**
+   * Get biome name for a theme.
+   */
+  private _getBiome(theme: string): string {
+    return WorldBuilderSystem.THEME_BIOME[theme] || 'grass';
+  }
+
+  /**
+   * Render auto-tiled terrain from a grid fill function.
+   * fillFn receives (grid, gridW, gridH, tileSize) and fills grid cells with 1 for solid.
+   */
+  private _renderTerrainTiles(ctx: any, fillFn: (grid: Uint8Array, gridW: number, gridH: number, ts: number) => void): void {
+    var tileSize = 32;
+    var gridW = Math.ceil(ctx.W / tileSize);
+    var gridH = Math.ceil(ctx.H / tileSize);
+    var grid = new Uint8Array(gridW * gridH);
+
+    fillFn(grid, gridW, gridH, tileSize);
+
+    var biome = this._getBiome(ctx.cfg.theme);
+    var tileset = this._generateTileset(biome, tileSize);
+    var tileContainer = this._renderAutoTiles(ctx, grid, gridW, gridH, tileSize, tileset);
+    ctx.container.addChild(tileContainer);
+  }
+
+  // ===================================================================
   // BLUEPRINT: cave-system — enclosed dark caves with ceiling + floor
   // ===================================================================
   private _buildCaveSystem(ctx: any): void {
@@ -534,24 +687,33 @@ class WorldBuilderSystem {
     // Dark solid background
     var bg = new PIXI.Graphics(); bg.rect(0, 0, W, H); bg.fill({ color: 0x0a0a0f }); container.addChild(bg);
 
-    // Irregular ceiling
+    // Irregular ceiling + floor heights for grid
     var ceilH = 60 + rngInt(0, 40);
-    var ceilG = new PIXI.Graphics(); ceilG.moveTo(0, 0);
-    for (var cx = 0; cx <= W; cx += 20) {
-      ceilG.lineTo(cx, ceilH + Math.sin(cx * 0.01 + rng() * 2) * 25 + rng() * 15);
+    var _ceilHeights: number[] = [];
+    var _ceilSeed = rng();
+    for (var cx = 0; cx <= W; cx += 32) {
+      _ceilHeights.push(ceilH + Math.sin(cx * 0.01 + _ceilSeed * 2) * 25 + rng() * 15);
     }
-    ceilG.lineTo(W, 0); ceilG.closePath(); ceilG.fill({ color: pal.ceiling || 0x222222 });
-    container.addChild(ceilG);
+    var _floorHeights: number[] = [];
+    var _floorSeed = rng();
+    for (var fx2 = 0; fx2 <= W; fx2 += 32) {
+      _floorHeights.push(GY + Math.sin(fx2 * 0.008 + _floorSeed * 3) * 40 + rng() * 20 - 20);
+    }
     bodies.push({ x: W / 2, y: ceilH / 2, w: W, h: ceilH, isStatic: true, tag: 'ceiling' });
-
-    // Irregular floor
-    var floorG = new PIXI.Graphics(); floorG.moveTo(0, H);
-    for (var fx = 0; fx <= W; fx += 30) {
-      floorG.lineTo(fx, GY + Math.sin(fx * 0.008 + rng() * 3) * 40 + rng() * 20 - 20);
-    }
-    floorG.lineTo(W, H); floorG.closePath(); floorG.fill({ color: pal.ground || 0x2a2a1a });
-    container.addChild(floorG);
     bodies.push({ x: W / 2, y: GY + 4, w: W, h: 8, isStatic: true, tag: 'ground' });
+
+    // Auto-tiled cave terrain (ceiling + floor)
+    var _ch = _ceilHeights, _fh = _floorHeights;
+    this._renderTerrainTiles(ctx, function(grid, gridW, gridH, ts) {
+      for (var gx = 0; gx < gridW; gx++) {
+        var ceilRow = Math.floor((_ch[Math.min(gx, _ch.length - 1)] || ceilH) / ts);
+        var floorRow = Math.floor((_fh[Math.min(gx, _fh.length - 1)] || GY) / ts);
+        // Ceiling tiles
+        for (var y = 0; y <= ceilRow; y++) grid[y * gridW + gx] = 1;
+        // Floor tiles
+        for (var y2 = floorRow; y2 < gridH; y2++) grid[y2 * gridW + gx] = 1;
+      }
+    });
 
     // Stalactites from ceiling
     for (var si = 0; si < rngInt(6, 14); si++) {
@@ -613,18 +775,24 @@ class WorldBuilderSystem {
       } else { var s2 = new PIXI.Graphics(); s2.rect(0, 0, W, H); s2.fill({ color: pal.skyBottom }); container.addChild(s2); }
     } catch(e) { var sf = new PIXI.Graphics(); sf.rect(0, 0, W, H); sf.fill({ color: pal.skyBottom }); container.addChild(sf); }
 
-    // Left and right walls
+    // Walls + ground physics
     var wallW = 40;
-    var wallG = new PIXI.Graphics();
-    wallG.rect(0, 0, wallW, H); wallG.fill({ color: pal.wall || 0x444433 });
-    wallG.rect(W - wallW, 0, wallW, H); wallG.fill({ color: pal.wall || 0x444433 });
-    container.addChild(wallG);
     bodies.push({ x: wallW / 2, y: H / 2, w: wallW, h: H, isStatic: true, tag: 'wall-left' });
     bodies.push({ x: W - wallW / 2, y: H / 2, w: wallW, h: H, isStatic: true, tag: 'wall-right' });
-
-    // Ground at bottom
-    var gG = new PIXI.Graphics(); gG.rect(0, GY, W, H - GY); gG.fill({ color: pal.ground }); container.addChild(gG);
     bodies.push({ x: W / 2, y: GY + 4, w: W, h: 8, isStatic: true, tag: 'ground' });
+
+    // Auto-tiled walls + ground
+    var _ww = wallW, _gy2 = GY;
+    this._renderTerrainTiles(ctx, function(grid, gridW, gridH, ts) {
+      var wallCols = Math.ceil(_ww / ts);
+      for (var y = 0; y < gridH; y++) {
+        for (var x = 0; x < wallCols; x++) grid[y * gridW + x] = 1;
+        for (var x2 = gridW - wallCols; x2 < gridW; x2++) grid[y * gridW + x2] = 1;
+      }
+      var groundRow = Math.floor(_gy2 / ts);
+      for (var y2 = groundRow; y2 < gridH; y2++)
+        for (var x3 = 0; x3 < gridW; x3++) grid[y2 * gridW + x3] = 1;
+    });
 
     // Platforms spiraling upward (alternating left/right)
     var pCount = cfg.platformCount || 15;
@@ -731,24 +899,26 @@ class WorldBuilderSystem {
     var bg = new PIXI.Graphics(); bg.rect(0, 0, W, H); bg.fill({ color: pal.skyBottom }); container.addChild(bg);
 
     var wallW = 30;
-    // Floor
-    var floorG = new PIXI.Graphics(); floorG.rect(0, GY, W, H - GY); floorG.fill({ color: pal.ground });
-    var floorTop = new PIXI.Graphics(); floorTop.rect(0, GY, W, 6); floorTop.fill({ color: pal.groundTop });
-    container.addChild(floorG); container.addChild(floorTop);
+    // Physics bodies
     bodies.push({ x: W / 2, y: GY + 4, w: W, h: 8, isStatic: true, tag: 'ground' });
-
-    // Ceiling
-    var ceilG = new PIXI.Graphics(); ceilG.rect(0, 0, W, wallW); ceilG.fill({ color: pal.ceiling || 0x333322 });
-    container.addChild(ceilG);
     bodies.push({ x: W / 2, y: wallW / 2, w: W, h: wallW, isStatic: true, tag: 'ceiling' });
-
-    // Walls
-    var wG = new PIXI.Graphics();
-    wG.rect(0, 0, wallW, H); wG.fill({ color: pal.wall || 0x444433 });
-    wG.rect(W - wallW, 0, wallW, H); wG.fill({ color: pal.wall || 0x444433 });
-    container.addChild(wG);
     bodies.push({ x: wallW / 2, y: H / 2, w: wallW, h: H, isStatic: true, tag: 'wall-left' });
     bodies.push({ x: W - wallW / 2, y: H / 2, w: wallW, h: H, isStatic: true, tag: 'wall-right' });
+
+    // Auto-tiled arena box
+    var _ww2 = wallW, _gy3 = GY;
+    this._renderTerrainTiles(ctx, function(grid, gridW, gridH, ts) {
+      var wc = Math.ceil(_ww2 / ts), gr = Math.floor(_gy3 / ts), cr = Math.ceil(_ww2 / ts);
+      // Floor
+      for (var y = gr; y < gridH; y++) for (var x = 0; x < gridW; x++) grid[y * gridW + x] = 1;
+      // Ceiling
+      for (var y2 = 0; y2 < cr; y2++) for (var x2 = 0; x2 < gridW; x2++) grid[y2 * gridW + x2] = 1;
+      // Walls
+      for (var y3 = 0; y3 < gridH; y3++) {
+        for (var x3 = 0; x3 < wc; x3++) grid[y3 * gridW + x3] = 1;
+        for (var x4 = gridW - wc; x4 < gridW; x4++) grid[y3 * gridW + x4] = 1;
+      }
+    });
 
     // 1-2 center platforms
     var centerCount = rngInt(1, 2);
@@ -785,11 +955,9 @@ class WorldBuilderSystem {
       // Room background
       var roomBg = new PIXI.Graphics(); roomBg.rect(rx, ry, rw, rh); roomBg.fill({ color: 0x1a1a25 }); container.addChild(roomBg);
 
-      // Room floor + ceiling
+      // Room floor + ceiling physics
       var wt = 12;
-      var flG = new PIXI.Graphics(); flG.rect(rx, ry + rh - wt, rw, wt); flG.fill({ color: pal.wall || 0x333344 }); container.addChild(flG);
       bodies.push({ x: rx + rw / 2, y: ry + rh - wt / 2, w: rw, h: wt, isStatic: true, tag: 'ground' });
-      var clG = new PIXI.Graphics(); clG.rect(rx, ry, rw, wt); clG.fill({ color: pal.wall || 0x333344 }); container.addChild(clG);
       bodies.push({ x: rx + rw / 2, y: ry + wt / 2, w: rw, h: wt, isStatic: true, tag: 'ceiling' });
 
       // Platforms inside room
@@ -808,10 +976,25 @@ class WorldBuilderSystem {
       var r1 = rooms[ci], r2 = rooms[ci + 1];
       var corY = Math.max(r1.y + r1.h * 0.4, r2.y + r2.h * 0.4);
       var corX1 = r1.x + r1.w, corX2 = r2.x, corH = 50;
-      var corG = new PIXI.Graphics(); corG.rect(corX1, corY - corH / 2, corX2 - corX1, corH);
-      corG.fill({ color: 0x151520 }); container.addChild(corG);
+      var corBg = new PIXI.Graphics(); corBg.rect(corX1, corY - corH / 2, corX2 - corX1, corH);
+      corBg.fill({ color: 0x151520 }); container.addChild(corBg);
       bodies.push({ x: (corX1 + corX2) / 2, y: corY + corH / 2 - 4, w: Math.abs(corX2 - corX1), h: 8, isStatic: true, tag: 'ground' });
     }
+
+    // Auto-tiled dungeon terrain (room walls + floors + corridors)
+    var _rooms = rooms, _wt = wt;
+    this._renderTerrainTiles(ctx, function(grid, gridW, gridH, ts) {
+      for (var ri2 = 0; ri2 < _rooms.length; ri2++) {
+        var rm = _rooms[ri2];
+        var rx1 = Math.floor(rm.x / ts), ry1 = Math.floor(rm.y / ts);
+        var rx2 = Math.ceil((rm.x + rm.w) / ts), ry2 = Math.ceil((rm.y + rm.h) / ts);
+        // Floor + ceiling tiles
+        for (var x = rx1; x < rx2; x++) {
+          for (var y = ry1; y < ry1 + Math.ceil(_wt / ts); y++) if (y >= 0 && y < gridH && x >= 0 && x < gridW) grid[y * gridW + x] = 1;
+          for (var y2 = ry2 - Math.ceil(_wt / ts); y2 < ry2; y2++) if (y2 >= 0 && y2 < gridH && x >= 0 && x < gridW) grid[y2 * gridW + x] = 1;
+        }
+      }
+    });
 
     // Torches (glow dots)
     for (var ti = 0; ti < rooms.length * 2; ti++) {
@@ -858,15 +1041,14 @@ class WorldBuilderSystem {
       container.addChild(silG); parallaxLayers.push({ gfx: silG, factor: 0.05 + layer * 0.08 });
     }
 
-    // Building tops (the "ground" segments)
+    // Building tops (the "ground" segments) — calculate positions
     var buildingCount = rngInt(6, 10);
     var buildSpacing = W / buildingCount;
+    var _buildings: { x: number; y: number; w: number }[] = [];
     for (var bi = 0; bi < buildingCount; bi++) {
       var bx2 = bi * buildSpacing, bw2 = buildSpacing - rngRange(20, 40);
       var bTopY = GY - rngRange(0, 180);
-      var bG = new PIXI.Graphics();
-      bG.rect(bx2, bTopY, bw2, H - bTopY); bG.fill({ color: 0x2a2a3a });
-      bG.rect(bx2, bTopY, bw2, 6); bG.fill({ color: 0x3a3a4a }); container.addChild(bG);
+      _buildings.push({ x: bx2, y: bTopY, w: bw2 });
       var bBody = { x: bx2 + bw2 / 2, y: bTopY + 3, w: bw2, h: 6, isStatic: true, oneWay: true, tag: 'platform' };
       bodies.push(bBody); platforms.push({ x: bx2 + bw2 / 2, y: bTopY + 3, w: bw2, body: bBody });
 
@@ -878,6 +1060,19 @@ class WorldBuilderSystem {
         container.addChild(wG2);
       }
     }
+
+    // Auto-tiled buildings
+    var _blds = _buildings;
+    this._renderTerrainTiles(ctx, function(grid, gridW, gridH, ts) {
+      for (var bi2 = 0; bi2 < _blds.length; bi2++) {
+        var b = _blds[bi2];
+        var bx1 = Math.max(0, Math.floor(b.x / ts));
+        var bx2t = Math.min(gridW, Math.ceil((b.x + b.w) / ts));
+        var by1 = Math.floor(b.y / ts);
+        for (var y = by1; y < gridH; y++)
+          for (var x = bx1; x < bx2t; x++) grid[y * gridW + x] = 1;
+      }
+    });
 
     // Death pit at very bottom
     bodies.push({ x: W / 2, y: H + 20, w: W, h: 40, isStatic: true, tag: 'death' });
@@ -902,11 +1097,13 @@ class WorldBuilderSystem {
       } else { var s2 = new PIXI.Graphics(); s2.rect(0, 0, W, H); s2.fill({ color: 0x2a5a2a }); container.addChild(s2); }
     } catch(e) { var sf = new PIXI.Graphics(); sf.rect(0, 0, W, H); sf.fill({ color: 0x2a5a2a }); container.addChild(sf); }
 
-    // Ground
-    var gG = new PIXI.Graphics(); gG.rect(0, GY, W, H - GY); gG.fill({ color: pal.ground });
-    var gTop = new PIXI.Graphics(); gTop.rect(0, GY, W, 6); gTop.fill({ color: pal.groundTop });
-    container.addChild(gG); container.addChild(gTop);
+    // Ground physics + auto-tiles
     bodies.push({ x: W / 2, y: GY + 4, w: W, h: 8, isStatic: true, tag: 'ground' });
+    var _gy4 = GY;
+    this._renderTerrainTiles(ctx, function(grid, gridW, gridH, ts) {
+      var gr = Math.floor(_gy4 / ts);
+      for (var y = gr; y < gridH; y++) for (var x = 0; x < gridW; x++) grid[y * gridW + x] = 1;
+    });
 
     // Tree trunks (vertical brown bars)
     var trunkCount = rngInt(8, 14), trunkSpacing = W / trunkCount;
@@ -973,13 +1170,19 @@ class WorldBuilderSystem {
       } else { var s2 = new PIXI.Graphics(); s2.rect(0, 0, W, H); s2.fill({ color: 0x003377 }); container.addChild(s2); }
     } catch(e) { var sf = new PIXI.Graphics(); sf.rect(0, 0, W, H); sf.fill({ color: 0x003377 }); container.addChild(sf); }
 
-    // Sandy bottom (irregular)
-    var sandG = new PIXI.Graphics(); sandG.moveTo(0, H);
-    for (var fx = 0; fx <= W; fx += 25) {
-      sandG.lineTo(fx, GY + Math.sin(fx * 0.006) * 15 + rng() * 10);
-    }
-    sandG.lineTo(W, H); sandG.closePath(); sandG.fill({ color: 0xccaa77 }); container.addChild(sandG);
+    // Sandy bottom (irregular auto-tiled)
     bodies.push({ x: W / 2, y: GY + 4, w: W, h: 8, isStatic: true, tag: 'ground' });
+    var _sandHeights: number[] = [];
+    for (var fx = 0; fx <= W; fx += 32) {
+      _sandHeights.push(GY + Math.sin(fx * 0.006) * 15 + rng() * 10);
+    }
+    var _sh = _sandHeights;
+    this._renderTerrainTiles(ctx, function(grid, gridW, gridH, ts) {
+      for (var gx = 0; gx < gridW; gx++) {
+        var floorRow = Math.floor((_sh[Math.min(gx, _sh.length - 1)] || GY) / ts);
+        for (var y = floorRow; y < gridH; y++) grid[y * gridW + gx] = 1;
+      }
+    });
 
     // Coral formations as platforms
     var coralColors = [0xff6666, 0xff9933, 0xcc66cc, 0x66cccc, 0xffcc33];
@@ -1046,17 +1249,29 @@ class WorldBuilderSystem {
       parallaxLayers.push({ gfx: mG, factor: 0.08 + mi * 0.12 });
     }
 
-    // Ground segments with gaps
+    // Ground segments with gaps — calculate positions
     var segCount = rngInt(6, 10), segSpacing = W / segCount;
+    var _segs: { x: number; w: number }[] = [];
     for (var si = 0; si < segCount; si++) {
-      if (si > 0 && rng() > 0.4) continue; // 60% chance of gap after first
+      if (si > 0 && rng() > 0.4) continue;
       var sx = si * segSpacing, sw = segSpacing - rngRange(10, 40);
-      var sG = new PIXI.Graphics(); sG.rect(sx, GY, sw, H - GY); sG.fill({ color: pal.ground });
-      var sTop = new PIXI.Graphics(); sTop.rect(sx, GY, sw, 6); sTop.fill({ color: pal.groundTop });
-      container.addChild(sG); container.addChild(sTop);
+      _segs.push({ x: sx, w: sw });
       bodies.push({ x: sx + sw / 2, y: GY + 4, w: sw, h: 8, isStatic: true, tag: 'ground' });
       platforms.push({ x: sx + sw / 2, y: GY + 4, w: sw, body: bodies[bodies.length - 1] });
     }
+
+    // Auto-tiled ground segments
+    var _segsRef = _segs, _gy5 = GY;
+    this._renderTerrainTiles(ctx, function(grid, gridW, gridH, ts) {
+      var gr = Math.floor(_gy5 / ts);
+      for (var i = 0; i < _segsRef.length; i++) {
+        var s = _segsRef[i];
+        var sx1 = Math.max(0, Math.floor(s.x / ts));
+        var sx2 = Math.min(gridW, Math.ceil((s.x + s.w) / ts));
+        for (var y = gr; y < gridH; y++)
+          for (var x = sx1; x < sx2; x++) grid[y * gridW + x] = 1;
+      }
+    });
 
     // Overhead platforms
     for (var pi = 0; pi < rngInt(4, 8); pi++) {
