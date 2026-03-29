@@ -1306,216 +1306,51 @@ export function drawPlayerCharacter(size: number, bodyColor: number, lightColor:
 /** Coin with 3D depth, strong radial gradient, and real glow.
  *  Fallback chain: sprite → Canvas 2D → PIXI.Graphics */
 export function drawCoinToken(radius: number, color: number, glowColor: number): any {
-  // Tier 1: Pre-made sprite
-  if (_hasSpriteLib()) {
-    var spr = _getSprite('collectibles', 'coin_gold');
-    if (spr) { spr.width = radius * 2; spr.height = radius * 2; spr.anchor.set(0.5); return spr; }
-  }
-  // Tier 2: Canvas 2D (golden 3D shading + glow)
+  // Sprite only — no primitive fallback
+  var spr = _getSprite('collectibles', 'coin_gold');
+  if (spr) { spr.width = radius * 2; spr.height = radius * 2; spr.anchor.set(0.5); return spr; }
+  // Canvas 2D fallback
   if (hasCanvas()) {
     try { return _drawCoinCanvas(radius, color, glowColor); } catch(e) {}
   }
-  // Tier 3: PIXI.Graphics fallback
-  var container = new PIXI.Container();
-  var coin = new PIXI.Graphics();
-  // Outer ring (darker edge)
-  coin.circle(0, 0, radius);
-  coin.fill(darken(color, 20));
-  // Inner coin face with radial gradient
-  coin.circle(0, 0, radius * 0.88);
-  var coinGrad = makeRadialGradient(lighten(color, 50), color, radius * 0.88);
-  coin.fill(coinGrad);
-  // Inner ring detail
-  coin.circle(0, 0, radius * 0.65);
-  coin.stroke({ color: darken(color, 15), alpha: 0.3, width: 1 });
-  // Dollar/star symbol in center
-  coin.moveTo(0, -radius * 0.25);
-  coin.lineTo(0, radius * 0.25);
-  coin.stroke({ color: darken(color, 20), alpha: 0.3, width: 1.5 });
-  coin.moveTo(-radius * 0.15, -radius * 0.15);
-  coin.lineTo(radius * 0.15, radius * 0.15);
-  coin.stroke({ color: darken(color, 20), alpha: 0.2, width: 1 });
-  // Specular highlight (bright spot top-left)
-  coin.ellipse(-radius * 0.2, -radius * 0.22, radius * 0.22, radius * 0.15);
-  coin.fill({ color: 0xffffff, alpha: 0.4 });
-  // Small sparkle
-  coin.circle(radius * 0.15, -radius * 0.3, radius * 0.08);
-  coin.fill({ color: 0xffffff, alpha: 0.6 });
-  container.addChild(coin);
-  if (hasFilters()) {
-    container.filters = [new PIXI.filters.GlowFilter({
-      distance: radius * 1.5, outerStrength: 3.5, innerStrength: 0.5,
-      color: glowColor,
-    })];
-  } else {
-    var glow = new PIXI.Graphics();
-    glow.circle(0, 0, radius * 2.0);
-    glow.fill({ color: glowColor, alpha: 0.2 });
-    glow.circle(0, 0, radius * 1.5);
-    glow.fill({ color: glowColor, alpha: 0.15 });
-    container.addChildAt(glow, 0);
-  }
-  return container;
+  // Minimal placeholder (never draw complex primitive shapes)
+  var ph = new PIXI.Graphics(); ph.circle(0, 0, radius); ph.fill({ color: color }); return ph;
 }
 
 /** Slime enemy — organic blob with 3D shading, expressive angry face.
  *  Fallback chain: AnimatedSprite → sprite → Canvas 2D → PIXI.Graphics */
 export function drawEnemySlime(size: number, color: number, lightColor: number): any {
-  // Tier 1: 3D-rendered animated sprite
-  if (_hasSpriteLib()) {
-    var anim = _getAnimatedSprite('slime', 'idle');
-    if (anim) { anim.width = size; anim.height = size; return anim; }
-  }
-  // Tier 2: Static sprite
-  if (_hasSpriteLib()) {
-    var spr = _getSprite('characters', 'slime_idle');
-    if (spr) { spr.width = size; spr.height = size; spr.anchor.set(0.5); return spr; }
-  }
-  // Tier 3: Canvas 2D (volumetric blob shading)
+  // Sprite only — no primitive fallback
+  var anim = _getAnimatedSprite('slime', 'idle');
+  if (anim) { anim.width = size; anim.height = size; return anim; }
+  var spr = _getSprite('characters', 'slime_idle');
+  if (spr) { spr.width = size; spr.height = size; spr.anchor.set(0.5); return spr; }
+  // Canvas 2D fallback
   if (hasCanvas()) {
     try { return _drawSlimeCanvas(size, color, lightColor); } catch(e) {}
   }
-  // Tier 4: PIXI.Graphics fallback
-  var container = new PIXI.Container();
-  var g = new PIXI.Graphics();
-  var s = size;
-  // Ground shadow
-  g.ellipse(0, s * 0.42, s * 0.35, s * 0.06);
-  g.fill({ color: 0x000000, alpha: 0.2 });
-  // Body blob with organic curves — dark underside
-  g.ellipse(0, s * 0.15, s * 0.42, s * 0.3);
-  g.fill(darken(color, 20));
-  // Main body with radial gradient (3D sphere look)
-  g.ellipse(0, s * 0.08, s * 0.4, s * 0.34);
-  var bodyGrad = makeRadialGradient(lightColor, darken(color, 10), s * 0.4);
-  g.fill(bodyGrad);
-  // Top bump — creates rounded top
-  g.circle(0, -s * 0.15, s * 0.27);
-  var topGrad = makeRadialGradient(lighten(color, 10), color, s * 0.27);
-  g.fill(topGrad);
-  // Body specular highlight (top-left)
-  g.ellipse(-s * 0.1, -s * 0.2, s * 0.13, s * 0.09);
-  g.fill({ color: 0xffffff, alpha: 0.2 });
-  // Small secondary highlight
-  g.circle(-s * 0.18, -s * 0.08, s * 0.05);
-  g.fill({ color: 0xffffff, alpha: 0.12 });
-  // Eyes — larger, angrier
-  g.circle(-s * 0.11, -s * 0.1, s * 0.09);
-  g.fill(0xffffff);
-  g.circle(s * 0.11, -s * 0.1, s * 0.09);
-  g.fill(0xffffff);
-  // Eye shadows
-  g.ellipse(-s * 0.11, -s * 0.07, s * 0.08, s * 0.04);
-  g.fill({ color: 0xddddee, alpha: 0.25 });
-  g.ellipse(s * 0.11, -s * 0.07, s * 0.08, s * 0.04);
-  g.fill({ color: 0xddddee, alpha: 0.25 });
-  // Angry pupils
-  g.circle(-s * 0.09, -s * 0.09, s * 0.045);
-  g.fill(0x111111);
-  g.circle(s * 0.13, -s * 0.09, s * 0.045);
-  g.fill(0x111111);
-  // Eye shine
-  g.circle(-s * 0.11, -s * 0.13, s * 0.02);
-  g.fill({ color: 0xffffff, alpha: 0.85 });
-  g.circle(s * 0.11, -s * 0.13, s * 0.02);
-  g.fill({ color: 0xffffff, alpha: 0.85 });
-  // Angry brows — thicker
-  g.moveTo(-s * 0.2, -s * 0.24);
-  g.lineTo(-s * 0.04, -s * 0.17);
-  g.stroke({ color: darken(color, 65), width: 2.5 });
-  g.moveTo(s * 0.2, -s * 0.24);
-  g.lineTo(s * 0.04, -s * 0.17);
-  g.stroke({ color: darken(color, 65), width: 2.5 });
-  // Mouth — open angry
-  g.moveTo(-s * 0.08, s * 0.02);
-  g.quadraticCurveTo(0, s * 0.1, s * 0.08, s * 0.02);
-  g.fill(darken(color, 50));
-  // Teeth
-  g.moveTo(-s * 0.04, s * 0.02);
-  g.lineTo(-s * 0.02, s * 0.06);
-  g.lineTo(0, s * 0.02);
-  g.fill(0xffffff);
-  g.moveTo(0, s * 0.02);
-  g.lineTo(s * 0.02, s * 0.06);
-  g.lineTo(s * 0.04, s * 0.02);
-  g.fill(0xffffff);
-  container.addChild(g);
-  if (hasFilters()) {
-    container.filters = [new PIXI.filters.OutlineFilter({
-      thickness: 2.5, color: darken(color, 70),
-    })];
-  }
-  return container;
+  // Minimal placeholder
+  var ph = new PIXI.Graphics(); ph.circle(0, 0, size * 0.4); ph.fill({ color: color }); return ph;
 }
 
-/** Heart shape with 3D shading for lives display.
- *  Fallback chain: sprite → PIXI.Graphics */
+/** Heart shape — sprite only, minimal fallback */
 export function drawHeart(size: number, color: number): any {
-  // Tier 1: Pre-made sprite
-  if (_hasSpriteLib()) {
-    var spr = _getSprite('collectibles', 'heart');
-    if (spr) { spr.width = size; spr.height = size; spr.anchor.set(0.5); return spr; }
-  }
-  var container = new PIXI.Container();
-  var g = new PIXI.Graphics();
-  var s = size;
-  // Shadow
-  g.moveTo(1, s * 0.32);
-  g.bezierCurveTo(-s * 0.48, -s * 0.08, -s * 0.48, -s * 0.48, 1, -s * 0.18);
-  g.bezierCurveTo(s * 0.52, -s * 0.48, s * 0.52, -s * 0.08, 1, s * 0.32);
-  g.fill({ color: 0x000000, alpha: 0.2 });
-  // Main heart
-  g.moveTo(0, s * 0.3);
-  g.bezierCurveTo(-s * 0.5, -s * 0.1, -s * 0.5, -s * 0.5, 0, -s * 0.2);
-  g.bezierCurveTo(s * 0.5, -s * 0.5, s * 0.5, -s * 0.1, 0, s * 0.3);
-  var heartGrad = makeLinearGradient(lighten(color, 25), darken(color, 15), s * 0.8);
-  g.fill(heartGrad);
-  // Specular highlight
-  g.ellipse(-s * 0.12, -s * 0.22, s * 0.1, s * 0.08);
-  g.fill({ color: 0xffffff, alpha: 0.35 });
-  g.circle(-s * 0.08, -s * 0.28, s * 0.04);
-  g.fill({ color: 0xffffff, alpha: 0.5 });
-  container.addChild(g);
-  return container;
+  var spr = _getSprite('collectibles', 'heart');
+  if (spr) { spr.width = size; spr.height = size; spr.anchor.set(0.5); return spr; }
+  // Minimal placeholder
+  var ph = new PIXI.Graphics(); ph.circle(0, 0, size * 0.4); ph.fill({ color: color }); return ph;
 }
 
-/** Hexagonal gem with 3D faceted look and strong glow.
- *  Fallback chain: sprite → PIXI.Graphics */
+/** Gem — sprite only, minimal fallback */
 export function drawGemShape(radius: number, color: number): any {
-  // Tier 1: Pre-made sprite
-  if (_hasSpriteLib()) {
-    var gemName = color === 0xff3333 ? 'gem_red' : color === 0x3333ff ? 'gem_blue' : 'gem_red';
-    var spr = _getSprite('collectibles', gemName);
-    if (spr) { spr.width = radius * 2; spr.height = radius * 2; spr.anchor.set(0.5); return spr; }
-  }
-  var container = new PIXI.Container();
-  var g = new PIXI.Graphics();
-  // Shadow
-  g.regularPoly(2, 2, radius, 6);
-  g.fill({ color: 0x000000, alpha: 0.2 });
-  // Dark base
-  g.regularPoly(0, 0, radius, 6);
-  g.fill(darken(color, 20));
-  // Inner facet with gradient
-  g.regularPoly(0, 0, radius * 0.85, 6);
-  var gemGrad = makeRadialGradient(lighten(color, 50), darken(color, 5), radius * 0.85);
-  g.fill(gemGrad);
-  // Inner facet highlight ring
-  g.regularPoly(0, -radius * 0.05, radius * 0.55, 6);
-  g.fill({ color: 0xffffff, alpha: 0.12 });
-  // Top facet shine
-  g.ellipse(-radius * 0.15, -radius * 0.25, radius * 0.2, radius * 0.12);
-  g.fill({ color: 0xffffff, alpha: 0.5 });
-  // Small sparkle
-  g.circle(radius * 0.12, -radius * 0.32, radius * 0.06);
-  g.fill({ color: 0xffffff, alpha: 0.7 });
-  container.addChild(g);
-  if (hasFilters()) {
-    container.filters = [new PIXI.filters.GlowFilter({
-      distance: radius * 1.2, outerStrength: 3.0, innerStrength: 0.5, color: color,
-    })];
-  }
-  return container;
+  var gemName = color === 0xff3333 ? 'gem_red' : color === 0x3333ff ? 'gem_blue' : 'gem_red';
+  var spr = _getSprite('collectibles', gemName);
+  if (spr) { spr.width = radius * 2; spr.height = radius * 2; spr.anchor.set(0.5); return spr; }
+  // Try star as alternative
+  var star = _getSprite('collectibles', 'star');
+  if (star) { star.width = radius * 2; star.height = radius * 2; star.anchor.set(0.5); return star; }
+  // Minimal placeholder
+  var ph = new PIXI.Graphics(); ph.circle(0, 0, radius); ph.fill({ color: color }); return ph;
 }
 
 /** Ship with gradient body, engine glow, and wing detail */

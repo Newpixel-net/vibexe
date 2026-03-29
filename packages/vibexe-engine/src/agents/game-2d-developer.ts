@@ -157,16 +157,75 @@ Set \`CONFIG.genre\` to change camera + physics defaults:
 - Unique enemies and bosses appropriate to the world type
 
 ### IMPORTANT — Do NOT recreate world elements in custom-visuals.ts:
-The WorldBuilder handles all terrain, sky, platforms, walls, ceilings, and decorations. custom-visuals.ts should ONLY add small themed decorations: glowing particles, themed signposts, animated torches, floating crystals, HUD elements, weather effects.
+The WorldBuilder handles all terrain, sky, platforms, walls, ceilings, and decorations. custom-visuals.ts should ONLY add small themed decorations using SPRITES or PARTICLES — never primitive shapes.
 
-## Drawing Functions — For Small Decorations ONLY
+## CRITICAL — ZERO PRIMITIVE SHAPES ALLOWED
 
-These are for small game objects, NOT scenery or backgrounds:
-- \`drawCoinToken(radius, color, glowColor)\` — collectible coin
-- \`drawEnemySlime(size, color, lightColor)\` — enemy slime
-- \`drawHeart(size, color)\` — health pickup
-- \`drawGemShape(radius, color)\` — gem collectible
-- \`drawCloud(w, h)\` — small decorative cloud ONLY
+**NEVER use Graphics.circle(), Graphics.rect(), Graphics.roundRect(), Graphics.ellipse(), Graphics.regularPoly(), Graphics.moveTo()/lineTo() to draw game objects.** This makes games look cheap and programmatic. ALL game visuals MUST use sprite assets from the sprite library.
+
+### Available Sprite Assets (use _getSprite or _getAnimatedSprite)
+
+**Characters (animated spritesheets — use _getAnimatedSprite):**
+- \`_getAnimatedSprite('hero', 'idle'|'walk'|'jump'|'attack'|'die')\` — player character
+- \`_getAnimatedSprite('slime', 'idle'|'move'|'attack'|'die')\` — slime enemy
+- \`_getAnimatedSprite('bat', 'idle'|'fly'|'attack'|'die')\` — bat enemy
+- \`_getAnimatedSprite('boss', 'idle'|'attack'|'die')\` — boss enemy
+- \`_getAnimatedSprite('npc', 'idle'|'talk')\` — NPC character
+
+**Collectibles (static sprites — use _getSprite):**
+- \`_getSprite('collectibles', 'coin_gold')\` — gold coin
+- \`_getSprite('collectibles', 'gem_red')\` — red gem/crystal
+- \`_getSprite('collectibles', 'gem_blue')\` — blue gem/crystal
+- \`_getSprite('collectibles', 'star')\` — star collectible
+- \`_getSprite('collectibles', 'heart')\` — heart/health pickup
+
+**Props (static sprites):**
+- \`_getSprite('props', 'crate')\` — wooden crate
+- \`_getSprite('props', 'barrel')\` — barrel
+- \`_getSprite('props', 'rock')\` — rock
+- \`_getSprite('props', 'fence')\` — fence
+- \`_getSprite('props', 'sign_post')\` — sign post
+
+**Trees (static sprites):**
+- \`_getSprite('trees', 'round_tree')\` — round green tree
+- \`_getSprite('trees', 'pine_tree')\` — pine/conifer tree
+- \`_getSprite('trees', 'palm_tree')\` — palm tree
+- \`_getSprite('trees', 'dead_tree')\` — dead/bare tree
+
+**Clouds:**
+- \`_getSprite('clouds', 'cloud_puffy')\` — puffy cloud
+- \`_getSprite('clouds', 'cloud_small')\` — small cloud
+
+### How to create game objects with sprites:
+\`\`\`
+// CORRECT — Use sprites for ALL game objects:
+var coin = _getSprite('collectibles', 'coin_gold');
+if (coin) { coin.anchor.set(0.5); coin.x = 100; coin.y = 200; coin.scale.set(0.8); container.addChild(coin); }
+
+var enemy = _getAnimatedSprite('slime', 'idle');
+if (enemy) { enemy.anchor.set(0.5, 1); enemy.x = 300; enemy.y = 400; container.addChild(enemy); }
+
+var crystal = _getSprite('collectibles', 'gem_red');
+if (crystal) { crystal.anchor.set(0.5); crystal.x = 500; crystal.y = 150; container.addChild(crystal); }
+\`\`\`
+
+### BANNED — Never write code like this:
+\`\`\`
+// WRONG — Primitive shapes look terrible:
+var g = new PIXI.Graphics();
+g.circle(0, 0, 10); g.fill({ color: 0xffff00 }); // NO! Use _getSprite('collectibles', 'coin_gold')
+g.rect(-20, -20, 40, 40); g.fill({ color: 0xff0000 }); // NO! Use _getSprite('props', 'crate')
+g.regularPoly(0, 0, 15, 6); g.fill({ color: 0x00ff00 }); // NO! Use _getSprite('collectibles', 'gem_red')
+\`\`\`
+
+The ONLY acceptable use of Graphics is for HUD elements (score text backgrounds, health bars, minimap indicators) — never for game world objects.
+
+## Legacy Drawing Functions (use sprites instead)
+These functions exist but prefer to use sprites directly:
+- \`drawCoinToken(radius, color, glowColor)\` — returns sprite if available
+- \`drawEnemySlime(size, color, lightColor)\` — returns animated sprite if available
+- \`drawHeart(size, color)\` — returns sprite if available
+- \`drawGemShape(radius, color)\` — returns sprite if available
 
 ## Template for custom-gameplay.ts
 
