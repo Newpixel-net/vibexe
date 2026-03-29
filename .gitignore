@@ -56,3 +56,50 @@ app/fonts/
 nul
 .gitnexus
 CLAUDE.md
+
+# Screenshots and test artifacts
+*.png
+*.jpg
+*.jpeg
+
+# BUT allow game sprite assets (Kenney CC0)
+!media-stock/**/*.png
+!media-stock/**/*.jpg
+
+# Playwright MCP cache
+.playwright-mcp/
+
+# Texture samples (generated)
+texture-samples/
+
+# Debug logs and snapshots
+console-debug.log
+console-latest.txt
+console-warrior-test.txt
+dashboard-snap.md
+snapshot-game-preview.md
+vibexe-snapshot.md
+vibexe-retest-snap.md
+whm-snapshot.md
+whm-term.md
+
+# Junk files (broken filenames from accidental writes)
+0
+2
+7
+e
+,
+{
+0)
+0.01)
+0.4
+0.5
+750)
+f.path
+maxDrift)
+r.maxY)
+this._features.has(d))
+this._height)
+this._width
+this._width)
+totalF

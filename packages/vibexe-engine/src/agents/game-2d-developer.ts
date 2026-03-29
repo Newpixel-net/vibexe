@@ -163,7 +163,7 @@ The WorldBuilder handles all terrain, sky, platforms, walls, ceilings, and decor
 
 **NEVER use Graphics.circle(), Graphics.rect(), Graphics.roundRect(), Graphics.ellipse(), Graphics.regularPoly(), Graphics.moveTo()/lineTo() to draw game objects.** This makes games look cheap and programmatic. ALL game visuals MUST use sprite assets from the sprite library.
 
-### Available Sprite Assets (use _getSprite or _getAnimatedSprite)
+### Available Sprite Assets (1000+ sprites — use _getSprite or _getAnimatedSprite)
 
 **Characters (animated spritesheets — use _getAnimatedSprite):**
 - \`_getAnimatedSprite('hero', 'idle'|'walk'|'jump'|'attack'|'die')\` — player character
@@ -172,29 +172,47 @@ The WorldBuilder handles all terrain, sky, platforms, walls, ceilings, and decor
 - \`_getAnimatedSprite('boss', 'idle'|'attack'|'die')\` — boss enemy
 - \`_getAnimatedSprite('npc', 'idle'|'talk')\` — NPC character
 
-**Collectibles (static sprites — use _getSprite):**
+**Collectibles (11 sprites):**
 - \`_getSprite('collectibles', 'coin_gold')\` — gold coin
-- \`_getSprite('collectibles', 'gem_red')\` — red gem/crystal
-- \`_getSprite('collectibles', 'gem_blue')\` — blue gem/crystal
-- \`_getSprite('collectibles', 'star')\` — star collectible
-- \`_getSprite('collectibles', 'heart')\` — heart/health pickup
+- \`_getSprite('collectibles', 'coin_silver')\` — silver coin
+- \`_getSprite('collectibles', 'coin_bronze')\` — bronze coin
+- \`_getSprite('collectibles', 'gem_red')\` / \`'gem_blue'\` / \`'gem_green'\` / \`'gem_yellow'\` — small gems
+- \`_getSprite('collectibles', 'gem_red_lg')\` / \`'gem_blue_lg'\` — large gems
+- \`_getSprite('collectibles', 'star')\` / \`'heart'\` — star, heart
 
-**Props (static sprites):**
-- \`_getSprite('props', 'crate')\` — wooden crate
-- \`_getSprite('props', 'barrel')\` — barrel
-- \`_getSprite('props', 'rock')\` — rock
-- \`_getSprite('props', 'fence')\` — fence
-- \`_getSprite('props', 'sign_post')\` — sign post
+**Enemies (15 static sprites — for basic enemies without animation sheets):**
+- \`_getSprite('enemies', 'fish_swim1')\` / \`'fish_swim2'\` / \`'fish_dead'\`
+- \`_getSprite('enemies', 'fly1')\` / \`'fly2'\` / \`'fly_dead'\`
+- \`_getSprite('enemies', 'slime_walk1')\` / \`'slime_walk2'\` / \`'slime_dead'\`
+- \`_getSprite('enemies', 'snail_walk1')\` / \`'snail_walk2'\` / \`'snail_shell'\`
+- \`_getSprite('enemies', 'blocker')\` / \`'blocker_mad'\` / \`'poker_mad'\`
 
-**Trees (static sprites):**
-- \`_getSprite('trees', 'round_tree')\` — round green tree
-- \`_getSprite('trees', 'pine_tree')\` — pine/conifer tree
-- \`_getSprite('trees', 'palm_tree')\` — palm tree
-- \`_getSprite('trees', 'dead_tree')\` — dead/bare tree
+**Items (21 sprites — keys, power-ups, hazards):**
+- \`_getSprite('items', 'key_blue')\` / \`'key_green'\` / \`'key_red'\` / \`'key_yellow'\` — colored keys
+- \`_getSprite('items', 'mushroom_brown')\` / \`'mushroom_red'\` — power-up mushrooms
+- \`_getSprite('items', 'bomb')\` / \`'bomb_flash'\` / \`'fireball'\` — weapons
+- \`_getSprite('items', 'spikes')\` — spike hazard
+- \`_getSprite('items', 'spring_up')\` / \`'spring_down'\` — springboard
+- \`_getSprite('items', 'switch_left')\` / \`'switch_right'\` — lever switch
+- \`_getSprite('items', 'button_blue')\` / \`'button_red')\` / \`'button_green'\` / \`'button_yellow'\` — buttons
 
-**Clouds:**
-- \`_getSprite('clouds', 'cloud_puffy')\` — puffy cloud
-- \`_getSprite('clouds', 'cloud_small')\` — small cloud
+**Props (5):** \`_getSprite('props', 'crate'|'barrel'|'rock'|'fence'|'sign_post')\`
+
+**Decorations (10):**
+- \`_getSprite('decorations', 'cactus')\` / \`'chain'\` / \`'plant_green'\` / \`'plant_purple'\` / \`'rock'\` / \`'snowhill'\`
+- \`_getSprite('decorations', 'flag_blue')\` / \`'flag_green'\` / \`'flag_red'\` / \`'flag_yellow'\` — flags/checkpoints
+
+**Trees (6):** \`_getSprite('trees', 'green_tree'|'tree_top'|'tree_top_snow'|'tree_trunk'|'dead_tree_ice')\`
+**Clouds (3):** \`_getSprite('clouds', 'cloud_large'|'cloud_medium'|'cloud_small')\`
+
+**UI/HUD (29 sprites):**
+- \`_getSprite('ui', 'hud_heartFull')\` / \`'hud_heartHalf'\` / \`'hud_heartEmpty'\` — hearts
+- \`_getSprite('ui', 'hud_coins')\` — coin icon for HUD
+- \`_getSprite('ui', 'hud_gem_blue')\` / \`'hud_gem_green'\` / \`'hud_gem_red'\` / \`'hud_gem_yellow'\` — gem icons
+- \`_getSprite('ui', 'hud_keyBlue')\` / \`'hud_keyGreen'\` / \`'hud_keyRed'\` / \`'hud_keyYellow'\` — key icons
+- \`_getSprite('ui', 'hud_0')\` through \`'hud_9'\` — number digits
+- \`_getSprite('ui', 'hud_x')\` — multiplier sign
+- \`_getSprite('ui', 'hud_p1')\` / \`'hud_p2'\` / \`'hud_p3'\` — player icons
 
 ### How to create game objects with sprites:
 \`\`\`
@@ -205,8 +223,13 @@ if (coin) { coin.anchor.set(0.5); coin.x = 100; coin.y = 200; coin.scale.set(0.8
 var enemy = _getAnimatedSprite('slime', 'idle');
 if (enemy) { enemy.anchor.set(0.5, 1); enemy.x = 300; enemy.y = 400; container.addChild(enemy); }
 
-var crystal = _getSprite('collectibles', 'gem_red');
-if (crystal) { crystal.anchor.set(0.5); crystal.x = 500; crystal.y = 150; container.addChild(crystal); }
+// For enemies without animation sheets, use static sprites and swap frames:
+var fly = _getSprite('enemies', 'fly1');
+if (fly) { fly.anchor.set(0.5); fly.x = 400; fly.y = 200; container.addChild(fly); }
+
+// Use HUD sprites for UI instead of Graphics:
+var heartIcon = _getSprite('ui', 'hud_heartFull');
+if (heartIcon) { heartIcon.x = 10; heartIcon.y = 10; uiLayer.addChild(heartIcon); }
 \`\`\`
 
 ### BANNED — Never write code like this:
@@ -218,7 +241,7 @@ g.rect(-20, -20, 40, 40); g.fill({ color: 0xff0000 }); // NO! Use _getSprite('pr
 g.regularPoly(0, 0, 15, 6); g.fill({ color: 0x00ff00 }); // NO! Use _getSprite('collectibles', 'gem_red')
 \`\`\`
 
-The ONLY acceptable use of Graphics is for HUD elements (score text backgrounds, health bars, minimap indicators) — never for game world objects.
+The ONLY acceptable use of Graphics is for simple HUD backgrounds (health bar fill, minimap frame) — never for game world objects.
 
 ## Legacy Drawing Functions (use sprites instead)
 These functions exist but prefer to use sprites directly:

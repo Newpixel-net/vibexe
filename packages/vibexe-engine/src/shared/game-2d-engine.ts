@@ -150,6 +150,7 @@ class WorldBuilderSystem {
     if (_spriteCount > 0) console.log('[WorldBuilder] Sprite cache: ' + _spriteCount + ' textures available');
 
     var container = new PIXI.Container();
+    container.cullableChildren = true;
     var bodies: any[] = [];
     var platforms: { x: number; y: number; w: number; body: any }[] = [];
     var parallaxLayers: { gfx: any; factor: number }[] = [];
@@ -177,9 +178,9 @@ class WorldBuilderSystem {
     var groundMap: Record<string, string> = { forest: 'grass', sunset: 'grass', candy: 'grass', volcanic: 'stone', dark: 'stone', space: 'stone', arctic: 'ice', ocean: 'sand' };
     var platMap: Record<string, string> = { forest: 'grass_block', sunset: 'grass_block', candy: 'grass_block', volcanic: 'stone_block', dark: 'dark_block', space: 'dark_block', arctic: 'ice_block', ocean: 'sand_block' };
     var treeMap: Record<string, string[]> = {
-      forest: ['round_tree', 'pine_tree'], sunset: ['round_tree', 'palm_tree'], candy: ['round_tree'],
-      volcanic: ['dead_tree'], dark: ['dead_tree', 'pine_tree'], space: [],
-      arctic: ['pine_tree'], ocean: ['palm_tree'],
+      forest: ['green_tree', 'tree_top'], sunset: ['green_tree', 'tree_top'], candy: ['green_tree'],
+      volcanic: ['dead_tree_ice'], dark: ['dead_tree_ice', 'tree_trunk'], space: [],
+      arctic: ['tree_top_snow', 'dead_tree_ice'], ocean: ['green_tree'],
     };
 
     // Helper: hex number to CSS
@@ -437,6 +438,18 @@ class WorldBuilderSystem {
 
     console.log('[WorldBuilder] Built ' + (cfg.blueprint || 'outdoor-scroll') + '/' + cfg.theme + ' world (' + W + 'x' + H + ', ' + platforms.length + ' platforms, seed=' + cfg.seed + ')');
 
+    // Enable viewport culling on all world children — skips rendering off-screen sprites
+    for (var ci = 0; ci < container.children.length; ci++) {
+      var child = container.children[ci] as any;
+      child.cullable = true;
+      if (child.children && child.children.length > 0) {
+        child.cullableChildren = true;
+        for (var cj = 0; cj < child.children.length; cj++) {
+          (child.children[cj] as any).cullable = true;
+        }
+      }
+    }
+
     // Build result
     var result: WorldBuilderResult = {
       container: container,
@@ -631,6 +644,7 @@ class WorldBuilderSystem {
         var frame = new PIXI.Rectangle(stx, sty, tileSize, tileSize);
         var tex = new PIXI.Texture({ source: tileset.source || tileset, frame: frame });
         var spr = new PIXI.Sprite(tex);
+        spr.cullable = true;
         spr.x = ox + gx * tileSize;
         spr.y = oy + gy * tileSize;
         container.addChild(spr);
@@ -1859,6 +1873,7 @@ class TilemapSystem {
     }
     this.container = new PIXI.Container();
     this.container.label = 'tilemap';
+    this.container.cullableChildren = true;
     this.engine.world.addChild(this.container);
     this.sprites.clear();
     this._dirty.clear();
@@ -1991,6 +2006,7 @@ class TilemapSystem {
         if (!(mask & 4))  { spr.rect(ts - 2, 0, 2, ts); spr.fill({ color: 0x667744 }); } // right edge
       }
 
+      spr.cullable = true;
       spr.x = gx * self.tileSize;
       spr.y = gy * self.tileSize;
       self.container.addChild(spr);
@@ -2250,6 +2266,8 @@ export class Engine2D {
     // World container (moves with camera) — sortableChildren for depth sorting
     this.world = new PIXI.Container();
     this.world.sortableChildren = true;
+    this.world.cullable = true;
+    this.world.cullableChildren = true;
     this.app.stage.addChild(this.world);
 
     // UI container (fixed above world)
@@ -2272,10 +2290,13 @@ export class Engine2D {
     // Input
     this.input.init(this.app.canvas);
 
+    // Delta-time clamping — cap dt to prevent physics teleportation on lag spikes
+    this.app.ticker.minFPS = 20;
+
     // Game loop
     this.app.ticker.add((ticker: any) => {
       if (this._paused) return;
-      const dt = ticker.deltaMS / 1000; // seconds
+      const dt = Math.min(ticker.deltaMS / 1000, 0.05); // seconds, capped at 50ms
       this._elapsed += dt;
 
       // Update Proton particles (skip when no active emitters to save CPU)
@@ -6661,17 +6682,30 @@ export const _sheetCache: Record<string, any> = {};
 /** Whether the sprite library has been loaded */
 let _spriteLibLoaded = false;
 
-/** Sprite catalog — maps style to available sprite paths */
+/** Sprite catalog — maps style to available sprite paths (preloaded at game start) */
 const SPRITE_CATALOG: Record<string, Record<string, string[]>> = {
   default: {
+    // --- Terrain & Platforms ---
     platforms: ['2d/sprites/platforms/grass_block.png', '2d/sprites/platforms/stone_block.png', '2d/sprites/platforms/ice_block.png', '2d/sprites/platforms/sand_block.png', '2d/sprites/platforms/dark_block.png'],
-    ground: ['2d/sprites/ground/grass_top.png', '2d/sprites/ground/dirt_fill.png', '2d/sprites/ground/stone_top.png', '2d/sprites/ground/ice_top.png', '2d/sprites/ground/sand_top.png'],
-    trees: ['2d/sprites/trees/round_tree.png', '2d/sprites/trees/pine_tree.png', '2d/sprites/trees/palm_tree.png', '2d/sprites/trees/dead_tree.png'],
-    bushes: ['2d/sprites/bushes/bush_green.png', '2d/sprites/bushes/bush_flower.png'],
-    clouds: ['2d/sprites/clouds/cloud_puffy.png', '2d/sprites/clouds/cloud_small.png'],
-    collectibles: ['2d/sprites/collectibles/coin_gold.png', '2d/sprites/collectibles/gem_red.png', '2d/sprites/collectibles/gem_blue.png', '2d/sprites/collectibles/star.png', '2d/sprites/collectibles/heart.png'],
+    // --- Nature ---
+    trees: ['2d/sprites/trees/green_tree.png', '2d/sprites/trees/tree_top.png', '2d/sprites/trees/tree_top_snow.png', '2d/sprites/trees/tree_trunk.png', '2d/sprites/trees/tree_trunk_bottom.png', '2d/sprites/trees/dead_tree_ice.png'],
+    bushes: ['2d/sprites/bushes/bush_large.png'],
+    clouds: ['2d/sprites/clouds/cloud_large.png', '2d/sprites/clouds/cloud_medium.png', '2d/sprites/clouds/cloud_small.png'],
+    // --- Collectibles ---
+    collectibles: ['2d/sprites/collectibles/coin_gold.png', '2d/sprites/collectibles/coin_bronze.png', '2d/sprites/collectibles/coin_silver.png', '2d/sprites/collectibles/gem_red.png', '2d/sprites/collectibles/gem_blue.png', '2d/sprites/collectibles/gem_green.png', '2d/sprites/collectibles/gem_yellow.png', '2d/sprites/collectibles/gem_red_lg.png', '2d/sprites/collectibles/gem_blue_lg.png', '2d/sprites/collectibles/star.png', '2d/sprites/collectibles/heart.png'],
+    // --- Items ---
+    items: ['2d/sprites/items/key_blue.png', '2d/sprites/items/key_green.png', '2d/sprites/items/key_red.png', '2d/sprites/items/key_yellow.png', '2d/sprites/items/mushroom_brown.png', '2d/sprites/items/mushroom_red.png', '2d/sprites/items/bomb.png', '2d/sprites/items/bomb_flash.png', '2d/sprites/items/fireball.png', '2d/sprites/items/star_lg.png', '2d/sprites/items/spikes.png', '2d/sprites/items/spring_up.png', '2d/sprites/items/spring_down.png', '2d/sprites/items/switch_left.png', '2d/sprites/items/switch_right.png', '2d/sprites/items/button_blue.png', '2d/sprites/items/button_red.png', '2d/sprites/items/button_green.png', '2d/sprites/items/button_yellow.png', '2d/sprites/items/weight.png', '2d/sprites/items/weight_chained.png'],
+    // --- Props & Decorations ---
     props: ['2d/sprites/props/crate.png', '2d/sprites/props/barrel.png', '2d/sprites/props/rock.png', '2d/sprites/props/fence.png', '2d/sprites/props/sign_post.png'],
-    backgrounds: ['2d/sprites/backgrounds/hill_green.png', '2d/sprites/backgrounds/hill_snow.png', '2d/sprites/backgrounds/mountain_rock.png'],
+    decorations: ['2d/sprites/decorations/cactus.png', '2d/sprites/decorations/chain.png', '2d/sprites/decorations/plant_green.png', '2d/sprites/decorations/plant_purple.png', '2d/sprites/decorations/rock.png', '2d/sprites/decorations/snowhill.png', '2d/sprites/decorations/flag_blue.png', '2d/sprites/decorations/flag_green.png', '2d/sprites/decorations/flag_red.png', '2d/sprites/decorations/flag_yellow.png'],
+    // --- Enemies ---
+    enemies: ['2d/sprites/enemies/fish_swim1.png', '2d/sprites/enemies/fish_swim2.png', '2d/sprites/enemies/fish_dead.png', '2d/sprites/enemies/fly1.png', '2d/sprites/enemies/fly2.png', '2d/sprites/enemies/fly_dead.png', '2d/sprites/enemies/slime_walk1.png', '2d/sprites/enemies/slime_walk2.png', '2d/sprites/enemies/slime_dead.png', '2d/sprites/enemies/snail_walk1.png', '2d/sprites/enemies/snail_walk2.png', '2d/sprites/enemies/snail_shell.png', '2d/sprites/enemies/blocker.png', '2d/sprites/enemies/blocker_mad.png', '2d/sprites/enemies/poker_mad.png'],
+    // --- UI / HUD ---
+    ui: ['2d/sprites/ui/hud_heartFull.png', '2d/sprites/ui/hud_heartHalf.png', '2d/sprites/ui/hud_heartEmpty.png', '2d/sprites/ui/hud_coins.png', '2d/sprites/ui/hud_gem_blue.png', '2d/sprites/ui/hud_gem_green.png', '2d/sprites/ui/hud_gem_red.png', '2d/sprites/ui/hud_gem_yellow.png', '2d/sprites/ui/hud_keyBlue.png', '2d/sprites/ui/hud_keyGreen.png', '2d/sprites/ui/hud_keyRed.png', '2d/sprites/ui/hud_keyYellow.png', '2d/sprites/ui/hud_0.png', '2d/sprites/ui/hud_1.png', '2d/sprites/ui/hud_2.png', '2d/sprites/ui/hud_3.png', '2d/sprites/ui/hud_4.png', '2d/sprites/ui/hud_5.png', '2d/sprites/ui/hud_6.png', '2d/sprites/ui/hud_7.png', '2d/sprites/ui/hud_8.png', '2d/sprites/ui/hud_9.png', '2d/sprites/ui/hud_x.png', '2d/sprites/ui/hud_p1.png', '2d/sprites/ui/hud_p1Alt.png', '2d/sprites/ui/hud_p2.png', '2d/sprites/ui/hud_p2Alt.png', '2d/sprites/ui/hud_p3.png', '2d/sprites/ui/hud_p3Alt.png'],
+    // --- Effects ---
+    effects: ['2d/sprites/effects/debris_brick1a.png', '2d/sprites/effects/debris_brick1b.png', '2d/sprites/effects/debris_brick2a.png', '2d/sprites/effects/debris_brick2b.png'],
+    // --- Backgrounds ---
+    backgrounds: ['2d/sprites/backgrounds/hill_green.png', '2d/sprites/backgrounds/hill_snow.png', '2d/sprites/backgrounds/mountain_rock.png', '2d/sprites/backgrounds/bg_green.png', '2d/sprites/backgrounds/bg_castle.png'],
   },
 };
 
