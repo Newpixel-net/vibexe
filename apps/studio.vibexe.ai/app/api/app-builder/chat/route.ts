@@ -1108,15 +1108,19 @@ const supabase = createClient("${supabaseConfig.url}", "${supabaseConfig.anonKey
 			const needsSceneRefresh = spritesheetInjectCode.length > 0;
 			if (isGame2d && (!existingPaths.has("src/scenes/GameScene2D.ts") || needsSceneRefresh)) {
 				const theme = game2dBrief?.theme || "forest";
-				const wW = game2dBrief?.worldWidth || 4000;
-				const wH = game2dBrief?.worldHeight || 900;
-				const groundY = wH - 60;
-				const gravity = game2dBrief?.gravity || 980;
-				const moveSpeed = game2dBrief?.moveSpeed || 280;
-				const jumpForce = game2dBrief?.jumpForce || 520;
+				const bp = game2dBrief?.worldBlueprint || "outdoor-scroll";
+				const isTopDownBP = bp === "dungeon-topdown" || bp === "open-field" || isRpg2d;
+				const wW = isTopDownBP ? 1200 : (game2dBrief?.worldWidth || 4000);
+				const wH = isTopDownBP ? 1000 : (game2dBrief?.worldHeight || 900);
+				const groundY = isTopDownBP ? 900 : (wH - 60);
+				const gravity = isTopDownBP ? 0 : (game2dBrief?.gravity || 980);
+				const moveSpeed = isTopDownBP ? 200 : (game2dBrief?.moveSpeed || 280);
+				const jumpForce = isTopDownBP ? 0 : (game2dBrief?.jumpForce || 520);
+				const tdGenre = isTopDownBP ? "top-down" : "platformer";
 
-				// Fetch 6 core Feature Bank features from DB
-				const coreFeatureIds = ["player-platformer", "level-platforms", "collectible-coins", "enemy-patrol", "camera-follow", "hud-basic"];
+				// Fetch core Feature Bank features from DB — auto-swap player for top-down
+				const playerFeatureId = isTopDownBP ? "player-topdown" : "player-platformer";
+				const coreFeatureIds = [playerFeatureId, "level-platforms", "collectible-coins", "enemy-patrol", "camera-follow", "hud-basic"];
 				let autoComposeScene = "";
 				try {
 					const coreFeatures = await db.select().from(featureBankSnippets).where(inArray(featureBankSnippets.id, coreFeatureIds));
@@ -1160,11 +1164,18 @@ export default class GameScene2D implements GameScene {
       platformCount: ${game2dBrief?.platformCount || 11},
       levelShape: "${game2dBrief?.levelShape || 'flat-wide'}",
       seed: ${game2dBrief?.seed || 'Date.now()'},
-      hasGround: ${!['floating-islands'].includes(game2dBrief?.worldBlueprint || 'outdoor-scroll')},
-      hasCeiling: ${['cave-system', 'arena', 'dungeon-rooms'].includes(game2dBrief?.worldBlueprint || 'outdoor-scroll')},
+      hasGround: ${isTopDownBP ? false : !['floating-islands'].includes(bp)},
+      hasCeiling: ${isTopDownBP ? false : ['cave-system', 'arena', 'dungeon-rooms'].includes(bp)},
     });
     this.container.addChild(worldResult.container);
     engine._worldData = worldResult;
+
+    // Set genre for player feature auto-selection (top-down = 8-way movement, no gravity)
+    engine.config.genre = "${tdGenre}";
+    engine.config.gravity = ${gravity};
+    if ("${tdGenre}" !== "platformer") {
+      engine._playerFeatureId = "player-topdown";
+    }
 
 ${spritesheetInjectCode}
     // Register and initialize Feature Bank features
@@ -1452,7 +1463,7 @@ After creating ALL files, end with a short summary. If the app has auth, include
 For VISUAL changes (decorations, backgrounds, effects): create \`src/game/custom-visuals.ts\` (export setup and update functions).
 For GAMEPLAY changes (combat, boss, NPC, controls, new mechanics): create \`src/game/custom-gameplay.ts\` (export a \`features\` array — each entry has id, deps, config, factory).
 
-Do NOT touch GameScene2D.ts — it is LOCKED. Use \`var\` not \`const/let\`. Plain JavaScript only. Access the player via \`engine.features.get('player-platformer').getPlayer()\`.`);
+Do NOT touch GameScene2D.ts — it is LOCKED. Use \`var\` not \`const/let\`. Plain JavaScript only. Access the player via \`engine.getPlayer()\` (works with both platformer and top-down).`);
 		}
 		// 2D game addenda — simplified for Feature Bank auto-compose pipeline
 		// Core gameplay is already handled by the scaffold, AI just adds custom visuals
