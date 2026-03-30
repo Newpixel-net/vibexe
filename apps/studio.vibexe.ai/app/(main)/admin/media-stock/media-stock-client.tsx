@@ -465,7 +465,7 @@ export function MediaStockClient({ catalog }: { catalog: Catalog | null }) {
 	const [dimCache, setDimCache] = useState<Record<string, { w: number; h: number }>>({});
 
 	// Debounce search
-	const searchTimerRef = useRef<ReturnType<typeof setTimeout>>();
+	const searchTimerRef = useRef<ReturnType<typeof setTimeout>>(undefined);
 	const [debouncedSearch, setDebouncedSearch] = useState("");
 
 	useEffect(() => {

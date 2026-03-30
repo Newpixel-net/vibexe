@@ -617,7 +617,7 @@ export async function sendInvitationsAction(
 					email,
 					role,
 					currentTeam,
-					currentUser,
+					currentUser as any,
 				);
 				await sendInvitationEmail(invitation);
 				return { email, status: "success" };
@@ -785,7 +785,7 @@ export async function resendInvitationAction(
 			invitation.email,
 			invitation.role,
 			currentTeam,
-			currentUser,
+			currentUser as any,
 		);
 		// 3. send invitation email
 		await sendInvitationEmail(newInvitation);

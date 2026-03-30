@@ -87,7 +87,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
 					[userId],
 				);
 				logAppEvent(databaseName, {
-					level: "warn",
+					level: "warning",
 					category: "auth",
 					eventType: "app.user.suspended",
 					message: `User #${userId} suspended by admin`,
@@ -127,7 +127,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
 					[userId],
 				);
 				logAppEvent(databaseName, {
-					level: "warn",
+					level: "warning",
 					category: "auth",
 					eventType: "app.user.password_reset",
 					message: `Password reset for user #${userId} by admin`,

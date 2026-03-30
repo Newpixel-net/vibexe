@@ -155,9 +155,10 @@ export async function transformImage(
 	if (cached) return cached;
 
 	// Dynamically import sharp (optional dependency)
-	let sharp: typeof import("sharp");
+	let sharp: any;
 	try {
-		sharp = await import("sharp");
+		// eslint-disable-next-line @typescript-eslint/no-require-imports
+		sharp = require("sharp");
 	} catch {
 		// sharp not installed — return original
 		console.warn("[ImageTransform] sharp not installed, returning original");
@@ -165,7 +166,7 @@ export async function transformImage(
 	}
 
 	// Apply transforms
-	let pipeline = sharp.default(buffer);
+	let pipeline = (sharp.default || sharp)(buffer);
 
 	if (params.width || params.height) {
 		pipeline = pipeline.resize(params.width, params.height, {

@@ -189,7 +189,7 @@ async function updateBackend(appId: string): Promise<void> {
 				columns: { databaseName: true },
 			});
 			if (appDb?.databaseName) {
-				const { queryAppDb } = await import("@/lib/app-database/pool-manager");
+				const { queryAppDb } = await import("@/lib/app-database/pool-manager") as any;
 				jobs = await queryAppDb(appDb.databaseName,
 					`SELECT name, cron_expression, function_name, enabled, retry_policy FROM _app_scheduled_jobs ORDER BY name`,
 				);

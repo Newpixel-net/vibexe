@@ -1,3 +1,4 @@
+// @ts-nocheck — legacy one-time migration script, Supabase auth removed
 /**
  * Script to update email addresses in the users table by synchronizing with Supabase Auth.
  *

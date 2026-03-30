@@ -579,7 +579,7 @@ export async function triggerManualIngest(
 				error: ingestCheck.reason || "Cannot ingest repository",
 			};
 		}
-		const trigger = createManualIngestTrigger(user.id);
+		const trigger = createManualIngestTrigger(user.id as any);
 		executeManualIngest(repositoryData, trigger);
 
 		// Immediately revalidate to show "running" status

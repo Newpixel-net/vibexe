@@ -11,6 +11,7 @@ export interface VibexeUser {
 	email?: string;
 	displayName?: string;
 	avatarUrl?: string;
+	identities?: Array<{ provider: string; providerAccountId?: string }>;
 }
 
 const getUser = async (): Promise<VibexeUser> => {

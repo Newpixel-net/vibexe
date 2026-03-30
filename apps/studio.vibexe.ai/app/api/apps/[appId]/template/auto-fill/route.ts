@@ -107,7 +107,7 @@ Respond with ONLY valid JSON, no markdown fencing, no explanation.`;
 		const result = await generateText({
 			model: xai.chat("grok-4-1-fast-reasoning"),
 			prompt,
-			maxTokens: 500,
+			maxOutputTokens: 500,
 			temperature: 0.3,
 		});
 

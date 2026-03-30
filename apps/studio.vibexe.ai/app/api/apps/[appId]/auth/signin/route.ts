@@ -98,7 +98,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
 		if (users.length === 0) {
 			// Log failed login (fire-and-forget) — user not found
 			logAppEvent(databaseName, {
-				level: "warn",
+				level: "warning",
 				category: "auth",
 				eventType: "app.user.signin_failed",
 				message: `Failed signin: unknown email ${email.toLowerCase()} from ${ip}`,
@@ -124,7 +124,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
 		if (!valid) {
 			// Log failed login (fire-and-forget) — wrong password
 			logAppEvent(databaseName, {
-				level: "warn",
+				level: "warning",
 				category: "auth",
 				eventType: "app.user.signin_failed",
 				message: `Failed signin: wrong password for ${user.email} from ${ip}`,

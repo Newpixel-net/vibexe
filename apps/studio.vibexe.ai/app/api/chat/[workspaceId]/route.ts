@@ -206,7 +206,7 @@ export async function POST(
 							generation.status === "completed" &&
 							"messages" in generation
 						) {
-							const messages = generation.messages as Array<{
+							const messages = generation.messages as unknown as Array<{
 								role: string;
 								content: unknown;
 							}>;

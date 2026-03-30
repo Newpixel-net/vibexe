@@ -755,7 +755,7 @@ export function ChatColumn({
 			// (screenshots as data URLs can be 1-5MB, exceeding ~5MB localStorage quota)
 			try {
 				const lightweight = messages.map((m) => {
-					const attachments = (m as Record<string, unknown>).experimental_attachments as Array<Record<string, unknown>> | undefined;
+					const attachments = (m as unknown as Record<string, unknown>).experimental_attachments as Array<Record<string, unknown>> | undefined;
 					if (!attachments?.length) return m;
 					return {
 						...m,

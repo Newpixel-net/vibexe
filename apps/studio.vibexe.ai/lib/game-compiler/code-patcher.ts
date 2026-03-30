@@ -42,6 +42,7 @@ interface GameSettings {
 	modules?: {
 		installed?: Record<string, { enabled?: boolean }> | Array<{ id: string; enabled?: boolean }>;
 	};
+	animClipOverrides?: Record<string, string>;
 }
 
 function clamp(val: number, min: number, max: number): number {

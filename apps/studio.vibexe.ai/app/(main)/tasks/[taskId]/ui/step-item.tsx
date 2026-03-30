@@ -76,6 +76,7 @@ function StepItemOutput({ item }: { item: UIStepItem }) {
 		case "queued":
 		case "running":
 		case "cancelled":
+		case "awaiting_review":
 			logger.warn(
 				`Step ${item.id}: Unexpected step status "${item.status}" - this status should not reach here`,
 			);

@@ -30,6 +30,7 @@ import { useCallback, useRef, useState } from "react";
 import type { GameSettings } from "../lib/game-editor-context";
 
 interface SkyWeatherConfig {
+	[key: string]: unknown;
 	time?: {
 		solarTime?: number;
 		cycleLengthMinutes?: number;

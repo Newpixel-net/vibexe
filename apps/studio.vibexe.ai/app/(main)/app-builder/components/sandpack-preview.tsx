@@ -1569,7 +1569,7 @@ export function SandpackPreview({
 								},
 								biome: terrainCfg.biome || null,
 								seed: terrainCfg.seed || 0,
-								resolvedBiomeParams: (terrainCfg as any).resolvedBiomeParams || null,
+								resolvedBiomeParams: terrainCfg.resolvedBiomeParams || null,
 							}, "*");
 							if (terrainCfg.layers && terrainCfg.layers.length > 0) {
 								const _defMods = [
@@ -2136,7 +2136,7 @@ export function SandpackPreview({
 						},
 						biome: terrainCfg.biome || null,
 						seed: terrainCfg.seed || 0,
-						resolvedBiomeParams: (terrainCfg as any).resolvedBiomeParams || null,
+						resolvedBiomeParams: terrainCfg.resolvedBiomeParams || null,
 					}, "*");
 					if (terrainCfg.layers && terrainCfg.layers.length > 0) {
 						const _defMods = [
@@ -3082,7 +3082,7 @@ export function SandpackPreview({
 								const biomeChanged = config.biome !== prevTerrain?.biome;
 								const sizeChanged = config.width !== prevTerrain?.width || config.depth !== prevTerrain?.depth;
 								const seedChanged = config.seed !== prevTerrain?.seed;
-								const presetChanged = (config as any).presetId !== (prevTerrain as any)?.presetId;
+								const presetChanged = config.presetId !== prevTerrain?.presetId;
 								const terrainRegenerated = biomeChanged || sizeChanged || seedChanged || presetChanged;
 								const mergedConfig = { ...config } as any;
 								if (terrainRegenerated) {

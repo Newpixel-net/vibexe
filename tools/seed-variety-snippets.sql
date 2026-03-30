@@ -424,7 +424,7 @@ VALUES (
       playerBody.vy = -(cfg.bounceForce || 800);
       if (engine.juice) {
         engine.juice.squash(playerBody.sprite, 0.7, 1.4);
-        engine.juice.shake(engine.app.stage.children[0], 4, 0.15);
+        engine.camera.shake(4, 0.15);
       }
     }
   };
@@ -695,7 +695,7 @@ VALUES (
           gates[i].open = true;
           gates[i].gfx.alpha = 0;
           if (gates[i].body && gates[i].physics) gates[i].physics.removeBody(gates[i].body);
-          if (engine.juice) engine.juice.shake(engine.app.stage.children[0], 6, 0.2);
+          if (engine.camera) engine.camera.shake(6, 0.2);
         }
       }
     },

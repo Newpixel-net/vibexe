@@ -32,6 +32,8 @@ export function StepItemStatusIcon({
 			);
 		case "cancelled":
 			return <CircleSlashIcon className={iconClassName} />;
+		case "awaiting_review":
+			return <CircleDashedIcon className={iconClassName} />;
 		default: {
 			const _exhaustiveCheck: never = status;
 			console.warn(`Unknown status: ${_exhaustiveCheck}`);

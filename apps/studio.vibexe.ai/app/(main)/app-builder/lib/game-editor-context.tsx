@@ -188,6 +188,7 @@ export interface GameSettings {
 		precipitation?: { type?: string; intensity?: number; windDirection?: number; windStrength?: number };
 		lightning?: { enabled?: boolean; frequency?: number };
 		effects?: { godRays?: number; aurora?: number; rainbow?: number; shootingStars?: number; ambientAudio?: boolean; audioVolume?: number };
+		weather?: { autoForecast?: boolean; forecastInterval?: number };
 	};
 	terrain?: {
 		enabled?: boolean;
@@ -196,6 +197,10 @@ export interface GameSettings {
 		heightScale?: number;
 		segments?: number;
 		sculptHeightData?: string; // Base64-encoded Float32Array of sculpted heightmap
+		biome?: string;
+		seed?: number;
+		presetId?: string;
+		resolvedBiomeParams?: Record<string, number> | null;
 		layers?: Array<{
 			textureUrl?: string;
 			normalUrl?: string;
@@ -320,6 +325,7 @@ export interface GameSettings {
 	// Multi-scene / level system
 	scenes?: SceneDefinition[];
 	activeSceneId?: string;
+	animClipOverrides?: Record<string, string>;
 }
 
 export const DEFAULT_GAME_SETTINGS: GameSettings = {

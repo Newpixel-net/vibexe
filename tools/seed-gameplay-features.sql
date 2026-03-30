@@ -83,7 +83,7 @@ $$function create(config) {
     // Emit attack event for combat system / boss to listen
     if (_engine) {
       var player = null;
-      var pf = _engine.features.get('player-platformer');
+      var pf = _engine.features.get(_engine._playerFeatureId || 'player-platformer');
       if (pf && pf.getPlayer) player = pf.getPlayer();
       _engine.features.emit('player.attack', {
         type: actionType,
@@ -108,7 +108,7 @@ $$function create(config) {
       }
     },
     update: function(engine, dt) {
-      var pf = engine.features.get('player-platformer');
+      var pf = engine.features.get(engine._playerFeatureId || 'player-platformer');
       if (!pf || !pf.getPlayer) return;
       var p = pf.getPlayer();
       if (!p || !p.sprite) return;
@@ -239,7 +239,7 @@ $$function create(config) {
       if (invTimer > 0) {
         invTimer -= dt;
         flashTimer -= dt;
-        var pf = engine.features.get('player-platformer');
+        var pf = engine.features.get(engine._playerFeatureId || 'player-platformer');
         var p = pf && pf.getPlayer ? pf.getPlayer() : null;
         if (p && p.sprite) {
           if (flashTimer <= 0) {
@@ -274,7 +274,7 @@ $$function create(config) {
         // Check for death
         if (hp <= 0) {
           dead = true;
-          var pf = _engine && _engine.features.get('player-platformer');
+          var pf = _engine && _engine.features.get(_engine._playerFeatureId || 'player-platformer');
           var p = pf && pf.getPlayer ? pf.getPlayer() : null;
           if (p && p.sprite) {
             p.sprite.alpha = 1.0;
@@ -295,7 +295,7 @@ $$function create(config) {
         hp = Math.min(hp + heal, maxHP);
         if (healthBar && healthBar.setHealth) healthBar.setHealth(hp);
         if (_engine && _engine.effects && _engine.effects.sparkle) {
-          var pf = _engine.features.get('player-platformer');
+          var pf = _engine.features.get(_engine._playerFeatureId || 'player-platformer');
           var p = pf && pf.getPlayer ? pf.getPlayer() : null;
           if (p && p.sprite) _engine.effects.sparkle(p.sprite.x, p.sprite.y);
         }
@@ -370,23 +370,15 @@ $$function create(config) {
   function createBossGraphics() {
     var g = new PIXI.Graphics();
     // Body (large red rectangle)
-    g.beginFill(0xCC2222);
-    g.drawRoundedRect(-40, -100, 80, 100, 6);
-    g.endFill();
+    g.roundRect(-40, -100, 80, 100, 6).fill({ color: 0xCC2222 });
     // Eyes
-    g.beginFill(0xFFFF00);
-    g.drawCircle(-14, -75, 8);
-    g.drawCircle(14, -75, 8);
-    g.endFill();
+    g.circle(-14, -75, 8).fill({ color: 0xFFFF00 });
+    g.circle(14, -75, 8).fill({ color: 0xFFFF00 });
     // Pupils
-    g.beginFill(0x000000);
-    g.drawCircle(-14, -75, 4);
-    g.drawCircle(14, -75, 4);
-    g.endFill();
+    g.circle(-14, -75, 4).fill({ color: 0x000000 });
+    g.circle(14, -75, 4).fill({ color: 0x000000 });
     // Mouth
-    g.beginFill(0x000000);
-    g.drawRect(-18, -52, 36, 6);
-    g.endFill();
+    g.rect(-18, -52, 36, 6).fill({ color: 0x000000 });
     return g;
   }
 
@@ -426,7 +418,7 @@ $$function create(config) {
       if (defeated || !bossSprite) return;
 
       // Get player position
-      var pf = engine.features.get('player-platformer');
+      var pf = engine.features.get(engine._playerFeatureId || 'player-platformer');
       var p = pf && pf.getPlayer ? pf.getPlayer() : null;
       if (!p || !p.sprite) return;
       var px = p.sprite.x;
@@ -565,27 +557,17 @@ $$function create(config) {
   function createNpcGraphics() {
     var g = new PIXI.Graphics();
     // Body (friendly blue character)
-    g.beginFill(0x3388CC);
-    g.drawRoundedRect(-18, -60, 36, 55, 8);
-    g.endFill();
+    g.roundRect(-18, -60, 36, 55, 8).fill({ color: 0x3388CC });
     // Head
-    g.beginFill(0xFFDDAA);
-    g.drawCircle(0, -70, 16);
-    g.endFill();
+    g.circle(0, -70, 16).fill({ color: 0xFFDDAA });
     // Eyes
-    g.beginFill(0x222222);
-    g.drawCircle(-5, -73, 3);
-    g.drawCircle(5, -73, 3);
-    g.endFill();
+    g.circle(-5, -73, 3).fill({ color: 0x222222 });
+    g.circle(5, -73, 3).fill({ color: 0x222222 });
     // Smile
-    g.lineStyle(2, 0x222222);
-    g.arc(0, -66, 6, 0.2, Math.PI - 0.2);
-    g.lineStyle(0);
+    g.arc(0, -66, 6, 0.2, Math.PI - 0.2).stroke({ color: 0x222222, width: 2 });
     // Hat
-    g.beginFill(0x44AA44);
-    g.drawRoundedRect(-14, -88, 28, 10, 3);
-    g.drawRoundedRect(-20, -80, 40, 6, 2);
-    g.endFill();
+    g.roundRect(-14, -88, 28, 10, 3).fill({ color: 0x44AA44 });
+    g.roundRect(-20, -80, 40, 6, 2).fill({ color: 0x44AA44 });
     return g;
   }
 
@@ -610,14 +592,13 @@ $$function create(config) {
       engine.world.addChild(npcSprite);
 
       // Interaction hint text (hidden initially)
-      hintText = new PIXI.Text('Press ' + interactKey.toUpperCase(), {
+      hintText = new PIXI.Text({ text: 'Press ' + interactKey.toUpperCase(), style: {
         fontFamily: 'Arial',
         fontSize: 16,
-        fill: 0xFFFFFF,
-        stroke: 0x000000,
-        strokeThickness: 3,
+        fill: '#ffffff',
+        stroke: { color: '#000000', width: 3 },
         align: 'center'
-      });
+      } });
       hintText.anchor.set(0.5, 1);
       hintText.x = npcX;
       hintText.y = npcY - 100;
@@ -628,7 +609,7 @@ $$function create(config) {
       if (!npcSprite) return;
 
       // Get player position
-      var pf = engine.features.get('player-platformer');
+      var pf = engine.features.get(engine._playerFeatureId || 'player-platformer');
       var p = pf && pf.getPlayer ? pf.getPlayer() : null;
       if (!p || !p.sprite) return;
 
@@ -742,15 +723,14 @@ $$function create(config) {
       _engine = engine;
 
       // Create controls overlay in bottom-right of UI layer
-      overlayText = new PIXI.Text(buildOverlayString(), {
+      overlayText = new PIXI.Text({ text: buildOverlayString(), style: {
         fontFamily: 'Courier New, monospace',
         fontSize: 11,
-        fill: 0xCCCCCC,
-        stroke: 0x000000,
-        strokeThickness: 2,
+        fill: '#cccccc',
+        stroke: { color: '#000000', width: 2 },
         align: 'left',
         lineHeight: 15
-      });
+      } });
       overlayText.alpha = 0.6;
 
       // Position in bottom-right corner
@@ -877,37 +857,33 @@ $$function create(config) {
     var overlay = new PIXI.Graphics();
     var sw = 800; try { sw = engine.app.screen.width; } catch(e) {}
     var sh = 600; try { sh = engine.app.screen.height; } catch(e) {}
-    overlay.beginFill(0x000000, 0.7);
-    overlay.drawRect(0, 0, sw, sh);
-    overlay.endFill();
+    overlay.rect(0, 0, sw, sh).fill({ color: 0x000000, alpha: 0.7 });
     endScreen.addChild(overlay);
 
     // Title text
     var titleStr = won ? 'VICTORY!' : 'GAME OVER';
-    var titleColor = won ? 0xFFDD00 : 0xFF3333;
-    var title = new PIXI.Text(titleStr, {
+    var titleColorHex = won ? '#ffdd00' : '#ff3333';
+    var title = new PIXI.Text({ text: titleStr, style: {
       fontFamily: 'Arial',
       fontSize: 48,
       fontWeight: 'bold',
-      fill: titleColor,
-      stroke: 0x000000,
-      strokeThickness: 4,
+      fill: titleColorHex,
+      stroke: { color: '#000000', width: 4 },
       align: 'center'
-    });
+    } });
     title.anchor.set(0.5, 0.5);
     title.x = sw / 2;
     title.y = sh / 2 - 40;
     endScreen.addChild(title);
 
     // Score text
-    var scoreText = new PIXI.Text('Score: ' + score, {
+    var scoreText = new PIXI.Text({ text: 'Score: ' + score, style: {
       fontFamily: 'Arial',
       fontSize: 24,
-      fill: 0xFFFFFF,
-      stroke: 0x000000,
-      strokeThickness: 3,
+      fill: '#ffffff',
+      stroke: { color: '#000000', width: 3 },
       align: 'center'
-    });
+    } });
     scoreText.anchor.set(0.5, 0.5);
     scoreText.x = sw / 2;
     scoreText.y = sh / 2 + 20;
@@ -915,12 +891,12 @@ $$function create(config) {
 
     // Restart hint (only on game over)
     if (!won) {
-      var restart = new PIXI.Text('Press R to restart', {
+      var restart = new PIXI.Text({ text: 'Press R to restart', style: {
         fontFamily: 'Arial',
         fontSize: 18,
-        fill: 0xAAAAAA,
+        fill: '#aaaaaa',
         align: 'center'
-      });
+      } });
       restart.anchor.set(0.5, 0.5);
       restart.x = sw / 2;
       restart.y = sh / 2 + 60;
@@ -950,13 +926,12 @@ $$function create(config) {
       }
 
       // Lives display (top-left, below health bar if present)
-      livesText = new PIXI.Text('', {
+      livesText = new PIXI.Text({ text: '', style: {
         fontFamily: 'Arial',
         fontSize: 20,
-        fill: 0xFF4444,
-        stroke: 0x000000,
-        strokeThickness: 2
-      });
+        fill: '#ff4444',
+        stroke: { color: '#000000', width: 2 }
+      } });
       livesText.x = 20;
       livesText.y = 44;
       updateLivesText();

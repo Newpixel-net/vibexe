@@ -428,19 +428,19 @@ const callbacks: VibexeCallbacks = {
 				generationOriginType: "studio",
 				inputs: [
 					{
-						nodeId: "errorContext" as any,
+						nodeId: "errorContext",
 						values: {
 							errorMessage: error,
 							failedTaskId: taskId,
 							failedWorkspaceId: workspaceId,
 							timestamp: new Date().toISOString(),
 						},
-					},
+					} as any,
 				],
 			});
 		} catch (err) {
 			// Don't let error workflow failures propagate
-			logger.error("Failed to trigger error workflow:", err);
+			logger.error("Failed to trigger error workflow:", err as any);
 		}
 	},
 	buildAiGatewayHeaders: ({

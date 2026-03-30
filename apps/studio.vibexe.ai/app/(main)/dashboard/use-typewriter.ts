@@ -28,7 +28,7 @@ export function useTypewriter(
 	const indexRef = useRef(0);
 	const phaseRef = useRef<"typing" | "pausing" | "deleting" | "waiting">("typing");
 	const charRef = useRef(0);
-	const rafRef = useRef<ReturnType<typeof setTimeout>>();
+	const rafRef = useRef<ReturnType<typeof setTimeout>>(undefined);
 
 	const tick = useCallback(() => {
 		if (strings.length === 0) return;

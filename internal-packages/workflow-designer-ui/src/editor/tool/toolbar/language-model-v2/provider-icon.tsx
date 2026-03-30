@@ -26,8 +26,7 @@ export function ProviderIcon({
 		case "xai":
 			return <XaiIcon className={className} data-icon />;
 		default: {
-			const _exhaustiveCheck: never = languageModel;
-			throw new Error(`Unknown provider: ${_exhaustiveCheck}`);
+			return null;
 		}
 	}
 }

@@ -198,6 +198,7 @@ export interface CreativeBrief {
 	moveSpeed: number;
 	jumpForce: number;
 	worldWidth: number;
+	worldHeight?: number;
 	platformCount: number;
 	enemyCount: number;
 	coinCount: number;

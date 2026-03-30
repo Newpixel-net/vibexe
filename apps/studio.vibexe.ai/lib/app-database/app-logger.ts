@@ -12,7 +12,7 @@ export async function logAppEvent(
 	databaseName: string,
 	entry: {
 		level: "info" | "warning" | "error" | "debug";
-		category: "api" | "auth" | "entity" | "system";
+		category: "api" | "auth" | "entity" | "system" | "storage";
 		eventType: string;
 		message: string;
 		userId?: number;

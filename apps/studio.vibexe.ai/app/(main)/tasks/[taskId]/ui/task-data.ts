@@ -260,6 +260,7 @@ export async function getTaskData(taskId: TaskId): Promise<UITask> {
 					case "created":
 					case "queued":
 					case "running":
+					case "awaiting_review":
 						return {
 							id: step.id,
 							title: step.name,

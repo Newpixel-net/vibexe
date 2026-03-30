@@ -35,7 +35,7 @@ export async function POST(request: Request) {
 
 		// Diagnostic logging
 		const nodeTypes = converted.nodes.map(
-			(n: { content: { type: string } }) => n.content.type,
+			(n: any) => n.content.type as string,
 		);
 		const nodeTypeCounts: Record<string, number> = {};
 		for (const t of nodeTypes) {
@@ -129,7 +129,7 @@ export async function POST(request: Request) {
 			try {
 				// Find the trigger node to use as agentNodeId
 				const triggerNode = converted.nodes.find(
-					(n: { content: { type: string } }) => n.content.type === "trigger",
+					(n: any) => n.content.type === "trigger",
 				);
 				if (triggerNode) {
 					await db.insert(scheduledWorkflows).values({

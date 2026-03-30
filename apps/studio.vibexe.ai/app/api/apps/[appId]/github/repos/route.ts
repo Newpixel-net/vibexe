@@ -54,11 +54,11 @@ export async function GET(_request: Request, { params }: RouteParams) {
 						return {
 							id: inst.id,
 							account: {
-								login: inst.account?.login ?? "unknown",
+								login: (inst.account as any)?.login ?? "unknown",
 								avatarUrl: inst.account && "avatar_url" in inst.account
 									? inst.account.avatar_url
 									: null,
-								type: inst.account?.type ?? "User",
+								type: (inst.account as any)?.type ?? "User",
 							},
 							repos: reposData.repositories.map((repo) => ({
 								owner: repo.owner.login,

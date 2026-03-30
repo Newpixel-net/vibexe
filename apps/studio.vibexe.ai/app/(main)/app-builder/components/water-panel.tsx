@@ -76,6 +76,10 @@ interface WaterConfig {
 	riverSpeed?: number;
 	surfaceOpacity?: number;
 	buoyancyEnabled?: boolean;
+	underwater?: {
+		color?: { r?: number; g?: number; b?: number } | null;
+		maxOpacity?: number;
+	};
 }
 
 interface WaterPanelProps {

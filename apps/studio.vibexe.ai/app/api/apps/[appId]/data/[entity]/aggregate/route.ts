@@ -55,7 +55,7 @@ const FILTER_OPERATORS: Record<string, string> = {
 function parseAdvancedFilters(
 	searchParams: URLSearchParams,
 	entityFields: EntityField[],
-): { clauses: string[]; params: unknown[]; paramCount: number } {
+): { clauses: string[]; params: unknown[]; paramCount: number; error?: string } {
 	const validFields = new Set([
 		"id",
 		"created_at",
@@ -172,7 +172,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
 		const url = new URL(request.url);
 
 		// Parse filters
-		const parsed = parseAdvancedFilters(url.searchParams, ctx.entity.fields);
+		const parsed = parseAdvancedFilters(url.searchParams, ctx.entity.fields as EntityField[]);
 		if ("error" in parsed && parsed.error) {
 			return NextResponse.json({ error: parsed.error }, { status: 400 });
 		}

@@ -423,7 +423,6 @@ export async function POST(request: Request) {
 
 			return result.toUIMessageStreamResponse({
 				originalMessages: messages,
-				sendRoundtrips: true,
 			});
 		}
 
@@ -434,12 +433,12 @@ export async function POST(request: Request) {
 		const lastUserMsg = [...messages].reverse().find((m) => m.role === "user");
 		let userPrompt = "";
 		if (lastUserMsg) {
-			const content = (lastUserMsg as Record<string, unknown>).content;
+			const content = (lastUserMsg as unknown as Record<string, unknown>).content;
 			if (typeof content === "string" && content.length > 0) {
 				userPrompt = content;
 			} else {
 				// Fallback: extract text from parts array (AI SDK v6 format)
-				const parts = (lastUserMsg as Record<string, unknown>).parts ?? lastUserMsg.parts;
+				const parts = (lastUserMsg as unknown as Record<string, unknown>).parts ?? lastUserMsg.parts;
 				if (Array.isArray(parts)) {
 					userPrompt = parts
 						.filter((p: Record<string, unknown>) => p.type === "text" && typeof p.text === "string")
@@ -491,7 +490,7 @@ export async function POST(request: Request) {
 				}
 			} else {
 				try {
-					siteAnalysis = await analyzeUrl(detectedUrls[0]);
+					siteAnalysis = await analyzeUrl(detectedUrls[0]!);
 					if (siteAnalysis) {
 						enrichedFileContext = `${fileContext}\n\n${formatSiteAnalysis(siteAnalysis)}${wikiContext}`;
 						console.log(
@@ -561,7 +560,6 @@ The user is using Visual Edit mode. They selected a specific element in the live
 				model: visualModel,
 				system: visualPrompt,
 				messages: await convertToModelMessages(messages),
-				maxSteps: 1,
 			});
 
 			return visualResult.toUIMessageStreamResponse({ originalMessages: messages });
@@ -602,7 +600,6 @@ Rules:
 
 			return visualFixResult.toUIMessageStreamResponse({
 				originalMessages: messages,
-				sendRoundtrips: true,
 			});
 		}
 
@@ -660,7 +657,6 @@ If any issues need fixing, end with exactly: '---\\n*Click **Fix Issues** below 
 				model: reviewModel,
 				system: reviewPrompt,
 				messages: await convertToModelMessages(messages),
-				maxSteps: 1,
 			});
 
 			return reviewResult.toUIMessageStreamResponse({
@@ -856,10 +852,10 @@ const supabase = createClient("${supabaseConfig.url}", "${supabaseConfig.anonKey
 		if (isGameProject) {
 			// Extract text from all messages — handle both string content AND parts array (AI SDK v5)
 			const allMessages = messages.map((m: UIMessage) => {
-				const content = (m as Record<string, unknown>).content;
+				const content = (m as unknown as Record<string, unknown>).content;
 				if (typeof content === "string" && content.length > 0) return content;
 				// AI SDK v6: content may be empty, text lives in parts[].text
-				const parts = (m as Record<string, unknown>).parts ?? m.parts;
+				const parts = (m as unknown as Record<string, unknown>).parts ?? m.parts;
 				if (Array.isArray(parts)) {
 					return parts
 						.filter((p: Record<string, unknown>) => p.type === "text" && typeof p.text === "string")
@@ -1850,7 +1846,7 @@ An App Store listing has been analyzed and injected into the project context abo
 		const agentToolIds = primaryAgent?.tools || [];
 		const tools: Record<string, unknown> = {};
 		for (const [toolId, toolDef] of Object.entries(allTools)) {
-			if (agentToolIds.length === 0 || agentToolIds.includes(toolId)) {
+			if (agentToolIds.length === 0 || agentToolIds.includes(toolId as any)) {
 				tools[toolId] = toolDef;
 			}
 		}
@@ -1926,7 +1922,7 @@ An App Store listing has been analyzed and injected into the project context abo
 			model,
 			system: systemPrompt,
 			messages: modelMessages,
-			tools,
+			tools: tools as any,
 			stopWhen: stepCountIs(maxSteps),
 			toolChoice: "auto",
 			// 2D games: temperature 0.6 for creative variety — each game unique
@@ -1990,7 +1986,6 @@ An App Store listing has been analyzed and injected into the project context abo
 
 		return result.toUIMessageStreamResponse({
 			originalMessages: messages,
-			sendRoundtrips: true,
 		});
 	} catch (error) {
 		const errMsg = error instanceof Error ? error.message : String(error);
