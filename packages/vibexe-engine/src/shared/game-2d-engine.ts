@@ -88,6 +88,17 @@ interface WorldBuilderConfig {
   liquidType: string;
   liquidLevel: number;
   platformStyle: string;
+  // Compose API — universal world generation descriptor
+  compose?: {
+    orientation?: 'side-view' | 'top-down';
+    structure?: string;
+    mood?: string;
+    hasGround?: boolean;
+    hasCeiling?: boolean;
+    hasWalls?: boolean;
+    platformCount?: number;
+    platformStyle?: string;
+  };
 }
 
 interface WorldBuilderResult {
@@ -1045,61 +1056,284 @@ class WorldBuilderSystem {
 
     }; // end _elements
 
+    // ===================================================================
+    // COMPOSE API — Universal entry point for world generation
+    // Maps blueprint names OR compose descriptors to element arrangements.
+    // Usage: engine.worldBuilder.build({ blueprint: 'cave-system' })  (legacy)
+    //    OR: engine.worldBuilder.build({ compose: { structure: 'cave', ... } })  (new)
+    // ===================================================================
+
+    var _self = this;
+
+    /**
+     * _compose: Universal world composition from a descriptor.
+     * Arranges scene elements based on structure type + orientation.
+     * This is the CORE of the universal engine — ONE function for ALL game types.
+     */
+    var _compose = function(desc: {
+      orientation?: 'side-view' | 'top-down';
+      structure?: string;   // ground-level, cave, tower, islands, arena, rooms, field, runner
+      mood?: string;        // bright, dark, eerie
+      hasGround?: boolean;
+      hasCeiling?: boolean;
+      hasWalls?: boolean;
+      platformCount?: number;
+      platformStyle?: string;
+    } = {}): void {
+      var el = _elements;
+      var orient = desc.orientation || 'side-view';
+      var struct = desc.structure || 'ground-level';
+      var mood = desc.mood || (theme === 'dark' || theme === 'space' ? 'dark' : 'bright');
+
+      // Helper: add element bodies to world
+      function addBodies(result: { bodies?: any[] }) {
+        if (result.bodies) for (var i = 0; i < result.bodies.length; i++) bodies.push(result.bodies[i]);
+      }
+      function addPlatform(result: { platformData?: any }) {
+        if (result.platformData) platforms.push(result.platformData);
+      }
+
+      // === LAYER 1: Sky ===
+      container.addChild(el.sky({ mood: mood }).container);
+
+      // === LAYER 2: Background (side-view only) ===
+      if (orient === 'side-view' && struct !== 'arena' && struct !== 'cave') {
+        var _bg = el.background();
+        container.addChild(_bg.container);
+        for (var _bli = 0; _bli < _bg.parallaxLayers.length; _bli++) parallaxLayers.push(_bg.parallaxLayers[_bli]);
+
+        var _cl = el.clouds();
+        container.addChild(_cl.container);
+        for (var _cli = 0; _cli < _cl.cloudList.length; _cli++) clouds.push(_cl.cloudList[_cli]);
+      }
+
+      // === LAYER 3: Structure (the core layout) ===
+      if (struct === 'ground-level' || struct === 'outdoor') {
+        // Standard side-scrolling: ground + scattered platforms
+        var _gr = el.ground();
+        container.addChild(_gr.container);
+        addBodies(_gr);
+
+        var _platPos = _self._generateSolutionPath(ctx, 350, GY - 200, W - 200, GY - 150, {
+          jumpH: 128, jumpD: 192, count: desc.platformCount || cfg.platformCount, style: desc.platformStyle || cfg.platformStyle,
+        });
+        for (var pi = 0; pi < _platPos.length; pi++) {
+          var pp = _platPos[pi];
+          var _plat = el.platform({ x: pp.x, y: pp.y, width: pp.w });
+          container.addChild(_plat.container);
+          addBodies(_plat); addPlatform(_plat);
+        }
+        container.addChild(el.trees().container);
+        container.addChild(el.props().container);
+
+      } else if (struct === 'cave') {
+        // Cave: ground + ceiling + platforms between
+        var _grC = el.ground();
+        container.addChild(_grC.container);
+        addBodies(_grC);
+        var ceilH = 60 + rngInt(0, 40);
+        var _ceil = el.ceiling({ ceilingH: ceilH });
+        container.addChild(_ceil.container);
+        addBodies(_ceil);
+        // Platforms in cave space
+        var pCount = desc.platformCount || cfg.platformCount || 8;
+        for (var ci = 0; ci < pCount; ci++) {
+          var cpx = rngRange(200, W - 200), cpy = rngRange(ceilH + 60, GY - 60);
+          var _cp = el.platform({ x: cpx, y: cpy, width: rngInt(80, 160), height: 32 });
+          container.addChild(_cp.container);
+          addBodies(_cp); addPlatform(_cp);
+        }
+
+      } else if (struct === 'tower') {
+        // Tower: walls + ground + spiraling platforms
+        var _grT = el.ground();
+        container.addChild(_grT.container);
+        addBodies(_grT);
+        var wallW = 40;
+        var _wl = el.wall({ x: 0, height: H, width: wallW, side: 'left' });
+        container.addChild(_wl.container); addBodies(_wl);
+        var _wr = el.wall({ x: W - wallW, height: H, width: wallW, side: 'right' });
+        container.addChild(_wr.container); addBodies(_wr);
+        var tCount = desc.platformCount || cfg.platformCount || 15;
+        var tSpacing = (GY - 100) / tCount;
+        var side = 0;
+        for (var ti = 0; ti < tCount; ti++) {
+          var ty = GY - 80 - ti * tSpacing + rngRange(-10, 10);
+          var tw = rngInt(100, 180);
+          var tx = side === 0 ? wallW + 40 + rngRange(0, W * 0.3) : W - wallW - 40 - rngRange(0, W * 0.3);
+          side = 1 - side;
+          var _tp = el.platform({ x: tx, y: ty, width: tw, height: 32 });
+          container.addChild(_tp.container); addBodies(_tp); addPlatform(_tp);
+        }
+
+      } else if (struct === 'islands') {
+        // Floating islands: no ground, islands + stepping stones
+        var iCount = rngInt(4, 6);
+        var iSpacing = W / iCount;
+        for (var ii = 0; ii < iCount; ii++) {
+          var ix = iSpacing * (ii + 0.5) + rngRange(-80, 80);
+          var iy = rngRange(H * 0.2, H * 0.55);
+          var _isl = el.island({ x: ix, y: iy, width: rngInt(180, 350), height: rngInt(60, 100) });
+          container.addChild(_isl.container); addBodies(_isl); addPlatform(_isl);
+        }
+        for (var si = 0; si < rngInt(4, 8); si++) {
+          var sx = rngRange(100, W - 100), sy = rngRange(H * 0.15, H * 0.6);
+          var _sp = el.platform({ x: sx, y: sy, width: rngInt(60, 100), height: 28 });
+          container.addChild(_sp.container); addBodies(_sp); addPlatform(_sp);
+        }
+        bodies.push({ x: W / 2, y: H + 20, w: W, h: 40, isStatic: true, tag: 'death' });
+
+      } else if (struct === 'arena') {
+        // Enclosed box: ground + ceiling + walls + 1-2 platforms
+        var _grA = el.ground();
+        container.addChild(_grA.container); addBodies(_grA);
+        var _ceilA = el.ceiling({ ceilingH: 30 });
+        container.addChild(_ceilA.container); addBodies(_ceilA);
+        var _wlA = el.wall({ x: 0, height: H, width: 30, side: 'left' });
+        container.addChild(_wlA.container); addBodies(_wlA);
+        var _wrA = el.wall({ x: W - 30, height: H, width: 30, side: 'right' });
+        container.addChild(_wrA.container); addBodies(_wrA);
+        for (var ai = 0; ai < rngInt(1, 2); ai++) {
+          var apx = W / 2 + (ai === 0 ? -80 : 80), apy = GY - rngRange(120, 200);
+          var _ap = el.platform({ x: apx, y: apy, width: rngInt(120, 200), height: 32 });
+          container.addChild(_ap.container); addBodies(_ap); addPlatform(_ap);
+        }
+
+      } else if (struct === 'rooms' && orient === 'top-down') {
+        // Top-down room network (uses room + corridor elements)
+        var rmCount = rngInt(4, 7);
+        var rms: { x: number; y: number; w: number; h: number }[] = [];
+        var margin = 80, minRm = 150, maxRm = 300;
+        for (var rri = 0; rri < rmCount * 3 && rms.length < rmCount; rri++) {
+          var rrw = rngInt(minRm, maxRm), rrh = rngInt(minRm, maxRm);
+          var rrx = rngInt(margin, W - rrw - margin), rry = rngInt(margin, H - rrh - margin);
+          var overlaps = false;
+          for (var rci = 0; rci < rms.length; rci++) {
+            var rc = rms[rci];
+            if (rrx < rc.x + rc.w + 40 && rrx + rrw + 40 > rc.x && rry < rc.y + rc.h + 40 && rry + rrh + 40 > rc.y) { overlaps = true; break; }
+          }
+          if (!overlaps) rms.push({ x: rrx, y: rry, w: rrw, h: rrh });
+        }
+        if (rms.length < 2) rms = [{ x: 100, y: 100, w: 300, h: 250 }, { x: W - 450, y: H - 400, w: 300, h: 250 }];
+
+        for (var rmi = 0; rmi < rms.length; rmi++) {
+          var rm = rms[rmi];
+          var openings: ('north' | 'south' | 'east' | 'west')[] = [];
+          if (rmi > 0) openings.push('west');
+          if (rmi < rms.length - 1) openings.push('east');
+          var _room = el.room({ x: rm.x, y: rm.y, width: rm.w, height: rm.h, openings: openings });
+          container.addChild(_room.container);
+          addBodies(_room);
+          platforms.push({ x: rm.x + rm.w / 2, y: rm.y + rm.h / 2, w: rm.w });
+        }
+        // Connect rooms with corridors
+        for (var rci2 = 0; rci2 < rms.length - 1; rci2++) {
+          var r1 = rms[rci2], r2 = rms[rci2 + 1];
+          var _corr = el.corridor({ fromX: r1.x + r1.w, fromY: r1.y + r1.h / 2, toX: r2.x, toY: r2.y + r2.h / 2, width: 64 });
+          container.addChild(_corr.container);
+          addBodies(_corr);
+        }
+        console.log('[WorldBuilder] Composed ' + rms.length + ' rooms connected');
+
+      } else if (struct === 'field' && orient === 'top-down') {
+        // Open field: boundary walls + empty interior
+        var _wlF = el.wall({ x: 0, height: H, width: 20, side: 'left' });
+        container.addChild(_wlF.container); addBodies(_wlF);
+        var _wrF = el.wall({ x: W - 20, height: H, width: 20, side: 'right' });
+        container.addChild(_wrF.container); addBodies(_wrF);
+        bodies.push({ x: W / 2, y: 10, w: W, h: 20, isStatic: true, tag: 'wall' });
+        bodies.push({ x: W / 2, y: H - 10, w: W, h: 20, isStatic: true, tag: 'wall' });
+        // Floor fill
+        var _grF = el.ground({ groundY: 0, height: H });
+        container.addChild(_grF.container);
+        platforms.push({ x: W / 2, y: H / 2, w: 100 });
+
+      } else if (struct === 'runner') {
+        // Segmented ground with gaps + overhead platforms
+        var segCount = rngInt(6, 10), segSpacing = W / segCount;
+        for (var rsi = 0; rsi < segCount; rsi++) {
+          if (rsi > 0 && rng() > 0.4) continue;
+          var rsx = rsi * segSpacing, rsw = segSpacing - rngRange(10, 40);
+          var _seg = el.ground({ groundY: GY, width: rsw, height: H });
+          _seg.container.x = rsx;
+          container.addChild(_seg.container);
+          bodies.push({ x: rsx + rsw / 2, y: GY + 4, w: rsw, h: 8, isStatic: true, tag: 'ground' });
+          platforms.push({ x: rsx + rsw / 2, y: GY + 4, w: rsw, body: bodies[bodies.length - 1] });
+        }
+        for (var rpi = 0; rpi < rngInt(4, 8); rpi++) {
+          var rpx = rngRange(200, W - 100), rpy = GY - rngRange(100, 250);
+          var _rp = el.platform({ x: rpx, y: rpy, width: rngInt(80, 140), height: 32 });
+          container.addChild(_rp.container); addBodies(_rp); addPlatform(_rp);
+        }
+        bodies.push({ x: W / 2, y: H + 20, w: W, h: 40, isStatic: true, tag: 'death' });
+
+      } else {
+        // Fallback: ground-level
+        var _grDef = el.ground();
+        container.addChild(_grDef.container); addBodies(_grDef);
+      }
+
+      // === LAYER 4: Decorations (side-view) ===
+      if (orient === 'side-view' && struct !== 'arena') {
+        if (struct !== 'cave' && struct !== 'islands') {
+          container.addChild(el.trees().container);
+        }
+      }
+
+      // === LAYER 5: Atmosphere ===
+      var fgType = struct === 'cave' ? 'cave' : orient === 'top-down' ? 'dungeon' : 'outdoor';
+      container.addChild(el.atmosphere({ vignetteAlpha: mood === 'dark' ? 0.4 : 0.25 }).container);
+      container.addChild(el.foreground({ type: fgType }).container);
+    }; // end _compose
+
+    // ===================================================================
+    // BLUEPRINT-TO-COMPOSE MAPPING — backward compat for old blueprint names
+    // Maps each blueprint to a compose() descriptor so old code keeps working.
+    // ===================================================================
+    var BLUEPRINT_COMPOSE: Record<string, any> = {
+      'outdoor-scroll':    { structure: 'ground-level', orientation: 'side-view' },
+      'cave-system':       { structure: 'cave', orientation: 'side-view', mood: 'dark' },
+      'vertical-tower':    { structure: 'tower', orientation: 'side-view' },
+      'floating-islands':  { structure: 'islands', orientation: 'side-view' },
+      'arena':             { structure: 'arena', orientation: 'side-view', mood: 'dark' },
+      'dungeon-rooms':     { structure: 'cave', orientation: 'side-view', mood: 'dark' },
+      'city-rooftops':     { structure: 'ground-level', orientation: 'side-view', mood: 'dark' },
+      'forest-canopy':     { structure: 'ground-level', orientation: 'side-view' },
+      'underwater':        { structure: 'ground-level', orientation: 'side-view' },
+      'endless-runner':    { structure: 'runner', orientation: 'side-view' },
+      'dungeon-topdown':   { structure: 'rooms', orientation: 'top-down', mood: 'dark' },
+      'open-field':        { structure: 'field', orientation: 'top-down' },
+    };
+
     // Build context for blueprint dispatch
     var ctx = { PIXI: PIXI, cfg: cfg, rng: rng, rngRange: rngRange, rngInt: rngInt, _getSprite: _getSprite, _getTilingSprite: _getTilingSprite, pal: pal, hexCss: hexCss, _makePlatform: _makePlatform, _composePlatform: _composePlatform, _composeGround: _composeGround, container: container, bodies: bodies, platforms: platforms, parallaxLayers: parallaxLayers, clouds: clouds, W: W, H: H, GY: GY, groundMap: groundMap, platMap: platMap, treeMap: treeMap, TILE_STYLES: TILE_STYLES, THEME_TILE: THEME_TILE, _cache: _cache, elements: _elements };
 
-    var _bpDone = false;
+    // === WORLD GENERATION: compose() or legacy blueprint dispatch ===
     var _bp = cfg.blueprint;
-    if (_bp === 'cave-system') { this._buildCaveSystem(ctx); _bpDone = true; }
-    else if (_bp === 'vertical-tower') { this._buildVerticalTower(ctx); _bpDone = true; }
-    else if (_bp === 'floating-islands') { this._buildFloatingIslands(ctx); _bpDone = true; }
-    else if (_bp === 'arena') { this._buildArena(ctx); _bpDone = true; }
-    else if (_bp === 'dungeon-rooms') { this._buildDungeonRooms(ctx); _bpDone = true; }
-    else if (_bp === 'city-rooftops') { this._buildCityRooftops(ctx); _bpDone = true; }
-    else if (_bp === 'forest-canopy') { this._buildForestCanopy(ctx); _bpDone = true; }
-    else if (_bp === 'underwater') { this._buildUnderwater(ctx); _bpDone = true; }
-    else if (_bp === 'endless-runner') { this._buildEndlessRunner(ctx); _bpDone = true; }
-    else if (_bp === 'dungeon-topdown') { this._buildDungeonTopdown(ctx); _bpDone = true; }
-    else if (_bp === 'open-field') { this._buildOpenField(ctx); _bpDone = true; }
 
-    if (!_bpDone) {
-    // ==== Default: OUTDOOR SCROLL — now built from Scene Elements ====
-    var _sky = _elements.sky();
-    container.addChild(_sky.container);
-
-    var _bg = _elements.background();
-    container.addChild(_bg.container);
-    for (var _bli = 0; _bli < _bg.parallaxLayers.length; _bli++) parallaxLayers.push(_bg.parallaxLayers[_bli]);
-
-    var _cl = _elements.clouds();
-    container.addChild(_cl.container);
-    for (var _cli = 0; _cli < _cl.cloudList.length; _cli++) clouds.push(_cl.cloudList[_cli]);
-
-    // Ground element (sprite tiles)
-    var _gr = _elements.ground();
-    container.addChild(_gr.container);
-    for (var _gbi = 0; _gbi < _gr.bodies.length; _gbi++) bodies.push(_gr.bodies[_gbi]);
-
-    // Platforms — solution-path guaranteed reachable
-    var _platPositions = this._generateSolutionPath(ctx, 350, GY - 200, W - 200, GY - 150, {
-      jumpH: 128, jumpD: 192, count: cfg.platformCount, style: cfg.platformStyle,
-    });
-    for (var pi = 0; pi < _platPositions.length; pi++) {
-      var pp = _platPositions[pi];
-      var _plat = _elements.platform({ x: pp.x, y: pp.y, width: pp.w });
-      container.addChild(_plat.container);
-      for (var _pbi = 0; _pbi < _plat.bodies.length; _pbi++) bodies.push(_plat.bodies[_pbi]);
-      platforms.push(_plat.platformData);
+    // Check if compose descriptor is provided directly
+    if ((cfg as any).compose) {
+      _compose((cfg as any).compose);
     }
-
-    // Decorations
-    container.addChild(_elements.trees().container);
-    container.addChild(_elements.props().container);
-
-    // Atmosphere + foreground
-    container.addChild(_elements.atmosphere().container);
-    container.addChild(_elements.foreground({ type: 'outdoor' }).container);
-    } // end if (!_bpDone) outdoor-scroll block
+    // Check if blueprint maps to a compose descriptor
+    else if (BLUEPRINT_COMPOSE[_bp]) {
+      _compose(BLUEPRINT_COMPOSE[_bp]);
+    }
+    // Legacy: dispatch to old _build methods (dungeon-topdown, open-field have custom logic)
+    else if (_bp === 'dungeon-topdown') { this._buildDungeonTopdown(ctx); }
+    else if (_bp === 'open-field') { this._buildOpenField(ctx); }
+    // Blueprints that have unique visuals not captured by compose yet
+    else if (_bp === 'city-rooftops') { this._buildCityRooftops(ctx); }
+    else if (_bp === 'forest-canopy') { this._buildForestCanopy(ctx); }
+    else if (_bp === 'underwater') { this._buildUnderwater(ctx); }
+    else if (_bp === 'dungeon-rooms') { this._buildDungeonRooms(ctx); }
+    else if (_bp === 'cave-system') { this._buildCaveSystem(ctx); }
+    else if (_bp === 'vertical-tower') { this._buildVerticalTower(ctx); }
+    else if (_bp === 'floating-islands') { this._buildFloatingIslands(ctx); }
+    else if (_bp === 'arena') { this._buildArena(ctx); }
+    else if (_bp === 'endless-runner') { this._buildEndlessRunner(ctx); }
+    // Default: compose ground-level
+    else { _compose({ structure: 'ground-level', orientation: 'side-view' }); }
 
     // Liquid overlay (applies to any blueprint)
     if (cfg.liquidType !== 'none' && cfg.liquidLevel > 0) {
