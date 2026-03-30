@@ -1657,6 +1657,16 @@ class WorldBuilderSystem {
 
     console.log('[WorldBuilder] Composed ' + platforms.length + ' platforms with tile pieces + professional placement');
 
+    // Auto-build NavGrid from physics bodies (for pathfinding in top-down games)
+    if (_isTopdown) {
+      try {
+        var _navGrid = new NavGrid(W, H, 32);
+        _navGrid.buildFromBodies(bodies);
+        (this.engine as any).nav = _navGrid;
+        console.log('[WorldBuilder] NavGrid built: ' + _navGrid.width + 'x' + _navGrid.height + ' cells');
+      } catch(e) { console.warn('[WorldBuilder] NavGrid build failed:', e); }
+    }
+
     // Build result
     var result: WorldBuilderResult = {
       container: container,
@@ -3473,6 +3483,7 @@ export class Engine2D {
   input: InputManager;
   camera: Camera2D;
   audio: AudioManager;
+  nav: NavGrid | null = null;  // Navigation grid for pathfinding (populated after worldBuilder.build)
   config: Engine2DConfig;
 
   // Namespace systems (engine.spawn.*, engine.effects.*, etc.)
@@ -4252,6 +4263,169 @@ export class Camera2D {
   // Internal reference set during engine init
   _worldContainer: any = null;
   _boundsOffset: { x: number; y: number } = { x: 0, y: 0 };
+}
+
+// ---------------------------------------------------------------------------
+// NavGrid — Simple navigation grid for top-down pathfinding
+// ---------------------------------------------------------------------------
+
+export class NavGrid {
+  width: number;
+  height: number;
+  cellSize: number;
+  grid: Uint8Array; // 0=walkable, 1=blocked
+
+  constructor(worldW: number, worldH: number, cellSize = 32) {
+    this.cellSize = cellSize;
+    this.width = Math.ceil(worldW / cellSize);
+    this.height = Math.ceil(worldH / cellSize);
+    this.grid = new Uint8Array(this.width * this.height); // all walkable by default
+  }
+
+  /** Mark a rectangular area as blocked (for walls, obstacles) */
+  blockRect(x: number, y: number, w: number, h: number): void {
+    var cx1 = Math.max(0, Math.floor(x / this.cellSize));
+    var cy1 = Math.max(0, Math.floor(y / this.cellSize));
+    var cx2 = Math.min(this.width, Math.ceil((x + w) / this.cellSize));
+    var cy2 = Math.min(this.height, Math.ceil((y + h) / this.cellSize));
+    for (var cy = cy1; cy < cy2; cy++)
+      for (var cx = cx1; cx < cx2; cx++)
+        this.grid[cy * this.width + cx] = 1;
+  }
+
+  /** Build from physics bodies — mark all static bodies as blocked */
+  buildFromBodies(bodies: { x: number; y: number; w: number; h: number; isStatic?: boolean }[]): void {
+    for (var i = 0; i < bodies.length; i++) {
+      var b = bodies[i];
+      if (b.isStatic) {
+        this.blockRect(b.x - b.w / 2, b.y - b.h / 2, b.w, b.h);
+      }
+    }
+  }
+
+  /** Check if a cell is walkable */
+  isWalkable(cx: number, cy: number): boolean {
+    if (cx < 0 || cy < 0 || cx >= this.width || cy >= this.height) return false;
+    return this.grid[cy * this.width + cx] === 0;
+  }
+
+  /** A* pathfinding — returns array of world positions from start to end */
+  findPath(fromX: number, fromY: number, toX: number, toY: number): { x: number; y: number }[] {
+    var cs = this.cellSize;
+    var sx = Math.floor(fromX / cs), sy = Math.floor(fromY / cs);
+    var ex = Math.floor(toX / cs), ey = Math.floor(toY / cs);
+
+    if (!this.isWalkable(sx, sy) || !this.isWalkable(ex, ey)) return [];
+
+    var w = this.width, h = this.height;
+    var gScore = new Float32Array(w * h);
+    var fScore = new Float32Array(w * h);
+    var cameFrom = new Int32Array(w * h);
+    for (var i = 0; i < w * h; i++) { gScore[i] = Infinity; fScore[i] = Infinity; cameFrom[i] = -1; }
+
+    var startIdx = sy * w + sx;
+    gScore[startIdx] = 0;
+    fScore[startIdx] = Math.abs(ex - sx) + Math.abs(ey - sy);
+
+    // Simple open set (array-based, adequate for small grids)
+    var open: number[] = [startIdx];
+    var closed = new Uint8Array(w * h);
+
+    var dirs = [[-1,0],[1,0],[0,-1],[0,1]]; // 4-directional
+    var maxIter = w * h;
+
+    while (open.length > 0 && maxIter-- > 0) {
+      // Find lowest fScore in open
+      var bestIdx = 0;
+      for (var oi = 1; oi < open.length; oi++) {
+        if (fScore[open[oi]] < fScore[open[bestIdx]]) bestIdx = oi;
+      }
+      var current = open[bestIdx];
+      open.splice(bestIdx, 1);
+
+      var cx2 = current % w, cy2 = Math.floor(current / w);
+      if (cx2 === ex && cy2 === ey) {
+        // Reconstruct path
+        var path: { x: number; y: number }[] = [];
+        var idx = current;
+        while (idx !== -1) {
+          path.unshift({ x: (idx % w) * cs + cs / 2, y: Math.floor(idx / w) * cs + cs / 2 });
+          idx = cameFrom[idx];
+        }
+        return path;
+      }
+
+      closed[current] = 1;
+
+      for (var di = 0; di < dirs.length; di++) {
+        var nx = cx2 + dirs[di][0], ny = cy2 + dirs[di][1];
+        if (!this.isWalkable(nx, ny)) continue;
+        var nIdx = ny * w + nx;
+        if (closed[nIdx]) continue;
+
+        var tentG = gScore[current] + 1;
+        if (tentG < gScore[nIdx]) {
+          cameFrom[nIdx] = current;
+          gScore[nIdx] = tentG;
+          fScore[nIdx] = tentG + Math.abs(ex - nx) + Math.abs(ey - ny);
+          if (open.indexOf(nIdx) < 0) open.push(nIdx);
+        }
+      }
+    }
+
+    return []; // no path found
+  }
+
+  /** BFS distance from a point — returns distance grid (useful for "farthest from spawn") */
+  distanceFrom(worldX: number, worldY: number): Float32Array {
+    var cs = this.cellSize, w = this.width, h = this.height;
+    var sx = Math.floor(worldX / cs), sy = Math.floor(worldY / cs);
+    var dist = new Float32Array(w * h);
+    for (var i = 0; i < w * h; i++) dist[i] = Infinity;
+
+    if (!this.isWalkable(sx, sy)) return dist;
+
+    var queue: number[] = [sy * w + sx];
+    dist[sy * w + sx] = 0;
+    var dirs = [[-1,0],[1,0],[0,-1],[0,1]];
+
+    while (queue.length > 0) {
+      var current = queue.shift()!;
+      var cx3 = current % w, cy3 = Math.floor(current / w);
+      var cd = dist[current];
+
+      for (var di = 0; di < dirs.length; di++) {
+        var nx = cx3 + dirs[di][0], ny = cy3 + dirs[di][1];
+        if (!this.isWalkable(nx, ny)) continue;
+        var nIdx = ny * w + nx;
+        if (cd + 1 < dist[nIdx]) {
+          dist[nIdx] = cd + 1;
+          queue.push(nIdx);
+        }
+      }
+    }
+
+    return dist;
+  }
+
+  /** Generate a patrol path: back-and-forth between walkable points near origin */
+  generatePatrolPath(worldX: number, worldY: number, range = 128): { x: number; y: number }[] {
+    var cs = this.cellSize;
+    var cx = Math.floor(worldX / cs), cy = Math.floor(worldY / cs);
+    var rangeCells = Math.ceil(range / cs);
+
+    // Find walkable extent left/right (side-view) or all directions (top-down)
+    var leftX = cx, rightX = cx;
+    while (leftX > cx - rangeCells && this.isWalkable(leftX - 1, cy)) leftX--;
+    while (rightX < cx + rangeCells && this.isWalkable(rightX + 1, cy)) rightX++;
+
+    if (rightX - leftX < 2) return [{ x: worldX, y: worldY }]; // stuck
+
+    return [
+      { x: leftX * cs + cs / 2, y: cy * cs + cs / 2 },
+      { x: rightX * cs + cs / 2, y: cy * cs + cs / 2 },
+    ];
+  }
 }
 
 // ---------------------------------------------------------------------------
