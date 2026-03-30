@@ -381,10 +381,12 @@ class WorldBuilderSystem {
         var treeName = themeTreeNames[rngInt(0, themeTreeNames.length - 1)];
         var treeSpr = _getSprite('trees', treeName);
         if (treeSpr) {
-          treeSpr.anchor.set(0.5, 1); // bottom-center anchor
+          treeSpr.anchor.set(0.5, 1);
           treeSpr.x = ti * treeSpacing + rngRange(40, treeSpacing - 40);
-          treeSpr.y = GY; // anchored at ground level
+          treeSpr.y = GY;
           treeSpr.scale.set(rngRange(1.5, 3.0));
+          (treeSpr as any).__juiceSway = true;
+          (treeSpr as any).__juiceSwayPhase = rngRange(0, Math.PI * 2);
           container.addChild(treeSpr);
         }
       }
@@ -494,8 +496,11 @@ class WorldBuilderSystem {
             coinSpr.anchor.set(0.5, 1);
             coinSpr.x = _pp.x - _pp.w / 2 + coinSpacing * (_ci + 1);
             coinSpr.y = _pp.y - 20;
-            coinSpr.scale.set(0.35); // 128px * 0.35 = 45px — clearly visible
+            coinSpr.scale.set(0.35);
             coinSpr.zIndex = 100;
+            (coinSpr as any).__juiceBob = true;
+            (coinSpr as any).__juiceBobBase = _pp.y - 20;
+            (coinSpr as any).__juiceBobPhase = rngRange(0, Math.PI * 2);
             container.addChild(coinSpr);
           }
         }
@@ -508,8 +513,11 @@ class WorldBuilderSystem {
           gemSpr.anchor.set(0.5, 1);
           gemSpr.x = _pp.x + rngRange(-20, 20);
           gemSpr.y = _pp.y - 24;
-          gemSpr.scale.set(0.45); // clearly visible gem
+          gemSpr.scale.set(0.45);
           gemSpr.zIndex = 100;
+          (gemSpr as any).__juiceBob = true;
+          (gemSpr as any).__juiceBobBase = _pp.y - 24;
+          (gemSpr as any).__juiceBobPhase = rngRange(0, Math.PI * 2);
           container.addChild(gemSpr);
         }
       }
@@ -2326,6 +2334,11 @@ export class Engine2D {
   private _depthSortLabels: Set<string> | null = null;
   private _fpsFrames = 0;
   private _fpsTime = 0;
+
+  // Auto-juice tracking
+  private _juiceBobSprites: any[] = [];   // sprites that float up/down (coins, gems)
+  private _juiceSwaySprites: any[] = [];  // sprites that sway (trees)
+  private _juicePlayerWasAirborne = false; // landing dust detection
   private _fpsDisplay: any = null;
 
   constructor(config: Engine2DConfig) {
@@ -2467,6 +2480,11 @@ export class Engine2D {
       // Update feature snippets
       this.features.updateAll(dt);
 
+      // ================================================================
+      // AUTO-JUICE: Mandatory visual polish — runs every frame
+      // ================================================================
+      this._updateJuice(dt);
+
       // Update GM-style instance variables (motion, gravity, friction, alarms)
       this.instances.update(dt);
 
@@ -2488,6 +2506,22 @@ export class Engine2D {
 
       // FPS counter
       this._updateFPS(dt);
+    });
+
+    // Auto-juice event hooks — shake + sparkle on game events
+    this.events.on('enemy-killed', (data: any) => {
+      try {
+        this.camera.shake(4, 0.2);
+        if (data && data.x != null) this.particles.sparkle(data.x, data.y);
+      } catch(e) {}
+    });
+    this.events.on('player-damage', (_data: any) => {
+      try { this.camera.shake(6, 0.25); } catch(e) {}
+    });
+    this.events.on('collect', (data: any) => {
+      try {
+        if (data && data.x != null) this.particles.sparkle(data.x, data.y);
+      } catch(e) {}
     });
 
     // Tab visibility — pause proton when backgrounded
@@ -2673,6 +2707,66 @@ export class Engine2D {
       try { window.parent.postMessage({ type: 'vibexe-fps', fps }, '*'); } catch(e) {}
       this._fpsFrames = 0;
       this._fpsTime = 0;
+    }
+  }
+
+  /** Mandatory juice update — collectible bob, tree sway, landing dust, auto-shake */
+  private _updateJuice(dt: number): void {
+    var elapsed = this._elapsed;
+
+    // --- Collectible bob (sine wave float) ---
+    // Scan world children for tagged sprites (lazy — only scan once)
+    if (this._juiceBobSprites.length === 0 && this.world && this.world.children) {
+      var wc = this.world.children;
+      for (var i = 0; i < wc.length; i++) {
+        var ch = wc[i] as any;
+        if (ch.__juiceBob) this._juiceBobSprites.push(ch);
+        if (ch.__juiceSway) this._juiceSwaySprites.push(ch);
+        // Recurse one level into sub-containers (WorldBuilder container)
+        if (ch.children) {
+          for (var j = 0; j < ch.children.length; j++) {
+            var sub = ch.children[j] as any;
+            if (sub.__juiceBob) this._juiceBobSprites.push(sub);
+            if (sub.__juiceSway) this._juiceSwaySprites.push(sub);
+          }
+        }
+      }
+      if (this._juiceBobSprites.length > 0) {
+        console.log('[Juice] Animating ' + this._juiceBobSprites.length + ' collectibles + ' + this._juiceSwaySprites.length + ' trees');
+      }
+    }
+
+    // Bob collectibles up/down (sine wave, 8px amplitude, ~2Hz)
+    for (var bi = 0; bi < this._juiceBobSprites.length; bi++) {
+      var bob = this._juiceBobSprites[bi] as any;
+      if (bob.destroyed) continue;
+      bob.y = bob.__juiceBobBase + Math.sin(elapsed * 3.5 + bob.__juiceBobPhase) * 8;
+    }
+
+    // Sway trees (gentle rotation, ±2 degrees, slow period)
+    for (var si = 0; si < this._juiceSwaySprites.length; si++) {
+      var sway = this._juiceSwaySprites[si] as any;
+      if (sway.destroyed) continue;
+      sway.rotation = Math.sin(elapsed * 0.8 + sway.__juiceSwayPhase) * 0.035; // ~2 degrees
+    }
+
+    // --- Landing dust ---
+    var pf = this.features.get('player-platformer');
+    if (pf) {
+      try {
+        var playerData = pf.getPlayer ? pf.getPlayer() : null;
+        if (playerData && playerData.body) {
+          var isGrounded = playerData.body.onGround || false;
+          if (isGrounded && this._juicePlayerWasAirborne) {
+            // Just landed! Emit dust + small shake
+            var px = playerData.body.x || (playerData.sprite ? playerData.sprite.x : 0);
+            var py = playerData.body.y || (playerData.sprite ? playerData.sprite.y : 0);
+            try { this.particles.dust(px, py); } catch(e) {}
+            try { this.camera.shake(2, 0.1); } catch(e) {}
+          }
+          this._juicePlayerWasAirborne = !isGrounded;
+        }
+      } catch(e) { /* player feature not ready */ }
     }
   }
 }
