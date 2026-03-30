@@ -186,31 +186,142 @@ class WorldBuilderSystem {
     // Helper: hex number to CSS
     function hexCss(c: number): string { return '#' + ('000000' + c.toString(16)).slice(-6); }
 
-    // Helper: create a sprite-based platform (TilingSprite) instead of Graphics
-    function _makePlatform(pw: number, ph: number): any {
+    // ===================================================================
+    // TILE COMPOSITION SYSTEM — Professional sprite-based tile rendering
+    // Maps Kenney Platformer Art Deluxe pieces: [Left][Mid]×n[Right]
+    // Supports ANY tile style — AI picks style, engine composes properly
+    // ===================================================================
+
+    var TILE_STYLES: Record<string, { cat: string; surface: { left: string; mid: string; right: string }; fill: string; single: string; cliff: { left: string; right: string } }> = {
+      grass:  { cat: 'tiles/grass',  surface: { left: 'grassLeft',  mid: 'grassMid',  right: 'grassRight' },  fill: 'grassCenter',  single: 'grass',  cliff: { left: 'grassCliffLeft',  right: 'grassCliffRight' } },
+      stone:  { cat: 'tiles/stone',  surface: { left: 'stoneLeft',  mid: 'stoneMid',  right: 'stoneRight' },  fill: 'stoneCenter',  single: 'stone',  cliff: { left: 'stoneCliffLeft',  right: 'stoneCliffRight' } },
+      castle: { cat: 'tiles/stone',  surface: { left: 'castleLeft', mid: 'castleMid', right: 'castleRight' }, fill: 'castleCenter', single: 'castle', cliff: { left: 'castleCliffLeft', right: 'castleCliffRight' } },
+      sand:   { cat: 'tiles/sand',   surface: { left: 'sandLeft',   mid: 'sandMid',   right: 'sandRight' },   fill: 'sandCenter',   single: 'sand',   cliff: { left: 'sandCliffLeft',   right: 'sandCliffRight' } },
+      snow:   { cat: 'tiles/snow',   surface: { left: 'snowLeft',   mid: 'snowMid',   right: 'snowRight' },   fill: 'snowCenter',   single: 'snow',   cliff: { left: 'snowCliffLeft',   right: 'snowCliffRight' } },
+      candy:  { cat: 'tiles/candy',  surface: { left: 'cakeLeft',   mid: 'cakeMid',   right: 'cakeRight' },   fill: 'cakeCenter',   single: 'cake',   cliff: { left: 'cakeCliffLeft',   right: 'cakeCliffRight' } },
+      lava:   { cat: 'tiles/stone',  surface: { left: 'stoneLeft',  mid: 'stoneMid',  right: 'stoneRight' },  fill: 'stoneCenter',  single: 'stone',  cliff: { left: 'stoneCliffLeft',  right: 'stoneCliffRight' } },
+      cave:   { cat: 'tiles/stone',  surface: { left: 'castleLeft', mid: 'castleMid', right: 'castleRight' }, fill: 'castleCenter', single: 'castle', cliff: { left: 'castleCliffLeft', right: 'castleCliffRight' } },
+    };
+
+    // Theme → tile style name (AI picks theme, engine resolves tile style)
+    var THEME_TILE: Record<string, string> = {
+      forest: 'grass', sunset: 'grass', candy: 'candy',
+      volcanic: 'lava', dark: 'cave', space: 'stone',
+      arctic: 'snow', ocean: 'sand',
+    };
+
+    /**
+     * Compose a platform from tile pieces: [Left][Mid]×n[Right]
+     * Guarantees proper edge tiles for ANY style. Returns a positioned Container.
+     */
+    function _composePlatform(pw: number, ph: number): any {
+      var styleName = THEME_TILE[theme] || 'grass';
+      var style = TILE_STYLES[styleName];
+      if (!style) return _makePlatformFallback(pw, ph);
+
+      var tileW = 64; // render-size per tile
+      var tileCount = Math.max(1, Math.round(pw / tileW));
+      var actualTW = pw / tileCount;
+
+      if (tileCount === 1) {
+        var spr = _getSprite(style.cat, style.single);
+        if (spr) { spr.anchor.set(0.5, 0.5); spr.width = pw; spr.height = ph; return spr; }
+        return _makePlatformFallback(pw, ph);
+      }
+
+      var cont = new PIXI.Container();
+      var loaded = 0;
+      for (var i = 0; i < tileCount; i++) {
+        var tileName: string;
+        if (tileCount === 2) { tileName = i === 0 ? style.surface.left : style.surface.right; }
+        else { tileName = i === 0 ? style.surface.left : i === tileCount - 1 ? style.surface.right : style.surface.mid; }
+
+        var tileSpr = _getSprite(style.cat, tileName);
+        if (tileSpr) {
+          tileSpr.x = i * actualTW;
+          tileSpr.y = 0;
+          tileSpr.width = actualTW;
+          tileSpr.height = ph;
+          cont.addChild(tileSpr);
+          loaded++;
+        }
+      }
+
+      if (loaded === 0) return _makePlatformFallback(pw, ph);
+      cont.pivot.set(pw / 2, ph / 2);
+      return cont;
+    }
+
+    /**
+     * Compose ground terrain: surface row of tiles + TilingSprite fill below.
+     * Surface uses real Kenney tile sprites for professional look.
+     */
+    function _composeGround(groundY: number, worldW: number, worldH: number): any {
+      var styleName = THEME_TILE[theme] || 'grass';
+      var style = TILE_STYLES[styleName];
+      if (!style) return null;
+
+      var tileW = 64, tileH = 64;
+      var cont = new PIXI.Container();
+      cont.label = 'ground-tiles';
+
+      var cols = Math.ceil(worldW / tileW);
+      var loaded = 0;
+
+      // Surface row — real tile sprites across full width
+      for (var x = 0; x < cols; x++) {
+        var spr = _getSprite(style.cat, style.surface.mid);
+        if (spr) {
+          spr.x = x * tileW;
+          spr.y = groundY;
+          spr.width = tileW;
+          spr.height = tileH;
+          spr.cullable = true;
+          cont.addChild(spr);
+          loaded++;
+        }
+      }
+
+      // Fill below surface — efficient TilingSprite with center texture
+      var fillKey = '2d/sprites/' + style.cat + '/' + style.fill + '.png';
+      var fillTex = _cache[fillKey];
+      if (fillTex && PIXI.TilingSprite) {
+        var fillY = groundY + tileH;
+        var fillH = worldH - fillY + 200; // extend past bottom edge
+        if (fillH > 0) {
+          var fill = new PIXI.TilingSprite({ texture: fillTex, width: worldW, height: fillH });
+          fill.y = fillY;
+          fill.tileScale.set(tileW / (fillTex.width || 128), tileH / (fillTex.height || 128));
+          fill.cullable = true;
+          cont.addChild(fill);
+          loaded++;
+        }
+      }
+
+      if (loaded === 0) return null; // sprites not loaded — caller uses fallback
+      return cont;
+    }
+
+    // Fallback platform — TilingSprite or Graphics (when tile sprites not available)
+    function _makePlatformFallback(pw: number, ph: number): any {
       var platName = platMap[theme] || 'grass_block';
       var ts = _getTilingSprite('platforms', platName, pw, ph);
-      if (ts) {
-        ts.anchor.set(0.5, 0.5);
-        return ts;
-      }
-      // Fallback: single sprite scaled to fit
+      if (ts) { ts.anchor.set(0.5, 0.5); return ts; }
       var spr = _getSprite('platforms', platName);
-      if (spr) {
-        spr.anchor.set(0.5, 0.5);
-        spr.width = pw;
-        spr.height = ph;
-        return spr;
-      }
-      // Last resort: Graphics
+      if (spr) { spr.anchor.set(0.5, 0.5); spr.width = pw; spr.height = ph; return spr; }
       var g = new PIXI.Graphics();
       g.roundRect(-pw / 2, -ph / 2, pw, ph, 3);
       g.fill({ color: pal.platform || 0x5a3a1a });
       return g;
     }
 
+    // _makePlatform — backward-compat wrapper, now uses tile composition
+    function _makePlatform(pw: number, ph: number): any {
+      return _composePlatform(pw, ph);
+    }
+
     // Build context for blueprint dispatch
-    var ctx = { PIXI: PIXI, cfg: cfg, rng: rng, rngRange: rngRange, rngInt: rngInt, _getSprite: _getSprite, _getTilingSprite: _getTilingSprite, pal: pal, hexCss: hexCss, _makePlatform: _makePlatform, container: container, bodies: bodies, platforms: platforms, parallaxLayers: parallaxLayers, clouds: clouds, W: W, H: H, GY: GY, groundMap: groundMap, platMap: platMap, treeMap: treeMap };
+    var ctx = { PIXI: PIXI, cfg: cfg, rng: rng, rngRange: rngRange, rngInt: rngInt, _getSprite: _getSprite, _getTilingSprite: _getTilingSprite, pal: pal, hexCss: hexCss, _makePlatform: _makePlatform, _composePlatform: _composePlatform, _composeGround: _composeGround, container: container, bodies: bodies, platforms: platforms, parallaxLayers: parallaxLayers, clouds: clouds, W: W, H: H, GY: GY, groundMap: groundMap, platMap: platMap, treeMap: treeMap, TILE_STYLES: TILE_STYLES, THEME_TILE: THEME_TILE, _cache: _cache };
 
     var _bpDone = false;
     var _bp = cfg.blueprint;
@@ -336,39 +447,47 @@ class WorldBuilderSystem {
     }
 
     // =======================================================================
-    // 5-6. GROUND + PLATFORMS (solution-path + auto-tiled terrain)
+    // 5-6. GROUND + PLATFORMS — Sprite tile composition system
+    // Platforms: [Left][Mid]×n[Right] from Kenney tile pieces
+    // Ground: Surface row of mid tiles + TilingSprite center fill below
     // =======================================================================
+
     // Generate reachable platform path from left to right
     var _platPositions = this._generateSolutionPath(ctx, 350, GY - 200, W - 200, GY - 150, {
       jumpH: 128, jumpD: 192, count: cfg.platformCount, style: cfg.platformStyle,
     });
     for (var pi = 0; pi < _platPositions.length; pi++) {
       var pp = _platPositions[pi];
-      var pBody = { x: pp.x, y: pp.y, w: pp.w, h: 24, isStatic: true, oneWay: true, tag: 'platform' };
+      var pBody = { x: pp.x, y: pp.y, w: pp.w, h: 32, isStatic: true, oneWay: true, tag: 'platform' };
       bodies.push(pBody);
       platforms.push({ x: pp.x, y: pp.y, w: pp.w, body: pBody });
+
+      // Render each platform with composed tile pieces [Left][Mid...][Right]
+      var platVisual = _composePlatform(pp.w, 48);
+      platVisual.x = pp.x;
+      platVisual.y = pp.y;
+      platVisual.zIndex = 10;
+      (platVisual as any).cullable = true;
+      container.addChild(platVisual);
     }
 
     // Ground physics body
     bodies.push({ x: W / 2, y: GY + 4, w: W, h: 8, isStatic: true, tag: 'ground' });
 
-    // Render auto-tiled terrain (ground + platforms)
-    var _gy = GY;
-    var _pp = _platPositions;
-    this._renderTerrainTiles(ctx, function(grid, gridW, gridH, ts) {
-      // Ground: fill from groundY to bottom
-      var groundRow = Math.floor(_gy / ts);
-      for (var y = groundRow; y < gridH; y++)
-        for (var x = 0; x < gridW; x++) grid[y * gridW + x] = 1;
-      // Platforms: fill thin rectangles
-      for (var i = 0; i < _pp.length; i++) {
-        var p = _pp[i];
-        var px1 = Math.max(0, Math.floor((p.x - p.w / 2) / ts));
-        var px2 = Math.min(gridW, Math.ceil((p.x + p.w / 2) / ts));
-        var py2 = Math.floor(p.y / ts);
-        for (var x = px1; x < px2; x++) grid[py2 * gridW + x] = 1;
-      }
-    });
+    // Render ground with sprite tiles (surface row + center fill)
+    var groundTiles = _composeGround(GY, W, H);
+    if (groundTiles) {
+      groundTiles.zIndex = 5;
+      container.addChild(groundTiles);
+    } else {
+      // Fallback: auto-tiled terrain if tile sprites not loaded
+      var _gy = GY;
+      this._renderTerrainTiles(ctx, function(grid: any, gridW: any, gridH: any, ts: any) {
+        var groundRow = Math.floor(_gy / ts);
+        for (var y = groundRow; y < gridH; y++)
+          for (var x = 0; x < gridW; x++) grid[y * gridW + x] = 1;
+      });
+    }
 
     // =======================================================================
     // 7. TREES/BUSHES on ground surface
@@ -476,126 +595,136 @@ class WorldBuilderSystem {
     }
 
     // ===================================================================
-    // AUTO-POPULATE: Place LARGE, VISIBLE sprite-based content on platforms
-    // This runs for ALL blueprints — the game should NEVER look empty
+    // AUTO-POPULATE: Professional placement rules for ALL blueprints
+    // Engine enforces: coins in organized rows, enemies ON platforms,
+    // props grouped on surfaces, decorations evenly distributed
     // ===================================================================
 
-    // Collectibles on platforms — coins floating above platforms
-    var coinNames = ['coin_gold', 'coin_gold', 'coin_silver']; // bias toward gold
+    // --- COINS: Organized rows above platforms (evenly spaced, fixed height) ---
+    var coinNames = ['coin_gold', 'coin_gold', 'coin_silver'];
     var gemNames = ['gem_red', 'gem_blue', 'gem_green', 'gem_yellow'];
+    var coinY = -36; // fixed height above platform surface
     for (var _pi = 0; _pi < platforms.length; _pi++) {
       var _pp = platforms[_pi];
-      // 80% chance of coins on each platform
-      if (rng() < 0.8) {
-        var coinCount = rngInt(2, 5);
+      if (rng() < 0.75) {
+        // Evenly spaced coin row — looks organized, not random
+        var coinCount = Math.max(2, Math.min(6, Math.floor(_pp.w / 40)));
         var coinSpacing = _pp.w / (coinCount + 1);
+        var cPhaseBase = rngRange(0, Math.PI * 2);
         for (var _ci = 0; _ci < coinCount; _ci++) {
-          var cName = coinNames[rngInt(0, coinNames.length - 1)];
+          var cName = coinNames[_ci % coinNames.length];
           var coinSpr = _getSprite('collectibles', cName);
           if (coinSpr) {
-            coinSpr.anchor.set(0.5, 1);
+            coinSpr.anchor.set(0.5, 0.5);
             coinSpr.x = _pp.x - _pp.w / 2 + coinSpacing * (_ci + 1);
-            coinSpr.y = _pp.y - 20;
+            coinSpr.y = _pp.y + coinY;
             coinSpr.scale.set(0.35);
             coinSpr.zIndex = 100;
             (coinSpr as any).__juiceBob = true;
-            (coinSpr as any).__juiceBobBase = _pp.y - 20;
-            (coinSpr as any).__juiceBobPhase = rngRange(0, Math.PI * 2);
+            (coinSpr as any).__juiceBobBase = _pp.y + coinY;
+            (coinSpr as any).__juiceBobPhase = cPhaseBase + _ci * 0.4; // wave effect
             container.addChild(coinSpr);
           }
         }
       }
-      // 40% chance of a gem on a platform
-      if (rng() < 0.4) {
+      // Gem centered above platform (rarer, special)
+      if (rng() < 0.3) {
         var gName = gemNames[rngInt(0, gemNames.length - 1)];
         var gemSpr = _getSprite('collectibles', gName);
         if (gemSpr) {
-          gemSpr.anchor.set(0.5, 1);
-          gemSpr.x = _pp.x + rngRange(-20, 20);
-          gemSpr.y = _pp.y - 24;
+          gemSpr.anchor.set(0.5, 0.5);
+          gemSpr.x = _pp.x;
+          gemSpr.y = _pp.y - 50;
           gemSpr.scale.set(0.45);
           gemSpr.zIndex = 100;
           (gemSpr as any).__juiceBob = true;
-          (gemSpr as any).__juiceBobBase = _pp.y - 24;
+          (gemSpr as any).__juiceBobBase = _pp.y - 50;
           (gemSpr as any).__juiceBobPhase = rngRange(0, Math.PI * 2);
           container.addChild(gemSpr);
         }
       }
     }
 
-    // Props on ground level — big, visible crates/barrels/rocks
-    var propNames = ['crate', 'barrel', 'rock', 'sign_post'];
-    if (cfg.hasGround !== false) {
-      var propCount = rngInt(5, 12);
-      var propSpacing = W / (propCount + 1);
-      for (var _di = 0; _di < propCount; _di++) {
-        var pName = propNames[rngInt(0, propNames.length - 1)];
-        var propSpr = _getSprite('props', pName);
-        if (propSpr) {
-          propSpr.anchor.set(0.5, 1);
-          propSpr.x = propSpacing * (_di + 1) + rngRange(-40, 40);
-          propSpr.y = GY;
-          propSpr.scale.set(rngRange(0.4, 0.7)); // 128px * 0.5 = 64px — clearly visible
-          propSpr.zIndex = 50;
-          container.addChild(propSpr);
-        }
-      }
-    }
-
-    // Decorations scattered on ground — plants, flags, visible vegetation
-    var decoNames = ['plant_green', 'plant_purple', 'cactus', 'flag_red', 'flag_blue'];
-    if (cfg.hasGround !== false) {
-      var decoCount = rngInt(6, 14);
-      for (var _ei = 0; _ei < decoCount; _ei++) {
-        var dName = decoNames[rngInt(0, decoNames.length - 1)];
-        var decoSpr = _getSprite('decorations', dName);
-        if (decoSpr) {
-          decoSpr.anchor.set(0.5, 1);
-          decoSpr.x = rngRange(50, W - 50);
-          decoSpr.y = GY;
-          decoSpr.scale.set(rngRange(0.5, 1.0)); // 70px * 0.75 = 53px — visible
-          decoSpr.zIndex = 30;
-          container.addChild(decoSpr);
-        }
-      }
-    }
-
-    // Enemy sprites on platforms — visible, menacing
-    var enemyNames = ['slime_walk1', 'snail_walk1', 'fly1', 'blocker', 'blocker_mad', 'poker_mad'];
+    // --- ENEMIES: Grounded ON platforms (never floating, 1 per platform max) ---
+    var enemyNames = ['slime_walk1', 'snail_walk1', 'fly1', 'blocker'];
     for (var _eni = 0; _eni < platforms.length; _eni++) {
-      if (rng() < 0.4) { // 40% of platforms get an enemy
+      if (rng() < 0.35 && _eni > 0) { // skip first platform (spawn area)
         var _ep = platforms[_eni];
         var eName = enemyNames[rngInt(0, enemyNames.length - 1)];
         var eSpr = _getSprite('enemies', eName);
         if (eSpr) {
           eSpr.anchor.set(0.5, 1);
-          eSpr.x = _ep.x + rngRange(-_ep.w * 0.25, _ep.w * 0.25);
-          eSpr.y = _ep.y - 4;
-          eSpr.scale.set(rngRange(0.8, 1.2)); // 50px * 1.0 = 50px — clearly visible enemy
+          eSpr.x = _ep.x; // centered on platform
+          eSpr.y = _ep.y; // sitting ON the platform surface
+          eSpr.scale.set(1.0);
           eSpr.zIndex = 80;
           container.addChild(eSpr);
         }
       }
     }
 
-    // Items scattered — keys, mushrooms, bombs for visual richness
-    var itemNames = ['key_blue', 'key_red', 'mushroom_red', 'mushroom_brown', 'bomb'];
+    // --- PROPS: Grouped clusters on ground (2-3 items per cluster, not scattered) ---
     if (cfg.hasGround !== false) {
-      for (var _ii = 0; _ii < rngInt(3, 6); _ii++) {
-        var iName = itemNames[rngInt(0, itemNames.length - 1)];
+      var propNames = ['crate', 'barrel', 'rock', 'sign_post', 'fence'];
+      var clusterCount = rngInt(3, 5);
+      var clusterSpacing = W / (clusterCount + 1);
+      for (var _cli = 0; _cli < clusterCount; _cli++) {
+        var clusterX = clusterSpacing * (_cli + 1) + rngRange(-60, 60);
+        var propsInCluster = rngInt(1, 3);
+        for (var _cpi = 0; _cpi < propsInCluster; _cpi++) {
+          var pName = propNames[rngInt(0, propNames.length - 1)];
+          var propSpr = _getSprite('props', pName);
+          if (propSpr) {
+            propSpr.anchor.set(0.5, 1);
+            propSpr.x = clusterX + _cpi * rngRange(30, 50) - (propsInCluster * 20);
+            propSpr.y = GY;
+            propSpr.scale.set(rngRange(0.5, 0.8));
+            propSpr.zIndex = 50;
+            container.addChild(propSpr);
+          }
+        }
+      }
+    }
+
+    // --- DECORATIONS: Evenly distributed on ground (plants, flags) ---
+    var decoNames = ['plant_green', 'plant_purple', 'cactus', 'flag_red', 'flag_blue'];
+    if (cfg.hasGround !== false) {
+      var decoCount = rngInt(6, 10);
+      var decoSpacing = W / (decoCount + 1);
+      for (var _ei = 0; _ei < decoCount; _ei++) {
+        var dName = decoNames[_ei % decoNames.length];
+        var decoSpr = _getSprite('decorations', dName);
+        if (decoSpr) {
+          decoSpr.anchor.set(0.5, 1);
+          decoSpr.x = decoSpacing * (_ei + 1) + rngRange(-30, 30);
+          decoSpr.y = GY;
+          decoSpr.scale.set(rngRange(0.6, 0.9));
+          decoSpr.zIndex = 30;
+          container.addChild(decoSpr);
+        }
+      }
+    }
+
+    // --- ITEMS: On ground near props (not random scatter) ---
+    var itemNames = ['key_blue', 'key_red', 'mushroom_red', 'mushroom_brown'];
+    if (cfg.hasGround !== false) {
+      var itemCount = rngInt(2, 4);
+      var itemSpacing = W / (itemCount + 1);
+      for (var _ii = 0; _ii < itemCount; _ii++) {
+        var iName = itemNames[_ii % itemNames.length];
         var iSpr = _getSprite('items', iName);
         if (iSpr) {
           iSpr.anchor.set(0.5, 1);
-          iSpr.x = rngRange(100, W - 100);
+          iSpr.x = itemSpacing * (_ii + 1) + rngRange(-50, 50);
           iSpr.y = GY;
-          iSpr.scale.set(0.45);
+          iSpr.scale.set(0.5);
           iSpr.zIndex = 60;
           container.addChild(iSpr);
         }
       }
     }
 
-    console.log('[WorldBuilder] Auto-populated ' + platforms.length + ' platforms with sprite collectibles, props, enemies');
+    console.log('[WorldBuilder] Composed ' + platforms.length + ' platforms with tile pieces + professional placement');
 
     // Build result
     var result: WorldBuilderResult = {
@@ -6926,6 +7055,30 @@ const SPRITE_CATALOG: Record<string, Record<string, string[]>> = {
   default: {
     // --- Terrain & Platforms ---
     platforms: ['2d/sprites/platforms/grass_block.png', '2d/sprites/platforms/stone_block.png', '2d/sprites/platforms/ice_block.png', '2d/sprites/platforms/sand_block.png', '2d/sprites/platforms/dark_block.png'],
+    // --- Tile Styles (Kenney Platformer Art Deluxe — proper edge composition) ---
+    'tiles/grass': [
+      '2d/sprites/tiles/grass/grass.png', '2d/sprites/tiles/grass/grassLeft.png', '2d/sprites/tiles/grass/grassMid.png', '2d/sprites/tiles/grass/grassRight.png',
+      '2d/sprites/tiles/grass/grassCenter.png', '2d/sprites/tiles/grass/grassCliffLeft.png', '2d/sprites/tiles/grass/grassCliffRight.png',
+      '2d/sprites/tiles/grass/grassHalfLeft.png', '2d/sprites/tiles/grass/grassHalfMid.png', '2d/sprites/tiles/grass/grassHalfRight.png',
+    ],
+    'tiles/stone': [
+      '2d/sprites/tiles/stone/stone.png', '2d/sprites/tiles/stone/stoneLeft.png', '2d/sprites/tiles/stone/stoneMid.png', '2d/sprites/tiles/stone/stoneRight.png',
+      '2d/sprites/tiles/stone/stoneCenter.png', '2d/sprites/tiles/stone/stoneCliffLeft.png', '2d/sprites/tiles/stone/stoneCliffRight.png',
+      '2d/sprites/tiles/stone/castle.png', '2d/sprites/tiles/stone/castleLeft.png', '2d/sprites/tiles/stone/castleMid.png', '2d/sprites/tiles/stone/castleRight.png',
+      '2d/sprites/tiles/stone/castleCenter.png', '2d/sprites/tiles/stone/castleCliffLeft.png', '2d/sprites/tiles/stone/castleCliffRight.png',
+    ],
+    'tiles/sand': [
+      '2d/sprites/tiles/sand/sand.png', '2d/sprites/tiles/sand/sandLeft.png', '2d/sprites/tiles/sand/sandMid.png', '2d/sprites/tiles/sand/sandRight.png',
+      '2d/sprites/tiles/sand/sandCenter.png', '2d/sprites/tiles/sand/sandCliffLeft.png', '2d/sprites/tiles/sand/sandCliffRight.png',
+    ],
+    'tiles/snow': [
+      '2d/sprites/tiles/snow/snow.png', '2d/sprites/tiles/snow/snowLeft.png', '2d/sprites/tiles/snow/snowMid.png', '2d/sprites/tiles/snow/snowRight.png',
+      '2d/sprites/tiles/snow/snowCenter.png', '2d/sprites/tiles/snow/snowCliffLeft.png', '2d/sprites/tiles/snow/snowCliffRight.png',
+    ],
+    'tiles/candy': [
+      '2d/sprites/tiles/candy/cake.png', '2d/sprites/tiles/candy/cakeLeft.png', '2d/sprites/tiles/candy/cakeMid.png', '2d/sprites/tiles/candy/cakeRight.png',
+      '2d/sprites/tiles/candy/cakeCenter.png', '2d/sprites/tiles/candy/cakeCliffLeft.png', '2d/sprites/tiles/candy/cakeCliffRight.png',
+    ],
     // --- Nature ---
     trees: ['2d/sprites/trees/green_tree.png', '2d/sprites/trees/tree_top.png', '2d/sprites/trees/tree_top_snow.png', '2d/sprites/trees/tree_trunk.png', '2d/sprites/trees/tree_trunk_bottom.png', '2d/sprites/trees/dead_tree_ice.png'],
     bushes: ['2d/sprites/bushes/bush_large.png'],
