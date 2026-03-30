@@ -3547,6 +3547,27 @@ export class Engine2D {
       this.camera.followY = this.config.cameraFollowY !== undefined ? this.config.cameraFollowY : _preset.followY;
       this.camera.clampY = this.config.cameraClampY !== undefined ? this.config.cameraClampY : _preset.clampY;
       if (this.config.gravity === undefined) this.config.gravity = _preset.gravity;
+
+      // Genre-specific camera behaviors
+      if (_genre === 'platformer' || _genre === 'fighting') {
+        this.camera.lookaheadX = 80;  // look ahead in movement direction
+        this.camera.deadZoneX = 40;
+        this.camera.smoothing = 0.1;
+      } else if (_genre === 'top-down' || _genre === 'rpg' || _genre === 'twin-stick' || _genre === 'stealth') {
+        this.camera.lookaheadX = 40;
+        this.camera.lookaheadY = 40;
+        this.camera.deadZoneX = 20;
+        this.camera.deadZoneY = 20;
+        this.camera.smoothing = 0.12;
+      } else if (_genre === 'vertical-climber') {
+        this.camera.lookaheadY = 60;
+        this.camera.deadZoneY = 20;
+        this.camera.smoothing = 0.1;
+      } else if (_genre === 'bullet-hell' || _genre === 'puzzle') {
+        this.camera.smoothing = 0.15;
+        this.camera.deadZoneX = 0;
+        this.camera.deadZoneY = 0;
+      }
     }
 
     // Auto-select player feature based on genre (top-down genres use player-topdown)
@@ -4096,6 +4117,16 @@ export class Camera2D {
   followY = true;
   clampY = true;
 
+  // Lookahead — camera shifts ahead in movement direction
+  lookaheadX = 0;    // pixels to look ahead horizontally (0 = disabled, 80 = platformer default)
+  lookaheadY = 0;    // pixels to look ahead vertically
+  private _lookOffsetX = 0;
+  private _lookOffsetY = 0;
+  private _prevTargetX = 0;
+  private _prevTargetY = 0;
+  private _facingX = 0;  // -1, 0, or 1
+  private _facingY = 0;
+
   constructor(vw: number, vh: number, ww: number, wh: number) {
     this.viewWidth = vw;
     this.viewHeight = vh;
@@ -4105,12 +4136,28 @@ export class Camera2D {
 
   follow(target: { x: number; y: number }): void {
     this.target = target;
+    this._prevTargetX = target.x;
+    this._prevTargetY = target.y;
   }
 
   update(worldContainer: any): void {
     if (this.target) {
-      const targetX = this.target.x - this.viewWidth / 2;
-      const targetY = this.target.y - this.viewHeight / 2;
+      // Detect facing direction from target movement
+      var moveX = this.target.x - this._prevTargetX;
+      var moveY = this.target.y - this._prevTargetY;
+      if (Math.abs(moveX) > 0.5) this._facingX = moveX > 0 ? 1 : -1;
+      if (Math.abs(moveY) > 0.5) this._facingY = moveY > 0 ? 1 : -1;
+      this._prevTargetX = this.target.x;
+      this._prevTargetY = this.target.y;
+
+      // Smooth lookahead offset
+      var targetLookX = this._facingX * this.lookaheadX;
+      var targetLookY = this._facingY * this.lookaheadY;
+      this._lookOffsetX += (targetLookX - this._lookOffsetX) * 0.05;
+      this._lookOffsetY += (targetLookY - this._lookOffsetY) * 0.05;
+
+      const targetX = this.target.x + this._lookOffsetX - this.viewWidth / 2;
+      const targetY = this.target.y + this._lookOffsetY - this.viewHeight / 2;
 
       // Smooth follow with dead zone (respects followX/followY flags)
       if (this.followX) {
