@@ -3666,6 +3666,14 @@ export class Engine2D {
     (window as any).__vibexe_proton__ = this.proton;
     (window as any).__vibexe_engine__ = this;
 
+    // Expose soundUrl() globally so custom-gameplay.ts can use it
+    // Usage: soundUrl("collect") or soundUrl("bgm/ambient-forest.mp3")
+    (window as any).soundUrl = function(path: string): string {
+      var origin = (window as any).__VIBEXE_API_ORIGIN__ || '';
+      var ext = path.includes('.') ? '' : '.ogg';
+      return origin + '/api/app-builder/media-stock-audio/' + path + ext;
+    };
+
     // Wire camera to world container
     this.camera._worldContainer = this.world;
 
@@ -4145,6 +4153,12 @@ export class Camera2D {
   shakeOffsetX = 0;
   shakeOffsetY = 0;
 
+  // Pan state — when panning, follow logic is suspended
+  private _panning = false;
+
+  // Zoom state — applied in update() so it doesn't fight with follow positioning
+  private _zoomLevel = 1;
+
   // Lookahead — camera shifts ahead in movement direction
   lookaheadX = 0;    // pixels to look ahead horizontally (0 = disabled, 80 = platformer default)
   lookaheadY = 0;    // pixels to look ahead vertically
@@ -4169,7 +4183,8 @@ export class Camera2D {
   }
 
   update(worldContainer: any): void {
-    if (this.target) {
+    // Skip follow logic when a pan() tween is active — pan controls x/y directly
+    if (this.target && !this._panning) {
       // Detect facing direction from target movement
       var moveX = this.target.x - this._prevTargetX;
       var moveY = this.target.y - this._prevTargetY;
@@ -4208,9 +4223,15 @@ export class Camera2D {
       this.y = Math.max(0, Math.min(this.y, this.worldHeight - this.viewHeight));
     }
 
-    // Apply to world container (negative = world moves opposite to camera) + shake offsets
-    worldContainer.x = -Math.round(this.x) + this.shakeOffsetX;
-    worldContainer.y = -Math.round(this.y) + this.shakeOffsetY;
+    // Apply zoom-adjusted position to world container
+    // When zoomed, offset so the camera center stays correct:
+    //   zoomOffset = viewSize * (1 - 1/zoomLevel) / 2
+    var zl = this._zoomLevel;
+    var zoomOffsetX = this.viewWidth * (1 - 1 / zl) / 2;
+    var zoomOffsetY = this.viewHeight * (1 - 1 / zl) / 2;
+    worldContainer.x = -Math.round(this.x) + this.shakeOffsetX - zoomOffsetX;
+    worldContainer.y = -Math.round(this.y) + this.shakeOffsetY - zoomOffsetY;
+    worldContainer.scale.set(zl);
   }
 
   // Alias — AI commonly writes camera.applyTo(container)
@@ -4253,13 +4274,12 @@ export class Camera2D {
   /** Smoothly zoom to a level (1 = normal, 2 = double) */
   zoom(level: number, duration = 0.5): void {
     var gsap = (window as any).gsap;
-    if (!this._worldContainer) return;
     if (gsap) {
-      gsap.to(this._worldContainer.scale, {
-        x: level, y: level, duration, ease: 'power2.inOut'
+      gsap.to(this, {
+        _zoomLevel: level, duration, ease: 'power2.inOut'
       });
     } else {
-      this._worldContainer.scale.set(level);
+      this._zoomLevel = level;
     }
   }
 
@@ -4267,13 +4287,16 @@ export class Camera2D {
   pan(x: number, y: number, duration = 1): void {
     var gsap = (window as any).gsap;
     var self = this;
+    this._panning = true;
     if (gsap) {
       gsap.to(this, { x, y, duration, ease: 'power2.inOut',
-        onUpdate: function() { if (self._worldContainer) self.update(self._worldContainer); }
+        onUpdate: function() { if (self._worldContainer) self.update(self._worldContainer); },
+        onComplete: function() { self._panning = false; }
       });
     } else {
       this.x = x;
       this.y = y;
+      this._panning = false;
     }
   }
 
@@ -4699,6 +4722,33 @@ export class AudioManager {
 
     console.log('[Audio] Generated 9 procedural sounds: coin, jump, hit, explosion, powerup, land, click, defeat, gem');
   }
+
+  // -------------------------------------------------------------------------
+  // Media-stock audio — load real audio files from the server
+  // Matches the 3D engine's soundUrl() pattern.
+  // -------------------------------------------------------------------------
+
+  /**
+   * Build a URL for a media-stock audio file.
+   * Usage: engine.audio.soundUrl("collect") → ".../api/app-builder/media-stock-audio/collect.ogg"
+   *        engine.audio.soundUrl("bgm/ambient-forest.mp3") → keeps extension as-is
+   */
+  soundUrl(path: string): string {
+    var origin = (window as any).__VIBEXE_API_ORIGIN__ || '';
+    var ext = path.includes('.') ? '' : '.ogg';
+    return origin + '/api/app-builder/media-stock-audio/' + path + ext;
+  }
+
+  /**
+   * Load a real audio file from media-stock into the sound bank.
+   * @param id - The sound ID to register (e.g. 'bgm_forest')
+   * @param path - The media-stock path (e.g. 'bgm/ambient-forest.mp3')
+   * @returns Promise that resolves when loaded (or silently fails)
+   */
+  async loadFromMediaStock(id: string, path: string): Promise<void> {
+    var url = this.soundUrl(path);
+    await this.loadSound(id, url);
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -5091,22 +5141,28 @@ export class EffectsSystem {
   shockwave(x: number, y: number): void {
     var gsap = (window as any).gsap;
     var container = this.engine.world;
-    if (!PIXI.filters || !PIXI.filters.ShockwaveFilter || !gsap) return;
-    var filter = new PIXI.filters.ShockwaveFilter({
-      center: [x / (container.width || 800), y / (container.height || 600)],
-      speed: 400, amplitude: 20, wavelength: 120, brightness: 1.2, radius: -1,
-    });
-    var existing = container.filters ? Array.from(container.filters) : [];
-    existing.push(filter);
-    container.filters = existing;
-    gsap.to(filter, {
-      time: 1.5, duration: 0.8, ease: 'power2.out',
-      onComplete: function() {
-        var cur = container.filters ? Array.from(container.filters) : [];
-        var idx = cur.indexOf(filter);
-        if (idx >= 0) { cur.splice(idx, 1); container.filters = cur; }
-      }
-    });
+    var SW = PIXI.ShockwaveFilter || (PIXI.filters && PIXI.filters.ShockwaveFilter);
+    if (!SW || !gsap) return;
+    try {
+      var filter = new SW({
+        center: [x / (container.width || 800), y / (container.height || 600)],
+        speed: 400, amplitude: 20, wavelength: 120, brightness: 1.2, radius: -1,
+      });
+      if (!filter || filter.enabled === false) return;
+      var existing = container.filters ? Array.from(container.filters) : [];
+      existing.push(filter);
+      container.filters = existing;
+      gsap.to(filter, {
+        time: 1.5, duration: 0.8, ease: 'power2.out',
+        onComplete: function() {
+          var cur = container.filters ? Array.from(container.filters) : [];
+          var idx = cur.indexOf(filter);
+          if (idx >= 0) { cur.splice(idx, 1); container.filters = cur.length > 0 ? cur : null; }
+        }
+      });
+    } catch (e) {
+      console.warn('[Particles] ShockwaveFilter construction failed:', (e as any).message);
+    }
   }
 
   /** Remove all active continuous effects */
@@ -7763,13 +7819,20 @@ export class FilterSystem {
 
   /** Apply a filter to a container. Returns a filter ID for removal. */
   private _apply(filter: any, container?: any, id?: string): string {
-    var target = container || this.engine.world;
-    var existing = target.filters ? Array.from(target.filters) : [];
-    existing.push(filter);
-    target.filters = existing;
-    var fId = id || ('filter_' + (++this._idCounter));
-    this._active.set(fId, { filter: filter, container: target });
-    return fId;
+    // Guard: skip no-op or broken filter objects returned by safe constructors
+    if (!filter || (filter.enabled === false && !filter.apply)) return '';
+    try {
+      var target = container || this.engine.world;
+      var existing = target.filters ? Array.from(target.filters) : [];
+      existing.push(filter);
+      target.filters = existing;
+      var fId = id || ('filter_' + (++this._idCounter));
+      this._active.set(fId, { filter: filter, container: target });
+      return fId;
+    } catch (e) {
+      console.warn('[Filters] Failed to apply filter:', (e as any).message);
+      return '';
+    }
   }
 
   /** Remove a filter by its ID */

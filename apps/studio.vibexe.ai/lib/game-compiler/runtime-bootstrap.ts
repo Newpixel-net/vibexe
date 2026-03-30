@@ -17,6 +17,7 @@ interface BootstrapSettings {
 	appId?: string;
 	enabledModuleIds: string[];
 	gameSettings?: Record<string, unknown>;
+	is2DGame?: boolean;
 }
 
 export function generateRuntimeBootstrap(opts: BootstrapSettings): string {
@@ -38,22 +39,35 @@ export function generateRuntimeBootstrap(opts: BootstrapSettings): string {
 		lines.push(`window.__VIBEXE_GAME_SETTINGS__ = ${JSON.stringify(gs)};`);
 	}
 
+	const is2D = !!opts.is2DGame;
+
 	// Settings runtime override — applies AFTER scene initializes
-	if (gs && (gs.environment || gs.camera || gs.physics)) {
-		lines.push(generateSettingsOverride(gs, opts.enabledModuleIds));
+	// For 2D games: only apply audio/performance/FPS settings (no Three.js polling)
+	if (gs && (gs.environment || gs.camera || gs.physics || gs.audio || gs.performance)) {
+		if (is2D) {
+			lines.push(generateSettingsOverride2D(gs));
+		} else {
+			lines.push(generateSettingsOverride(gs, opts.enabledModuleIds));
+		}
 	}
 
 	// Game API — loadScene, getScenes, getActiveSceneId
 	lines.push(generateGameAPI());
 
-	// Auto-detect player mesh for legacy projects
-	lines.push(generatePlayerAutoDetect());
+	// Auto-detect player mesh for legacy 3D projects only
+	if (!is2D) {
+		lines.push(generatePlayerAutoDetect());
+	}
 
 	// Console log collector — captures tagged logs for diagnostics
 	lines.push(generateLogCollector());
 
 	// Debug overlay — system health query handler
-	lines.push(generateDebugHandler());
+	if (is2D) {
+		lines.push(generateDebugHandler2D());
+	} else {
+		lines.push(generateDebugHandler());
+	}
 
 	return lines.join("\n");
 }
@@ -110,6 +124,25 @@ if(_tov&&_tov.length){var _tl=new T.TextureLoader();for(var _ti=0;_ti<_tov.lengt
 var _mfps=window.__vibexe_maxFPS__;
 if(_mfps&&_mfps>0&&_mfps<120){var _origRAF=window.requestAnimationFrame.__vibexe_original||window.requestAnimationFrame;var _frameInt=1000/_mfps;var _lastFrame=0;var _wrappedRAF=function(cb){return _origRAF.call(window,function(ts){if(ts-_lastFrame>=_frameInt){_lastFrame=ts;cb(ts)}else{_origRAF.call(window,cb)}})};_wrappedRAF.__vibexe_original=_origRAF;window.requestAnimationFrame=_wrappedRAF}
 },100)})();`;
+}
+
+/**
+ * Minimal settings override for 2D (Pixi.js) games.
+ * Only applies audio, performance/FPS settings, and maxFPS throttle.
+ * No Three.js polling, no scene/camera/renderer/physics/shadow/fog/texture code.
+ */
+function generateSettingsOverride2D(gs: Record<string, unknown>): string {
+	return `(function(){
+if(window.__vibexe_bootstrap_applied__)return;
+window.__vibexe_bootstrap_applied__=true;
+var _gs=${JSON.stringify(gs)};
+var _aus=_gs.audio;
+if(_aus){window.__vibexe_audio__={enabled:_aus.enabled!==false,masterVolume:_aus.masterVolume!=null?_aus.masterVolume:0.8,musicVolume:_aus.musicVolume!=null?_aus.musicVolume:0.5,sfxVolume:_aus.sfxVolume!=null?_aus.sfxVolume:0.7};if(_aus.enabled===false){var _allAudio=document.querySelectorAll('audio');for(var _ai2=0;_ai2<_allAudio.length;_ai2++){_allAudio[_ai2].muted=true;}}}
+var _pfs=_gs.performance;
+if(_pfs){if(_pfs.maxFPS!=null){window.__vibexe_maxFPS__=_pfs.maxFPS}if(_pfs.showFPS){var _existFps=document.getElementById('__vibexe_fps__');if(!_existFps){var _fpsD=document.createElement('div');_fpsD.id='__vibexe_fps__';_fpsD.style.cssText='position:fixed;top:4px;left:4px;padding:2px 6px;background:rgba(0,0,0,0.7);color:#0f0;font:11px monospace;z-index:99999;pointer-events:none';document.body.appendChild(_fpsD);var _fc=0,_lt=performance.now();(function _fpsLoop(){_fc++;var now=performance.now();if(now-_lt>=1000){var _el=document.getElementById('__vibexe_fps__');if(_el)_el.textContent=_fc+' FPS';_fc=0;_lt=now}window.__vibexe_fpsLoopId__=requestAnimationFrame(_fpsLoop)})()}}}
+var _mfps=window.__vibexe_maxFPS__;
+if(_mfps&&_mfps>0&&_mfps<120){var _origRAF=window.requestAnimationFrame.__vibexe_original||window.requestAnimationFrame;var _frameInt=1000/_mfps;var _lastFrame=0;var _wrappedRAF=function(cb){return _origRAF.call(window,function(ts){if(ts-_lastFrame>=_frameInt){_lastFrame=ts;cb(ts)}else{_origRAF.call(window,cb)}})};_wrappedRAF.__vibexe_original=_origRAF;window.requestAnimationFrame=_wrappedRAF}
+})();`;
 }
 
 function generateGameAPI(): string {
@@ -426,6 +459,78 @@ r.push({system:'Game Settings',status:_gsCheck?'ok':'missing',details:_gsDetails
 if(!_gsCheck)problems.push({id:'no-game-settings',severity:'error',msg:'__VIBEXE_GAME_SETTINGS__ not loaded'});
 
 // === 19. ERROR LOG SUMMARY ===
+var _logRing=W.__vibexe_logRing__||[];
+var _errCount=0;var _warnCount=0;var _recentErrors=[];
+for(var _li=0;_li<_logRing.length;_li++){
+  if(_logRing[_li].l==='err'){_errCount++;if(_recentErrors.length<3)_recentErrors.push(_logRing[_li].m.substring(0,80));}
+  if(_logRing[_li].l==='warn')_warnCount++;
+}
+r.push({system:'Console Health',status:_errCount>0?'inactive':(_warnCount>5?'inactive':'ok'),details:{errors:_errCount,warnings:_warnCount,totalLogs:_logRing.length,recentErrors:_recentErrors}});
+if(_errCount>5)problems.push({id:'many-errors',severity:'warn',msg:_errCount+' errors captured in console — check logs for details'});
+
+try{window.parent.postMessage({type:'vibexe-debug-system-report-all',systems:r,problems:problems},'*')}catch(e){}
+});
+})();`;
+}
+
+/**
+ * Minimal debug handler for 2D (Pixi.js) games.
+ * Reports: PIXI renderer, game settings, modules, performance, audio, console health.
+ * No Three.js, CANNON, Rapier, terrain, sky/weather, GLTF, or scene traverse code.
+ */
+function generateDebugHandler2D(): string {
+	return `(function(){
+window.addEventListener('message',function(ev){
+if(!ev.data||ev.data.type!=='vibexe-debug-query-systems')return;
+var r=[];
+var problems=[];
+var W=window;
+
+// === 1. PIXI RENDERER ===
+var P=W.PIXI;
+var app=W.__vibexe_pixiApp__||W.__pixi_app;
+var ren=app&&app.renderer?app.renderer:null;
+var renStatus='missing';var renDetails=null;
+if(ren){
+  renStatus='ok';
+  renDetails={type:'Pixi.js',rendererType:ren.constructor?ren.constructor.name:'unknown',width:ren.width||0,height:ren.height||0,resolution:ren.resolution||1,devicePR:W.devicePixelRatio||1,webgl:!!(ren.gl||ren.context)};
+}else if(P){
+  renStatus='inactive';renDetails={type:'Pixi.js',pixiLoaded:true,appCreated:false};
+}
+r.push({system:'Renderer',status:renStatus,details:renDetails});
+
+// === 2. PERFORMANCE ===
+var fpsCounter=document.getElementById('__vibexe_fps__');
+var gameFps=fpsCounter?parseInt(fpsCounter.textContent)||0:0;
+var perfStatus=gameFps>=40?'ok':(gameFps>=25?'inactive':(gameFps>0?'inactive':'missing'));
+var _memInfo=null;if(W.performance&&W.performance.memory){try{_memInfo={usedMB:Math.round(W.performance.memory.usedJSHeapSize/1048576),totalMB:Math.round(W.performance.memory.totalJSHeapSize/1048576)};}catch(e){}}
+r.push({system:'Performance',status:perfStatus,details:{gameFps:gameFps,maxFPS:W.__vibexe_maxFPS__||'none',memory:_memInfo}});
+if(gameFps>0&&gameFps<25)problems.push({id:'low-fps',severity:'error',msg:'Game FPS critically low: '+gameFps});
+else if(gameFps>=25&&gameFps<40)problems.push({id:'low-fps-warn',severity:'warn',msg:'Game FPS below target: '+gameFps});
+
+// === 3. AUDIO ===
+var au=W.__vibexe_audio__;
+r.push({system:'Audio',status:au?(au.enabled?'ok':'muted'):'off',details:au?{enabled:au.enabled,masterVol:au.masterVolume,musicVol:au.musicVolume,sfxVol:au.sfxVolume}:null});
+
+// === 4. MODULES ===
+var mods=Object.keys(W.__vibexe_modules__||{});
+var _modExpected=W.__VIBEXE_INSTALLED_MODULES__||[];
+var _modMissing=[];
+for(var _mi=0;_mi<_modExpected.length;_mi++){if(mods.indexOf(_modExpected[_mi])<0)_modMissing.push(_modExpected[_mi]);}
+r.push({system:'Modules',status:mods.length>0?'ok':'none',details:{loaded:mods,expected:_modExpected,missing:_modMissing}});
+if(_modMissing.length>0)problems.push({id:'modules-missing',severity:'error',msg:'Expected modules not loaded: '+_modMissing.join(', ')});
+
+// === 5. GAME SETTINGS ===
+var _gsCheck=W.__VIBEXE_GAME_SETTINGS__;
+var _gsDetails={loaded:!!_gsCheck,is2D:true};
+if(_gsCheck){
+  _gsDetails.scenes=_gsCheck.scenes?_gsCheck.scenes.length:0;
+  _gsDetails.modules=_gsCheck.modules&&_gsCheck.modules.installed?Object.keys(_gsCheck.modules.installed).length:0;
+}
+r.push({system:'Game Settings',status:_gsCheck?'ok':'missing',details:_gsDetails});
+if(!_gsCheck)problems.push({id:'no-game-settings',severity:'error',msg:'__VIBEXE_GAME_SETTINGS__ not loaded'});
+
+// === 6. ERROR LOG SUMMARY ===
 var _logRing=W.__vibexe_logRing__||[];
 var _errCount=0;var _warnCount=0;var _recentErrors=[];
 for(var _li=0;_li<_logRing.length;_li++){

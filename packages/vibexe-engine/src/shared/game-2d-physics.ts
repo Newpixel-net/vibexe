@@ -139,6 +139,16 @@ export class PhysicsWorld {
   update(dt: number): void {
     const dtCapped = Math.min(dt, 1 / 30); // cap at ~33ms to prevent tunneling
 
+    // Track moving platforms — compute velocity from position delta
+    for (var pi = 0; pi < this.bodies.length; pi++) {
+      var pb = this.bodies[pi] as any;
+      if (pb.isStatic) {
+        if (pb._prevX === undefined) { pb._prevX = pb.x; pb._prevY = pb.y; }
+        pb._platformVx = (pb.x - pb._prevX) / dtCapped;
+        pb._platformVy = (pb.y - pb._prevY) / dtCapped;
+      }
+    }
+
     // Integrate dynamic bodies
     for (const b of this.bodies) {
       if (b.isStatic || !b.enabled) continue;
@@ -147,6 +157,7 @@ export class PhysicsWorld {
       b.onGround = false;
       b.onWall = null;
       b.onCeiling = false;
+      (b as any)._groundBody = null;
 
       // Apply gravity
       b.vy += this.gravity * dtCapped;
@@ -170,73 +181,112 @@ export class PhysicsWorld {
       b.y += b.vy * dtCapped;
     }
 
-    // Collision detection & resolution
-    for (let i = 0; i < this.bodies.length; i++) {
-      const a = this.bodies[i];
-      if (!a.enabled) continue;
-
-      for (let j = i + 1; j < this.bodies.length; j++) {
-        const b = this.bodies[j];
-        if (!b.enabled) continue;
-        if (a.isStatic && b.isStatic) continue;
-
-        const col = aabbOverlap(a, b);
-        if (!col) continue;
-
-        // Sensor bodies: trigger overlap, no physics response
-        if (a.isSensor || b.isSensor) {
-          if (this.onOverlap) this.onOverlap(a, b, col);
-          continue;
+    // Spatial hash broadphase — reduces O(n²) to near-linear for spread-out bodies
+    var CELL = 128;
+    var grid: Record<string, number[]> = {};
+    var bodies = this.bodies;
+    for (var gi = 0; gi < bodies.length; gi++) {
+      var gb = bodies[gi];
+      if (!gb.enabled) continue;
+      var minCX = Math.floor((gb.x - gb.hw) / CELL);
+      var maxCX = Math.floor((gb.x + gb.hw) / CELL);
+      var minCY = Math.floor((gb.y - gb.hh) / CELL);
+      var maxCY = Math.floor((gb.y + gb.hh) / CELL);
+      for (var cx = minCX; cx <= maxCX; cx++) {
+        for (var cy = minCY; cy <= maxCY; cy++) {
+          var key = cx + ',' + cy;
+          if (!grid[key]) grid[key] = [];
+          grid[key].push(gi);
         }
+      }
+    }
 
-        // One-way platform: only block from above
-        if (b.isOneWay) {
-          // Only collide if A is falling and was above B last frame
-          if (a.vy < 0 || (a.y + a.hh - col.overlapY) > (b.y - b.hh + 2)) continue;
-        }
-        if (a.isOneWay) {
-          if (b.vy < 0 || (b.y + b.hh - col.overlapY) > (a.y - a.hh + 2)) continue;
-        }
+    // Collision detection & resolution (grid-accelerated)
+    var checked: Record<string, boolean> = {};
+    for (var gk in grid) {
+      var cell = grid[gk];
+      for (var ci = 0; ci < cell.length; ci++) {
+        for (var cj = ci + 1; cj < cell.length; cj++) {
+          var idxA = cell[ci];
+          var idxB = cell[cj];
+          var pairKey = idxA < idxB ? idxA + ':' + idxB : idxB + ':' + idxA;
+          if (checked[pairKey]) continue;
+          checked[pairKey] = true;
 
-        // Resolve collision — push apart along smallest overlap axis
-        if (col.overlapX < col.overlapY) {
-          // Horizontal separation
-          const dynamic = a.isStatic ? b : a;
-          const sign = a.isStatic ? -col.normalX : col.normalX;
-          dynamic.x += col.overlapX * sign;
-          dynamic.vx = dynamic.bounce > 0 ? -dynamic.vx * dynamic.bounce : 0;
+          const a = bodies[idxA];
+          const b = bodies[idxB];
+          if (a.isStatic && b.isStatic) continue;
 
-          // Wall contact
-          if (!a.isStatic) a.onWall = col.normalX > 0 ? 'right' : 'left';
-          if (!b.isStatic) b.onWall = col.normalX > 0 ? 'left' : 'right';
-        } else {
-          // Vertical separation
-          if (a.isStatic) {
-            b.y -= col.overlapY * col.normalY;
-            if (col.normalY > 0) { b.onGround = true; b.vy = 0; }
-            else { b.onCeiling = true; b.vy = Math.max(0, b.vy); }
-          } else if (b.isStatic) {
-            a.y += col.overlapY * col.normalY;
-            if (col.normalY < 0) { a.onGround = true; a.vy = 0; }
-            else { a.onCeiling = true; a.vy = Math.max(0, a.vy); }
-          } else {
-            // Both dynamic — split separation
-            a.y += col.overlapY * col.normalY * 0.5;
-            b.y -= col.overlapY * col.normalY * 0.5;
-            if (col.normalY < 0) { a.onGround = true; a.vy = 0; }
-            if (col.normalY > 0) { b.onGround = true; b.vy = 0; }
+          const col = aabbOverlap(a, b);
+          if (!col) continue;
+
+          // Sensor bodies: trigger overlap, no physics response
+          if (a.isSensor || b.isSensor) {
+            if (this.onOverlap) this.onOverlap(a, b, col);
+            continue;
           }
-        }
 
-        // Friction (horizontal damping on ground contact)
-        if (!a.isStatic && a.onGround) {
-          a.vx *= (1 - a.friction);
-        }
-        if (!b.isStatic && b.onGround) {
-          b.vx *= (1 - b.friction);
-        }
+          // One-way platform: only block from above
+          if (b.isOneWay) {
+            // Only collide if A is falling and was above B last frame
+            if (a.vy < 0 || (a.y + a.hh - col.overlapY) > (b.y - b.hh + 2)) continue;
+          }
+          if (a.isOneWay) {
+            if (b.vy < 0 || (b.y + b.hh - col.overlapY) > (a.y - a.hh + 2)) continue;
+          }
 
-        if (this.onCollide) this.onCollide(a, b, col);
+          // Resolve collision — push apart along smallest overlap axis
+          if (col.overlapX < col.overlapY) {
+            // Horizontal separation
+            const dynamic = a.isStatic ? b : a;
+            const sign = a.isStatic ? -col.normalX : col.normalX;
+            dynamic.x += col.overlapX * sign;
+            dynamic.vx = dynamic.bounce > 0 ? -dynamic.vx * dynamic.bounce : 0;
+
+            // Wall contact
+            if (!a.isStatic) a.onWall = col.normalX > 0 ? 'right' : 'left';
+            if (!b.isStatic) b.onWall = col.normalX > 0 ? 'left' : 'right';
+          } else {
+            // Vertical separation
+            if (a.isStatic) {
+              b.y -= col.overlapY * col.normalY;
+              if (col.normalY > 0) { b.onGround = true; b.vy = 0; (b as any)._groundBody = a; }
+              else { b.onCeiling = true; b.vy = Math.max(0, b.vy); }
+            } else if (b.isStatic) {
+              a.y += col.overlapY * col.normalY;
+              if (col.normalY < 0) { a.onGround = true; a.vy = 0; (a as any)._groundBody = b; }
+              else { a.onCeiling = true; a.vy = Math.max(0, a.vy); }
+            } else {
+              // Both dynamic — split separation
+              a.y += col.overlapY * col.normalY * 0.5;
+              b.y -= col.overlapY * col.normalY * 0.5;
+              if (col.normalY < 0) { a.onGround = true; a.vy = 0; (a as any)._groundBody = b; }
+              if (col.normalY > 0) { b.onGround = true; b.vy = 0; (b as any)._groundBody = a; }
+            }
+          }
+
+          // Friction (horizontal damping on ground contact)
+          if (!a.isStatic && a.onGround) {
+            a.vx *= (1 - a.friction);
+          }
+          if (!b.isStatic && b.onGround) {
+            b.vx *= (1 - b.friction);
+          }
+
+          if (this.onCollide) this.onCollide(a, b, col);
+        }
+      }
+    }
+
+    // Moving platform carry — transfer platform velocity to riders
+    for (var mi = 0; mi < this.bodies.length; mi++) {
+      var mb = this.bodies[mi] as any;
+      if (!mb.isStatic && mb.onGround && mb._groundBody) {
+        var gnd = mb._groundBody;
+        if (gnd._platformVx !== undefined && (gnd._platformVx !== 0 || gnd._platformVy !== 0)) {
+          mb.x += gnd._platformVx * dtCapped;
+          mb.y += gnd._platformVy * dtCapped;
+        }
       }
     }
 
@@ -245,6 +295,15 @@ export class PhysicsWorld {
       if (b.sprite && !b.isStatic) {
         b.sprite.x = b.x;
         b.sprite.y = b.y;
+      }
+    }
+
+    // Save current static body positions for next frame's platform velocity calc
+    for (var si = 0; si < this.bodies.length; si++) {
+      var sb = this.bodies[si] as any;
+      if (sb.isStatic) {
+        sb._prevX = sb.x;
+        sb._prevY = sb.y;
       }
     }
   }

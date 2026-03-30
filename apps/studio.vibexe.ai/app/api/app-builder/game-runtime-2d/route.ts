@@ -38,7 +38,7 @@ canvas{display:block;width:100%;height:100%}
 <!-- Pixi.js v8 + Proton particle engine + pixi-filters + GSAP -->
 <script src="https://cdn.jsdelivr.net/npm/pixi.js@8.9.2/dist/pixi.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/proton-engine@7.1.5/build/proton.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/pixi-filters@6.1.5/dist/pixi-filters.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/pixi-filters@6.1.0/dist/pixi-filters.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/gsap@3/dist/gsap.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/gsap@3/dist/PixiPlugin.min.js"></script>
 
@@ -81,16 +81,69 @@ canvas{display:block;width:100%;height:100%}
   }
 
   // Verify pixi-filters and promote to top-level PIXI.* aliases
-  if (PIXI.filters && PIXI.filters.DropShadowFilter) {
-    // AI often writes PIXI.GlowFilter instead of PIXI.filters.GlowFilter — alias both
-    var _filterNames = ['GlowFilter', 'DropShadowFilter', 'OutlineFilter', 'BloomFilter', 'BlurFilter', 'ColorMatrixFilter', 'PixelateFilter', 'ShockwaveFilter', 'CRTFilter', 'GlitchFilter', 'AdjustmentFilter', 'AdvancedBloomFilter', 'MotionBlurFilter', 'GodrayFilter'];
-    for (var _fi = 0; _fi < _filterNames.length; _fi++) {
-      var _fn = _filterNames[_fi];
-      if (PIXI.filters[_fn] && !PIXI[_fn]) PIXI[_fn] = PIXI.filters[_fn];
+  // pixi-filters v6 with Pixi v8: namespace may be PIXI.filters.*, window.__filters, or global exports
+  if (!PIXI.filters) PIXI.filters = {};
+
+  // Collect filter classes from all possible sources (pixi-filters CDN may export differently per version)
+  var _filterSources = [PIXI.filters, window.__filters || {}, window];
+  var _filterNames = ['GlowFilter', 'DropShadowFilter', 'OutlineFilter', 'BloomFilter', 'BlurFilter', 'ColorMatrixFilter', 'PixelateFilter', 'ShockwaveFilter', 'CRTFilter', 'GlitchFilter', 'AdjustmentFilter', 'AdvancedBloomFilter', 'MotionBlurFilter', 'GodrayFilter'];
+  var _filtersFound = [];
+  var _filtersMissing = [];
+
+  for (var _fi = 0; _fi < _filterNames.length; _fi++) {
+    var _fn = _filterNames[_fi];
+    var _found = false;
+    // Search all sources for this filter class
+    for (var _si = 0; _si < _filterSources.length; _si++) {
+      if (_filterSources[_si] && typeof _filterSources[_si][_fn] === 'function') {
+        // Ensure it exists on PIXI.filters namespace (engine looks here)
+        if (!PIXI.filters[_fn]) PIXI.filters[_fn] = _filterSources[_si][_fn];
+        // Also alias to top-level PIXI.* (AI often writes PIXI.GlowFilter)
+        if (!PIXI[_fn]) PIXI[_fn] = _filterSources[_si][_fn];
+        _found = true;
+        break;
+      }
     }
-    console.log('[2D Runtime] pixi-filters loaded (DropShadow, Glow, Outline, Bloom available)');
-  } else {
-    console.warn('[2D Runtime] pixi-filters not available — filter effects disabled');
+    // Built-in PIXI v8 filters: BlurFilter and ColorMatrixFilter exist on PIXI directly
+    if (!_found && PIXI[_fn] && typeof PIXI[_fn] === 'function') {
+      PIXI.filters[_fn] = PIXI[_fn];
+      _found = true;
+    }
+    if (_found) { _filtersFound.push(_fn); } else { _filtersMissing.push(_fn); }
+  }
+
+  // Wrap each found filter constructor in a try/catch factory to handle Pixi v8 API differences
+  for (var _wi = 0; _wi < _filtersFound.length; _wi++) {
+    (function(name) {
+      var OrigCtor = PIXI.filters[name];
+      if (!OrigCtor || OrigCtor.__wrapped) return;
+      var SafeCtor = function() {
+        try {
+          // Apply constructor with all arguments
+          var args = Array.prototype.slice.call(arguments);
+          if (args.length === 0) return new OrigCtor();
+          if (args.length === 1) return new OrigCtor(args[0]);
+          if (args.length === 2) return new OrigCtor(args[0], args[1]);
+          return new OrigCtor(args[0], args[1], args[2]);
+        } catch (e) {
+          console.warn('[2D Runtime] Filter ' + name + ' construction failed, using no-op:', e.message);
+          // Return a minimal no-op filter that won't crash the pipeline
+          try { return new PIXI.Filter(); } catch (e2) { return { enabled: false }; }
+        }
+      };
+      SafeCtor.prototype = OrigCtor.prototype;
+      SafeCtor.__wrapped = true;
+      SafeCtor.__original = OrigCtor;
+      PIXI.filters[name] = SafeCtor;
+      PIXI[name] = SafeCtor;
+    })(_filtersFound[_wi]);
+  }
+
+  if (_filtersFound.length > 0) {
+    console.log('[2D Runtime] pixi-filters loaded (' + _filtersFound.length + '/' + _filterNames.length + '): ' + _filtersFound.join(', '));
+  }
+  if (_filtersMissing.length > 0) {
+    console.warn('[2D Runtime] pixi-filters missing (' + _filtersMissing.length + '): ' + _filtersMissing.join(', ') + ' — those effects will be skipped');
   }
 
   // Verify FillGradient

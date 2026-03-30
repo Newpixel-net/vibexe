@@ -228,10 +228,11 @@ export async function compileGameBundle(input: CompileInput): Promise<CompileOut
 
 	// If no index entry found, detect game project and generate a synthetic non-React entry.
 	// Check 2D FIRST (Engine2D in core.ts is a strong signal), then fall back to 3D.
+	let is2DGame = false;
 	if (!entryContent) {
 		// 2D game detection: engine/core.ts with Engine2D class
 		const coreEnginePath = findFileByName(files, "core.ts") || findFileByName(files, "engine/core.ts");
-		const is2DGame = !!coreEnginePath && files.get(coreEnginePath)?.includes("Engine2D");
+		is2DGame = !!coreEnginePath && !!files.get(coreEnginePath)?.includes("Engine2D");
 
 		if (is2DGame) {
 			// Find ANY scene file — AI may name it GameScene2D, GameScene, PlatformerGameScene, etc.
@@ -293,6 +294,7 @@ export async function compileGameBundle(input: CompileInput): Promise<CompileOut
 			appId: input.appId,
 			enabledModuleIds: input.enabledModuleIds || [],
 			gameSettings: settings,
+			is2DGame,
 		});
 		return {
 			bundle: cached.bundle,
@@ -352,6 +354,7 @@ export async function compileGameBundle(input: CompileInput): Promise<CompileOut
 			appId: input.appId,
 			enabledModuleIds: input.enabledModuleIds || [],
 			gameSettings: settings,
+			is2DGame,
 		});
 
 		return {
