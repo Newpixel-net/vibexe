@@ -349,7 +349,7 @@ export function createFileTools(appId: string, options?: FileToolsOptions) {
 
 		compose_game: tool({
 			description:
-				"RECOMMENDED: Compose a 2D game using Feature Bank core features. Pass features array with core IDs: visual-layers, player-platformer, level-platforms, collectible-coins, enemy-patrol, camera-follow, hud-basic, ambient-atmosphere. Features handle gameplay — you add custom visuals on top (~100-150 lines).",
+				"RECOMMENDED: Compose a 2D game using Feature Bank core features. Pass features array with core IDs: visual-layers, player-platformer (side-scroll) OR player-topdown (8-way movement), level-platforms, collectible-coins, enemy-patrol, camera-follow, hud-basic, ambient-atmosphere. Use player-topdown for RPG/top-down/twin-stick genres.",
 			inputSchema: z.object({
 				theme: z.string().describe("Game theme palette key: forest, sunset, space, volcanic, candy, arctic, dark, ocean"),
 				genre: z.string().describe("Game genre: platformer, runner, shooter, puzzle"),
@@ -400,7 +400,7 @@ export function createFileTools(appId: string, options?: FileToolsOptions) {
 					}
 
 					// Detect if core features handle gameplay (thin scaffold) vs legacy mode
-					const hasCoreFeatures = featureIds.includes('player-platformer');
+					const hasCoreFeatures = featureIds.includes('player-platformer') || featureIds.includes('player-topdown');
 
 					let sceneCode: string;
 					if (hasCoreFeatures) {

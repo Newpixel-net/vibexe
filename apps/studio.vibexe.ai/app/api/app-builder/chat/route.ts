@@ -797,6 +797,7 @@ const supabase = createClient("${supabaseConfig.url}", "${supabaseConfig.anonKey
 		let isRunner2d = false;
 		let isShooter2d = false;
 		let isPuzzle2d = false;
+		let isRpg2d = false;
 		let hasAnimatedCharacter = false;
 		let isRunner3d = false;
 		let isShooter3d = false;
@@ -817,6 +818,13 @@ const supabase = createClient("${supabaseConfig.url}", "${supabaseConfig.anonKey
 		const SHOOTER_2D_KEYWORDS = [
 			"2d shooter", "shoot em up", "shmup", "bullet hell", "space shooter",
 			"2d shoot", "top down shooter 2d",
+		];
+		const RPG_2D_KEYWORDS = [
+			"2d rpg", "top-down rpg", "top down rpg", "topdown rpg", "zelda",
+			"top-down adventure", "top down adventure", "topdown adventure",
+			"dungeon crawler", "roguelike 2d", "2d roguelike",
+			"twin-stick", "twin stick", "top-down shooter 2d", "top down shooter",
+			"8-directional", "8 directional", "top-down game", "top down game",
 		];
 		const PUZZLE_2D_KEYWORDS = [
 			"puzzle", "match-3", "match 3", "tetris", "block puzzle", "word game",
@@ -883,6 +891,10 @@ const supabase = createClient("${supabaseConfig.url}", "${supabaseConfig.anonKey
 				if (PUZZLE_2D_KEYWORDS.some(kw => searchText.includes(kw))) {
 					isPuzzle2d = true;
 					console.log(`[Chat API] 2D puzzle detected (keywords)`);
+				}
+				if (RPG_2D_KEYWORDS.some(kw => searchText.includes(kw))) {
+					isRpg2d = true;
+					console.log(`[Chat API] 2D RPG/top-down detected (keywords)`);
 				}
 			}
 			// Fallback: check existing project files FIRST (before defaulting)
@@ -951,7 +963,7 @@ const supabase = createClient("${supabaseConfig.url}", "${supabaseConfig.anonKey
 		let game2dBrief: ReturnType<typeof expandSeed> | null = null;
 		if (isGame2d) {
 			const effectiveSeed = game2dSeed ?? Math.floor(Math.random() * 9000) + 1000;
-			const subGenre = isShooter2d ? "shooter" as const : isRunner2d ? "runner" as const : isPuzzle2d ? "puzzle" as const : "platformer" as const;
+			const subGenre = isRpg2d ? "rpg" as const : isShooter2d ? "shooter" as const : isRunner2d ? "runner" as const : isPuzzle2d ? "puzzle" as const : "platformer" as const;
 			game2dBrief = expandSeed(effectiveSeed, subGenre);
 			// Override blueprint from user prompt keywords
 			const promptLower = (userPrompt || "").toLowerCase();
@@ -959,7 +971,8 @@ const supabase = createClient("${supabaseConfig.url}", "${supabaseConfig.anonKey
 			else if (/tower|climb|vertical/.test(promptLower)) game2dBrief.worldBlueprint = 'vertical-tower';
 			else if (/float|island|sky|cloud/.test(promptLower)) game2dBrief.worldBlueprint = 'floating-islands';
 			else if (/arena|fight|boss|battle/.test(promptLower)) game2dBrief.worldBlueprint = 'arena';
-			else if (/dungeon|rpg|roguelike|room/.test(promptLower)) game2dBrief.worldBlueprint = 'dungeon-rooms';
+			else if (/dungeon|rpg|roguelike|room/.test(promptLower)) game2dBrief.worldBlueprint = isRpg2d ? 'dungeon-topdown' : 'dungeon-rooms';
+				else if (/top.?down|zelda|twin.?stick|8.?dir/.test(promptLower)) game2dBrief.worldBlueprint = 'open-field';
 			else if (/city|rooftop|urban|building/.test(promptLower)) game2dBrief.worldBlueprint = 'city-rooftops';
 			else if (/forest|jungle|canopy|tree/.test(promptLower)) game2dBrief.worldBlueprint = 'forest-canopy';
 			else if (/underwater|ocean|sea|diving|coral/.test(promptLower)) game2dBrief.worldBlueprint = 'underwater';

@@ -178,7 +178,7 @@ const SPECIAL_MECHANIC_FLAVORS: Record<string, string> = {
 
 // ===== Types =====
 
-export type SubGenre = "platformer" | "runner" | "puzzle" | "shooter";
+export type SubGenre = "platformer" | "runner" | "puzzle" | "shooter" | "rpg" | "topdown-adventure" | "twin-stick";
 
 export interface CreativeBrief {
 	seed: number;
@@ -286,6 +286,10 @@ export function expandSeed(seed: number, subGenre: SubGenre): CreativeBrief {
 		worldBlueprint = 'endless-runner';
 	} else if (subGenre === 'shooter') {
 		worldBlueprint = 'arena';
+	} else if (subGenre === 'rpg' || subGenre === 'topdown-adventure') {
+		worldBlueprint = 'dungeon-topdown';
+	} else if (subGenre === 'twin-stick') {
+		worldBlueprint = 'open-field';
 	} else if (subGenre === 'platformer') {
 		if (layoutStyle === 'vertical-challenge') worldBlueprint = 'vertical-tower';
 		else if (atmosphere === 'embers-dark') worldBlueprint = 'cave-system';
@@ -402,6 +406,16 @@ export function buildCreativeBriefPrompt(brief: CreativeBrief): string {
 - Enemy Spawn Rate: ${brief.enemySpawnRate}s
 - Wave Count: ${brief.waveCount}
 - Move Speed: ${brief.moveSpeed} px/s
+`;
+	} else if (brief.subGenre === "rpg" || brief.subGenre === "topdown-adventure" || brief.subGenre === "twin-stick") {
+		prompt += `
+### Top-Down Game — 8-Directional Movement
+**Genre**: 'top-down' (SET CONFIG.genre = 'top-down')
+**Movement**: Player moves in ALL 8 directions (WASD/arrows). No gravity. No jumping.
+**World Blueprint**: ${brief.worldBlueprint}
+- Move Speed: ${brief.moveSpeed || 200} px/s
+- World: ${brief.worldWidth || 1200} x ${brief.worldHeight || 900}
+- Use Feature Bank feature 'player-topdown' instead of 'player-platformer'
 `;
 	}
 

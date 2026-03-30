@@ -108,6 +108,14 @@ When the user asks for:
 - "forest" / "jungle" / "tree game" → blueprint: 'forest-canopy' (ground + mid branches + canopy tiers)
 - "underwater" / "ocean" / "diving" → blueprint: 'underwater' (blue gradient, coral platforms, seaweed)
 - "runner" / "endless" / "auto-run" → blueprint: 'endless-runner' (ground segments with gaps)
+- "top-down RPG" / "top-down adventure" / "Zelda-like" → blueprint: 'dungeon-topdown', genre: 'top-down' (rooms + corridors, 8-way movement)
+- "twin-stick shooter" / "top-down shooter" → blueprint: 'open-field', genre: 'twin-stick' (grass field + obstacles, 8-way movement)
+- "open world" / "exploration" / "sandbox" → blueprint: 'open-field', genre: 'top-down' (open grass area)
+
+### IMPORTANT: Genre determines movement style
+- genre: 'platformer' → LEFT/RIGHT + JUMP (gravity, side-scrolling)
+- genre: 'top-down' / 'rpg' / 'twin-stick' → 8-DIRECTIONAL movement (WASD/arrows, no gravity, character moves in ALL directions)
+Set CONFIG.genre to match the game type! For any top-down game, use genre: 'top-down' or 'rpg'.
 
 ### WorldBuilder Config — Already Set in CONFIG
 The blueprint is already set in CONFIG.worldBlueprint based on the creative brief. If you need to override it (e.g., user asks for a "cave game" but brief picked outdoor-scroll), change these CONFIG fields:

@@ -397,6 +397,194 @@ ON CONFLICT (id) DO UPDATE SET
 
 
 -- ============================================================================
+-- 2b. PLAYER-TOPDOWN — 8-directional movement for top-down games
+-- ============================================================================
+
+INSERT INTO feature_bank_snippets (id, name, description, category, type, engine, version, keywords, parameters, dependencies, genres, code, is_built_in, is_verified)
+VALUES (
+  'player-topdown',
+  'Player Top-Down',
+  'Complete top-down player: physics world (zero gravity), body, sprite, 8-directional movement with normalized diagonals. Exposes getPlayer(), getPhysics(), getController() — same API as player-platformer.',
+  'Core/Player',
+  'instruction',
+  '2d',
+  '1.0.0',
+  '["player","movement","8-direction","topdown","rpg","twin-stick","physics","controller"]',
+  '[
+    {"name":"moveSpeed","type":"number","default":200,"min":50,"max":500,"description":"Movement speed"},
+    {"name":"accel","type":"number","default":1800,"min":500,"max":5000,"description":"Acceleration (px/s²)"},
+    {"name":"decel","type":"number","default":2400,"min":500,"max":5000,"description":"Deceleration (px/s²)"},
+    {"name":"theme","type":"select","default":"forest","options":["forest","sunset","space","volcanic","candy","arctic","dark","ocean"],"description":"Color palette"},
+    {"name":"worldWidth","type":"number","default":1200,"min":400,"max":4000,"description":"World width"},
+    {"name":"worldHeight","type":"number","default":900,"min":400,"max":2000,"description":"World height"},
+    {"name":"startX","type":"number","default":400,"min":0,"max":2000,"description":"Player start X"},
+    {"name":"startY","type":"number","default":400,"min":0,"max":2000,"description":"Player start Y"}
+  ]',
+  '[]',
+  '["top-down","rpg","twin-stick","bullet-hell","stealth","racing"]',
+$$function create(config) {
+  var moveSpeed = config.moveSpeed || 200;
+  var accelRate = config.accel || 1800;
+  var decelRate = config.decel || 2400;
+  var theme = config.theme || 'forest';
+  var worldW = config.worldWidth || 1200;
+  var worldH = config.worldHeight || 900;
+  var startX = config.startX || 400;
+  var startY = config.startY || 400;
+  var physics = null;
+  var playerBody = null;
+  var playerSprite = null;
+  var _lastAnim = '';
+  var _isAnimated = false;
+  var _facingDir = 0; // 0=down, 1=left, 2=right, 3=up
+  var _facingRight = true;
+
+  return {
+    id: 'player-topdown',
+    init: function(engine) {
+      var PAL = PALETTES[theme] || PALETTES.forest;
+
+      // Physics world with ZERO gravity (top-down = no falling)
+      physics = new PhysicsWorld(0);
+
+      // World boundary walls (top, bottom, left, right)
+      physics.addBody(createStaticBody(worldW / 2, -20, worldW, 40));
+      physics.addBody(createStaticBody(worldW / 2, worldH + 20, worldW, 40));
+      physics.addBody(createStaticBody(-20, worldH / 2, 40, worldH));
+      physics.addBody(createStaticBody(worldW + 20, worldH / 2, 40, worldH));
+
+      // Player sprite — use hero spritesheet if available
+      var heroSheet = _sheetCache && _sheetCache['hero'];
+      var _bodyW = 36, _bodyH = 36;
+      if (heroSheet && heroSheet.animations && heroSheet.animations['idle']) {
+        playerSprite = new PIXI.AnimatedSprite(heroSheet.animations['idle']);
+        playerSprite.anchor.set(0.5, 0.5);
+
+        var firstTex = heroSheet.animations['idle'][0];
+        var frameH = (firstTex && firstTex.height) || 128;
+        var TARGET_H = 64;
+        var scaleFactor = TARGET_H / frameH;
+        playerSprite.scale.set(scaleFactor, scaleFactor);
+        var displayW = ((firstTex && firstTex.width) || 128) * scaleFactor;
+        _bodyW = Math.round(displayW * 0.6);
+        _bodyH = Math.round(TARGET_H * 0.6);
+
+        playerSprite.animationSpeed = 0.10;
+        playerSprite.play();
+        _isAnimated = true;
+        _lastAnim = 'idle';
+        console.log('[player-topdown] Hero loaded: body ' + _bodyW + 'x' + _bodyH);
+      } else {
+        playerSprite = drawPlayerCharacter(32, PAL.player, PAL.playerLight);
+      }
+      playerSprite.x = startX;
+      playerSprite.y = startY;
+      engine.world.addChild(playerSprite);
+
+      // Player physics body (centered)
+      playerBody = createBody(startX, startY, _bodyW, _bodyH, { tag: 'player' });
+      physics.addBody(playerBody);
+
+      console.log('[player-topdown] 8-directional controller ready, world ' + worldW + 'x' + worldH);
+    },
+
+    update: function(engine, dt) {
+      if (!physics || !playerBody) return;
+
+      // === 8-DIRECTIONAL MOVEMENT ===
+      var dx = 0, dy = 0;
+      if (engine.input.left) dx -= 1;
+      if (engine.input.right) dx += 1;
+      if (engine.input.up) dy -= 1;
+      if (engine.input.down) dy += 1;
+
+      // Normalize diagonal (prevents sqrt(2) speed boost)
+      if (dx !== 0 && dy !== 0) { dx *= 0.7071; dy *= 0.7071; }
+
+      var moving = dx !== 0 || dy !== 0;
+
+      if (moving) {
+        playerBody.vx += dx * accelRate * dt;
+        playerBody.vy += dy * accelRate * dt;
+        var spd = Math.sqrt(playerBody.vx * playerBody.vx + playerBody.vy * playerBody.vy);
+        if (spd > moveSpeed) {
+          playerBody.vx = (playerBody.vx / spd) * moveSpeed;
+          playerBody.vy = (playerBody.vy / spd) * moveSpeed;
+        }
+        // Track facing (4-way)
+        if (Math.abs(dx) > Math.abs(dy)) { _facingDir = dx > 0 ? 2 : 1; _facingRight = dx > 0; }
+        else { _facingDir = dy > 0 ? 0 : 3; }
+      } else {
+        var curSpd = Math.sqrt(playerBody.vx * playerBody.vx + playerBody.vy * playerBody.vy);
+        if (curSpd > 5) {
+          var friction = 1 - (decelRate * dt) / curSpd;
+          if (friction < 0) friction = 0;
+          playerBody.vx *= friction; playerBody.vy *= friction;
+        } else { playerBody.vx = 0; playerBody.vy = 0; }
+      }
+
+      physics.update(dt);
+
+      // Sync sprite
+      if (playerSprite) {
+        playerSprite.x = playerBody.x;
+        playerSprite.y = playerBody.y;
+        var sf = Math.abs(playerSprite.scale.x) || 1;
+        playerSprite.scale.x = _facingRight ? sf : -sf;
+      }
+
+      // === DIRECTIONAL ANIMATION (fallback to standard if no directional sheets) ===
+      if (_isAnimated && playerSprite.textures && playerSprite.play && !window.__vibexeAnimLock) {
+        var heroSheet = _sheetCache && _sheetCache['hero'];
+        if (heroSheet && heroSheet.animations) {
+          var _anim = 'idle';
+          var _speed = 0.10;
+          if (moving || Math.abs(playerBody.vx) > 10 || Math.abs(playerBody.vy) > 10) {
+            if (_facingDir === 0 && heroSheet.animations['walk-down']) _anim = 'walk-down';
+            else if (_facingDir === 3 && heroSheet.animations['walk-up']) _anim = 'walk-up';
+            else if ((_facingDir === 1 || _facingDir === 2) && heroSheet.animations['walk-side']) _anim = 'walk-side';
+            else _anim = 'walk';
+            _speed = 0.15;
+          } else {
+            if (_facingDir === 0 && heroSheet.animations['idle-down']) _anim = 'idle-down';
+            else if (_facingDir === 3 && heroSheet.animations['idle-up']) _anim = 'idle-up';
+            else _anim = 'idle';
+          }
+          if (_lastAnim !== _anim && heroSheet.animations[_anim]) {
+            playerSprite.textures = heroSheet.animations[_anim];
+            playerSprite.animationSpeed = _speed;
+            playerSprite.loop = true;
+            playerSprite.gotoAndPlay(0);
+            _lastAnim = _anim;
+          }
+        }
+      }
+    },
+
+    getPlayer: function() { return { sprite: playerSprite, body: playerBody }; },
+    getPhysics: function() { return physics; },
+    getController: function() { return { facingDir: _facingDir, facingRight: _facingRight, body: playerBody }; },
+    destroy: function() {
+      window.__vibexeAnimLock = false;
+      if (playerSprite && playerSprite.parent) playerSprite.parent.removeChild(playerSprite);
+      physics = null; playerBody = null; playerSprite = null;
+    }
+  };
+}$$,
+  true, true
+)
+ON CONFLICT (id) DO UPDATE SET
+  name = EXCLUDED.name,
+  description = EXCLUDED.description,
+  category = EXCLUDED.category,
+  parameters = EXCLUDED.parameters,
+  dependencies = EXCLUDED.dependencies,
+  code = EXCLUDED.code,
+  is_verified = EXCLUDED.is_verified,
+  updated_at = NOW();
+
+
+-- ============================================================================
 -- 3. LEVEL-PLATFORMS — Platform layout generation
 -- ============================================================================
 
@@ -439,7 +627,7 @@ $$function create(config) {
       }
 
       var PAL = PALETTES[theme] || PALETTES.forest;
-      var playerFeature = engine.features.get('player-platformer');
+      var playerFeature = engine.features.get(engine._playerFeatureId || 'player-platformer') || engine.features.get('player-platformer');
       var physics = playerFeature ? playerFeature.getPhysics() : null;
       if (!physics) { console.warn('[level-platforms] No physics world found'); return; }
 
@@ -569,7 +757,7 @@ $$function create(config) {
       }
     },
     update: function(engine, dt) {
-      var playerFeature = engine.features.get('player-platformer');
+      var playerFeature = engine.features.get(engine._playerFeatureId || 'player-platformer') || engine.features.get('player-platformer');
       if (!playerFeature) return;
       var player = playerFeature.getPlayer();
       if (!player || !player.body) return;
@@ -695,7 +883,7 @@ $$function create(config) {
     },
     update: function(engine, dt) {
       hitCooldown -= dt;
-      var playerFeature = engine.features.get('player-platformer');
+      var playerFeature = engine.features.get(engine._playerFeatureId || 'player-platformer') || engine.features.get('player-platformer');
       if (!playerFeature) return;
       var player = playerFeature.getPlayer();
 
@@ -791,7 +979,7 @@ $$function create(config) {
   return {
     id: 'camera-follow',
     init: function(engine) {
-      var playerFeature = engine.features.get('player-platformer');
+      var playerFeature = engine.features.get(engine._playerFeatureId || 'player-platformer') || engine.features.get('player-platformer');
       if (!playerFeature) { console.warn('[camera-follow] No player feature'); return; }
       var player = playerFeature.getPlayer();
       if (!player || !player.body) return;

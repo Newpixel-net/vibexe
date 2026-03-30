@@ -60,6 +60,10 @@ var GENRE_PRESETS: Record<string, { gravity: number; followX: boolean; followY: 
   'bullet-hell':      { gravity: 0,    followX: false, followY: false, clampY: false, worldShape: 'tall' },
   'puzzle':           { gravity: 0,    followX: false, followY: false, clampY: false, worldShape: 'screen' },
   'fighting':         { gravity: 980,  followX: true,  followY: false, clampY: true,  worldShape: 'wide' },
+  'rpg':              { gravity: 0,    followX: true,  followY: true,  clampY: false, worldShape: 'square' },
+  'twin-stick':       { gravity: 0,    followX: true,  followY: true,  clampY: false, worldShape: 'square' },
+  'racing':           { gravity: 0,    followX: true,  followY: true,  clampY: false, worldShape: 'wide' },
+  'stealth':          { gravity: 0,    followX: true,  followY: true,  clampY: false, worldShape: 'square' },
 };
 
 // ---------------------------------------------------------------------------
@@ -334,6 +338,8 @@ class WorldBuilderSystem {
     else if (_bp === 'forest-canopy') { this._buildForestCanopy(ctx); _bpDone = true; }
     else if (_bp === 'underwater') { this._buildUnderwater(ctx); _bpDone = true; }
     else if (_bp === 'endless-runner') { this._buildEndlessRunner(ctx); _bpDone = true; }
+    else if (_bp === 'dungeon-topdown') { this._buildDungeonTopdown(ctx); _bpDone = true; }
+    else if (_bp === 'open-field') { this._buildOpenField(ctx); _bpDone = true; }
 
     if (!_bpDone) {
     // ==== Default: OUTDOOR SCROLL blueprint ====
@@ -1766,6 +1772,273 @@ class WorldBuilderSystem {
     bodies.push({ x: W / 2, y: H + 20, w: W, h: 40, isStatic: true, tag: 'death' });
     this._addForegroundDecor(ctx, 'endless-runner');
   }
+
+  // =======================================================================
+  // DUNGEON-TOPDOWN — Top-down dungeon with rooms + corridors
+  // =======================================================================
+  private _buildDungeonTopdown(ctx: any): void {
+    var { PIXI, cfg, rng, rngRange, rngInt, _getSprite, _getTilingSprite, pal, container, bodies, platforms, W, H, _cache, TILE_STYLES, THEME_TILE } = ctx;
+
+    // Dark background
+    var bg = new PIXI.Graphics();
+    bg.rect(0, 0, W, H);
+    bg.fill({ color: 0x111118 });
+    container.addChild(bg);
+
+    // === BSP Room Generation ===
+    var roomCount = rngInt(4, 7);
+    var rooms: { x: number; y: number; w: number; h: number }[] = [];
+    var margin = 80;
+    var minRoom = 150, maxRoom = 300;
+
+    for (var ri = 0; ri < roomCount * 3 && rooms.length < roomCount; ri++) {
+      var rw = rngInt(minRoom, maxRoom);
+      var rh = rngInt(minRoom, maxRoom);
+      var rx = rngInt(margin, W - rw - margin);
+      var ry = rngInt(margin, H - rh - margin);
+      // Check overlap
+      var overlaps = false;
+      for (var ci = 0; ci < rooms.length; ci++) {
+        var c = rooms[ci];
+        if (rx < c.x + c.w + 40 && rx + rw + 40 > c.x && ry < c.y + c.h + 40 && ry + rh + 40 > c.y) {
+          overlaps = true; break;
+        }
+      }
+      if (!overlaps) rooms.push({ x: rx, y: ry, w: rw, h: rh });
+    }
+
+    if (rooms.length < 2) {
+      // Fallback: 2 rooms if random placement failed
+      rooms = [
+        { x: 100, y: 100, w: 300, h: 250 },
+        { x: W - 450, y: H - 400, w: 300, h: 250 },
+      ];
+    }
+
+    // Floor tile rendering (48x48 tiles)
+    var tileS = 48;
+    var styleName = THEME_TILE ? (THEME_TILE['dark'] || 'cave') : 'cave';
+    var style = TILE_STYLES ? TILE_STYLES[styleName] : null;
+
+    // Render floor for each room
+    for (var fi = 0; fi < rooms.length; fi++) {
+      var rm = rooms[fi];
+      var cols = Math.ceil(rm.w / tileS);
+      var rows = Math.ceil(rm.h / tileS);
+      for (var ty = 0; ty < rows; ty++) {
+        for (var tx = 0; tx < cols; tx++) {
+          var floorSpr = style ? _getSprite(style.cat, style.fill || style.single) : null;
+          if (floorSpr) {
+            floorSpr.x = rm.x + tx * tileS;
+            floorSpr.y = rm.y + ty * tileS;
+            floorSpr.width = tileS;
+            floorSpr.height = tileS;
+            floorSpr.tint = 0x666688;
+            floorSpr.cullable = true;
+            container.addChild(floorSpr);
+          } else {
+            var tile = new PIXI.Graphics();
+            tile.rect(rm.x + tx * tileS, rm.y + ty * tileS, tileS, tileS);
+            tile.fill({ color: (tx + ty) % 2 === 0 ? 0x2a2a3a : 0x252535 });
+            container.addChild(tile);
+          }
+        }
+      }
+
+      // Wall physics bodies around room edges
+      var wallT = 16;
+      bodies.push({ x: rm.x + rm.w / 2, y: rm.y - wallT / 2, w: rm.w + wallT * 2, h: wallT, isStatic: true, tag: 'wall' }); // top
+      bodies.push({ x: rm.x + rm.w / 2, y: rm.y + rm.h + wallT / 2, w: rm.w + wallT * 2, h: wallT, isStatic: true, tag: 'wall' }); // bottom
+      bodies.push({ x: rm.x - wallT / 2, y: rm.y + rm.h / 2, w: wallT, h: rm.h, isStatic: true, tag: 'wall' }); // left
+      bodies.push({ x: rm.x + rm.w + wallT / 2, y: rm.y + rm.h / 2, w: wallT, h: rm.h, isStatic: true, tag: 'wall' }); // right
+
+      // Register room center as platform (for spawn point access)
+      platforms.push({ x: rm.x + rm.w / 2, y: rm.y + rm.h / 2, w: rm.w });
+    }
+
+    // === Connect rooms with corridors (L-shaped) ===
+    for (var ci = 0; ci < rooms.length - 1; ci++) {
+      var a = rooms[ci], b = rooms[ci + 1];
+      var ax = a.x + a.w / 2, ay = a.y + a.h / 2;
+      var bx = b.x + b.w / 2, by = b.y + b.h / 2;
+      var corrW = 60;
+
+      // Horizontal segment
+      var hx1 = Math.min(ax, bx) - corrW / 2;
+      var hx2 = Math.max(ax, bx) + corrW / 2;
+      var hg = new PIXI.Graphics();
+      hg.rect(hx1, ay - corrW / 2, hx2 - hx1, corrW);
+      hg.fill({ color: 0x2a2a3a });
+      container.addChild(hg);
+
+      // Vertical segment
+      var vy1 = Math.min(ay, by) - corrW / 2;
+      var vy2 = Math.max(ay, by) + corrW / 2;
+      var vg = new PIXI.Graphics();
+      vg.rect(bx - corrW / 2, vy1, corrW, vy2 - vy1);
+      vg.fill({ color: 0x2a2a3a });
+      container.addChild(vg);
+    }
+
+    // === Decorations inside rooms ===
+    var propNames = ['crate', 'barrel', 'rock'];
+    for (var di = 0; di < rooms.length; di++) {
+      var drm = rooms[di];
+      var decoCount = rngInt(2, 5);
+      for (var dj = 0; dj < decoCount; dj++) {
+        var dName = propNames[rngInt(0, propNames.length - 1)];
+        var dSpr = _getSprite('props', dName);
+        if (dSpr) {
+          dSpr.anchor.set(0.5, 0.5);
+          dSpr.x = drm.x + rngRange(40, drm.w - 40);
+          dSpr.y = drm.y + rngRange(40, drm.h - 40);
+          dSpr.scale.set(0.4);
+          dSpr.zIndex = 50;
+          container.addChild(dSpr);
+        }
+      }
+    }
+
+    // Collectibles in rooms
+    var coinNames = ['coin_gold', 'coin_gold', 'gem_red'];
+    for (var cri = 1; cri < rooms.length; cri++) { // skip first room (spawn)
+      var crm = rooms[cri];
+      var coinCount = rngInt(3, 6);
+      for (var ccj = 0; ccj < coinCount; ccj++) {
+        var cName = coinNames[rngInt(0, coinNames.length - 1)];
+        var cSpr = _getSprite('collectibles', cName);
+        if (cSpr) {
+          cSpr.anchor.set(0.5, 0.5);
+          cSpr.x = crm.x + rngRange(30, crm.w - 30);
+          cSpr.y = crm.y + rngRange(30, crm.h - 30);
+          cSpr.scale.set(0.3);
+          cSpr.zIndex = 100;
+          (cSpr as any).__juiceBob = true;
+          (cSpr as any).__juiceBobBase = cSpr.y;
+          (cSpr as any).__juiceBobPhase = rngRange(0, Math.PI * 2);
+          container.addChild(cSpr);
+        }
+      }
+    }
+
+    console.log('[WorldBuilder] Dungeon-topdown: ' + rooms.length + ' rooms connected');
+  }
+
+  // =======================================================================
+  // OPEN-FIELD — Top-down grass field with scattered obstacles
+  // =======================================================================
+  private _buildOpenField(ctx: any): void {
+    var { PIXI, cfg, rng, rngRange, rngInt, _getSprite, _getTilingSprite, pal, container, bodies, platforms, W, H, _cache, TILE_STYLES, THEME_TILE } = ctx;
+
+    // Grass floor — TilingSprite of grassCenter for full coverage
+    var styleName = THEME_TILE ? (THEME_TILE[cfg.theme] || 'grass') : 'grass';
+    var style = TILE_STYLES ? TILE_STYLES[styleName] : null;
+    var fillKey = style ? '2d/sprites/' + style.cat + '/' + style.fill + '.png' : '';
+    var fillTex = _cache ? _cache[fillKey] : null;
+
+    if (fillTex && PIXI.TilingSprite) {
+      var floor = new PIXI.TilingSprite({ texture: fillTex, width: W, height: H });
+      floor.tileScale.set(48 / (fillTex.width || 128), 48 / (fillTex.height || 128));
+      floor.tint = 0xaaccaa;
+      container.addChild(floor);
+    } else {
+      var bg = new PIXI.Graphics();
+      bg.rect(0, 0, W, H);
+      bg.fill({ color: 0x3a5a2a });
+      container.addChild(bg);
+    }
+
+    // World boundary walls
+    var bw = 20;
+    bodies.push({ x: W / 2, y: -bw / 2, w: W, h: bw, isStatic: true, tag: 'wall' });
+    bodies.push({ x: W / 2, y: H + bw / 2, w: W, h: bw, isStatic: true, tag: 'wall' });
+    bodies.push({ x: -bw / 2, y: H / 2, w: bw, h: H, isStatic: true, tag: 'wall' });
+    bodies.push({ x: W + bw / 2, y: H / 2, w: bw, h: H, isStatic: true, tag: 'wall' });
+
+    // Scattered obstacles (rocks, crates with physics bodies)
+    var obstacleCount = rngInt(8, 15);
+    var obstNames = ['crate', 'barrel', 'rock'];
+    for (var oi = 0; oi < obstacleCount; oi++) {
+      var ox = rngRange(100, W - 100);
+      var oy = rngRange(100, H - 100);
+      // Don't place too close to center (spawn area)
+      var distToCenter = Math.sqrt((ox - W / 2) * (ox - W / 2) + (oy - H / 2) * (oy - H / 2));
+      if (distToCenter < 120) continue;
+
+      var oName = obstNames[rngInt(0, obstNames.length - 1)];
+      var oSpr = _getSprite('props', oName);
+      if (oSpr) {
+        oSpr.anchor.set(0.5, 0.5);
+        oSpr.x = ox;
+        oSpr.y = oy;
+        oSpr.scale.set(0.5);
+        oSpr.zIndex = 40;
+        container.addChild(oSpr);
+      }
+      // Obstacle physics body
+      bodies.push({ x: ox, y: oy, w: 40, h: 40, isStatic: true, tag: 'obstacle' });
+    }
+
+    // Trees (visual only, larger)
+    var treeCount = rngInt(5, 10);
+    for (var ti = 0; ti < treeCount; ti++) {
+      var tx = rngRange(80, W - 80);
+      var ty = rngRange(80, H - 80);
+      var treeNames = ['green_tree', 'tree_top'];
+      var tSpr = _getSprite('trees', treeNames[rngInt(0, treeNames.length - 1)]);
+      if (tSpr) {
+        tSpr.anchor.set(0.5, 1);
+        tSpr.x = tx;
+        tSpr.y = ty;
+        tSpr.scale.set(rngRange(0.6, 1.0));
+        tSpr.zIndex = 35;
+        (tSpr as any).__juiceSway = true;
+        (tSpr as any).__juiceSwayPhase = rngRange(0, Math.PI * 2);
+        container.addChild(tSpr);
+      }
+    }
+
+    // Decorations — plants, flowers
+    var decoNames = ['plant_green', 'plant_purple', 'cactus'];
+    var decoCount = rngInt(10, 20);
+    for (var ddi = 0; ddi < decoCount; ddi++) {
+      var ddx = rngRange(50, W - 50);
+      var ddy = rngRange(50, H - 50);
+      var ddSpr = _getSprite('decorations', decoNames[rngInt(0, decoNames.length - 1)]);
+      if (ddSpr) {
+        ddSpr.anchor.set(0.5, 1);
+        ddSpr.x = ddx;
+        ddSpr.y = ddy;
+        ddSpr.scale.set(rngRange(0.4, 0.7));
+        ddSpr.zIndex = 20;
+        container.addChild(ddSpr);
+      }
+    }
+
+    // Coins scattered across field
+    var coinCount = rngInt(8, 15);
+    for (var fci = 0; fci < coinCount; fci++) {
+      var fcx = rngRange(100, W - 100);
+      var fcy = rngRange(100, H - 100);
+      var fcSpr = _getSprite('collectibles', 'coin_gold');
+      if (fcSpr) {
+        fcSpr.anchor.set(0.5, 0.5);
+        fcSpr.x = fcx;
+        fcSpr.y = fcy;
+        fcSpr.scale.set(0.3);
+        fcSpr.zIndex = 100;
+        (fcSpr as any).__juiceBob = true;
+        (fcSpr as any).__juiceBobBase = fcy;
+        (fcSpr as any).__juiceBobPhase = rngRange(0, Math.PI * 2);
+        container.addChild(fcSpr);
+      }
+    }
+
+    // Register center as spawn point
+    platforms.push({ x: W / 2, y: H / 2, w: 100 });
+
+    console.log('[WorldBuilder] Open-field: ' + obstacleCount + ' obstacles, ' + treeCount + ' trees');
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -2469,6 +2742,7 @@ export class Engine2D {
   private _juiceSwaySprites: any[] = [];  // sprites that sway (trees)
   private _juicePlayerWasAirborne = false; // landing dust detection
   private _fpsDisplay: any = null;
+  private _playerFeatureId = 'player-platformer'; // auto-set by genre
 
   constructor(config: Engine2DConfig) {
     this.config = {
@@ -2492,6 +2766,12 @@ export class Engine2D {
       this.camera.followY = this.config.cameraFollowY !== undefined ? this.config.cameraFollowY : _preset.followY;
       this.camera.clampY = this.config.cameraClampY !== undefined ? this.config.cameraClampY : _preset.clampY;
       if (this.config.gravity === undefined) this.config.gravity = _preset.gravity;
+    }
+
+    // Auto-select player feature based on genre (top-down genres use player-topdown)
+    var _topdownGenres = ['top-down', 'rpg', 'twin-stick', 'bullet-hell', 'stealth', 'racing'];
+    if (_topdownGenres.indexOf(_genre) >= 0) {
+      this._playerFeatureId = 'player-topdown';
     }
 
     this.audio = new AudioManager();
@@ -2522,10 +2802,10 @@ export class Engine2D {
   /**
    * Convenience helper for Feature Bank features.
    * Returns the player sprite with .body attached for backward compat.
-   * Features should prefer engine.features.get('player-platformer').getPlayer() for { sprite, body }.
+   * Works with ANY player feature (platformer, topdown, etc.) via _playerFeatureId.
    */
   getPlayer(): any {
-    var pf = this.features.get('player-platformer');
+    var pf = this.features.get(this._playerFeatureId) || this.features.get('player-platformer') || this.features.get('player-topdown');
     if (!pf || !pf.getPlayer) return null;
     var p = pf.getPlayer();
     if (!p || !p.sprite) return null;
@@ -2880,7 +3160,7 @@ export class Engine2D {
     }
 
     // --- Landing dust ---
-    var pf = this.features.get('player-platformer');
+    var pf = this.features.get(this._playerFeatureId) || this.features.get('player-platformer');
     if (pf) {
       try {
         var playerData = pf.getPlayer ? pf.getPlayer() : null;
@@ -4053,7 +4333,7 @@ export class AssetsSystem {
       console.log('[Assets] setPlayerSprites: _sheetCache.hero set with', Object.keys(mergedAnimations).join(', '), 'frame:', frameW + 'x' + frameH);
 
       // Replace the player visual with an AnimatedSprite showing idle
-      var playerFeature = this.engine.features.get('player-platformer');
+      var playerFeature = this.engine.features.get(this.engine._playerFeatureId) || this.engine.features.get('player-platformer');
       if (playerFeature && playerFeature.playerGfx) {
         var idleTextures = mergedAnimations['idle'];
         var newSprite = new PIXI.AnimatedSprite(idleTextures);
