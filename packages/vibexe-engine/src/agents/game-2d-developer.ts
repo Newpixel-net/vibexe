@@ -109,7 +109,7 @@ When the user asks for:
 - "underwater" / "ocean" / "diving" → blueprint: 'underwater' (blue gradient, coral platforms, seaweed)
 - "runner" / "endless" / "auto-run" → blueprint: 'endless-runner' (ground segments with gaps)
 - "top-down RPG" / "top-down adventure" / "Zelda-like" → blueprint: 'dungeon-topdown', genre: 'top-down' (rooms + corridors, 8-way movement)
-- "twin-stick shooter" / "top-down shooter" → blueprint: 'open-field', genre: 'twin-stick' (grass field + obstacles, 8-way movement)
+- "twin-stick shooter" / "top-down shooter" → blueprint: 'open-field', genre: 'twin-stick' (grass field + obstacles, 8-way movement + projectile-system for mouse aim shooting)
 - "open world" / "exploration" / "sandbox" → blueprint: 'open-field', genre: 'top-down' (open grass area)
 
 ### IMPORTANT: Genre determines movement style

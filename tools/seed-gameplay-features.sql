@@ -1046,3 +1046,132 @@ ON CONFLICT (id) DO UPDATE SET
   code = EXCLUDED.code,
   is_verified = EXCLUDED.is_verified,
   updated_at = NOW();
+
+
+-- ============================================================================
+-- 7. PROJECTILE-SYSTEM — Mouse aim + shoot for twin-stick / top-down shooters
+-- ============================================================================
+
+INSERT INTO feature_bank_snippets (id, name, description, category, type, engine, version, keywords, parameters, dependencies, genres, code, is_built_in, is_verified)
+VALUES (
+  'projectile-system',
+  'Projectile System',
+  'Mouse-aimed projectile shooting for twin-stick shooters. Click/hold to fire bullets toward mouse cursor. Handles bullet spawning, movement, lifetime, and enemy collision.',
+  'Core/Combat',
+  'instruction',
+  '2d',
+  '1.0.0',
+  '["projectile","bullet","shoot","mouse","aim","twin-stick","combat","gun"]',
+  '[
+    {"name":"fireRate","type":"number","default":0.2,"min":0.05,"max":2.0,"description":"Seconds between shots"},
+    {"name":"bulletSpeed","type":"number","default":500,"min":100,"max":1500,"description":"Bullet speed (px/s)"},
+    {"name":"bulletSize","type":"number","default":6,"min":2,"max":20,"description":"Bullet radius"},
+    {"name":"bulletColor","type":"number","default":16776960,"description":"Bullet color (decimal, yellow)"},
+    {"name":"bulletLifetime","type":"number","default":2.0,"min":0.5,"max":5.0,"description":"Seconds before despawn"},
+    {"name":"autoFire","type":"boolean","default":false,"description":"Auto-fire while mouse held"},
+    {"name":"damage","type":"number","default":1,"min":1,"max":10,"description":"Damage per bullet"}
+  ]',
+  '[]',
+  '["twin-stick","top-down","bullet-hell","shooter","platformer"]',
+$$function create(config) {
+  var fireRate = config.fireRate || 0.2;
+  var bulletSpeed = config.bulletSpeed || 500;
+  var bulletSize = config.bulletSize || 6;
+  var bulletColor = config.bulletColor || 0xffff00;
+  var bulletLifetime = config.bulletLifetime || 2.0;
+  var autoFire = config.autoFire || false;
+  var damage = config.damage || 1;
+  var fireCooldown = 0;
+  var bullets = [];
+  var bulletContainer = null;
+
+  return {
+    id: 'projectile-system',
+    init: function(engine) {
+      bulletContainer = new PIXI.Container();
+      bulletContainer.label = 'bullets';
+      bulletContainer.zIndex = 200;
+      engine.world.addChild(bulletContainer);
+      console.log('[projectile-system] Mouse aim + shoot ready (rate=' + fireRate + 's, speed=' + bulletSpeed + ')');
+    },
+    update: function(engine, dt) {
+      fireCooldown -= dt;
+      var playerFeature = engine.features.get(engine._playerFeatureId || 'player-platformer') || engine.features.get('player-platformer');
+      if (!playerFeature) return;
+      var player = playerFeature.getPlayer();
+      if (!player || !player.body) return;
+      var px = player.body.x, py = player.body.y;
+
+      // Mouse aim: screen to world coords
+      var pointer = engine.input.pointer;
+      var worldX = pointer.x - (engine.world ? engine.world.x : 0);
+      var worldY = pointer.y - (engine.world ? engine.world.y : 0);
+
+      // Fire toward mouse
+      var shouldFire = autoFire ? pointer.down : pointer.justDown;
+      if (shouldFire && fireCooldown <= 0) {
+        fireCooldown = fireRate;
+        var dx = worldX - px, dy = worldY - py;
+        var dist = Math.sqrt(dx * dx + dy * dy);
+        if (dist < 1) dist = 1;
+        var dirX = dx / dist, dirY = dy / dist;
+
+        var bullet = new PIXI.Graphics();
+        bullet.circle(0, 0, bulletSize);
+        bullet.fill({ color: bulletColor });
+        bullet.x = px; bullet.y = py;
+        bulletContainer.addChild(bullet);
+        bullets.push({ gfx: bullet, x: px, y: py, vx: dirX * bulletSpeed, vy: dirY * bulletSpeed, life: bulletLifetime, damage: damage });
+      }
+
+      // Update bullets
+      for (var i = bullets.length - 1; i >= 0; i--) {
+        var b = bullets[i];
+        b.life -= dt;
+        b.x += b.vx * dt; b.y += b.vy * dt;
+        b.gfx.x = b.x; b.gfx.y = b.y;
+        if (b.life <= 0) {
+          if (b.gfx.parent) b.gfx.parent.removeChild(b.gfx);
+          bullets.splice(i, 1);
+          continue;
+        }
+        // Enemy collision
+        try {
+          var ef = engine.features.get('enemy-patrol') || engine.features.get('enemy-system');
+          if (ef && ef.getEnemies) {
+            var enemies = ef.getEnemies();
+            for (var ei = 0; ei < enemies.length; ei++) {
+              var e = enemies[ei];
+              if (!e.alive) continue;
+              var edx = b.x - e.x, edy = b.y - e.y;
+              if (edx * edx + edy * edy < 900) {
+                engine.events.emit('enemy-killed', { x: e.x, y: e.y, enemy: e });
+                e.alive = false;
+                if (e.gfx && e.gfx.parent) e.gfx.parent.removeChild(e.gfx);
+                if (b.gfx.parent) b.gfx.parent.removeChild(b.gfx);
+                bullets.splice(i, 1); break;
+              }
+            }
+          }
+        } catch(err) {}
+      }
+    },
+    getBullets: function() { return bullets; },
+    destroy: function() {
+      for (var i = 0; i < bullets.length; i++) { if (bullets[i].gfx.parent) bullets[i].gfx.parent.removeChild(bullets[i].gfx); }
+      bullets = [];
+      if (bulletContainer && bulletContainer.parent) bulletContainer.parent.removeChild(bulletContainer);
+    }
+  };
+}$$,
+  true, true
+)
+ON CONFLICT (id) DO UPDATE SET
+  name = EXCLUDED.name,
+  description = EXCLUDED.description,
+  category = EXCLUDED.category,
+  parameters = EXCLUDED.parameters,
+  dependencies = EXCLUDED.dependencies,
+  code = EXCLUDED.code,
+  is_verified = EXCLUDED.is_verified,
+  updated_at = NOW();

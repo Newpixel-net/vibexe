@@ -352,7 +352,7 @@ export function createFileTools(appId: string, options?: FileToolsOptions) {
 				"RECOMMENDED: Compose a 2D game using Feature Bank core features. Pass features array with core IDs: visual-layers, player-platformer (side-scroll) OR player-topdown (8-way movement), level-platforms, collectible-coins, enemy-patrol, camera-follow, hud-basic, ambient-atmosphere. Use player-topdown for RPG/top-down/twin-stick genres.",
 			inputSchema: z.object({
 				theme: z.string().describe("Game theme palette key: forest, sunset, space, volcanic, candy, arctic, dark, ocean"),
-				genre: z.string().describe("Game genre: platformer, runner, shooter, puzzle"),
+				genre: z.string().describe("Game genre: platformer, runner, shooter, puzzle, top-down, rpg, twin-stick"),
 				features: z.string().optional().describe("JSON array of Feature Bank features to compose. RECOMMENDED core set: [{\"id\":\"visual-layers\",\"config\":{\"theme\":\"forest\"}},{\"id\":\"player-platformer\",\"config\":{\"theme\":\"forest\"}},{\"id\":\"level-platforms\",\"config\":{\"theme\":\"forest\"}},{\"id\":\"collectible-coins\",\"config\":{\"theme\":\"forest\"}},{\"id\":\"enemy-patrol\",\"config\":{\"theme\":\"forest\"}},{\"id\":\"camera-follow\",\"config\":{}},{\"id\":\"hud-basic\",\"config\":{}},{\"id\":\"ambient-atmosphere\",\"config\":{\"theme\":\"forest\"}}]"),
 				gravity: z.number().optional().describe("Gravity strength (default: 980)"),
 				moveSpeed: z.number().optional().describe("Player move speed (default: 280)"),
@@ -381,6 +381,16 @@ export function createFileTools(appId: string, options?: FileToolsOptions) {
 					if (featuresJson) {
 						try {
 							const features: Array<{ id: string; config: Record<string, any> }> = JSON.parse(featuresJson);
+							// Auto-swap player feature for top-down genres
+							const topdownGenres = ['top-down', 'rpg', 'twin-stick', 'bullet-hell', 'stealth', 'racing'];
+							if (topdownGenres.includes(genre)) {
+								for (let fi = 0; fi < features.length; fi++) {
+									if (features[fi].id === 'player-platformer') {
+										features[fi].id = 'player-topdown';
+										console.log('[compose_game] Auto-swapped player-platformer → player-topdown for genre:', genre);
+									}
+								}
+							}
 							for (const f of features) featureIds.push(f.id);
 							const bankFeatures = featureIds.length > 0
 								? await db.select().from(featureBankSnippets).where(inArray(featureBankSnippets.id, featureIds))

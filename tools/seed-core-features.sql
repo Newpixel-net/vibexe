@@ -456,8 +456,21 @@ $$function create(config) {
       // Player sprite — use hero spritesheet if available
       var heroSheet = _sheetCache && _sheetCache['hero'];
       var _bodyW = 36, _bodyH = 36;
+
+      // Auto-register directional animation aliases for top-down
+      // Uses existing side-view animations as fallback until proper top-down sheets exist
+      if (heroSheet && heroSheet.animations) {
+        if (!heroSheet.animations['walk-side'] && heroSheet.animations['walk']) heroSheet.animations['walk-side'] = heroSheet.animations['walk'];
+        if (!heroSheet.animations['walk-down'] && heroSheet.animations['walk']) heroSheet.animations['walk-down'] = heroSheet.animations['walk'];
+        if (!heroSheet.animations['walk-up'] && heroSheet.animations['walk']) heroSheet.animations['walk-up'] = heroSheet.animations['walk'];
+        if (!heroSheet.animations['idle-side'] && heroSheet.animations['idle']) heroSheet.animations['idle-side'] = heroSheet.animations['idle'];
+        if (!heroSheet.animations['idle-down'] && heroSheet.animations['idle']) heroSheet.animations['idle-down'] = heroSheet.animations['idle'];
+        if (!heroSheet.animations['idle-up'] && heroSheet.animations['idle']) heroSheet.animations['idle-up'] = heroSheet.animations['idle'];
+        console.log('[player-topdown] Directional aliases registered: walk-side/down/up, idle-side/down/up');
+      }
+
       if (heroSheet && heroSheet.animations && heroSheet.animations['idle']) {
-        playerSprite = new PIXI.AnimatedSprite(heroSheet.animations['idle']);
+        playerSprite = new PIXI.AnimatedSprite(heroSheet.animations['idle-down'] || heroSheet.animations['idle']);
         playerSprite.anchor.set(0.5, 0.5);
 
         var firstTex = heroSheet.animations['idle'][0];

@@ -4616,7 +4616,7 @@ export function buildGame2dSceneStarter(brief: CreativeBrief): string {
 			"  worldLiquidType: 'none',",
 			"  worldLiquidLevel: 0,",
 			`  worldPlatformStyle: '${bp === 'cave-system' ? 'clustered' : bp === 'vertical-tower' ? 'stacked' : 'spread'}',`,
-			`  genre: '${brief.subGenre === 'shooter' ? 'bullet-hell' : brief.subGenre === 'puzzle' ? 'puzzle' : 'platformer'}',`,
+			`  genre: '${brief.subGenre === 'shooter' ? 'bullet-hell' : brief.subGenre === 'puzzle' ? 'puzzle' : brief.subGenre === 'rpg' || brief.subGenre === 'topdown-adventure' ? 'top-down' : brief.subGenre === 'twin-stick' ? 'twin-stick' : 'platformer'}',`,
 			"};",
 		].join("\n"),
 	);
