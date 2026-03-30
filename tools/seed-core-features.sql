@@ -490,15 +490,31 @@ $$function create(config) {
       } else {
         playerSprite = drawPlayerCharacter(32, PAL.player, PAL.playerLight);
       }
-      playerSprite.x = startX;
-      playerSprite.y = startY;
+      // Smart spawn: use first room from WorldBuilder if available, else config startX/startY
+      var spawnX = startX, spawnY = startY;
+      if (engine._worldData && engine._worldData.platforms && engine._worldData.platforms.length > 0) {
+        spawnX = engine._worldData.platforms[0].x;
+        spawnY = engine._worldData.platforms[0].y;
+      }
+      playerSprite.x = spawnX;
+      playerSprite.y = spawnY;
       engine.world.addChild(playerSprite);
 
       // Player physics body (centered)
-      playerBody = createBody(startX, startY, _bodyW, _bodyH, { tag: 'player' });
+      playerBody = createBody(spawnX, spawnY, _bodyW, _bodyH, { tag: 'player' });
       physics.addBody(playerBody);
 
-      console.log('[player-topdown] 8-directional controller ready, world ' + worldW + 'x' + worldH);
+      // Add WorldBuilder wall bodies to player physics world
+      if (engine._worldData && engine._worldData.bodies) {
+        for (var wi = 0; wi < engine._worldData.bodies.length; wi++) {
+          var wb = engine._worldData.bodies[wi];
+          if (wb.isStatic) {
+            physics.addBody(createStaticBody(wb.x, wb.y, wb.w, wb.h));
+          }
+        }
+      }
+
+      console.log('[player-topdown] 8-directional controller ready at (' + spawnX + ',' + spawnY + '), world ' + worldW + 'x' + worldH);
     },
 
     update: function(engine, dt) {

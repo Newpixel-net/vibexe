@@ -601,10 +601,13 @@ class WorldBuilderSystem {
     }
 
     // ===================================================================
-    // AUTO-POPULATE: Professional placement rules for ALL blueprints
-    // Engine enforces: coins in organized rows, enemies ON platforms,
-    // props grouped on surfaces, decorations evenly distributed
+    // AUTO-POPULATE: Professional placement rules for side-scrolling blueprints
+    // SKIP for top-down blueprints (dungeon-topdown, open-field) — they place their own items
     // ===================================================================
+    var _isTopdownBP = cfg.blueprint === 'dungeon-topdown' || cfg.blueprint === 'open-field';
+    if (_isTopdownBP) {
+      console.log('[WorldBuilder] Skipping side-scroll auto-populate for top-down blueprint');
+    } else {
 
     // --- COINS: Organized rows above platforms (evenly spaced, fixed height) ---
     var coinNames = ['coin_gold', 'coin_gold', 'coin_silver'];
@@ -731,6 +734,7 @@ class WorldBuilderSystem {
     }
 
     console.log('[WorldBuilder] Composed ' + platforms.length + ' platforms with tile pieces + professional placement');
+    } // end if (!_isTopdownBP)
 
     // Build result
     var result: WorldBuilderResult = {

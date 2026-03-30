@@ -4588,37 +4588,46 @@ export function buildGame2dSceneStarter(brief: CreativeBrief): string {
 			"  genre: 'platformer',",
 			"};",
 		].join("\n"),
-		[
-			"var CONFIG = {",
-			`  gravity: ${brief.gravity},`,
-			`  worldWidth: ${brief.worldWidth},`,
-			`  worldHeight: ${bp === 'vertical-tower' ? 1800 : 900},`,
-			`  groundY: ${bp === 'vertical-tower' ? 1680 : 680},`,
-			"  playerSize: 48,",
-			"  playerStartX: 250,",
-			`  moveSpeed: ${brief.moveSpeed},`,
-			`  jumpForce: ${brief.jumpForce},`,
-			"  coinRadius: 10,",
-			"  enemySize: 44,",
-			`  enemySpeed: ${brief.difficultyProfile === "hard-intense" ? 100 : brief.difficultyProfile === "casual-easy" ? 40 : 60},`,
-			`  lives: ${brief.difficultyProfile === "casual-easy" ? 5 : brief.difficultyProfile === "hard-intense" ? 2 : 3},`,
-			`  platformCount: ${brief.platformCount},`,
-			`  enemyCount: ${brief.enemyCount},`,
-			`  coinCount: ${brief.coinCount},`,
-			`  levelShape: '${brief.levelShape}' as 'flat-wide' | 'staircase-ascending' | 'valley-bowl' | 'hilly-undulating',`,
-			`  doubleJump: ${brief.specialMechanic === "double-jump" || brief.specialMechanic === "dash"},`,
-			`  wallSlide: ${brief.specialMechanic === "wall-slide"},`,
-			`  worldBlueprint: '${bp}',`,
-			`  worldDensity: '${brief.difficultyProfile === "hard-intense" ? "tight" : "medium"}',`,
-			`  worldDirection: '${bp === 'vertical-tower' ? 'vertical' : 'horizontal'}',`,
-			`  worldHasGround: ${bpHasGround},`,
-			`  worldHasCeiling: ${bpHasCeiling},`,
-			"  worldLiquidType: 'none',",
-			"  worldLiquidLevel: 0,",
-			`  worldPlatformStyle: '${bp === 'cave-system' ? 'clustered' : bp === 'vertical-tower' ? 'stacked' : 'spread'}',`,
-			`  genre: '${brief.subGenre === 'shooter' ? 'bullet-hell' : brief.subGenre === 'puzzle' ? 'puzzle' : brief.subGenre === 'rpg' || brief.subGenre === 'topdown-adventure' ? 'top-down' : brief.subGenre === 'twin-stick' ? 'twin-stick' : 'platformer'}',`,
-			"};",
-		].join("\n"),
+		(() => {
+			// Detect top-down mode from blueprint or subGenre
+			const isTopDown = bp === 'dungeon-topdown' || bp === 'open-field' || brief.subGenre === 'rpg' || brief.subGenre === 'topdown-adventure' || brief.subGenre === 'twin-stick';
+			const tdW = isTopDown ? 1200 : brief.worldWidth;
+			const tdH = isTopDown ? 1000 : (bp === 'vertical-tower' ? 1800 : 900);
+			const tdGY = isTopDown ? 900 : (bp === 'vertical-tower' ? 1680 : 680);
+			const tdGravity = isTopDown ? 0 : brief.gravity;
+			const tdGenre = isTopDown ? (brief.subGenre === 'twin-stick' ? 'twin-stick' : 'top-down') : (brief.subGenre === 'shooter' ? 'bullet-hell' : brief.subGenre === 'puzzle' ? 'puzzle' : 'platformer');
+			return [
+				"var CONFIG = {",
+				`  gravity: ${tdGravity},`,
+				`  worldWidth: ${tdW},`,
+				`  worldHeight: ${tdH},`,
+				`  groundY: ${tdGY},`,
+				`  playerSize: ${isTopDown ? 32 : 48},`,
+				`  playerStartX: ${isTopDown ? Math.round(tdW / 2) : 250},`,
+				`  moveSpeed: ${isTopDown ? 200 : brief.moveSpeed},`,
+				`  jumpForce: ${isTopDown ? 0 : brief.jumpForce},`,
+				"  coinRadius: 10,",
+				`  enemySize: ${isTopDown ? 32 : 44},`,
+				`  enemySpeed: ${brief.difficultyProfile === "hard-intense" ? 100 : brief.difficultyProfile === "casual-easy" ? 40 : 60},`,
+				`  lives: ${brief.difficultyProfile === "casual-easy" ? 5 : brief.difficultyProfile === "hard-intense" ? 2 : 3},`,
+				`  platformCount: ${brief.platformCount},`,
+				`  enemyCount: ${brief.enemyCount},`,
+				`  coinCount: ${brief.coinCount},`,
+				`  levelShape: '${brief.levelShape}' as 'flat-wide' | 'staircase-ascending' | 'valley-bowl' | 'hilly-undulating',`,
+				`  doubleJump: ${!isTopDown && (brief.specialMechanic === "double-jump" || brief.specialMechanic === "dash")},`,
+				`  wallSlide: ${!isTopDown && brief.specialMechanic === "wall-slide"},`,
+				`  worldBlueprint: '${bp}',`,
+				`  worldDensity: '${brief.difficultyProfile === "hard-intense" ? "tight" : "medium"}',`,
+				`  worldDirection: '${bp === 'vertical-tower' ? 'vertical' : isTopDown ? 'both' : 'horizontal'}',`,
+				`  worldHasGround: ${isTopDown ? false : bpHasGround},`,
+				`  worldHasCeiling: ${isTopDown ? false : bpHasCeiling},`,
+				"  worldLiquidType: 'none',",
+				"  worldLiquidLevel: 0,",
+				`  worldPlatformStyle: '${bp === 'cave-system' ? 'clustered' : bp === 'vertical-tower' ? 'stacked' : 'spread'}',`,
+				`  genre: '${tdGenre}',`,
+				"};",
+			].join("\n");
+		})(),
 	);
 
 	return code;
