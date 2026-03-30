@@ -809,6 +809,7 @@ $$function create(config) {
           score += coinValue;
           totalCollected++;
           try { onCollectSparkle(c.sprite.x, c.sprite.y); } catch(e) {}
+          try { engine.audio.play('sfx_coin', 0.5); } catch(e) {}
           if (c.sprite.parent) c.sprite.parent.removeChild(c.sprite);
           engine.features.emit('coin.collected', { score: score, value: coinValue, total: totalCollected });
         }
@@ -940,12 +941,14 @@ $$function create(config) {
               // Stomp kill — player was falling and above enemy
               e.alive = false;
               try { onDeathExplosion(e.sprite.x, e.sprite.y); } catch(ex) {}
+              try { engine.audio.play('sfx_defeat', 0.6); } catch(ex) {}
               if (e.sprite.parent) e.sprite.parent.removeChild(e.sprite);
               player.body.vy = -300;
               engine.features.emit('enemy.killed', { index: i });
             } else {
               // Player takes damage
               hitCooldown = cooldownTime;
+              try { engine.audio.play('sfx_hit', 0.7); } catch(ex) {}
               engine.features.emit('player.damaged', { damage: dmg });
               player.body.vx = dx > 0 ? -200 : 200;
               player.body.vy = -150;

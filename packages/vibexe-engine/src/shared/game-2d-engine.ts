@@ -3588,6 +3588,7 @@ export class Engine2D {
     }
 
     this.audio = new AudioManager();
+    this.audio.generateBuiltinSounds(); // 9 procedural sounds ready instantly
 
     // Initialize namespace systems
     this.spawn = new SpawnSystem(this);
@@ -4558,6 +4559,107 @@ export class AudioManager {
     var dy = sourceY - listenerY;
     var dist = Math.sqrt(dx * dx + dy * dy);
     return Math.min(falloff / Math.max(dist, 1), 1);
+  }
+
+  // =========================================================================
+  // PROCEDURAL SOUND — Generate sounds without loading files
+  // Games get audio instantly: coin_collect, jump, hit, explosion, powerup, etc.
+  // =========================================================================
+
+  private _synthBuffer(fn: (t: number) => number, duration: number, sampleRate = 22050): AudioBuffer | null {
+    this.ensureContext();
+    if (!this.ctx) return null;
+    var frames = Math.floor(duration * sampleRate);
+    var buffer = this.ctx.createBuffer(1, frames, sampleRate);
+    var data = buffer.getChannelData(0);
+    for (var i = 0; i < frames; i++) {
+      var t = i / sampleRate;
+      data[i] = Math.max(-1, Math.min(1, fn(t)));
+    }
+    return buffer;
+  }
+
+  /** Generate all built-in procedural sounds. Call once at game start. */
+  generateBuiltinSounds(): void {
+    this.ensureContext();
+    if (!this.ctx) return;
+
+    // Coin collect — rising chirp
+    var coinBuf = this._synthBuffer(function(t) {
+      var freq = 800 + t * 4000;
+      var env = t < 0.05 ? t / 0.05 : Math.max(0, 1 - (t - 0.05) / 0.1);
+      return Math.sin(t * freq * 2 * Math.PI) * env * 0.4;
+    }, 0.15);
+    if (coinBuf) this.sounds.set('sfx_coin', coinBuf);
+
+    // Jump — quick upward sweep
+    var jumpBuf = this._synthBuffer(function(t) {
+      var freq = 200 + t * 600;
+      var env = Math.max(0, 1 - t / 0.12);
+      return Math.sin(t * freq * 2 * Math.PI) * env * 0.3;
+    }, 0.12);
+    if (jumpBuf) this.sounds.set('sfx_jump', jumpBuf);
+
+    // Hit/damage — noisy thud
+    var hitBuf = this._synthBuffer(function(t) {
+      var env = Math.max(0, 1 - t / 0.15);
+      var noise = (Math.random() * 2 - 1) * 0.5;
+      var thud = Math.sin(t * 120 * 2 * Math.PI) * 0.5;
+      return (noise + thud) * env * 0.4;
+    }, 0.15);
+    if (hitBuf) this.sounds.set('sfx_hit', hitBuf);
+
+    // Explosion — low rumble + noise
+    var explBuf = this._synthBuffer(function(t) {
+      var env = Math.max(0, 1 - t / 0.4);
+      var noise = (Math.random() * 2 - 1) * env;
+      var bass = Math.sin(t * 60 * 2 * Math.PI) * env * 1.5;
+      return (noise * 0.4 + bass * 0.6) * 0.5 * env;
+    }, 0.4);
+    if (explBuf) this.sounds.set('sfx_explosion', explBuf);
+
+    // Powerup — rising arpeggio
+    var pwrBuf = this._synthBuffer(function(t) {
+      var step = Math.floor(t / 0.06);
+      var freqs = [523, 659, 784, 1047]; // C5 E5 G5 C6
+      var freq = freqs[Math.min(step, freqs.length - 1)];
+      var localT = t - step * 0.06;
+      var env = localT < 0.01 ? localT / 0.01 : Math.max(0, 1 - (localT - 0.01) / 0.05);
+      return Math.sin(t * freq * 2 * Math.PI) * env * 0.3;
+    }, 0.25);
+    if (pwrBuf) this.sounds.set('sfx_powerup', pwrBuf);
+
+    // Landing — soft thump
+    var landBuf = this._synthBuffer(function(t) {
+      var env = Math.max(0, 1 - t / 0.08);
+      return Math.sin(t * 80 * 2 * Math.PI) * env * 0.25;
+    }, 0.08);
+    if (landBuf) this.sounds.set('sfx_land', landBuf);
+
+    // Menu select — soft click
+    var clickBuf = this._synthBuffer(function(t) {
+      var env = Math.max(0, 1 - t / 0.04);
+      return Math.sin(t * 1200 * 2 * Math.PI) * env * 0.2;
+    }, 0.04);
+    if (clickBuf) this.sounds.set('sfx_click', clickBuf);
+
+    // Enemy defeat — descending tone
+    var defeatBuf = this._synthBuffer(function(t) {
+      var freq = 600 - t * 2000;
+      var env = Math.max(0, 1 - t / 0.2);
+      return Math.sin(t * Math.max(freq, 100) * 2 * Math.PI) * env * 0.3;
+    }, 0.2);
+    if (defeatBuf) this.sounds.set('sfx_defeat', defeatBuf);
+
+    // Gem collect — sparkle (two-tone)
+    var gemBuf = this._synthBuffer(function(t) {
+      var f1 = 1200, f2 = 1600;
+      var env = t < 0.03 ? t / 0.03 : Math.max(0, 1 - (t - 0.03) / 0.15);
+      return (Math.sin(t * f1 * 2 * Math.PI) + Math.sin(t * f2 * 2 * Math.PI)) * 0.5 * env * 0.3;
+    }, 0.18);
+    if (gemBuf) this.sounds.set('sfx_gem', gemBuf);
+
+    console.log('[Audio] Generated 9 procedural sounds: coin, jump, hit, explosion, powerup, land, click, defeat, gem');
   }
 }
 
