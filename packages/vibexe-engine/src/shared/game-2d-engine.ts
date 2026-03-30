@@ -1360,70 +1360,86 @@ class WorldBuilderSystem {
     }
 
     // ===================================================================
-    // AUTO-POPULATE: Professional placement rules for side-scrolling blueprints
-    // SKIP for top-down blueprints (dungeon-topdown, open-field) — they place their own items
+    // UNIVERSAL AUTO-POPULATE — Theme-driven decoration & entity placement
+    // Works for BOTH side-view and top-down. Uses platforms as spawn zones.
+    // Theme catalog determines WHAT spawns. Placement logic determines WHERE.
     // ===================================================================
-    var _isTopdownBP = cfg.blueprint === 'dungeon-topdown' || cfg.blueprint === 'open-field';
-    if (_isTopdownBP) {
-      console.log('[WorldBuilder] Skipping side-scroll auto-populate for top-down blueprint');
-    } else {
 
-    // --- COINS: Organized rows above platforms (evenly spaced, fixed height) ---
+    // Theme decoration catalog — maps theme to appropriate sprite sets
+    var THEME_DECOR: Record<string, { props: string[]; decos: string[]; enemies: string[]; items: string[] }> = {
+      forest:   { props: ['crate', 'barrel', 'fence', 'sign_post'], decos: ['plant_green', 'plant_purple', 'flag_green'], enemies: ['slime_walk1', 'snail_walk1', 'fly1'], items: ['mushroom_red', 'mushroom_brown', 'key_green'] },
+      sunset:   { props: ['crate', 'barrel', 'rock'], decos: ['plant_green', 'flag_red', 'flag_yellow'], enemies: ['slime_walk1', 'fly1', 'blocker'], items: ['key_red', 'mushroom_red'] },
+      candy:    { props: ['crate', 'barrel'], decos: ['plant_purple', 'flag_blue', 'flag_red'], enemies: ['slime_walk1', 'snail_walk1'], items: ['mushroom_red', 'key_blue'] },
+      volcanic: { props: ['rock', 'barrel', 'crate'], decos: ['cactus', 'rock'], enemies: ['blocker', 'fly1', 'slime_walk1'], items: ['key_red', 'mushroom_brown'] },
+      dark:     { props: ['barrel', 'crate', 'rock'], decos: ['chain', 'rock'], enemies: ['blocker', 'fly1', 'snail_walk1'], items: ['key_blue', 'key_red'] },
+      space:    { props: ['crate', 'barrel'], decos: ['rock'], enemies: ['fly1', 'blocker'], items: ['key_blue', 'key_yellow'] },
+      arctic:   { props: ['rock', 'crate', 'fence'], decos: ['snowhill', 'rock', 'flag_blue'], enemies: ['snail_walk1', 'slime_walk1'], items: ['mushroom_brown', 'key_blue'] },
+      ocean:    { props: ['rock', 'barrel', 'crate'], decos: ['plant_green', 'plant_purple'], enemies: ['fly1', 'snail_walk1'], items: ['key_blue', 'key_green'] },
+    };
+    var _td = THEME_DECOR[theme] || THEME_DECOR.forest;
+    var _isTopdown = cfg.blueprint === 'dungeon-topdown' || cfg.blueprint === 'open-field' ||
+                     ((cfg as any).compose && (cfg as any).compose.orientation === 'top-down');
+
+    // --- COINS: On/near platforms (works for both orientations) ---
     var coinNames = ['coin_gold', 'coin_gold', 'coin_silver'];
     var gemNames = ['gem_red', 'gem_blue', 'gem_green', 'gem_yellow'];
-    var coinY = -36; // fixed height above platform surface
     for (var _pi = 0; _pi < platforms.length; _pi++) {
       var _pp = platforms[_pi];
       if (rng() < 0.75) {
-        // Evenly spaced coin row — looks organized, not random
-        var coinCount = Math.max(2, Math.min(6, Math.floor(_pp.w / 40)));
-        var coinSpacing = _pp.w / (coinCount + 1);
+        var coinCount = Math.max(2, Math.min(6, Math.floor((_pp.w || 100) / 40)));
+        var coinSpacing = (_pp.w || 100) / (coinCount + 1);
         var cPhaseBase = rngRange(0, Math.PI * 2);
         for (var _ci = 0; _ci < coinCount; _ci++) {
           var cName = coinNames[_ci % coinNames.length];
           var coinSpr = _getSprite('collectibles', cName);
           if (coinSpr) {
             coinSpr.anchor.set(0.5, 0.5);
-            coinSpr.x = _pp.x - _pp.w / 2 + coinSpacing * (_ci + 1);
-            coinSpr.y = _pp.y + coinY;
+            if (_isTopdown) {
+              // Top-down: scatter within room/area bounds
+              coinSpr.x = _pp.x + rngRange(-(_pp.w || 100) * 0.3, (_pp.w || 100) * 0.3);
+              coinSpr.y = _pp.y + rngRange(-40, 40);
+            } else {
+              // Side-view: row above platform
+              coinSpr.x = _pp.x - (_pp.w || 100) / 2 + coinSpacing * (_ci + 1);
+              coinSpr.y = _pp.y - 36;
+            }
             coinSpr.scale.set(0.35);
             coinSpr.zIndex = 100;
             (coinSpr as any).__juiceBob = true;
-            (coinSpr as any).__juiceBobBase = _pp.y + coinY;
-            (coinSpr as any).__juiceBobPhase = cPhaseBase + _ci * 0.4; // wave effect
+            (coinSpr as any).__juiceBobBase = coinSpr.y;
+            (coinSpr as any).__juiceBobPhase = cPhaseBase + _ci * 0.4;
             container.addChild(coinSpr);
           }
         }
       }
-      // Gem centered above platform (rarer, special)
+      // Gem (rarer)
       if (rng() < 0.3) {
         var gName = gemNames[rngInt(0, gemNames.length - 1)];
         var gemSpr = _getSprite('collectibles', gName);
         if (gemSpr) {
           gemSpr.anchor.set(0.5, 0.5);
-          gemSpr.x = _pp.x;
-          gemSpr.y = _pp.y - 50;
+          gemSpr.x = _pp.x + (_isTopdown ? rngRange(-30, 30) : 0);
+          gemSpr.y = _pp.y + (_isTopdown ? rngRange(-30, 30) : -50);
           gemSpr.scale.set(0.45);
           gemSpr.zIndex = 100;
           (gemSpr as any).__juiceBob = true;
-          (gemSpr as any).__juiceBobBase = _pp.y - 50;
+          (gemSpr as any).__juiceBobBase = gemSpr.y;
           (gemSpr as any).__juiceBobPhase = rngRange(0, Math.PI * 2);
           container.addChild(gemSpr);
         }
       }
     }
 
-    // --- ENEMIES: Grounded ON platforms (never floating, 1 per platform max) ---
-    var enemyNames = ['slime_walk1', 'snail_walk1', 'fly1', 'blocker'];
+    // --- ENEMIES: On platforms (theme-aware sprites) ---
     for (var _eni = 0; _eni < platforms.length; _eni++) {
-      if (rng() < 0.35 && _eni > 0) { // skip first platform (spawn area)
+      if (rng() < 0.35 && _eni > 0) {
         var _ep = platforms[_eni];
-        var eName = enemyNames[rngInt(0, enemyNames.length - 1)];
+        var eName = _td.enemies[rngInt(0, _td.enemies.length - 1)];
         var eSpr = _getSprite('enemies', eName);
         if (eSpr) {
-          eSpr.anchor.set(0.5, 1);
-          eSpr.x = _ep.x; // centered on platform
-          eSpr.y = _ep.y; // sitting ON the platform surface
+          eSpr.anchor.set(0.5, _isTopdown ? 0.5 : 1);
+          eSpr.x = _ep.x + (_isTopdown ? rngRange(-30, 30) : 0);
+          eSpr.y = _ep.y + (_isTopdown ? rngRange(-20, 20) : 0);
           eSpr.scale.set(1.0);
           eSpr.zIndex = 80;
           container.addChild(eSpr);
@@ -1431,16 +1447,16 @@ class WorldBuilderSystem {
       }
     }
 
-    // --- PROPS: Grouped clusters on ground (2-3 items per cluster, not scattered) ---
-    if (cfg.hasGround !== false) {
-      var propNames = ['crate', 'barrel', 'rock', 'sign_post', 'fence'];
+    // --- PROPS: Theme-aware, clustered (side-view on ground, top-down in rooms) ---
+    var _propNames = _td.props;
+    if (!_isTopdown && cfg.hasGround !== false) {
       var clusterCount = rngInt(3, 5);
       var clusterSpacing = W / (clusterCount + 1);
-      for (var _cli = 0; _cli < clusterCount; _cli++) {
-        var clusterX = clusterSpacing * (_cli + 1) + rngRange(-60, 60);
+      for (var _cli2 = 0; _cli2 < clusterCount; _cli2++) {
+        var clusterX = clusterSpacing * (_cli2 + 1) + rngRange(-60, 60);
         var propsInCluster = rngInt(1, 3);
         for (var _cpi = 0; _cpi < propsInCluster; _cpi++) {
-          var pName = propNames[rngInt(0, propNames.length - 1)];
+          var pName = _propNames[rngInt(0, _propNames.length - 1)];
           var propSpr = _getSprite('props', pName);
           if (propSpr) {
             propSpr.anchor.set(0.5, 1);
@@ -1452,15 +1468,32 @@ class WorldBuilderSystem {
           }
         }
       }
+    } else if (_isTopdown) {
+      // Top-down: props scattered in rooms
+      for (var _tpi = 0; _tpi < platforms.length; _tpi++) {
+        var _tpp = platforms[_tpi];
+        for (var _tpj = 0; _tpj < rngInt(1, 3); _tpj++) {
+          var tpName = _propNames[rngInt(0, _propNames.length - 1)];
+          var tpSpr = _getSprite('props', tpName);
+          if (tpSpr) {
+            tpSpr.anchor.set(0.5, 0.5);
+            tpSpr.x = _tpp.x + rngRange(-(_tpp.w || 80) * 0.3, (_tpp.w || 80) * 0.3);
+            tpSpr.y = _tpp.y + rngRange(-40, 40);
+            tpSpr.scale.set(rngRange(0.4, 0.7));
+            tpSpr.zIndex = 50;
+            container.addChild(tpSpr);
+          }
+        }
+      }
     }
 
-    // --- DECORATIONS: Evenly distributed on ground (plants, flags) ---
-    var decoNames = ['plant_green', 'plant_purple', 'cactus', 'flag_red', 'flag_blue'];
-    if (cfg.hasGround !== false) {
+    // --- DECORATIONS: Theme-aware, evenly distributed ---
+    var _decoNames = _td.decos;
+    if (!_isTopdown && cfg.hasGround !== false) {
       var decoCount = rngInt(6, 10);
       var decoSpacing = W / (decoCount + 1);
       for (var _ei = 0; _ei < decoCount; _ei++) {
-        var dName = decoNames[_ei % decoNames.length];
+        var dName = _decoNames[_ei % _decoNames.length];
         var decoSpr = _getSprite('decorations', dName);
         if (decoSpr) {
           decoSpr.anchor.set(0.5, 1);
@@ -1471,15 +1504,32 @@ class WorldBuilderSystem {
           container.addChild(decoSpr);
         }
       }
+    } else if (_isTopdown) {
+      // Top-down: decorations in rooms
+      for (var _tdi = 0; _tdi < Math.min(platforms.length, 4); _tdi++) {
+        var _tdp = platforms[_tdi];
+        for (var _tdj = 0; _tdj < rngInt(2, 5); _tdj++) {
+          var tdName = _decoNames[rngInt(0, _decoNames.length - 1)];
+          var tdSpr = _getSprite('decorations', tdName);
+          if (tdSpr) {
+            tdSpr.anchor.set(0.5, 0.5);
+            tdSpr.x = _tdp.x + rngRange(-(_tdp.w || 80) * 0.3, (_tdp.w || 80) * 0.3);
+            tdSpr.y = _tdp.y + rngRange(-40, 40);
+            tdSpr.scale.set(rngRange(0.4, 0.7));
+            tdSpr.zIndex = 20;
+            container.addChild(tdSpr);
+          }
+        }
+      }
     }
 
-    // --- ITEMS: On ground near props (not random scatter) ---
-    var itemNames = ['key_blue', 'key_red', 'mushroom_red', 'mushroom_brown'];
-    if (cfg.hasGround !== false) {
-      var itemCount = rngInt(2, 4);
+    // --- ITEMS: Theme-aware, on ground/in rooms ---
+    var _itemNames = _td.items;
+    var itemCount = rngInt(2, 4);
+    if (!_isTopdown && cfg.hasGround !== false) {
       var itemSpacing = W / (itemCount + 1);
       for (var _ii = 0; _ii < itemCount; _ii++) {
-        var iName = itemNames[_ii % itemNames.length];
+        var iName = _itemNames[_ii % _itemNames.length];
         var iSpr = _getSprite('items', iName);
         if (iSpr) {
           iSpr.anchor.set(0.5, 1);
@@ -1490,10 +1540,23 @@ class WorldBuilderSystem {
           container.addChild(iSpr);
         }
       }
+    } else if (_isTopdown && platforms.length > 0) {
+      for (var _tii = 0; _tii < Math.min(itemCount, platforms.length); _tii++) {
+        var _tip = platforms[_tii];
+        var tiName = _itemNames[_tii % _itemNames.length];
+        var tiSpr = _getSprite('items', tiName);
+        if (tiSpr) {
+          tiSpr.anchor.set(0.5, 0.5);
+          tiSpr.x = _tip.x + rngRange(-30, 30);
+          tiSpr.y = _tip.y + rngRange(-20, 20);
+          tiSpr.scale.set(0.5);
+          tiSpr.zIndex = 60;
+          container.addChild(tiSpr);
+        }
+      }
     }
 
     console.log('[WorldBuilder] Composed ' + platforms.length + ' platforms with tile pieces + professional placement');
-    } // end if (!_isTopdownBP)
 
     // Build result
     var result: WorldBuilderResult = {
