@@ -474,19 +474,18 @@ class WorldBuilderSystem {
     }
 
     // ===================================================================
-    // AUTO-POPULATE: Place sprite-based collectibles, props, enemies on platforms
-    // This runs for ALL blueprints — ensures the world is never empty
+    // AUTO-POPULATE: Place LARGE, VISIBLE sprite-based content on platforms
+    // This runs for ALL blueprints — the game should NEVER look empty
     // ===================================================================
-    var _autoRng = rng;
 
-    // Collectibles on platforms (coins, gems)
-    var coinNames = ['coin_gold', 'coin_silver', 'coin_bronze'];
+    // Collectibles on platforms — coins floating above platforms
+    var coinNames = ['coin_gold', 'coin_gold', 'coin_silver']; // bias toward gold
     var gemNames = ['gem_red', 'gem_blue', 'gem_green', 'gem_yellow'];
     for (var _pi = 0; _pi < platforms.length; _pi++) {
       var _pp = platforms[_pi];
-      // 70% chance of coins on each platform
-      if (_autoRng() < 0.7) {
-        var coinCount = rngInt(1, 4);
+      // 80% chance of coins on each platform
+      if (rng() < 0.8) {
+        var coinCount = rngInt(2, 5);
         var coinSpacing = _pp.w / (coinCount + 1);
         for (var _ci = 0; _ci < coinCount; _ci++) {
           var cName = coinNames[rngInt(0, coinNames.length - 1)];
@@ -494,51 +493,51 @@ class WorldBuilderSystem {
           if (coinSpr) {
             coinSpr.anchor.set(0.5, 1);
             coinSpr.x = _pp.x - _pp.w / 2 + coinSpacing * (_ci + 1);
-            coinSpr.y = _pp.y - 10;
-            coinSpr.scale.set(0.6);
+            coinSpr.y = _pp.y - 20;
+            coinSpr.scale.set(0.35); // 128px * 0.35 = 45px — clearly visible
             coinSpr.zIndex = 100;
             container.addChild(coinSpr);
           }
         }
       }
-      // 30% chance of a gem on a platform
-      if (_autoRng() < 0.3) {
+      // 40% chance of a gem on a platform
+      if (rng() < 0.4) {
         var gName = gemNames[rngInt(0, gemNames.length - 1)];
         var gemSpr = _getSprite('collectibles', gName);
         if (gemSpr) {
           gemSpr.anchor.set(0.5, 1);
-          gemSpr.x = _pp.x;
-          gemSpr.y = _pp.y - 14;
-          gemSpr.scale.set(0.7);
+          gemSpr.x = _pp.x + rngRange(-20, 20);
+          gemSpr.y = _pp.y - 24;
+          gemSpr.scale.set(0.45); // clearly visible gem
           gemSpr.zIndex = 100;
           container.addChild(gemSpr);
         }
       }
     }
 
-    // Props on ground level (crates, barrels, rocks, signs)
+    // Props on ground level — big, visible crates/barrels/rocks
     var propNames = ['crate', 'barrel', 'rock', 'sign_post'];
     if (cfg.hasGround !== false) {
-      var propCount = rngInt(3, 7);
+      var propCount = rngInt(5, 12);
       var propSpacing = W / (propCount + 1);
       for (var _di = 0; _di < propCount; _di++) {
         var pName = propNames[rngInt(0, propNames.length - 1)];
         var propSpr = _getSprite('props', pName);
         if (propSpr) {
           propSpr.anchor.set(0.5, 1);
-          propSpr.x = propSpacing * (_di + 1) + rngRange(-30, 30);
+          propSpr.x = propSpacing * (_di + 1) + rngRange(-40, 40);
           propSpr.y = GY;
-          propSpr.scale.set(rngRange(0.5, 0.9));
+          propSpr.scale.set(rngRange(0.4, 0.7)); // 128px * 0.5 = 64px — clearly visible
           propSpr.zIndex = 50;
           container.addChild(propSpr);
         }
       }
     }
 
-    // Decorations scattered on ground (plants, flags)
-    var decoNames = ['plant_green', 'plant_purple', 'cactus'];
+    // Decorations scattered on ground — plants, flags, visible vegetation
+    var decoNames = ['plant_green', 'plant_purple', 'cactus', 'flag_red', 'flag_blue'];
     if (cfg.hasGround !== false) {
-      var decoCount = rngInt(4, 10);
+      var decoCount = rngInt(6, 14);
       for (var _ei = 0; _ei < decoCount; _ei++) {
         var dName = decoNames[rngInt(0, decoNames.length - 1)];
         var decoSpr = _getSprite('decorations', dName);
@@ -546,35 +545,46 @@ class WorldBuilderSystem {
           decoSpr.anchor.set(0.5, 1);
           decoSpr.x = rngRange(50, W - 50);
           decoSpr.y = GY;
-          decoSpr.scale.set(rngRange(0.4, 0.8));
+          decoSpr.scale.set(rngRange(0.5, 1.0)); // 70px * 0.75 = 53px — visible
           decoSpr.zIndex = 30;
           container.addChild(decoSpr);
         }
       }
     }
 
-    // Enemy sprites on some platforms (snails, blockers)
-    var enemyPairs = [['slime_walk1', 'slime_walk2'], ['snail_walk1', 'snail_walk2'], ['fly1', 'fly2'], ['blocker', 'blocker_mad']];
+    // Enemy sprites on platforms — visible, menacing
+    var enemyNames = ['slime_walk1', 'snail_walk1', 'fly1', 'blocker', 'blocker_mad', 'poker_mad'];
     for (var _eni = 0; _eni < platforms.length; _eni++) {
-      if (_autoRng() < 0.35) { // 35% of platforms get an enemy
+      if (rng() < 0.4) { // 40% of platforms get an enemy
         var _ep = platforms[_eni];
-        var ePair = enemyPairs[rngInt(0, enemyPairs.length - 1)];
-        var eSpr = _getSprite('enemies', ePair[0]);
+        var eName = enemyNames[rngInt(0, enemyNames.length - 1)];
+        var eSpr = _getSprite('enemies', eName);
         if (eSpr) {
           eSpr.anchor.set(0.5, 1);
-          eSpr.x = _ep.x + rngRange(-_ep.w * 0.3, _ep.w * 0.3);
-          eSpr.y = _ep.y - 2;
-          eSpr.scale.set(0.5);
+          eSpr.x = _ep.x + rngRange(-_ep.w * 0.25, _ep.w * 0.25);
+          eSpr.y = _ep.y - 4;
+          eSpr.scale.set(rngRange(0.8, 1.2)); // 50px * 1.0 = 50px — clearly visible enemy
           eSpr.zIndex = 80;
           container.addChild(eSpr);
         }
       }
     }
 
-    // UI sprites: hearts at top-right (replace primitive HUD)
-    var heartSpr = _getSprite('ui', 'hud_heartFull');
-    if (heartSpr) {
-      // Don't add to world container — UI should be on uiLayer (handled by features)
+    // Items scattered — keys, mushrooms, bombs for visual richness
+    var itemNames = ['key_blue', 'key_red', 'mushroom_red', 'mushroom_brown', 'bomb'];
+    if (cfg.hasGround !== false) {
+      for (var _ii = 0; _ii < rngInt(3, 6); _ii++) {
+        var iName = itemNames[rngInt(0, itemNames.length - 1)];
+        var iSpr = _getSprite('items', iName);
+        if (iSpr) {
+          iSpr.anchor.set(0.5, 1);
+          iSpr.x = rngRange(100, W - 100);
+          iSpr.y = GY;
+          iSpr.scale.set(0.45);
+          iSpr.zIndex = 60;
+          container.addChild(iSpr);
+        }
+      }
     }
 
     console.log('[WorldBuilder] Auto-populated ' + platforms.length + ' platforms with sprite collectibles, props, enemies');
@@ -1055,9 +1065,9 @@ class WorldBuilderSystem {
     var minY = ceilH + 60, maxY = GY - 60;
     for (var pi = 0; pi < pCount; pi++) {
       var px = rngRange(200, W - 200), py = rngRange(minY, maxY), pw = rngInt(80, 160);
-      var pG = _makePlatform(pw, 16);
+      var pG = _makePlatform(pw, 32);
       pG.x = px; pG.y = py; container.addChild(pG);
-      var pBody = { x: px, y: py, w: pw, h: 16, isStatic: true, oneWay: true, tag: 'platform' };
+      var pBody = { x: px, y: py, w: pw, h: 32, isStatic: true, oneWay: true, tag: 'platform' };
       bodies.push(pBody); platforms.push({ x: px, y: py, w: pw, body: pBody });
     }
 
@@ -1124,10 +1134,10 @@ class WorldBuilderSystem {
       var px: number;
       if (side === 0) { px = wallW + 40 + rngRange(0, W * 0.3); side = 1; }
       else { px = W - wallW - 40 - rngRange(0, W * 0.3); side = 0; }
-      var pG = _makePlatform(pw, 16);
+      var pG = _makePlatform(pw, 32);
       pG.x = px; pG.y = py;
       container.addChild(pG);
-      var pBody = { x: px, y: py, w: pw, h: 16, isStatic: true, oneWay: true, tag: 'platform' };
+      var pBody = { x: px, y: py, w: pw, h: 32, isStatic: true, oneWay: true, tag: 'platform' };
       bodies.push(pBody); platforms.push({ x: px, y: py, w: pw, body: pBody });
     }
 
@@ -1198,9 +1208,9 @@ class WorldBuilderSystem {
     // Stepping-stone platforms between islands
     for (var si = 0; si < rngInt(4, 8); si++) {
       var sx = rngRange(100, W - 100), sy = rngRange(H * 0.15, H * 0.6), sw = rngInt(60, 100);
-      var sG = _makePlatform(sw, 12);
+      var sG = _makePlatform(sw, 28);
       sG.x = sx; sG.y = sy; container.addChild(sG);
-      var sBody = { x: sx, y: sy, w: sw, h: 12, isStatic: true, oneWay: true, tag: 'platform' };
+      var sBody = { x: sx, y: sy, w: sw, h: 28, isStatic: true, oneWay: true, tag: 'platform' };
       bodies.push(sBody); platforms.push({ x: sx, y: sy, w: sw, body: sBody });
     }
 
@@ -1246,9 +1256,9 @@ class WorldBuilderSystem {
     var centerCount = rngInt(1, 2);
     for (var pi = 0; pi < centerCount; pi++) {
       var pw = rngInt(120, 200), px = W / 2 + (pi === 0 ? -80 : 80), py = GY - rngRange(120, 200);
-      var pG = _makePlatform(pw, 16);
+      var pG = _makePlatform(pw, 32);
       pG.x = px; pG.y = py; container.addChild(pG);
-      var pBody = { x: px, y: py, w: pw, h: 16, isStatic: true, oneWay: true, tag: 'platform' };
+      var pBody = { x: px, y: py, w: pw, h: 32, isStatic: true, oneWay: true, tag: 'platform' };
       bodies.push(pBody); platforms.push({ x: px, y: py, w: pw, body: pBody });
     }
     this._addForegroundDecor(ctx, 'arena');
@@ -1287,10 +1297,10 @@ class WorldBuilderSystem {
       var rpCount = rngInt(1, 3);
       for (var pi = 0; pi < rpCount; pi++) {
         var pw = rngInt(60, 120), px = rx + rngRange(30, rw - 30), py = ry + rngRange(rh * 0.3, rh * 0.7);
-        var pG = _makePlatform(pw, 12);
+        var pG = _makePlatform(pw, 28);
         pG.x = px; pG.y = py;
         container.addChild(pG);
-        var pBody = { x: px, y: py, w: pw, h: 12, isStatic: true, oneWay: true, tag: 'platform' };
+        var pBody = { x: px, y: py, w: pw, h: 28, isStatic: true, oneWay: true, tag: 'platform' };
         bodies.push(pBody); platforms.push({ x: px, y: py, w: pw, body: pBody });
       }
     }
@@ -1442,10 +1452,10 @@ class WorldBuilderSystem {
     var midY = GY * 0.5;
     for (var mi = 0; mi < rngInt(5, 10); mi++) {
       var mx = rngRange(100, W - 100), my = midY + rngRange(-60, 60), mw = rngInt(80, 160);
-      var mG = _makePlatform(mw, 12);
+      var mG = _makePlatform(mw, 28);
       mG.x = mx; mG.y = my;
       container.addChild(mG);
-      var mBody = { x: mx, y: my, w: mw, h: 12, isStatic: true, oneWay: true, tag: 'platform' };
+      var mBody = { x: mx, y: my, w: mw, h: 28, isStatic: true, oneWay: true, tag: 'platform' };
       bodies.push(mBody); platforms.push({ x: mx, y: my, w: mw, body: mBody });
     }
 
@@ -1453,20 +1463,20 @@ class WorldBuilderSystem {
     var canY = GY * 0.2;
     for (var ci = 0; ci < rngInt(4, 8); ci++) {
       var cx2 = rngRange(80, W - 80), cy2 = canY + rngRange(-40, 40), cw2 = rngInt(100, 200);
-      var cG = _makePlatform(cw2, 16);
+      var cG = _makePlatform(cw2, 32);
       cG.x = cx2; cG.y = cy2;
       container.addChild(cG);
-      var cBody = { x: cx2, y: cy2, w: cw2, h: 16, isStatic: true, oneWay: true, tag: 'platform' };
+      var cBody = { x: cx2, y: cy2, w: cw2, h: 32, isStatic: true, oneWay: true, tag: 'platform' };
       bodies.push(cBody); platforms.push({ x: cx2, y: cy2, w: cw2, body: cBody });
     }
 
     // Lower platforms near ground
     for (var li = 0; li < rngInt(4, 7); li++) {
       var lx = rngRange(100, W - 100), ly = GY - rngRange(60, 140), lw = rngInt(80, 150);
-      var lG = _makePlatform(lw, 12);
+      var lG = _makePlatform(lw, 28);
       lG.x = lx; lG.y = ly;
       container.addChild(lG);
-      var lBody = { x: lx, y: ly, w: lw, h: 12, isStatic: true, oneWay: true, tag: 'platform' };
+      var lBody = { x: lx, y: ly, w: lw, h: 28, isStatic: true, oneWay: true, tag: 'platform' };
       bodies.push(lBody); platforms.push({ x: lx, y: ly, w: lw, body: lBody });
     }
 
@@ -1520,10 +1530,10 @@ class WorldBuilderSystem {
     for (var ci = 0; ci < coralCount; ci++) {
       var cx = rngRange(150, W - 150), cy = rngRange(H * 0.25, GY - 40), cw2 = rngInt(70, 150);
       var cc = coralColors[rngInt(0, coralColors.length - 1)];
-      var cG = _makePlatform(cw2, 16);
+      var cG = _makePlatform(cw2, 32);
       cG.x = cx; cG.y = cy;
       container.addChild(cG);
-      var cBody = { x: cx, y: cy, w: cw2, h: 16, isStatic: true, oneWay: true, tag: 'platform' };
+      var cBody = { x: cx, y: cy, w: cw2, h: 32, isStatic: true, oneWay: true, tag: 'platform' };
       bodies.push(cBody); platforms.push({ x: cx, y: cy, w: cw2, body: cBody });
     }
 
@@ -1608,10 +1618,10 @@ class WorldBuilderSystem {
     // Overhead platforms
     for (var pi = 0; pi < rngInt(4, 8); pi++) {
       var px = rngRange(200, W - 100), py = GY - rngRange(100, 250), pw = rngInt(80, 140);
-      var pG = _makePlatform(pw, 16);
+      var pG = _makePlatform(pw, 32);
       pG.x = px; pG.y = py;
       container.addChild(pG);
-      var pBody = { x: px, y: py, w: pw, h: 16, isStatic: true, oneWay: true, tag: 'platform' };
+      var pBody = { x: px, y: py, w: pw, h: 32, isStatic: true, oneWay: true, tag: 'platform' };
       bodies.push(pBody); platforms.push({ x: px, y: py, w: pw, body: pBody });
     }
 
