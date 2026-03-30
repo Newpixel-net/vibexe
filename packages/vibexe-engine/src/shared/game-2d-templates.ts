@@ -4585,6 +4585,7 @@ export function buildGame2dSceneStarter(brief: CreativeBrief): string {
 			"  worldLiquidType: 'none',",
 			"  worldLiquidLevel: 0,",
 			"  worldPlatformStyle: 'spread',",
+			"  // Genre preset — sets camera, physics defaults",
 			"  genre: 'platformer',",
 			"};",
 		].join("\n"),
@@ -4624,6 +4625,7 @@ export function buildGame2dSceneStarter(brief: CreativeBrief): string {
 				"  worldLiquidType: 'none',",
 				"  worldLiquidLevel: 0,",
 				`  worldPlatformStyle: '${bp === 'cave-system' ? 'clustered' : bp === 'vertical-tower' ? 'stacked' : 'spread'}',`,
+				"  // Genre preset — sets camera, physics defaults",
 				`  genre: '${tdGenre}',`,
 				"};",
 			].join("\n");
