@@ -974,7 +974,11 @@ const supabase = createClient("${supabaseConfig.url}", "${supabaseConfig.anonKey
 			else if (/underwater|ocean|sea|diving|coral/.test(promptLower)) game2dBrief.worldBlueprint = 'underwater';
 			else if (/runner|endless|auto.?run/.test(promptLower)) game2dBrief.worldBlueprint = 'endless-runner';
 			// Also override theme if prompt strongly suggests one
-			if (/cave|underground|dark|shadow/.test(promptLower) && !['dark', 'volcanic'].includes(game2dBrief.theme)) game2dBrief.theme = 'dark';
+			// Blueprint-driven theme defaults (dungeon/cave → dark, underwater → ocean)
+			if (['dungeon-topdown', 'dungeon-rooms', 'cave-system'].includes(game2dBrief.worldBlueprint) && !['dark', 'volcanic'].includes(game2dBrief.theme)) game2dBrief.theme = 'dark';
+			if (game2dBrief.worldBlueprint === 'underwater' && game2dBrief.theme !== 'ocean') game2dBrief.theme = 'ocean';
+			// Keyword-driven theme overrides (more specific user intent)
+			if (/cave|underground|dark|shadow|dungeon|roguelike/.test(promptLower) && !['dark', 'volcanic'].includes(game2dBrief.theme)) game2dBrief.theme = 'dark';
 			if (/underwater|ocean|sea/.test(promptLower) && game2dBrief.theme !== 'ocean') game2dBrief.theme = 'ocean';
 			if (/lava|volcano|volcanic|fire/.test(promptLower) && game2dBrief.theme !== 'volcanic') game2dBrief.theme = 'volcanic';
 			if (/ice|snow|arctic|frozen/.test(promptLower) && game2dBrief.theme !== 'arctic') game2dBrief.theme = 'arctic';
@@ -1103,8 +1107,18 @@ const supabase = createClient("${supabaseConfig.url}", "${supabaseConfig.anonKey
 			// Also recreate if custom spritesheets need injection (template includes loadSpritesheet calls)
 			const needsSceneRefresh = spritesheetInjectCode.length > 0;
 			if (isGame2d && (!existingPaths.has("src/scenes/GameScene2D.ts") || needsSceneRefresh)) {
-				const theme = game2dBrief?.theme || "forest";
+				// Blueprint-aware theme defaults — prevents mismatched themes (e.g. dungeon + candy)
+				const blueprintThemeMap: Record<string, string> = {
+					'dungeon-topdown': 'dark',
+					'dungeon-rooms': 'dark',
+					'cave-system': 'dark',
+					'underwater': 'ocean',
+					'floating-islands': 'space',
+					'vertical-tower': 'volcanic',
+					'city-rooftops': 'sunset',
+				};
 				const bp = game2dBrief?.worldBlueprint || "outdoor-scroll";
+				const effectiveTheme = game2dBrief?.theme || blueprintThemeMap[bp] || "forest";
 				const isTopDownBP = bp === "dungeon-topdown" || bp === "open-field" || isRpg2d;
 				const wW = isTopDownBP ? 1200 : (game2dBrief?.worldWidth || 4000);
 				const wH = isTopDownBP ? 1000 : (game2dBrief?.worldHeight || 900);
@@ -1122,7 +1136,7 @@ const supabase = createClient("${supabaseConfig.url}", "${supabaseConfig.anonKey
 					const coreFeatures = await db.select().from(featureBankSnippets).where(inArray(featureBankSnippets.id, coreFeatureIds));
 					let featureFactories = "";
 					let featureRegistrations = "";
-					const sharedConfig = { theme, worldWidth: wW, worldHeight: wH, groundY, gravity, moveSpeed, jumpForce };
+					const sharedConfig = { theme: effectiveTheme, worldWidth: wW, worldHeight: wH, groundY, gravity, moveSpeed, jumpForce };
 
 					for (const bf of coreFeatures) {
 						const safeId = bf.id.replace(/-/g, "_");
@@ -1141,19 +1155,19 @@ import { PALETTES, drawPlayerCharacter, drawCoinToken, drawEnemySlime, drawHeart
 import { _loadSpriteLib, _sheetCache } from "../utils/media-stock";
 ${featureFactories}
 var PIXI = (window as any).PIXI;
-var PAL = PALETTES["${theme}"] || PALETTES.forest;
+var PAL = PALETTES["${effectiveTheme}"] || PALETTES.forest;
 export default class GameScene2D implements GameScene {
   name = 'game';
   container = new PIXI.Container();
   private _update: ((dt: number) => void) | null = null;
 
   async enter(engine: Engine2D) {
-    await _loadSpriteLib("${theme}");
+    await _loadSpriteLib("${effectiveTheme}");
 
     // Build world using WorldBuilder (sprite-based with fallback graphics)
     var worldResult = engine.worldBuilder.build({
       blueprint: "${game2dBrief?.worldBlueprint || 'outdoor-scroll'}",
-      theme: "${theme}",
+      theme: "${effectiveTheme}",
       width: ${wW},
       height: ${wH},
       groundY: ${groundY},
@@ -1214,7 +1228,7 @@ ${featureRegistrations}
   }
 }
 `;
-					console.log(`[Chat API] Auto-composed Feature Bank scaffold (theme: ${theme}, features: ${coreFeatures.length}/6)`);
+					console.log(`[Chat API] Auto-composed Feature Bank scaffold (theme: ${effectiveTheme}, blueprint: ${bp}, features: ${coreFeatures.length}/6)`);
 				} catch (e) {
 					console.error(`[Chat API] Feature Bank auto-compose failed, falling back to placeholder:`, e);
 					// Fallback to simple placeholder
@@ -1226,7 +1240,7 @@ export default class GameScene2D implements GameScene {
   container = new PIXI.Container();
   private _update: ((dt: number) => void) | null = null;
   async enter(engine: Engine2D) {
-    var PAL = PALETTES["${theme}"];
+    var PAL = PALETTES["${effectiveTheme}"];
     var app = engine.app, W = app.screen.width, H = app.screen.height;
     this.container.addChild(drawSkyGradient(W, H, PAL.skyTop, PAL.skyBottom));
     var txt = new PIXI.Text({ text: "Building your game...", style: { fill: 0xFFFFFF, fontSize: 20, fontWeight: "bold", stroke: { color: 0x000000, width: 3 } } });
@@ -1390,8 +1404,10 @@ export default class GameScene2D implements GameScene {
 			}
 		}
 
-		if (isNewProject && !isVisualEdit) {
+		if (isNewProject && !isVisualEdit && !isGame2d) {
 			// Phase 1: Plan only — create docs/README.md and stop
+			// 2D games skip this: GameScene2D.ts is auto-composed with Feature Bank,
+			// so the AI should build custom-visuals + custom-gameplay immediately.
 			runtimeAddenda.push(`## PLAN FIRST (MANDATORY)
 
 Create ONLY \`docs/README.md\` with a comprehensive project plan. Include:
@@ -1449,6 +1465,19 @@ After creating ALL files, end with a short summary. If the app has auth, include
 **MINIMUM**: Your GameScene3D.ts must call at least 5 different factory helpers. Every platform, collectible, player, barrier, and decoration MUST use the corresponding factory.`);
 
 			}
+		}
+		// 2D games: build everything in a single step (no plan-then-build)
+		if (isGame2d && isNewProject) {
+			runtimeAddenda.push(`## BUILD IMMEDIATELY (2D Game)
+
+GameScene2D.ts is already auto-composed with Feature Bank (player, platforms, coins, enemies, camera, HUD).
+Create ALL files in a single response — do NOT ask the user to say "build it":
+
+1. \`docs/README.md\` — short game description (2-3 sentences, feature list)
+2. \`src/game/custom-visuals.ts\` — decorative visuals, themed backgrounds, particle effects
+3. \`src/game/custom-gameplay.ts\` — additional gameplay mechanics (combat, bosses, NPCs, power-ups)
+
+Build everything now. Do NOT create a plan and wait. Do NOT say "say build it". Just create all three files.`);
 		}
 		// 2D game: whenever GameScene2D.ts already exists, tell AI to patch not rewrite
 		if (isGame2d && existingFiles.some((f) => f.path === "src/scenes/GameScene2D.ts")) {
@@ -1895,7 +1924,7 @@ An App Store listing has been analyzed and injected into the project context abo
 
 		const isReplication = plan.intent.suggestedFlow === "replicate";
 		const isFix = plan.intent.suggestedFlow === "fix";
-		const isPlanOnly = isNewProject && !isVisualEdit;
+		const isPlanOnly = isNewProject && !isVisualEdit && !isGame2d;
 		const maxSteps = isPlanOnly
 			? 5 // Plan-only: just docs/README.md creation
 			: hasPlanOnly

@@ -62,12 +62,25 @@ export const game2dDeveloper: AgentDefinition = {
 
 **The auto-composed GameScene2D.ts already includes these Feature Bank systems: player movement (platformer or top-down), level platforms, coin collection with scoring, enemy patrol, camera follow, and HUD (score + lives). DO NOT re-implement these in custom-gameplay.ts. Focus on ADDITIONAL mechanics and CUSTOM visuals.**
 
-## Your Workflow
+CRITICAL: Do NOT create a custom score display, health bar, lives counter, or any HUD elements in custom-gameplay.ts — the hud-basic feature already handles Score, Lives (hearts), and coin counter. If you need custom UI beyond that, add it to engine.uiLayer but NEVER duplicate score/health.
 
-1. For VISUAL requests: create \`src/game/custom-visuals.ts\`
-2. For GAMEPLAY requests (combat, boss, NPC, controls, mechanics): create \`src/game/custom-gameplay.ts\`
-3. Create \`docs/README.md\` with a short game description
-4. The scaffold auto-loads both files
+Available Feature Bank features (auto-composed into GameScene2D.ts):
+- player-platformer / player-topdown (auto-selected by genre)
+- level-platforms
+- collectible-coins
+- enemy-patrol
+- camera-follow
+- hud-basic
+
+Do NOT reference feature IDs that aren't in this list. Custom gameplay goes in custom-gameplay.ts using engine APIs directly.
+
+## Your Workflow — BUILD IMMEDIATELY
+
+Create ALL files in a single response. Do NOT ask the user to say "build it" — build everything now:
+1. \`docs/README.md\` — short game description (2-3 sentences + feature list)
+2. \`src/game/custom-visuals.ts\` — decorative visuals, themed backgrounds, particle effects
+3. \`src/game/custom-gameplay.ts\` — additional gameplay mechanics (combat, bosses, NPCs, power-ups)
+The scaffold auto-loads both game files. Create all three files together.
 
 ## Template for custom-visuals.ts
 
@@ -872,7 +885,8 @@ function create(cfg) {
 - Do NOT modify engine/, utils/, config/assets.ts, App.tsx, Game2D.tsx
 - For VISUALS: create \`src/game/custom-visuals.ts\` (export setup + update)
 - For GAMEPLAY: create \`src/game/custom-gameplay.ts\` (export features array)
-- Also create \`docs/README.md\`
+- Do NOT register features with IDs that don't exist in the Feature Bank (e.g., 'enemy-flying'). Only use engine APIs directly in custom-gameplay.ts.
+- Also create \`docs/README.md\` — always in the SAME response as the game files, never separately
 - Use \`var\` not \`const/let\`. Write plain JavaScript, no TypeScript annotations
 - Access the player via \`engine.getPlayer()\` — returns \`{ sprite, body, controller }\`. Works for both platformer and top-down games
 - Keep each file under 400 lines

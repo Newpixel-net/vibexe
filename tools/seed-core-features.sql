@@ -621,7 +621,7 @@ INSERT INTO feature_bank_snippets (id, name, description, category, type, engine
 VALUES (
   'level-platforms',
   'Level Platforms',
-  'Platform layout: auto-generates or uses explicit positions. Creates physics bodies and themed visuals. Depends on player-platformer for physics world.',
+  'Platform layout: auto-generates or uses explicit positions. Creates physics bodies and themed visuals. Finds the active player feature at runtime.',
   'Core/Level',
   'instruction',
   '2d',
@@ -635,7 +635,7 @@ VALUES (
     {"name":"minWidth","type":"number","default":100,"min":40,"max":400,"description":"Minimum platform width"},
     {"name":"maxWidth","type":"number","default":220,"min":60,"max":600,"description":"Maximum platform width"}
   ]',
-  '["player-platformer"]',
+  '[]',
   '["platformer","runner","puzzle"]',
 $$function create(config) {
   var theme = config.theme || 'forest';
@@ -718,7 +718,7 @@ INSERT INTO feature_bank_snippets (id, name, description, category, type, engine
 VALUES (
   'collectible-coins',
   'Collectible Coins',
-  'Spawns coins at positions (or randomly), detects collection via proximity, tracks score, emits events. Depends on player-platformer for player position.',
+  'Spawns coins at positions (or randomly), detects collection via proximity, tracks score, emits events. Finds the active player feature at runtime.',
   'Core/Collectibles',
   'instruction',
   '2d',
@@ -732,7 +732,7 @@ VALUES (
     {"name":"groundY","type":"number","default":840,"min":200,"max":1800,"description":"Ground Y for random placement"},
     {"name":"worldWidth","type":"number","default":4000,"min":800,"max":10000,"description":"World width for random placement"}
   ]',
-  '["player-platformer"]',
+  '[]',
   '["platformer","runner","puzzle"]',
 $$function create(config) {
   var theme = config.theme || 'forest';
@@ -848,7 +848,7 @@ INSERT INTO feature_bank_snippets (id, name, description, category, type, engine
 VALUES (
   'enemy-patrol',
   'Enemy Patrol',
-  'Patrol enemies that walk back and forth. Stomp to kill (bounce), touch sides to take damage. Emits events for kills and damage. Depends on player-platformer.',
+  'Patrol enemies that walk back and forth. Stomp to kill (bounce), touch sides to take damage. Emits events for kills and damage. Finds the active player feature at runtime.',
   'Core/Enemies',
   'instruction',
   '2d',
@@ -862,7 +862,7 @@ VALUES (
     {"name":"worldWidth","type":"number","default":4000,"min":800,"max":10000,"description":"World width for placement"},
     {"name":"hitCooldownTime","type":"number","default":1.0,"min":0.3,"max":3.0,"description":"Seconds of invulnerability after taking damage"}
   ]',
-  '["player-platformer"]',
+  '[]',
   '["platformer","runner"]',
 $$function create(config) {
   var theme = config.theme || 'forest';
@@ -986,7 +986,7 @@ INSERT INTO feature_bank_snippets (id, name, description, category, type, engine
 VALUES (
   'camera-follow',
   'Camera Follow',
-  'Smooth camera that follows the player with configurable smoothing and dead zones. Depends on player-platformer for follow target.',
+  'Smooth camera that follows the player with configurable smoothing and dead zones. Finds the active player feature at runtime.',
   'Core/Camera',
   'instruction',
   '2d',
@@ -999,7 +999,7 @@ VALUES (
     {"name":"worldWidth","type":"number","default":4000,"min":800,"max":10000,"description":"World width for camera bounds"},
     {"name":"worldHeight","type":"number","default":900,"min":400,"max":2000,"description":"World height for camera bounds"}
   ]',
-  '["player-platformer"]',
+  '[]',
   '["platformer","runner","shooter","puzzle"]',
 $$function create(config) {
   var smoothing = config.smoothing || 0.08;
