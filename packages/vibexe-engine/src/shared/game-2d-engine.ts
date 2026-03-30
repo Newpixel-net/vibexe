@@ -349,36 +349,64 @@ class WorldBuilderSystem {
        */
       sky: function(opts: { theme?: string; mood?: string; width?: number; height?: number } = {}): { container: any } {
         var w = opts.width || W, h = opts.height || H;
-        var p = palettes[opts.theme || theme] || pal;
+        var th = opts.theme || theme;
+        var p = palettes[th] || pal;
         var c = new PIXI.Container();
         c.label = 'el-sky';
 
-        // Sky gradient
-        try {
-          if (PIXI.FillGradient) {
-            var grad = new PIXI.FillGradient({ type: 'linear', colorStops: [
-              { offset: 0, color: hexCss(p.skyTop) },
-              { offset: 1, color: hexCss(p.skyBottom) },
-            ], x0: 0, y0: 0, x1: 0, y1: h });
-            var rect = new PIXI.Graphics();
-            rect.rect(0, 0, w, h);
-            rect.fill(grad);
-            c.addChild(rect);
-          } else { throw 0; }
-        } catch(e) {
-          var fb = new PIXI.Graphics();
-          fb.rect(0, 0, w, h);
-          fb.fill({ color: p.skyBottom });
-          c.addChild(fb);
+        // Try Kenney background sprite first (much better than flat gradient)
+        var BG_MAP: Record<string, string> = { forest: 'bg_green', sunset: 'bg_green', candy: 'bg_green', arctic: 'bg_green', ocean: 'bg_green', volcanic: 'bg_castle', dark: 'bg_castle', space: 'bg_castle' };
+        var bgName = BG_MAP[th] || 'bg_green';
+        var bgSpr = _getTilingSprite('backgrounds', bgName, w, h);
+        if (bgSpr) {
+          bgSpr.tileScale.set(Math.max(h / 256, 1.5));
+          // Tint background to match theme palette
+          var BG_TINT: Record<string, number> = { forest: 0x88cc88, sunset: 0xffaa66, candy: 0xffccee, volcanic: 0xff6633, dark: 0x334455, space: 0x223355, arctic: 0xaaccee, ocean: 0x4488bb };
+          bgSpr.tint = BG_TINT[th] || 0xffffff;
+          c.addChild(bgSpr);
+        } else {
+          // Fallback: gradient
+          try {
+            if (PIXI.FillGradient) {
+              var grad = new PIXI.FillGradient({ type: 'linear', colorStops: [
+                { offset: 0, color: hexCss(p.skyTop) },
+                { offset: 1, color: hexCss(p.skyBottom) },
+              ], x0: 0, y0: 0, x1: 0, y1: h });
+              var rect = new PIXI.Graphics();
+              rect.rect(0, 0, w, h);
+              rect.fill(grad);
+              c.addChild(rect);
+            } else { throw 0; }
+          } catch(e) {
+            var fb = new PIXI.Graphics();
+            fb.rect(0, 0, w, h);
+            fb.fill({ color: p.skyBottom });
+            c.addChild(fb);
+          }
+        }
+
+        // Distant hill sprite layer (if available) — adds depth behind parallax
+        var HILL_MAP: Record<string, string> = { forest: 'hill_green', sunset: 'hill_green', arctic: 'hill_snow', dark: 'mountain_rock', volcanic: 'mountain_rock', space: 'mountain_rock', ocean: 'hill_green', candy: 'hill_green' };
+        var hillName = HILL_MAP[th];
+        if (hillName) {
+          var hillSpr = _getTilingSprite('backgrounds', hillName, w, h * 0.4);
+          if (hillSpr) {
+            hillSpr.y = h * 0.4;
+            hillSpr.tileScale.set(Math.max(h / 400, 1.0));
+            hillSpr.alpha = 0.5;
+            var HILL_TINT: Record<string, number> = { forest: 0x336633, sunset: 0x664433, arctic: 0x667788, dark: 0x222233, volcanic: 0x331111, space: 0x111133, ocean: 0x224455, candy: 0x886688 };
+            hillSpr.tint = HILL_TINT[th] || 0x666666;
+            c.addChild(hillSpr);
+          }
         }
 
         // Stars for dark/space themes
-        var th = opts.theme || theme;
         if (th === 'space' || th === 'dark' || opts.mood === 'dark') {
           var starG = new PIXI.Graphics();
           var sc = rngInt(60, 120);
           for (var si = 0; si < sc; si++) {
-            starG.circle(rngRange(0, w), rngRange(0, h * 0.5), rngRange(0.5, 2));
+            var sSz = rngRange(0.5, 2);
+            starG.circle(rngRange(0, w), rngRange(0, h * 0.5), sSz);
             starG.fill({ color: 0xffffff, alpha: rngRange(0.3, 0.9) });
           }
           c.addChild(starG);
@@ -881,30 +909,101 @@ class WorldBuilderSystem {
       /**
        * Vignette + fog atmospheric overlay.
        */
-      atmosphere: function(opts: { width?: number; height?: number; groundY?: number; fogAlpha?: number; vignetteAlpha?: number } = {}): { container: any } {
+      atmosphere: function(opts: { width?: number; height?: number; groundY?: number; fogAlpha?: number; vignetteAlpha?: number; mood?: string; theme?: string } = {}): { container: any } {
         var w = opts.width || W, h = opts.height || H, gy = opts.groundY || GY;
+        var th = opts.theme || theme;
+        var mood = opts.mood || (th === 'dark' || th === 'space' ? 'dark' : th === 'volcanic' ? 'warm' : 'neutral');
         var c = new PIXI.Container();
         c.label = 'el-atmosphere';
         c.zIndex = 4000;
 
+        // Theme atmosphere presets — ambient color + fog + intensity
+        var ATMO: Record<string, { ambient: number; ambientAlpha: number; fog: number; fogAlpha: number; vigAlpha: number; particles: string }> = {
+          forest:   { ambient: 0x224422, ambientAlpha: 0.06, fog: 0x334433, fogAlpha: 0.08, vigAlpha: 0.2,  particles: 'leaves' },
+          sunset:   { ambient: 0x442211, ambientAlpha: 0.1,  fog: 0x663322, fogAlpha: 0.06, vigAlpha: 0.2,  particles: 'dust' },
+          candy:    { ambient: 0x331133, ambientAlpha: 0.04, fog: 0xffccee, fogAlpha: 0.04, vigAlpha: 0.15, particles: 'sparkle' },
+          volcanic: { ambient: 0x331100, ambientAlpha: 0.15, fog: 0x220800, fogAlpha: 0.12, vigAlpha: 0.3,  particles: 'embers' },
+          dark:     { ambient: 0x000011, ambientAlpha: 0.2,  fog: 0x111122, fogAlpha: 0.15, vigAlpha: 0.4,  particles: 'dust' },
+          space:    { ambient: 0x000022, ambientAlpha: 0.15, fog: 0x000011, fogAlpha: 0.05, vigAlpha: 0.3,  particles: 'stars' },
+          arctic:   { ambient: 0x112233, ambientAlpha: 0.08, fog: 0xccddee, fogAlpha: 0.08, vigAlpha: 0.2,  particles: 'snow' },
+          ocean:    { ambient: 0x001133, ambientAlpha: 0.12, fog: 0x003366, fogAlpha: 0.1,  vigAlpha: 0.25, particles: 'bubbles' },
+        };
+        var atmo = ATMO[th] || ATMO.forest;
+
         try {
-          // Fog strip at ground level
-          var fog = new PIXI.Graphics();
-          fog.rect(0, gy - 60, w, 80);
-          fog.fill({ color: pal.skyBottom, alpha: opts.fogAlpha || 0.08 });
-          c.addChild(fog);
+          // 1. Ambient light overlay — subtle color tint across entire scene
+          if (atmo.ambientAlpha > 0) {
+            var ambientG = new PIXI.Graphics();
+            ambientG.rect(0, 0, w, h);
+            ambientG.fill({ color: atmo.ambient, alpha: atmo.ambientAlpha });
+            c.addChild(ambientG);
+          }
 
-          // Top darkening
+          // 2. Fog — ground-level atmospheric haze (thicker, wider than before)
+          var fogA = opts.fogAlpha !== undefined ? opts.fogAlpha : atmo.fogAlpha;
+          if (fogA > 0) {
+            // Multi-layer fog for depth
+            var fog1 = new PIXI.Graphics();
+            fog1.rect(0, gy - 100, w, 140);
+            fog1.fill({ color: atmo.fog, alpha: fogA });
+            c.addChild(fog1);
+            // Lighter fog higher up
+            var fog2 = new PIXI.Graphics();
+            fog2.rect(0, gy - 200, w, 200);
+            fog2.fill({ color: atmo.fog, alpha: fogA * 0.3 });
+            c.addChild(fog2);
+          }
+
+          // 3. Vignette — edge darkening for focus
+          var vigA = opts.vignetteAlpha !== undefined ? opts.vignetteAlpha : atmo.vigAlpha;
+          // Top gradient (darkest at edge)
           var vigTop = new PIXI.Graphics();
-          vigTop.rect(0, 0, w, 80);
-          vigTop.fill({ color: 0x000000, alpha: opts.vignetteAlpha || 0.25 });
+          vigTop.rect(0, 0, w, 100);
+          vigTop.fill({ color: 0x000000, alpha: vigA });
           c.addChild(vigTop);
-
-          // Bottom darkening
+          // Second softer band
+          var vigTop2 = new PIXI.Graphics();
+          vigTop2.rect(0, 100, w, 60);
+          vigTop2.fill({ color: 0x000000, alpha: vigA * 0.4 });
+          c.addChild(vigTop2);
+          // Bottom
           var vigBot = new PIXI.Graphics();
-          vigBot.rect(0, h - 40, w, 40);
-          vigBot.fill({ color: 0x000000, alpha: (opts.vignetteAlpha || 0.25) * 0.6 });
+          vigBot.rect(0, h - 60, w, 60);
+          vigBot.fill({ color: 0x000000, alpha: vigA * 0.6 });
           c.addChild(vigBot);
+          // Left + right edge darkening (subtle)
+          var vigL = new PIXI.Graphics();
+          vigL.rect(0, 0, 40, h);
+          vigL.fill({ color: 0x000000, alpha: vigA * 0.3 });
+          c.addChild(vigL);
+          var vigR = new PIXI.Graphics();
+          vigR.rect(w - 40, 0, 40, h);
+          vigR.fill({ color: 0x000000, alpha: vigA * 0.3 });
+          c.addChild(vigR);
+
+          // 4. Ambient particles — theme-specific floating particles
+          var pType = atmo.particles;
+          var pCount = pType === 'stars' ? rngInt(3, 8) : pType === 'embers' ? rngInt(8, 15) : rngInt(10, 20);
+          for (var api = 0; api < pCount; api++) {
+            var ap = new PIXI.Graphics();
+            var apx = rngRange(0, w), apy = rngRange(0, h * 0.85);
+            var apSize = rngRange(1, 3);
+            var apAlpha = rngRange(0.05, 0.2);
+            var apColor = 0xffffff;
+
+            if (pType === 'leaves') { apColor = 0x44aa22; apSize = rngRange(2, 4); apAlpha = rngRange(0.1, 0.25); }
+            else if (pType === 'embers') { apColor = 0xff6622; apSize = rngRange(1.5, 3); apAlpha = rngRange(0.15, 0.4); }
+            else if (pType === 'dust') { apColor = 0xccbb99; apSize = rngRange(1, 2.5); apAlpha = rngRange(0.06, 0.15); }
+            else if (pType === 'snow') { apColor = 0xeeeeff; apSize = rngRange(2, 4); apAlpha = rngRange(0.15, 0.35); }
+            else if (pType === 'sparkle') { apColor = 0xffddff; apSize = rngRange(1, 2); apAlpha = rngRange(0.1, 0.3); }
+            else if (pType === 'bubbles') { apColor = 0xaaddff; apSize = rngRange(2, 5); apAlpha = rngRange(0.1, 0.25); }
+            else if (pType === 'stars') { apColor = 0xffffff; apSize = rngRange(0.5, 1.5); apAlpha = rngRange(0.1, 0.3); apy = rngRange(0, h * 0.4); }
+
+            ap.circle(0, 0, apSize);
+            ap.fill({ color: apColor, alpha: apAlpha });
+            ap.x = apx; ap.y = apy;
+            c.addChild(ap);
+          }
         } catch(e) { /* atmosphere optional */ }
 
         return { container: c };
