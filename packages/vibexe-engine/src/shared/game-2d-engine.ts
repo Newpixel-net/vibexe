@@ -1681,40 +1681,22 @@ class WorldBuilderSystem {
   // ===================================================================
   private _buildCaveSystem(ctx: any): void {
     var PIXI = ctx.PIXI, rng = ctx.rng, rngRange = ctx.rngRange, rngInt = ctx.rngInt;
-    var _getSprite = ctx._getSprite, pal = ctx.pal, _makePlatform = ctx._makePlatform;
-    var container = ctx.container, bodies = ctx.bodies, platforms = ctx.platforms;
+    var pal = ctx.pal, container = ctx.container, bodies = ctx.bodies, platforms = ctx.platforms;
     var W = ctx.W, H = ctx.H, GY = ctx.GY, cfg = ctx.cfg;
+    var el = ctx.elements;
 
-    // Dark solid background
-    var bg = new PIXI.Graphics(); bg.rect(0, 0, W, H); bg.fill({ color: 0x0a0a0f }); container.addChild(bg);
+    // Dark sky (cave interior)
+    container.addChild(el.sky({ mood: 'dark' }).container);
 
-    // Irregular ceiling + floor heights for grid
+    // Ground + ceiling using sprite tiles
+    var _gr = el.ground();
+    container.addChild(_gr.container);
+    for (var _gi = 0; _gi < _gr.bodies.length; _gi++) bodies.push(_gr.bodies[_gi]);
+
     var ceilH = 60 + rngInt(0, 40);
-    var _ceilHeights: number[] = [];
-    var _ceilSeed = rng();
-    for (var cx = 0; cx <= W; cx += 32) {
-      _ceilHeights.push(ceilH + Math.sin(cx * 0.01 + _ceilSeed * 2) * 25 + rng() * 15);
-    }
-    var _floorHeights: number[] = [];
-    var _floorSeed = rng();
-    for (var fx2 = 0; fx2 <= W; fx2 += 32) {
-      _floorHeights.push(GY + Math.sin(fx2 * 0.008 + _floorSeed * 3) * 40 + rng() * 20 - 20);
-    }
-    bodies.push({ x: W / 2, y: ceilH / 2, w: W, h: ceilH, isStatic: true, tag: 'ceiling' });
-    bodies.push({ x: W / 2, y: GY + 4, w: W, h: 8, isStatic: true, tag: 'ground' });
-
-    // Auto-tiled cave terrain (ceiling + floor)
-    var _ch = _ceilHeights, _fh = _floorHeights;
-    this._renderTerrainTiles(ctx, function(grid, gridW, gridH, ts) {
-      for (var gx = 0; gx < gridW; gx++) {
-        var ceilRow = Math.floor((_ch[Math.min(gx, _ch.length - 1)] || ceilH) / ts);
-        var floorRow = Math.floor((_fh[Math.min(gx, _fh.length - 1)] || GY) / ts);
-        // Ceiling tiles
-        for (var y = 0; y <= ceilRow; y++) grid[y * gridW + gx] = 1;
-        // Floor tiles
-        for (var y2 = floorRow; y2 < gridH; y2++) grid[y2 * gridW + gx] = 1;
-      }
-    });
+    var _ceil = el.ceiling({ ceilingH: ceilH });
+    container.addChild(_ceil.container);
+    for (var _ci = 0; _ci < _ceil.bodies.length; _ci++) bodies.push(_ceil.bodies[_ci]);
 
     // Stalactites from ceiling
     for (var si = 0; si < rngInt(6, 14); si++) {
@@ -1737,10 +1719,10 @@ class WorldBuilderSystem {
     var minY = ceilH + 60, maxY = GY - 60;
     for (var pi = 0; pi < pCount; pi++) {
       var px = rngRange(200, W - 200), py = rngRange(minY, maxY), pw = rngInt(80, 160);
-      var pG = _makePlatform(pw, 32);
-      pG.x = px; pG.y = py; container.addChild(pG);
-      var pBody = { x: px, y: py, w: pw, h: 32, isStatic: true, oneWay: true, tag: 'platform' };
-      bodies.push(pBody); platforms.push({ x: px, y: py, w: pw, body: pBody });
+      var _plat = el.platform({ x: px, y: py, width: pw, height: 32 });
+      container.addChild(_plat.container);
+      for (var _pbi = 0; _pbi < _plat.bodies.length; _pbi++) bodies.push(_plat.bodies[_pbi]);
+      platforms.push(_plat.platformData);
     }
 
     // Glowing crystals
@@ -1751,50 +1733,37 @@ class WorldBuilderSystem {
       container.addChild(crG);
     }
 
-    // Cave darkness overlay
-    var darkTop = new PIXI.Graphics(); darkTop.rect(0, 0, W, 100); darkTop.fill({ color: 0x000000, alpha: 0.4 });
-    var darkBot = new PIXI.Graphics(); darkBot.rect(0, H - 60, W, 60); darkBot.fill({ color: 0x000000, alpha: 0.3 });
-    container.addChild(darkTop); container.addChild(darkBot);
-    this._addForegroundDecor(ctx, 'cave-system');
+    // Cave atmosphere + foreground
+    container.addChild(el.atmosphere({ vignetteAlpha: 0.4, fogAlpha: 0.05 }).container);
+    container.addChild(el.foreground({ type: 'cave' }).container);
   }
 
   // ===================================================================
   // BLUEPRINT: vertical-tower — tall walled tower, platforms spiral up
   // ===================================================================
   private _buildVerticalTower(ctx: any): void {
-    var PIXI = ctx.PIXI, rng = ctx.rng, rngRange = ctx.rngRange, rngInt = ctx.rngInt;
-    var pal = ctx.pal, hexCss = ctx.hexCss, _makePlatform = ctx._makePlatform;
+    var rng = ctx.rng, rngRange = ctx.rngRange, rngInt = ctx.rngInt;
     var container = ctx.container, bodies = ctx.bodies, platforms = ctx.platforms;
     var W = ctx.W, H = ctx.H, GY = ctx.GY, cfg = ctx.cfg;
+    var el = ctx.elements;
 
-    // Sky gradient
-    try {
-      if (PIXI.FillGradient) {
-        var sg = new PIXI.FillGradient({ type: 'linear', colorStops: [
-          { offset: 0, color: hexCss(pal.skyTop) }, { offset: 1, color: hexCss(pal.skyBottom) }
-        ], x0: 0, y0: 0, x1: 0, y1: H });
-        var sr = new PIXI.Graphics(); sr.rect(0, 0, W, H); sr.fill(sg); container.addChild(sr);
-      } else { var s2 = new PIXI.Graphics(); s2.rect(0, 0, W, H); s2.fill({ color: pal.skyBottom }); container.addChild(s2); }
-    } catch(e) { var sf = new PIXI.Graphics(); sf.rect(0, 0, W, H); sf.fill({ color: pal.skyBottom }); container.addChild(sf); }
+    // Sky
+    container.addChild(el.sky().container);
 
-    // Walls + ground physics
+    // Ground
+    var _gr = el.ground();
+    container.addChild(_gr.container);
+    for (var _gi = 0; _gi < _gr.bodies.length; _gi++) bodies.push(_gr.bodies[_gi]);
+
+    // Left + Right walls (sprite tiles)
     var wallW = 40;
-    bodies.push({ x: wallW / 2, y: H / 2, w: wallW, h: H, isStatic: true, tag: 'wall-left' });
-    bodies.push({ x: W - wallW / 2, y: H / 2, w: wallW, h: H, isStatic: true, tag: 'wall-right' });
-    bodies.push({ x: W / 2, y: GY + 4, w: W, h: 8, isStatic: true, tag: 'ground' });
+    var _wl = el.wall({ x: 0, height: H, width: wallW, side: 'left' });
+    container.addChild(_wl.container);
+    for (var _wli = 0; _wli < _wl.bodies.length; _wli++) bodies.push(_wl.bodies[_wli]);
 
-    // Auto-tiled walls + ground
-    var _ww = wallW, _gy2 = GY;
-    this._renderTerrainTiles(ctx, function(grid, gridW, gridH, ts) {
-      var wallCols = Math.ceil(_ww / ts);
-      for (var y = 0; y < gridH; y++) {
-        for (var x = 0; x < wallCols; x++) grid[y * gridW + x] = 1;
-        for (var x2 = gridW - wallCols; x2 < gridW; x2++) grid[y * gridW + x2] = 1;
-      }
-      var groundRow = Math.floor(_gy2 / ts);
-      for (var y2 = groundRow; y2 < gridH; y2++)
-        for (var x3 = 0; x3 < gridW; x3++) grid[y2 * gridW + x3] = 1;
-    });
+    var _wr = el.wall({ x: W - wallW, height: H, width: wallW, side: 'right' });
+    container.addChild(_wr.container);
+    for (var _wri = 0; _wri < _wr.bodies.length; _wri++) bodies.push(_wr.bodies[_wri]);
 
     // Platforms spiraling upward (alternating left/right)
     var pCount = cfg.platformCount || 15;
@@ -1806,89 +1775,62 @@ class WorldBuilderSystem {
       var px: number;
       if (side === 0) { px = wallW + 40 + rngRange(0, W * 0.3); side = 1; }
       else { px = W - wallW - 40 - rngRange(0, W * 0.3); side = 0; }
-      var pG = _makePlatform(pw, 32);
-      pG.x = px; pG.y = py;
-      container.addChild(pG);
-      var pBody = { x: px, y: py, w: pw, h: 32, isStatic: true, oneWay: true, tag: 'platform' };
-      bodies.push(pBody); platforms.push({ x: px, y: py, w: pw, body: pBody });
+      var _plat = el.platform({ x: px, y: py, width: pw, height: 32 });
+      container.addChild(_plat.container);
+      for (var _pbi = 0; _pbi < _plat.bodies.length; _pbi++) bodies.push(_plat.bodies[_pbi]);
+      platforms.push(_plat.platformData);
     }
 
-    // Wall texture details (brick lines)
-    var brickG = new PIXI.Graphics();
-    for (var by = 0; by < H; by += 32) {
-      brickG.rect(0, by, wallW, 1); brickG.fill({ color: 0x000000, alpha: 0.15 });
-      brickG.rect(W - wallW, by, wallW, 1); brickG.fill({ color: 0x000000, alpha: 0.15 });
-    }
-    container.addChild(brickG);
-    this._addForegroundDecor(ctx, 'vertical-tower');
+    container.addChild(el.atmosphere().container);
+    container.addChild(el.foreground({ type: 'outdoor' }).container);
   }
 
   // ===================================================================
   // BLUEPRINT: floating-islands — no ground, islands in open sky
   // ===================================================================
   private _buildFloatingIslands(ctx: any): void {
-    var PIXI = ctx.PIXI, rng = ctx.rng, rngRange = ctx.rngRange, rngInt = ctx.rngInt;
-    var pal = ctx.pal, hexCss = ctx.hexCss, _getSprite = ctx._getSprite, _makePlatform = ctx._makePlatform;
+    var rng = ctx.rng, rngRange = ctx.rngRange, rngInt = ctx.rngInt;
     var container = ctx.container, bodies = ctx.bodies, platforms = ctx.platforms;
     var clouds = ctx.clouds; var W = ctx.W, H = ctx.H, cfg = ctx.cfg;
+    var el = ctx.elements;
 
-    // Deep sky gradient
-    try {
-      if (PIXI.FillGradient) {
-        var sg = new PIXI.FillGradient({ type: 'linear', colorStops: [
-          { offset: 0, color: hexCss(0x0a0a2e) }, { offset: 0.6, color: hexCss(pal.skyBottom) }, { offset: 1, color: hexCss(0xddeeff) }
-        ], x0: 0, y0: 0, x1: 0, y1: H });
-        var sr = new PIXI.Graphics(); sr.rect(0, 0, W, H); sr.fill(sg); container.addChild(sr);
-      } else { var s2 = new PIXI.Graphics(); s2.rect(0, 0, W, H); s2.fill({ color: pal.skyBottom }); container.addChild(s2); }
-    } catch(e) { var sf = new PIXI.Graphics(); sf.rect(0, 0, W, H); sf.fill({ color: pal.skyBottom }); container.addChild(sf); }
+    // Sky + clouds below islands
+    container.addChild(el.sky().container);
+    var _cl = el.clouds({ groundY: H * 0.8, count: 12 });
+    container.addChild(_cl.container);
+    for (var _cli = 0; _cli < _cl.cloudList.length; _cli++) clouds.push(_cl.cloudList[_cli]);
 
-    // Cloud layer below (bottom 30%)
-    var cloudBaseY = H * 0.7;
-    for (var ci = 0; ci < 12; ci++) {
-      var cG = new PIXI.Graphics(); var cw = rngRange(150, 400), ch = rngRange(30, 60);
-      cG.ellipse(0, 0, cw / 2, ch / 2); cG.fill({ color: 0xffffff, alpha: rngRange(0.15, 0.4) });
-      cG.x = rngRange(-100, W + 100); cG.y = cloudBaseY + rngRange(-40, 80);
-      container.addChild(cG); clouds.push({ gfx: cG, speed: rngRange(3, 10) });
-    }
+    // NO ground — floating islands
 
-    // NO ground body — floating islands
-
-    // Island masses (large platforms with decoration)
+    // Island masses (using island element with proper tile sprites)
     var islandCount = rngInt(4, 6);
     var islandSpacing = W / islandCount;
     for (var ii = 0; ii < islandCount; ii++) {
       var ix = islandSpacing * (ii + 0.5) + rngRange(-80, 80);
       var iy = rngRange(H * 0.2, H * 0.55);
       var iw = rngInt(180, 350);
-      var iG = new PIXI.Graphics();
-      // Top surface
-      iG.roundRect(-iw / 2, -12, iw, 24, 6); iG.fill({ color: pal.groundTop || 0x4a8a3a });
-      // Bottom mass
-      iG.moveTo(-iw / 2 + 10, 12); iG.lineTo(0, 12 + rngRange(30, 70)); iG.lineTo(iw / 2 - 10, 12);
-      iG.fill({ color: pal.ground || 0x5a4a2a }); iG.x = ix; iG.y = iy; container.addChild(iG);
-      var iBody = { x: ix, y: iy, w: iw, h: 24, isStatic: true, oneWay: true, tag: 'platform' };
-      bodies.push(iBody); platforms.push({ x: ix, y: iy, w: iw, body: iBody });
-
-      // Tree on island
-      var treeSpr = _getSprite('trees', rng() > 0.5 ? 'round_tree' : 'pine_tree');
-      if (treeSpr) {
-        treeSpr.anchor.set(0.5, 1); treeSpr.x = ix + rngRange(-iw * 0.3, iw * 0.3);
-        treeSpr.y = iy - 12; treeSpr.scale.set(rngRange(1.2, 2.0)); container.addChild(treeSpr);
-      }
+      var _isl = el.island({ x: ix, y: iy, width: iw, height: rngInt(60, 100) });
+      container.addChild(_isl.container);
+      for (var _ibi = 0; _ibi < _isl.bodies.length; _ibi++) bodies.push(_isl.bodies[_ibi]);
+      platforms.push(_isl.platformData);
     }
 
     // Stepping-stone platforms between islands
     for (var si = 0; si < rngInt(4, 8); si++) {
       var sx = rngRange(100, W - 100), sy = rngRange(H * 0.15, H * 0.6), sw = rngInt(60, 100);
-      var sG = _makePlatform(sw, 28);
-      sG.x = sx; sG.y = sy; container.addChild(sG);
-      var sBody = { x: sx, y: sy, w: sw, h: 28, isStatic: true, oneWay: true, tag: 'platform' };
-      bodies.push(sBody); platforms.push({ x: sx, y: sy, w: sw, body: sBody });
+      var _plat = el.platform({ x: sx, y: sy, width: sw, height: 28 });
+      container.addChild(_plat.container);
+      for (var _pbi = 0; _pbi < _plat.bodies.length; _pbi++) bodies.push(_plat.bodies[_pbi]);
+      platforms.push(_plat.platformData);
     }
 
-    // Death pit at very bottom
+    // Trees on islands
+    container.addChild(el.trees({ groundY: H * 0.3, count: rngInt(3, 6) }).container);
+
+    // Death pit
     bodies.push({ x: W / 2, y: H + 20, w: W, h: 40, isStatic: true, tag: 'death' });
-    this._addForegroundDecor(ctx, 'floating-islands');
+    container.addChild(el.atmosphere().container);
+    container.addChild(el.foreground({ type: 'outdoor' }).container);
   }
 
   // ===================================================================
@@ -1941,13 +1883,14 @@ class WorldBuilderSystem {
   // ===================================================================
   private _buildDungeonRooms(ctx: any): void {
     var PIXI = ctx.PIXI, rng = ctx.rng, rngRange = ctx.rngRange, rngInt = ctx.rngInt;
-    var pal = ctx.pal, _makePlatform = ctx._makePlatform, container = ctx.container, bodies = ctx.bodies, platforms = ctx.platforms;
+    var container = ctx.container, bodies = ctx.bodies, platforms = ctx.platforms;
     var W = ctx.W, H = ctx.H, GY = ctx.GY, cfg = ctx.cfg;
+    var el = ctx.elements;
 
     // Dark background
-    var bg = new PIXI.Graphics(); bg.rect(0, 0, W, H); bg.fill({ color: 0x0d0d15 }); container.addChild(bg);
+    container.addChild(el.sky({ mood: 'dark' }).container);
 
-    // Generate 4-6 rooms
+    // Generate 4-6 rooms with corridors
     var roomCount = rngInt(4, 6);
     var rooms: { x: number; y: number; w: number; h: number }[] = [];
     var roomW = W / (roomCount + 1);
@@ -1957,23 +1900,30 @@ class WorldBuilderSystem {
       var ry = rngRange(H * 0.15, H - rh - 80);
       rooms.push({ x: rx, y: ry, w: rw, h: rh });
 
-      // Room background
-      var roomBg = new PIXI.Graphics(); roomBg.rect(rx, ry, rw, rh); roomBg.fill({ color: 0x1a1a25 }); container.addChild(roomBg);
-
-      // Room floor + ceiling physics
+      // Room floor + ceiling physics (simple physics, no auto-tiles)
       var wt = 12;
       bodies.push({ x: rx + rw / 2, y: ry + rh - wt / 2, w: rw, h: wt, isStatic: true, tag: 'ground' });
       bodies.push({ x: rx + rw / 2, y: ry + wt / 2, w: rw, h: wt, isStatic: true, tag: 'ceiling' });
+
+      // Room floor visual — TilingSprite from tile center texture
+      var _gr = el.ground({ groundY: ry + rh - wt, width: rw, height: rh });
+      _gr.container.x = rx;
+      container.addChild(_gr.container);
+
+      // Ceiling visual
+      var _ceil = el.ceiling({ ceilingH: wt, width: rw });
+      _ceil.container.x = rx;
+      _ceil.container.y = ry;
+      container.addChild(_ceil.container);
 
       // Platforms inside room
       var rpCount = rngInt(1, 3);
       for (var pi = 0; pi < rpCount; pi++) {
         var pw = rngInt(60, 120), px = rx + rngRange(30, rw - 30), py = ry + rngRange(rh * 0.3, rh * 0.7);
-        var pG = _makePlatform(pw, 28);
-        pG.x = px; pG.y = py;
-        container.addChild(pG);
-        var pBody = { x: px, y: py, w: pw, h: 28, isStatic: true, oneWay: true, tag: 'platform' };
-        bodies.push(pBody); platforms.push({ x: px, y: py, w: pw, body: pBody });
+        var _plat = el.platform({ x: px, y: py, width: pw, height: 28 });
+        container.addChild(_plat.container);
+        for (var _pbi = 0; _pbi < _plat.bodies.length; _pbi++) bodies.push(_plat.bodies[_pbi]);
+        platforms.push(_plat.platformData);
       }
     }
 
@@ -1982,25 +1932,12 @@ class WorldBuilderSystem {
       var r1 = rooms[ci], r2 = rooms[ci + 1];
       var corY = Math.max(r1.y + r1.h * 0.4, r2.y + r2.h * 0.4);
       var corX1 = r1.x + r1.w, corX2 = r2.x, corH = 50;
-      var corBg = new PIXI.Graphics(); corBg.rect(corX1, corY - corH / 2, corX2 - corX1, corH);
-      corBg.fill({ color: 0x151520 }); container.addChild(corBg);
+      // Corridor floor visual
+      var _corGr = el.ground({ groundY: corY + corH / 2 - 4, width: Math.abs(corX2 - corX1), height: corH });
+      _corGr.container.x = corX1;
+      container.addChild(_corGr.container);
       bodies.push({ x: (corX1 + corX2) / 2, y: corY + corH / 2 - 4, w: Math.abs(corX2 - corX1), h: 8, isStatic: true, tag: 'ground' });
     }
-
-    // Auto-tiled dungeon terrain (room walls + floors + corridors)
-    var _rooms = rooms, _wt = wt;
-    this._renderTerrainTiles(ctx, function(grid, gridW, gridH, ts) {
-      for (var ri2 = 0; ri2 < _rooms.length; ri2++) {
-        var rm = _rooms[ri2];
-        var rx1 = Math.floor(rm.x / ts), ry1 = Math.floor(rm.y / ts);
-        var rx2 = Math.ceil((rm.x + rm.w) / ts), ry2 = Math.ceil((rm.y + rm.h) / ts);
-        // Floor + ceiling tiles
-        for (var x = rx1; x < rx2; x++) {
-          for (var y = ry1; y < ry1 + Math.ceil(_wt / ts); y++) if (y >= 0 && y < gridH && x >= 0 && x < gridW) grid[y * gridW + x] = 1;
-          for (var y2 = ry2 - Math.ceil(_wt / ts); y2 < ry2; y2++) if (y2 >= 0 && y2 < gridH && x >= 0 && x < gridW) grid[y2 * gridW + x] = 1;
-        }
-      }
-    });
 
     // Torches (glow dots)
     for (var ti = 0; ti < rooms.length * 2; ti++) {
@@ -2008,7 +1945,8 @@ class WorldBuilderSystem {
       var tG = new PIXI.Graphics(); tG.circle(0, 0, 4); tG.fill({ color: 0xff9933, alpha: 0.7 });
       tG.x = tr.x + rngRange(15, tr.w - 15); tG.y = tr.y + 20; container.addChild(tG);
     }
-    this._addForegroundDecor(ctx, 'dungeon-rooms');
+    container.addChild(el.atmosphere({ vignetteAlpha: 0.35 }).container);
+    container.addChild(el.foreground({ type: 'dungeon' }).container);
   }
 
   // ===================================================================
@@ -2016,26 +1954,12 @@ class WorldBuilderSystem {
   // ===================================================================
   private _buildCityRooftops(ctx: any): void {
     var PIXI = ctx.PIXI, rng = ctx.rng, rngRange = ctx.rngRange, rngInt = ctx.rngInt;
-    var pal = ctx.pal, container = ctx.container, bodies = ctx.bodies, platforms = ctx.platforms;
+    var container = ctx.container, bodies = ctx.bodies, platforms = ctx.platforms;
     var parallaxLayers = ctx.parallaxLayers; var W = ctx.W, H = ctx.H, GY = ctx.GY;
+    var el = ctx.elements;
 
-    // Night sky
-    try {
-      if (PIXI.FillGradient) {
-        var sg = new PIXI.FillGradient({ type: 'linear', colorStops: [
-          { offset: 0, color: '#05051a' }, { offset: 1, color: '#1a1a3a' }
-        ], x0: 0, y0: 0, x1: 0, y1: H });
-        var sr = new PIXI.Graphics(); sr.rect(0, 0, W, H); sr.fill(sg); container.addChild(sr);
-      } else { var s2 = new PIXI.Graphics(); s2.rect(0, 0, W, H); s2.fill({ color: 0x1a1a3a }); container.addChild(s2); }
-    } catch(e) { var sf = new PIXI.Graphics(); sf.rect(0, 0, W, H); sf.fill({ color: 0x1a1a3a }); container.addChild(sf); }
-
-    // Stars
-    var stG = new PIXI.Graphics();
-    for (var si = 0; si < 80; si++) {
-      stG.circle(rngRange(0, W), rngRange(0, H * 0.4), rngRange(0.5, 1.5));
-      stG.fill({ color: 0xffffff, alpha: rngRange(0.3, 0.8) });
-    }
-    container.addChild(stG);
+    // Night sky with stars
+    container.addChild(el.sky({ mood: 'dark', theme: 'dark' }).container);
 
     // Distant building silhouettes (parallax)
     for (var layer = 0; layer < 2; layer++) {
@@ -2048,42 +1972,39 @@ class WorldBuilderSystem {
       container.addChild(silG); parallaxLayers.push({ gfx: silG, factor: 0.05 + layer * 0.08 });
     }
 
-    // Building tops (the "ground" segments) — calculate positions
+    // Building tops as platforms with proper tile sprites
     var buildingCount = rngInt(6, 10);
     var buildSpacing = W / buildingCount;
-    var _buildings: { x: number; y: number; w: number }[] = [];
     for (var bi = 0; bi < buildingCount; bi++) {
-      var bx2 = bi * buildSpacing, bw2 = buildSpacing - rngRange(20, 40);
+      var bx2 = bi * buildSpacing + buildSpacing / 2;
+      var bw2 = buildSpacing - rngRange(20, 40);
       var bTopY = GY - rngRange(0, 180);
-      _buildings.push({ x: bx2, y: bTopY, w: bw2 });
-      var bBody = { x: bx2 + bw2 / 2, y: bTopY + 3, w: bw2, h: 6, isStatic: true, oneWay: true, tag: 'platform' };
-      bodies.push(bBody); platforms.push({ x: bx2 + bw2 / 2, y: bTopY + 3, w: bw2, body: bBody });
+
+      // Building body (solid rectangle below rooftop)
+      var bldG = new PIXI.Graphics();
+      bldG.rect(bx2 - bw2 / 2, bTopY, bw2, H - bTopY + 20);
+      bldG.fill({ color: 0x1a1a2a });
+      container.addChild(bldG);
+
+      // Rooftop platform with tiles
+      var _plat = el.platform({ x: bx2, y: bTopY, width: bw2, height: 32 });
+      container.addChild(_plat.container);
+      for (var _pbi = 0; _pbi < _plat.bodies.length; _pbi++) bodies.push(_plat.bodies[_pbi]);
+      platforms.push(_plat.platformData);
 
       // Windows
       for (var wi = 0; wi < rngInt(3, 10); wi++) {
         var wG2 = new PIXI.Graphics(); wG2.rect(0, 0, 6, 8);
         wG2.fill({ color: rng() > 0.3 ? 0xffdd66 : 0x334455, alpha: 0.7 });
-        wG2.x = bx2 + rngRange(8, bw2 - 8); wG2.y = bTopY + rngRange(20, Math.min(H - bTopY - 20, 200));
+        wG2.x = bx2 - bw2 / 2 + rngRange(8, bw2 - 8); wG2.y = bTopY + rngRange(20, Math.min(H - bTopY - 20, 200));
         container.addChild(wG2);
       }
     }
 
-    // Auto-tiled buildings
-    var _blds = _buildings;
-    this._renderTerrainTiles(ctx, function(grid, gridW, gridH, ts) {
-      for (var bi2 = 0; bi2 < _blds.length; bi2++) {
-        var b = _blds[bi2];
-        var bx1 = Math.max(0, Math.floor(b.x / ts));
-        var bx2t = Math.min(gridW, Math.ceil((b.x + b.w) / ts));
-        var by1 = Math.floor(b.y / ts);
-        for (var y = by1; y < gridH; y++)
-          for (var x = bx1; x < bx2t; x++) grid[y * gridW + x] = 1;
-      }
-    });
-
-    // Death pit at very bottom
+    // Death pit
     bodies.push({ x: W / 2, y: H + 20, w: W, h: 40, isStatic: true, tag: 'death' });
-    this._addForegroundDecor(ctx, 'city-rooftops');
+    container.addChild(el.atmosphere({ vignetteAlpha: 0.3 }).container);
+    container.addChild(el.foreground({ type: 'outdoor' }).container);
   }
 
   // ===================================================================
@@ -2091,77 +2012,61 @@ class WorldBuilderSystem {
   // ===================================================================
   private _buildForestCanopy(ctx: any): void {
     var PIXI = ctx.PIXI, rng = ctx.rng, rngRange = ctx.rngRange, rngInt = ctx.rngInt;
-    var pal = ctx.pal, hexCss = ctx.hexCss, _makePlatform = ctx._makePlatform;
     var container = ctx.container, bodies = ctx.bodies, platforms = ctx.platforms;
     var W = ctx.W, H = ctx.H, GY = ctx.GY;
+    var el = ctx.elements;
 
-    // Green-tinted sky
-    try {
-      if (PIXI.FillGradient) {
-        var sg = new PIXI.FillGradient({ type: 'linear', colorStops: [
-          { offset: 0, color: hexCss(0x1a3a1a) }, { offset: 1, color: hexCss(0x2a5a2a) }
-        ], x0: 0, y0: 0, x1: 0, y1: H });
-        var sr = new PIXI.Graphics(); sr.rect(0, 0, W, H); sr.fill(sg); container.addChild(sr);
-      } else { var s2 = new PIXI.Graphics(); s2.rect(0, 0, W, H); s2.fill({ color: 0x2a5a2a }); container.addChild(s2); }
-    } catch(e) { var sf = new PIXI.Graphics(); sf.rect(0, 0, W, H); sf.fill({ color: 0x2a5a2a }); container.addChild(sf); }
+    // Forest sky
+    container.addChild(el.sky().container);
 
-    // Ground physics + auto-tiles
-    bodies.push({ x: W / 2, y: GY + 4, w: W, h: 8, isStatic: true, tag: 'ground' });
-    var _gy4 = GY;
-    this._renderTerrainTiles(ctx, function(grid, gridW, gridH, ts) {
-      var gr = Math.floor(_gy4 / ts);
-      for (var y = gr; y < gridH; y++) for (var x = 0; x < gridW; x++) grid[y * gridW + x] = 1;
-    });
+    // Ground with sprite tiles
+    var _gr = el.ground();
+    container.addChild(_gr.container);
+    for (var _gi = 0; _gi < _gr.bodies.length; _gi++) bodies.push(_gr.bodies[_gi]);
 
-    // Tree trunks (vertical brown bars)
+    // Tree trunks (visual, no collision)
     var trunkCount = rngInt(8, 14), trunkSpacing = W / trunkCount;
     for (var ti = 0; ti < trunkCount; ti++) {
       var tx = ti * trunkSpacing + rngRange(10, trunkSpacing - 10), tw = rngRange(16, 30);
       var trG = new PIXI.Graphics(); trG.rect(tx - tw / 2, 0, tw, GY); trG.fill({ color: 0x4a3020, alpha: 0.7 }); container.addChild(trG);
     }
 
+    // 3-tier platforms: lower, mid-branch, canopy
+    // Lower platforms near ground
+    for (var li = 0; li < rngInt(4, 7); li++) {
+      var lx = rngRange(100, W - 100), ly = GY - rngRange(60, 140), lw = rngInt(80, 150);
+      var _lp = el.platform({ x: lx, y: ly, width: lw, height: 28 });
+      container.addChild(_lp.container);
+      for (var _lbi = 0; _lbi < _lp.bodies.length; _lbi++) bodies.push(_lp.bodies[_lbi]);
+      platforms.push(_lp.platformData);
+    }
+
     // Mid-level branch platforms (50% height)
     var midY = GY * 0.5;
     for (var mi = 0; mi < rngInt(5, 10); mi++) {
       var mx = rngRange(100, W - 100), my = midY + rngRange(-60, 60), mw = rngInt(80, 160);
-      var mG = _makePlatform(mw, 28);
-      mG.x = mx; mG.y = my;
-      container.addChild(mG);
-      var mBody = { x: mx, y: my, w: mw, h: 28, isStatic: true, oneWay: true, tag: 'platform' };
-      bodies.push(mBody); platforms.push({ x: mx, y: my, w: mw, body: mBody });
+      var _mp = el.platform({ x: mx, y: my, width: mw, height: 28 });
+      container.addChild(_mp.container);
+      for (var _mbi = 0; _mbi < _mp.bodies.length; _mbi++) bodies.push(_mp.bodies[_mbi]);
+      platforms.push(_mp.platformData);
     }
 
     // Canopy level (20% height)
     var canY = GY * 0.2;
     for (var ci = 0; ci < rngInt(4, 8); ci++) {
       var cx2 = rngRange(80, W - 80), cy2 = canY + rngRange(-40, 40), cw2 = rngInt(100, 200);
-      var cG = _makePlatform(cw2, 32);
-      cG.x = cx2; cG.y = cy2;
-      container.addChild(cG);
-      var cBody = { x: cx2, y: cy2, w: cw2, h: 32, isStatic: true, oneWay: true, tag: 'platform' };
-      bodies.push(cBody); platforms.push({ x: cx2, y: cy2, w: cw2, body: cBody });
+      var _cp = el.platform({ x: cx2, y: cy2, width: cw2, height: 32 });
+      container.addChild(_cp.container);
+      for (var _cbi = 0; _cbi < _cp.bodies.length; _cbi++) bodies.push(_cp.bodies[_cbi]);
+      platforms.push(_cp.platformData);
     }
 
-    // Lower platforms near ground
-    for (var li = 0; li < rngInt(4, 7); li++) {
-      var lx = rngRange(100, W - 100), ly = GY - rngRange(60, 140), lw = rngInt(80, 150);
-      var lG = _makePlatform(lw, 28);
-      lG.x = lx; lG.y = ly;
-      container.addChild(lG);
-      var lBody = { x: lx, y: ly, w: lw, h: 28, isStatic: true, oneWay: true, tag: 'platform' };
-      bodies.push(lBody); platforms.push({ x: lx, y: ly, w: lw, body: lBody });
-    }
+    // Trees on ground
+    container.addChild(el.trees().container);
 
-    // Canopy overlay (foreground tint)
-    var canOverlay = new PIXI.Graphics(); canOverlay.rect(0, 0, W, GY * 0.15); canOverlay.fill({ color: 0x1a5a1a, alpha: 0.15 });
-    container.addChild(canOverlay);
-
-    // Vines
-    for (var vi = 0; vi < rngInt(5, 12); vi++) {
-      var vx = rngRange(50, W - 50), vh = rngRange(80, 200), vy = rngRange(0, GY * 0.4);
-      var vG = new PIXI.Graphics(); vG.rect(vx - 1, vy, 3, vh); vG.fill({ color: 0x227722, alpha: 0.5 }); container.addChild(vG);
-    }
-    this._addForegroundDecor(ctx, 'forest-canopy');
+    // Canopy overlay + vines (foreground)
+    container.addChild(el.atmosphere({ fogAlpha: 0.03 }).container);
+    container.addChild(el.foreground({ type: 'forest' }).container);
   }
 
   // ===================================================================
@@ -2169,44 +2074,26 @@ class WorldBuilderSystem {
   // ===================================================================
   private _buildUnderwater(ctx: any): void {
     var PIXI = ctx.PIXI, rng = ctx.rng, rngRange = ctx.rngRange, rngInt = ctx.rngInt;
-    var pal = ctx.pal, _makePlatform = ctx._makePlatform, container = ctx.container, bodies = ctx.bodies, platforms = ctx.platforms;
+    var container = ctx.container, bodies = ctx.bodies, platforms = ctx.platforms;
     var W = ctx.W, H = ctx.H, GY = ctx.GY, cfg = ctx.cfg;
+    var el = ctx.elements;
 
-    // Deep blue gradient
-    try {
-      if (PIXI.FillGradient) {
-        var sg = new PIXI.FillGradient({ type: 'linear', colorStops: [
-          { offset: 0, color: '#1188aa' }, { offset: 0.5, color: '#0055aa' }, { offset: 1, color: '#001133' }
-        ], x0: 0, y0: 0, x1: 0, y1: H });
-        var sr = new PIXI.Graphics(); sr.rect(0, 0, W, H); sr.fill(sg); container.addChild(sr);
-      } else { var s2 = new PIXI.Graphics(); s2.rect(0, 0, W, H); s2.fill({ color: 0x003377 }); container.addChild(s2); }
-    } catch(e) { var sf = new PIXI.Graphics(); sf.rect(0, 0, W, H); sf.fill({ color: 0x003377 }); container.addChild(sf); }
+    // Deep blue sky
+    container.addChild(el.sky({ theme: 'ocean' }).container);
 
-    // Sandy bottom (irregular auto-tiled)
-    bodies.push({ x: W / 2, y: GY + 4, w: W, h: 8, isStatic: true, tag: 'ground' });
-    var _sandHeights: number[] = [];
-    for (var fx = 0; fx <= W; fx += 32) {
-      _sandHeights.push(GY + Math.sin(fx * 0.006) * 15 + rng() * 10);
-    }
-    var _sh = _sandHeights;
-    this._renderTerrainTiles(ctx, function(grid, gridW, gridH, ts) {
-      for (var gx = 0; gx < gridW; gx++) {
-        var floorRow = Math.floor((_sh[Math.min(gx, _sh.length - 1)] || GY) / ts);
-        for (var y = floorRow; y < gridH; y++) grid[y * gridW + gx] = 1;
-      }
-    });
+    // Sandy bottom with sprite tiles
+    var _gr = el.ground({ style: 'sand' });
+    container.addChild(_gr.container);
+    for (var _gi = 0; _gi < _gr.bodies.length; _gi++) bodies.push(_gr.bodies[_gi]);
 
-    // Coral formations as platforms
-    var coralColors = [0xff6666, 0xff9933, 0xcc66cc, 0x66cccc, 0xffcc33];
+    // Coral platforms with tile sprites
     var coralCount = cfg.platformCount || 10;
     for (var ci = 0; ci < coralCount; ci++) {
       var cx = rngRange(150, W - 150), cy = rngRange(H * 0.25, GY - 40), cw2 = rngInt(70, 150);
-      var cc = coralColors[rngInt(0, coralColors.length - 1)];
-      var cG = _makePlatform(cw2, 32);
-      cG.x = cx; cG.y = cy;
-      container.addChild(cG);
-      var cBody = { x: cx, y: cy, w: cw2, h: 32, isStatic: true, oneWay: true, tag: 'platform' };
-      bodies.push(cBody); platforms.push({ x: cx, y: cy, w: cw2, body: cBody });
+      var _plat = el.platform({ x: cx, y: cy, width: cw2, height: 32 });
+      container.addChild(_plat.container);
+      for (var _pbi = 0; _pbi < _plat.bodies.length; _pbi++) bodies.push(_plat.bodies[_pbi]);
+      platforms.push(_plat.platformData);
     }
 
     // Seaweed / kelp
@@ -2225,81 +2112,50 @@ class WorldBuilderSystem {
 
     // Water tint overlay
     var tintG = new PIXI.Graphics(); tintG.rect(0, 0, W, H); tintG.fill({ color: 0x0033aa, alpha: 0.08 }); container.addChild(tintG);
-    this._addForegroundDecor(ctx, 'underwater');
+    container.addChild(el.foreground({ type: 'underwater' }).container);
   }
 
   // ===================================================================
   // BLUEPRINT: endless-runner — segmented ground with gaps + platforms
   // ===================================================================
   private _buildEndlessRunner(ctx: any): void {
-    var PIXI = ctx.PIXI, rng = ctx.rng, rngRange = ctx.rngRange, rngInt = ctx.rngInt;
-    var pal = ctx.pal, hexCss = ctx.hexCss, _makePlatform = ctx._makePlatform;
+    var rng = ctx.rng, rngRange = ctx.rngRange, rngInt = ctx.rngInt;
     var container = ctx.container, bodies = ctx.bodies, platforms = ctx.platforms;
     var parallaxLayers = ctx.parallaxLayers; var W = ctx.W, H = ctx.H, GY = ctx.GY, cfg = ctx.cfg;
+    var el = ctx.elements;
 
-    // Sky gradient
-    try {
-      if (PIXI.FillGradient) {
-        var sg = new PIXI.FillGradient({ type: 'linear', colorStops: [
-          { offset: 0, color: hexCss(pal.skyTop) }, { offset: 1, color: hexCss(pal.skyBottom) }
-        ], x0: 0, y0: 0, x1: 0, y1: H });
-        var sr = new PIXI.Graphics(); sr.rect(0, 0, W, H); sr.fill(sg); container.addChild(sr);
-      } else { var s2 = new PIXI.Graphics(); s2.rect(0, 0, W, H); s2.fill({ color: pal.skyBottom }); container.addChild(s2); }
-    } catch(e) { var sf = new PIXI.Graphics(); sf.rect(0, 0, W, H); sf.fill({ color: pal.skyBottom }); container.addChild(sf); }
+    // Sky + background hills
+    container.addChild(el.sky().container);
+    var _bg = el.background({ layerCount: 2 });
+    container.addChild(_bg.container);
+    for (var _bli = 0; _bli < _bg.parallaxLayers.length; _bli++) parallaxLayers.push(_bg.parallaxLayers[_bli]);
 
-    // 2-layer parallax hills
-    for (var mi = 0; mi < 2; mi++) {
-      var mColor = pal.mountains[mi] || pal.mountains[0];
-      var mBaseY = GY - 10 - mi * 50;
-      var mG = new PIXI.Graphics(); var hillW = 250 + mi * 100; var x = 0;
-      mG.moveTo(0, mBaseY);
-      while (x < W + hillW) {
-        var rise = rngRange(30 + mi * 15, 70 + mi * 25);
-        mG.bezierCurveTo(x + hillW * 0.25, mBaseY - rise, x + hillW * 0.75, mBaseY - rise * 0.6, x + hillW, mBaseY + rngRange(-5, 5));
-        x += hillW; hillW = 200 + mi * 80 + rngRange(-40, 40);
-      }
-      mG.lineTo(W + 50, H + 20); mG.lineTo(-50, H + 20); mG.closePath();
-      mG.fill({ color: mColor, alpha: 0.35 + mi * 0.15 }); container.addChild(mG);
-      parallaxLayers.push({ gfx: mG, factor: 0.08 + mi * 0.12 });
-    }
-
-    // Ground segments with gaps — calculate positions
+    // Ground segments with gaps (segmented ground)
     var segCount = rngInt(6, 10), segSpacing = W / segCount;
-    var _segs: { x: number; w: number }[] = [];
     for (var si = 0; si < segCount; si++) {
-      if (si > 0 && rng() > 0.4) continue;
+      if (si > 0 && rng() > 0.4) continue; // gaps
       var sx = si * segSpacing, sw = segSpacing - rngRange(10, 40);
-      _segs.push({ x: sx, w: sw });
+      // Each segment is a ground element
+      var _seg = el.ground({ groundY: GY, width: sw, height: H });
+      _seg.container.x = sx;
+      container.addChild(_seg.container);
       bodies.push({ x: sx + sw / 2, y: GY + 4, w: sw, h: 8, isStatic: true, tag: 'ground' });
       platforms.push({ x: sx + sw / 2, y: GY + 4, w: sw, body: bodies[bodies.length - 1] });
     }
 
-    // Auto-tiled ground segments
-    var _segsRef = _segs, _gy5 = GY;
-    this._renderTerrainTiles(ctx, function(grid, gridW, gridH, ts) {
-      var gr = Math.floor(_gy5 / ts);
-      for (var i = 0; i < _segsRef.length; i++) {
-        var s = _segsRef[i];
-        var sx1 = Math.max(0, Math.floor(s.x / ts));
-        var sx2 = Math.min(gridW, Math.ceil((s.x + s.w) / ts));
-        for (var y = gr; y < gridH; y++)
-          for (var x = sx1; x < sx2; x++) grid[y * gridW + x] = 1;
-      }
-    });
-
     // Overhead platforms
     for (var pi = 0; pi < rngInt(4, 8); pi++) {
       var px = rngRange(200, W - 100), py = GY - rngRange(100, 250), pw = rngInt(80, 140);
-      var pG = _makePlatform(pw, 32);
-      pG.x = px; pG.y = py;
-      container.addChild(pG);
-      var pBody = { x: px, y: py, w: pw, h: 32, isStatic: true, oneWay: true, tag: 'platform' };
-      bodies.push(pBody); platforms.push({ x: px, y: py, w: pw, body: pBody });
+      var _plat = el.platform({ x: px, y: py, width: pw, height: 32 });
+      container.addChild(_plat.container);
+      for (var _pbi = 0; _pbi < _plat.bodies.length; _pbi++) bodies.push(_plat.bodies[_pbi]);
+      platforms.push(_plat.platformData);
     }
 
     // Death pit
     bodies.push({ x: W / 2, y: H + 20, w: W, h: 40, isStatic: true, tag: 'death' });
-    this._addForegroundDecor(ctx, 'endless-runner');
+    container.addChild(el.atmosphere().container);
+    container.addChild(el.foreground({ type: 'outdoor' }).container);
   }
 
   // =======================================================================
