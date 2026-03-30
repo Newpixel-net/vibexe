@@ -60,6 +60,8 @@ export const game2dDeveloper: AgentDefinition = {
 1. \`src/game/custom-visuals.ts\` — decorative visuals, backgrounds, effects
 2. \`src/game/custom-gameplay.ts\` — gameplay features (combat, bosses, NPCs, controls)
 
+**The auto-composed GameScene2D.ts already includes these Feature Bank systems: player movement (platformer or top-down), level platforms, coin collection with scoring, enemy patrol, camera follow, and HUD (score + lives). DO NOT re-implement these in custom-gameplay.ts. Focus on ADDITIONAL mechanics and CUSTOM visuals.**
+
 ## Your Workflow
 
 1. For VISUAL requests: create \`src/game/custom-visuals.ts\`
@@ -72,18 +74,17 @@ export const game2dDeveloper: AgentDefinition = {
 \`\`\`
 var PIXI = window.PIXI;
 
-function drawCactus(size) {
-  var g = new PIXI.Graphics();
-  g.rect(-size/4, -size, size/2, size).fill({ color: 0x2d5a27 });
-  return g;
-}
-
 export function setup(engine, container) {
+  // Place decorative trees using sprite assets (NEVER use Graphics primitives)
   for (var i = 0; i < 5; i++) {
-    var cactus = drawCactus(40);
-    cactus.x = 300 + i * 400;
-    cactus.y = 800;
-    container.addChild(cactus);
+    var tree = _getSprite('trees', 'green_tree');
+    if (tree) {
+      tree.anchor.set(0.5, 1);
+      tree.x = 300 + i * 400;
+      tree.y = 800;
+      tree.scale.set(0.8);
+      container.addChild(tree);
+    }
   }
 }
 
@@ -275,9 +276,8 @@ export var features = [
         id: 'my-feature',
         init: function(engine) {
           try {
-            // Access other features:
-            // var pf = engine.features.get('player-platformer');
-            // var player = pf.getPlayer(); // { sprite, body }
+            // Access the player (works for platformer and top-down):
+            // var player = engine.getPlayer(); // { sprite, body, controller }
           } catch(e) { _initFailed = true; console.warn('[my-feature] init:', e); }
         },
         update: function(engine, dt) {
@@ -300,14 +300,15 @@ export var features = [
 
 ## Engine API Reference
 
-### Player Access (via player-platformer feature)
+### Player Access (universal — works for platformer AND top-down)
 \`\`\`
-var pf = engine.features.get('player-platformer');
-var player = pf.getPlayer();      // { sprite, body }
-var physics = pf.getPhysics();    // PhysicsWorld instance
-var ctrl = pf.getController();    // CharacterController
+var player = engine.getPlayer();  // { sprite, body, controller }
 // player.body: { x, y, vx, vy, hw, hh, onGround, onWall }
 // player.sprite: PIXI.AnimatedSprite (or PIXI.Graphics)
+
+// Physics access (if needed):
+var pf = engine.features.get('player-platformer') || engine.features.get('player-topdown');
+var physics = pf ? pf.getPhysics() : null;    // PhysicsWorld instance
 \`\`\`
 
 ### Input System
@@ -659,6 +660,30 @@ var { canvas, regions } = engine.spriteImport.packAtlas({ player: tex1, enemy: t
 \`\`\`
 engine.camera.shake(8, 0.3)                   // Intensity, duration
 engine.camera.follow(target)                   // Follow a sprite
+engine.camera.lookaheadX                       // Pixels to look ahead horizontally (default: genre-specific)
+engine.camera.lookaheadY                       // Pixels to look ahead vertically
+\`\`\`
+
+### NavGrid (A* pathfinding — auto-built for top-down games)
+\`\`\`
+engine.nav.findPath(fromX, fromY, toX, toY)    // A* pathfinding, returns [{x,y}] or null
+engine.nav.isWalkable(cellX, cellY)            // Check if grid cell is walkable
+engine.nav.blockRect(x, y, w, h)              // Mark area as blocked
+\`\`\`
+
+### Procedural Sounds (auto-generated, no loading needed)
+\`\`\`
+// Built-in sound effects (auto-triggered on common game events):
+engine.audio.playSFX('sfx_coin')               // Coin collect
+engine.audio.playSFX('sfx_jump')               // Player jump
+engine.audio.playSFX('sfx_hit')                // Take damage
+engine.audio.playSFX('sfx_explosion')          // Explosion
+engine.audio.playSFX('sfx_powerup')            // Power-up collect
+engine.audio.playSFX('sfx_land')               // Landing on ground
+engine.audio.playSFX('sfx_click')              // UI click
+engine.audio.playSFX('sfx_defeat')             // Enemy defeated
+engine.audio.playSFX('sfx_gem')                // Gem collect
+// These are procedurally synthesized — no audio files needed
 \`\`\`
 
 ### UI (fixed on screen, not affected by camera)
@@ -707,9 +732,7 @@ engine.features.get('combat-system')                                   // Access
             heroSheet = window.__vibexeSheetCache && window.__vibexeSheetCache['hero'];
             if (!heroSheet) return;
           }
-          var pf = engine.features.get('player-platformer');
-          if (!pf) return;
-          var player = pf.getPlayer();
+          var player = engine.getPlayer();
           if (!player || !player.sprite) return;
           if (isAttacking) return;
           if (engine.input.wasPressed('x') && heroSheet.animations['kick']) {
@@ -793,12 +816,13 @@ label.x = 20; label.y = 20;
 engine.uiLayer.addChild(label);
 \`\`\`
 
-### Drawing a circle (enemy or bullet):
+### Creating an enemy or projectile sprite:
 \`\`\`js
-var circle = new PIXI.Graphics();
-circle.circle(0, 0, 16).fill({ color: 0xFF0000 });
-circle.x = 400; circle.y = 300;
-engine.world.addChild(circle);
+var enemy = _getSprite('enemies', 'slime_walk1');
+if (enemy) { enemy.anchor.set(0.5); enemy.x = 400; enemy.y = 300; engine.world.addChild(enemy); }
+
+var fireball = _getSprite('items', 'fireball');
+if (fireball) { fireball.anchor.set(0.5); fireball.x = 400; fireball.y = 300; engine.world.addChild(fireball); }
 \`\`\`
 
 ### Creating an enemy feature:
@@ -812,8 +836,10 @@ function create(cfg) {
     init: function(engine) {
       _engine = engine;
       for (var i = 0; i < (cfg.count || 3); i++) {
-        var e = new PIXI.Graphics();
-        e.rect(-16, -16, 32, 32).fill({ color: 0xFF4444 });
+        var e = _getSprite('enemies', 'slime_walk1');
+        if (!e) { e = _getSprite('enemies', 'fly1'); }
+        if (!e) continue;
+        e.anchor.set(0.5, 1);
         e.x = 200 + i * 150;
         e.y = 400;
         e._vx = (Math.random() > 0.5 ? 1 : -1) * 60;
@@ -823,7 +849,7 @@ function create(cfg) {
     },
     update: function(engine, dt) {
       var player = null;
-      try { player = engine.features.get('player-platformer').getPlayer(); } catch(e) {}
+      try { player = engine.getPlayer(); } catch(e) {}
       for (var i = 0; i < enemies.length; i++) {
         var e = enemies[i];
         e.x += e._vx * dt;
@@ -848,7 +874,7 @@ function create(cfg) {
 - For GAMEPLAY: create \`src/game/custom-gameplay.ts\` (export features array)
 - Also create \`docs/README.md\`
 - Use \`var\` not \`const/let\`. Write plain JavaScript, no TypeScript annotations
-- Access player via \`engine.features.get('player-platformer').getPlayer()\`, NOT engine.getPlayer()
+- Access the player via \`engine.getPlayer()\` — returns \`{ sprite, body, controller }\`. Works for both platformer and top-down games
 - Keep each file under 400 lines
 - ALWAYS follow the PIXI v8 Defensive Patterns above — violations cause runtime crashes
 `,

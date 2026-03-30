@@ -1558,6 +1558,13 @@ ${byModel.size > 1 ? Array.from(byModel.keys()).filter(m => m !== firstModelName
 				console.warn("[Chat API] Failed to fetch spritesheet catalog:", e);
 			}
 		}
+		// 2D game: inject Feature Bank catalog so AI knows available verified features
+		if (isGame2d) {
+			const featureCatalog = await buildFeatureBankCatalog("2d");
+			if (featureCatalog) {
+				runtimeAddenda.push(featureCatalog);
+			}
+		}
 		if (isReturningUser && !isGame2d) {
 			// Normal existing project — edit/add files
 			runtimeAddenda.push(`## Existing Project (${existingFiles.length} files)

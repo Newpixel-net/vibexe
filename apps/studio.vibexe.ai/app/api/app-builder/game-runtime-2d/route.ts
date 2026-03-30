@@ -108,23 +108,6 @@ canvas{display:block;width:100%;height:100%}
 })();
 </script>
 
-<!-- Keyboard debug overlay (temporary) -->
-<script>
-(function(){
-  var dbg = document.createElement('div');
-  dbg.id = 'kb-dbg';
-  dbg.style.cssText = 'position:fixed;top:40px;left:4px;background:rgba(0,0,0,0.7);color:#0f0;font:11px monospace;z-index:999999;padding:3px 6px;border-radius:3px;pointer-events:none;';
-  dbg.textContent = 'keys: waiting...';
-  document.body.appendChild(dbg);
-  var log = [];
-  window.addEventListener('keydown', function(e) {
-    log.push(e.key);
-    if (log.length > 6) log.shift();
-    dbg.textContent = 'keys: ' + log.join(', ');
-  });
-})();
-</script>
-
 <!-- Global error handlers -->
 <script>
 window.onerror = function(msg, url, line, col, err) {

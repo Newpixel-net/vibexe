@@ -155,6 +155,13 @@ export class PhysicsWorld {
       b.vx += b.ax * dtCapped;
       b.vy += b.ay * dtCapped;
 
+      // Terminal velocity cap — prevents tunneling through thin platforms
+      var MAX_VEL = 2000;
+      if (b.vx > MAX_VEL) b.vx = MAX_VEL;
+      if (b.vx < -MAX_VEL) b.vx = -MAX_VEL;
+      if (b.vy > MAX_VEL) b.vy = MAX_VEL;
+      if (b.vy < -MAX_VEL) b.vy = -MAX_VEL;
+
       // Apply friction (horizontal damping when on ground)
       // Friction applied during collision resolution
 
@@ -301,12 +308,6 @@ export class CharacterController {
       this.coyoteTimer -= dt;
     }
 
-    // Track ground transition for landing events
-    if (onGround && !this.wasOnGround) {
-      // Just landed
-    }
-    this.wasOnGround = onGround;
-
     // Jump buffer: remember jump press
     if (input.jump) {
       this.jumpBufferTimer = c.jumpBuffer;
@@ -357,6 +358,9 @@ export class CharacterController {
     if (b.sprite) {
       b.sprite.scale.x = Math.abs(b.sprite.scale.x) * (this.facingRight ? 1 : -1);
     }
+
+    // Update wasOnGround at END so justLanded works correctly
+    this.wasOnGround = onGround;
   }
 
   get isJumping(): boolean { return !this.body.onGround && this.body.vy < 0; }

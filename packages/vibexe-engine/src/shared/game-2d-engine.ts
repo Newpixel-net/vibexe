@@ -475,7 +475,7 @@ class WorldBuilderSystem {
 
         var count = opts.count || cfg.cloudCount || 7;
         for (var ci = 0; ci < count; ci++) {
-          var cloudSpr = _getSprite('clouds', rng() > 0.5 ? 'cloud_puffy' : 'cloud_small');
+          var cloudSpr = _getSprite('clouds', rng() > 0.5 ? 'cloud_large' : 'cloud_small');
           if (cloudSpr) {
             cloudSpr.anchor.set(0.5, 0.5);
             cloudSpr.x = rngRange(0, w);
@@ -3588,7 +3588,8 @@ export class Engine2D {
     }
 
     this.audio = new AudioManager();
-    this.audio.generateBuiltinSounds(); // 9 procedural sounds ready instantly
+    // Builtin sounds generated lazily on first playSFX/playMusic to avoid
+    // AudioContext-before-user-gesture browser suspension
 
     // Initialize namespace systems
     this.spawn = new SpawnSystem(this);
@@ -3682,6 +3683,14 @@ export class Engine2D {
 
       // Update Proton particles (skip when no active emitters to save CPU)
       if (this.proton.emitters && this.proton.emitters.length > 0) {
+        // Update trail emitter positions
+        for (var ei = 0; ei < this.proton.emitters.length; ei++) {
+          var em = this.proton.emitters[ei];
+          if (em._trailTarget && !em._trailTarget.destroyed) {
+            em.p.x = em._trailTarget.x;
+            em.p.y = em._trailTarget.y;
+          }
+        }
         this.proton.update();
       }
 
@@ -3729,6 +3738,9 @@ export class Engine2D {
 
       // FPS counter
       this._updateFPS(dt);
+
+      // Clear one-shot input states (justPressed/justReleased) at end of frame
+      this.input.endFrame();
     });
 
     // Auto-juice event hooks — shake + sparkle on game events
@@ -4129,6 +4141,10 @@ export class Camera2D {
   followY = true;
   clampY = true;
 
+  // Shake offsets — animated independently so update() doesn't overwrite them
+  shakeOffsetX = 0;
+  shakeOffsetY = 0;
+
   // Lookahead — camera shifts ahead in movement direction
   lookaheadX = 0;    // pixels to look ahead horizontally (0 = disabled, 80 = platformer default)
   lookaheadY = 0;    // pixels to look ahead vertically
@@ -4192,9 +4208,9 @@ export class Camera2D {
       this.y = Math.max(0, Math.min(this.y, this.worldHeight - this.viewHeight));
     }
 
-    // Apply to world container (negative = world moves opposite to camera)
-    worldContainer.x = -Math.round(this.x);
-    worldContainer.y = -Math.round(this.y);
+    // Apply to world container (negative = world moves opposite to camera) + shake offsets
+    worldContainer.x = -Math.round(this.x) + this.shakeOffsetX;
+    worldContainer.y = -Math.round(this.y) + this.shakeOffsetY;
   }
 
   // Alias — AI commonly writes camera.applyTo(container)
@@ -4210,21 +4226,28 @@ export class Camera2D {
   /** Shake the camera (uses GSAP if available) */
   shake(intensity = 8, duration = 0.3): void {
     var gsap = (window as any).gsap;
-    if (!gsap || !this._worldContainer) return;
-    var container = this._worldContainer;
-    var origX = container.x, origY = container.y;
+    if (!gsap) {
+      // Fallback: no GSAP — just set offset briefly
+      this.shakeOffsetX = (Math.random() - 0.5) * intensity * 2;
+      this.shakeOffsetY = (Math.random() - 0.5) * intensity * 2;
+      var self = this;
+      setTimeout(function() { self.shakeOffsetX = 0; self.shakeOffsetY = 0; }, duration * 1000);
+      return;
+    }
+    // Animate shakeOffsetX/Y so update() applies them each frame without overwriting
+    var self = this;
     var tl = gsap.timeline();
     var steps = Math.ceil(duration / 0.03);
     for (var i = 0; i < steps; i++) {
       var t = i / steps;
       var decay = 1 - t;
-      tl.to(container, {
-        x: origX + (Math.random() - 0.5) * intensity * decay * 2,
-        y: origY + (Math.random() - 0.5) * intensity * decay * 2,
+      tl.to(self, {
+        shakeOffsetX: (Math.random() - 0.5) * intensity * decay * 2,
+        shakeOffsetY: (Math.random() - 0.5) * intensity * decay * 2,
         duration: 0.03, ease: 'none',
       });
     }
-    tl.to(container, { x: origX, y: origY, duration: 0.05 });
+    tl.to(self, { shakeOffsetX: 0, shakeOffsetY: 0, duration: 0.05 });
   }
 
   /** Smoothly zoom to a level (1 = normal, 2 = double) */
@@ -4440,9 +4463,14 @@ export class AudioManager {
   private sfxGain: GainNode | null = null;
   private sounds: Map<string, AudioBuffer> = new Map();
   private currentMusic: AudioBufferSourceNode | null = null;
+  private _builtinSoundsGenerated = false;
 
   private ensureContext(): void {
-    if (this.ctx) return;
+    if (this.ctx) {
+      // Resume suspended context (happens when created before user gesture)
+      if (this.ctx.state === 'suspended') this.ctx.resume();
+      return;
+    }
     this.ctx = new AudioContext();
     this.masterGain = this.ctx.createGain();
     this.masterGain.connect(this.ctx.destination);
@@ -4467,6 +4495,11 @@ export class AudioManager {
 
   playSFX(id: string, volume = 1): void {
     this.ensureContext();
+    // Lazy-generate builtin sounds on first play (after user gesture)
+    if (!this._builtinSoundsGenerated) {
+      this._builtinSoundsGenerated = true;
+      this.generateBuiltinSounds();
+    }
     const buffer = this.sounds.get(id);
     if (!buffer || !this.ctx) return;
     const source = this.ctx.createBufferSource();
@@ -4481,6 +4514,11 @@ export class AudioManager {
   playMusic(id: string, loop = true, volume = 0.5): void {
     this.stopMusic();
     this.ensureContext();
+    // Lazy-generate builtin sounds on first play (after user gesture)
+    if (!this._builtinSoundsGenerated) {
+      this._builtinSoundsGenerated = true;
+      this.generateBuiltinSounds();
+    }
     const buffer = this.sounds.get(id);
     if (!buffer || !this.ctx) return;
     this.currentMusic = this.ctx.createBufferSource();
@@ -6538,6 +6576,13 @@ class InstanceSystem {
           inst.vspeed *= ratio;
         }
       }
+
+      // Terminal velocity cap — prevents tunneling
+      var MAX_VEL = 2000;
+      if (inst.hspeed > MAX_VEL) inst.hspeed = MAX_VEL;
+      if (inst.hspeed < -MAX_VEL) inst.hspeed = -MAX_VEL;
+      if (inst.vspeed > MAX_VEL) inst.vspeed = MAX_VEL;
+      if (inst.vspeed < -MAX_VEL) inst.vspeed = -MAX_VEL;
 
       // Apply velocity
       inst.x += inst.hspeed * fps60dt;

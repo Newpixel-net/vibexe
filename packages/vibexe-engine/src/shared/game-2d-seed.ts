@@ -178,7 +178,7 @@ const SPECIAL_MECHANIC_FLAVORS: Record<string, string> = {
 
 // ===== Types =====
 
-export type SubGenre = "platformer" | "runner" | "puzzle" | "shooter" | "rpg" | "topdown-adventure" | "twin-stick";
+export type SubGenre = "platformer" | "runner" | "puzzle" | "shooter" | "rpg" | "top-down" | "topdown-adventure" | "twin-stick" | "bullet-hell";
 
 export interface CreativeBrief {
 	seed: number;

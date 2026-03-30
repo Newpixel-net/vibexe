@@ -754,7 +754,7 @@ export function drawMountainRange(
 export function drawCloud(w: number, h: number): any {
   // Tier 1: Pre-made sprite
   if (_hasSpriteLib()) {
-    var spr = _getSprite('clouds', 'cloud_puffy');
+    var spr = _getSprite('clouds', 'cloud_large');
     if (spr) { spr.width = w; spr.height = h; spr.anchor.set(0.5); return spr; }
   }
   var container = new PIXI.Container();
@@ -798,7 +798,7 @@ export function drawCloud(w: number, h: number): any {
 export function drawTree(trunkH: number, leafR: number, trunkColor: number, leafColor: number): any {
   // Tier 1: Pre-made sprite
   if (_hasSpriteLib()) {
-    var spr = _getSprite('trees', 'round_tree');
+    var spr = _getSprite('trees', 'green_tree');
     if (spr) { spr.width = leafR * 2.5; spr.height = trunkH + leafR * 1.5; spr.anchor.set(0.5, 1); return spr; }
   }
   var container = new PIXI.Container();
