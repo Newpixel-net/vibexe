@@ -72,7 +72,7 @@ Available Feature Bank features (auto-composed into GameScene2D.ts):
 - camera-follow
 - hud-basic
 
-Do NOT reference feature IDs that aren't in this list. Custom gameplay goes in custom-gameplay.ts using engine APIs directly.
+Do NOT reference feature IDs that aren't in this list. These are the ONLY valid feature IDs in the entire system. Custom gameplay goes in custom-gameplay.ts using engine APIs directly — NEVER invent new feature IDs or declare deps on features that don't exist above.
 
 ## Your Workflow — BUILD IMMEDIATELY
 
@@ -274,13 +274,20 @@ These functions exist but prefer to use sprites directly:
 
 ## Template for custom-gameplay.ts
 
+CRITICAL: custom-gameplay.ts uses a SIMPLE export pattern with setup() and update() functions.
+NEVER use engine.features.register() here. NEVER declare deps/dependencies arrays with Feature Bank IDs.
+Features with deps like 'runner-base', 'enemy-flying', 'projectile-system' DO NOT EXIST and will crash.
+
 \`\`\`
 var PIXI = window.PIXI;
 
+// CORRECT pattern: export features array with factory functions.
+// deps MUST ONLY reference: 'player-platformer' or 'player-topdown' (the ONLY valid deps).
+// If unsure, use deps: [] (empty array) — this is ALWAYS safe.
 export var features = [
   {
     id: 'my-feature',
-    deps: ['player-platformer'],
+    deps: [],
     config: {},
     factory: function(config) {
       var _initFailed = false;
@@ -297,6 +304,7 @@ export var features = [
           if (_initFailed) return; // skip if init failed
           try {
             // Per-frame logic — check input, move objects, etc.
+            // Use engine APIs directly: engine.getPlayer(), engine.input, engine.effects, etc.
           } catch(e) { if (_updateErrors++ < 3) console.warn('[my-feature] update:', e); }
         },
         onEvent: function(event, data) {
@@ -310,6 +318,25 @@ export var features = [
   }
 ];
 \`\`\`
+
+### BANNED dependency patterns — NEVER use these in deps arrays:
+\`\`\`
+// WRONG — these Feature Bank IDs do NOT exist and WILL cause crashes:
+deps: ['runner-base']           // DOES NOT EXIST
+deps: ['enemy-flying']          // DOES NOT EXIST
+deps: ['projectile-system']     // DOES NOT EXIST
+deps: ['combat-base']           // DOES NOT EXIST
+deps: ['power-up-system']       // DOES NOT EXIST
+deps: ['level-generator']       // DOES NOT EXIST
+deps: ['score-system']          // DOES NOT EXIST — scoring is in hud-basic
+
+// CORRECT — the ONLY valid deps values:
+deps: []                        // SAFE — no dependencies (PREFERRED)
+deps: ['player-platformer']     // SAFE — exists in Feature Bank
+deps: ['player-topdown']        // SAFE — exists in Feature Bank
+\`\`\`
+
+Instead of depending on non-existent features, use engine APIs directly in your init/update functions.
 
 ## Engine API Reference
 
@@ -730,7 +757,7 @@ engine.features.get('combat-system')                                   // Access
 \`\`\`
 {
   id: 'combat-system',
-  deps: ['player-platformer'],
+  deps: [],
   config: {},
   factory: function() {
     var heroSheet = null;
@@ -845,7 +872,6 @@ function create(cfg) {
   var _engine = null;
   return {
     id: 'simple-enemies',
-    dependencies: ['player-platformer'],
     init: function(engine) {
       _engine = engine;
       for (var i = 0; i < (cfg.count || 3); i++) {
@@ -885,7 +911,8 @@ function create(cfg) {
 - Do NOT modify engine/, utils/, config/assets.ts, App.tsx, Game2D.tsx
 - For VISUALS: create \`src/game/custom-visuals.ts\` (export setup + update)
 - For GAMEPLAY: create \`src/game/custom-gameplay.ts\` (export features array)
-- Do NOT register features with IDs that don't exist in the Feature Bank (e.g., 'enemy-flying'). Only use engine APIs directly in custom-gameplay.ts.
+- ABSOLUTELY NEVER call engine.features.register() in custom-gameplay.ts or custom-visuals.ts. Features are ONLY registered in GameScene2D.ts by the auto-compose system. Your features array export is automatically consumed — you just define the objects, you do NOT call register().
+- NEVER put non-existent Feature Bank IDs in deps arrays. The ONLY valid deps values are: [] (empty — PREFERRED), ['player-platformer'], or ['player-topdown']. IDs like 'runner-base', 'enemy-flying', 'projectile-system', 'combat-base', 'power-up-system', 'level-generator', 'score-system' DO NOT EXIST in the Feature Bank and will cause warnings and crashes. If you need functionality, BUILD IT in your feature's init/update using engine APIs — do NOT invent a dependency name for it.
 - Also create \`docs/README.md\` — always in the SAME response as the game files, never separately
 - Use \`var\` not \`const/let\`. Write plain JavaScript, no TypeScript annotations
 - Access the player via \`engine.getPlayer()\` — returns \`{ sprite, body, controller }\`. Works for both platformer and top-down games

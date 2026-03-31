@@ -1119,7 +1119,7 @@ const supabase = createClient("${supabaseConfig.url}", "${supabaseConfig.anonKey
 				};
 				const bp = game2dBrief?.worldBlueprint || "outdoor-scroll";
 				const effectiveTheme = game2dBrief?.theme || blueprintThemeMap[bp] || "forest";
-				const isTopDownBP = bp === "dungeon-topdown" || bp === "open-field" || isRpg2d;
+				const isTopDownBP = bp === "dungeon-topdown" || bp === "open-field" || bp === "arena" || isRpg2d || isShooter2d;
 				const wW = isTopDownBP ? 1200 : (game2dBrief?.worldWidth || 4000);
 				const wH = isTopDownBP ? 1000 : (game2dBrief?.worldHeight || 900);
 				const groundY = isTopDownBP ? 900 : (wH - 60);

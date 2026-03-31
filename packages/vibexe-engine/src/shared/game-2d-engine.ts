@@ -3582,7 +3582,7 @@ export class Engine2D {
     }
 
     // Auto-select player feature based on genre (top-down genres use player-topdown)
-    var _topdownGenres = ['top-down', 'rpg', 'twin-stick', 'bullet-hell', 'stealth', 'racing'];
+    var _topdownGenres = ['top-down', 'rpg', 'twin-stick', 'bullet-hell', 'shooter', 'stealth', 'racing'];
     if (_topdownGenres.indexOf(_genre) >= 0) {
       this._playerFeatureId = 'player-topdown';
     }
@@ -3697,6 +3697,23 @@ export class Engine2D {
           if (em._trailTarget && !em._trailTarget.destroyed) {
             em.p.x = em._trailTarget.x;
             em.p.y = em._trailTarget.y;
+          }
+        }
+        // Particle budget — kill excess particles to prevent FPS drops
+        var totalParticles = 0;
+        for (var pi = 0; pi < this.proton.emitters.length; pi++) {
+          totalParticles += this.proton.emitters[pi].particles ? this.proton.emitters[pi].particles.length : 0;
+        }
+        if (totalParticles > 500) {
+          for (var pi2 = 0; pi2 < this.proton.emitters.length && totalParticles > 400; pi2++) {
+            var pem = this.proton.emitters[pi2];
+            if (pem.particles && pem.particles.length > 0 && !pem._trailTarget) {
+              var excess = Math.min(pem.particles.length, totalParticles - 400);
+              for (var pj = 0; pj < excess; pj++) {
+                if (pem.particles[pj]) pem.particles[pj].dead = true;
+              }
+              totalParticles -= excess;
+            }
           }
         }
         this.proton.update();
@@ -5822,8 +5839,8 @@ export class FeatureManager {
       var depsOk = true;
       for (var j = 0; j < deps.length; j++) {
         if (!this._features.has(deps[j])) {
-          console.warn('[FeatureManager] Late register: missing dep', deps[j], 'for', id);
-          depsOk = false;
+          console.log('[FeatureManager] Skipping optional dep', deps[j], 'for', id);
+          // Don't block init — most AI features work fine without declared deps
         }
       }
       if (depsOk && runtime.init) {
@@ -5938,7 +5955,7 @@ export class FeatureManager {
     function visit(id: string): void {
       if (visited.has(id)) return;
       if (visiting.has(id)) {
-        console.warn('[FeatureManager] Circular dependency detected at:', id);
+        console.log('[FeatureManager] Circular dependency detected at:', id);
         return;
       }
       visiting.add(id);
@@ -5949,7 +5966,7 @@ export class FeatureManager {
           if (features.has(dep)) {
             visit(dep);
           } else {
-            console.warn('[FeatureManager] Missing dependency:', dep, 'required by', id);
+            console.log('[FeatureManager] Skipping missing dep:', dep, 'for', id);
           }
         }
       }

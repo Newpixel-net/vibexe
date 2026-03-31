@@ -285,7 +285,7 @@ export function expandSeed(seed: number, subGenre: SubGenre): CreativeBrief {
 	let worldBlueprint = 'outdoor-scroll';
 	if (subGenre === 'runner') {
 		worldBlueprint = 'endless-runner';
-	} else if (subGenre === 'shooter') {
+	} else if (subGenre === 'shooter' || subGenre === 'bullet-hell') {
 		worldBlueprint = 'arena';
 	} else if (subGenre === 'rpg' || subGenre === 'topdown-adventure') {
 		worldBlueprint = 'dungeon-topdown';
@@ -400,13 +400,18 @@ export function buildCreativeBriefPrompt(brief: CreativeBrief): string {
 - Grid: ${brief.gridCols} columns x ${brief.gridRows} rows
 - Gem Colors: ${brief.gemColorCount}
 `;
-	} else if (brief.subGenre === "shooter") {
+	} else if (brief.subGenre === "shooter" || brief.subGenre === "bullet-hell") {
 		prompt += `
-### Numeric Parameters (use as CONFIG starting values)
+### Top-Down Shooter — 8-Directional Movement
+**Genre**: 'top-down' (SET CONFIG.genre = 'top-down')
+**Movement**: Player moves in ALL 8 directions (WASD/arrows). No gravity. No jumping.
+**World Blueprint**: ${brief.worldBlueprint}
 - Fire Rate: ${brief.fireRate}s between shots
 - Enemy Spawn Rate: ${brief.enemySpawnRate}s
 - Wave Count: ${brief.waveCount}
-- Move Speed: ${brief.moveSpeed} px/s
+- Move Speed: ${brief.moveSpeed || 200} px/s
+- World: ${brief.worldWidth || 1200} x ${brief.worldHeight || 900}
+- Use Feature Bank feature 'player-topdown' instead of 'player-platformer'
 `;
 	} else if (brief.subGenre === "rpg" || brief.subGenre === "topdown-adventure" || brief.subGenre === "twin-stick") {
 		prompt += `
